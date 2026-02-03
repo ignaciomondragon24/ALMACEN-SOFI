@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Vista Previa - Cartel{% endblock %}
+
+{% block extra_css %}
+<style>
+    .preview-container {
+        background: white;
+        padding: 40px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        margin: 0 auto;
+    }
+    .price-tag {
+        border: 3px solid #333;
+        padding: 20px;
+        text-align: center;
+        background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+        margin-bottom: 20px;
+    }
+    .price-tag .product-name {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+    }
+    .price-tag .price {
+        font-size: 3rem;
+        font-weight: bold;
+        color: #dc3545;
+    }
+    .price-tag .price-decimal {
+        font-size: 1.5rem;
+        vertical-align: super;
+    }
+    .price-tag .barcode {
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 10px;
+    }
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        .preview-container {
+            box-shadow: none;
+            padding: 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h1 class="h3 mb-0">
+                <i class="fas fa-eye me-2"></i>Vista Previa del Cartel
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'signage:home' %}">Cartelería</a></li>
+                    <li class="breadcrumb-item active">Vista Previa</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <button onclick="window.print()" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-print me-2"></i>Imprimir
+            </button>
+            <a href="{% url 'signage:download' generation.pk %}" class="btn btn-success">
+                <i class="fas fa-download me-2"></i>Descargar PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card mb-4 no-print">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <small class="text-muted">Plantilla</small>
+                    <p class="mb-0"><strong>{{ generation.template.name|default:"Sin plantilla" }}</strong></p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Tamaño</small>
+                    <p class="mb-0"><strong>{{ generation.template.get_size_display|default:"-" }}</strong></p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Productos</small>
+                    <p class="mb-0"><strong>{{ products.count }} productos</strong></p>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Generado</small>
+                    <p class="mb-0"><strong>{{ generation.generated_at|date:"d/m/Y H:i" }}</strong></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-container" style="max-width: 800px;">
+        <div class="row">
+            {% for product in products %}
+            <div class="col-md-6 mb-4">
+                <div class="price-tag">
+                    <div class="product-name">{{ product.name }}</div>
+                    {% with price=product.sale_price|floatformat:2 %}
+                    <div class="price">
+                        ${{ price|slice:":-3" }}<span class="price-decimal">{{ price|slice:"-2:" }}</span>
+                    </div>
+                    {% endwith %}
+                    <div class="barcode">{{ product.barcode|default:product.sku }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <p class="text-muted">No hay productos en este cartel</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Back button -->
+    <div class="text-center mt-4 no-print">
+        <a href="{% url 'signage:generate' %}" class="btn btn-outline-primary">
+            <i class="fas fa-plus me-2"></i>Generar Otro Cartel
+        </a>
+        <a href="{% url 'signage:home' %}" class="btn btn-outline-secondary ms-2">
+            <i class="fas fa-arrow-left me-2"></i>Volver a Cartelería
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,102 @@
+"""
+Custom template tags for currency formatting (Argentine Pesos)
+"""
+from django import template
+from decimal import Decimal, InvalidOperation
+
+register = template.Library()
+
+
+@register.filter(name='currency_ar')
+def currency_ar(value):
+    """
+    Format a number as Argentine Peso currency.
+    Example: 1234.56 -> $1.234,56
+    """
+    if value is None:
+        return '$0,00'
+    
+    try:
+        value = Decimal(str(value))
+        # Format with thousand separator (.) and decimal separator (,)
+        formatted = '{:,.2f}'.format(value)
+        # Replace comma with temporary, then period with comma, then temporary with period
+        formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+        return f'${formatted}'
+    except (ValueError, TypeError, InvalidOperation):
+        return '$0,00'
+
+
+@register.filter(name='format_ar')
+def format_ar(value):
+    """
+    Format a number with Argentine separators (no currency symbol).
+    Example: 1234.56 -> 1.234,56
+    """
+    if value is None:
+        return '0,00'
+    
+    try:
+        value = Decimal(str(value))
+        formatted = '{:,.2f}'.format(value)
+        formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+        return formatted
+    except (ValueError, TypeError, InvalidOperation):
+        return '0,00'
+
+
+@register.filter(name='format_quantity')
+def format_quantity(value):
+    """
+    Format a quantity (remove trailing zeros).
+    Example: 2.000 -> 2, 1.500 -> 1,5
+    """
+    if value is None:
+        return '0'
+    
+    try:
+        value = Decimal(str(value))
+        # Remove trailing zeros
+        formatted = '{:f}'.format(value.normalize())
+        # Replace period with comma for Argentine format
+        formatted = formatted.replace('.', ',')
+        return formatted
+    except (ValueError, TypeError, InvalidOperation):
+        return '0'
+
+
+@register.simple_tag
+def currency_symbol():
+    """Return the currency symbol."""
+    return '$'
+
+
+# Alias for currency_ar
+@register.filter(name='currency')
+def currency(value):
+    """Alias for currency_ar."""
+    return currency_ar(value)
+
+
+@register.filter(name='divide')
+def divide(value, arg):
+    """
+    Divide value by arg.
+    Example: {{ 100|divide:4 }} -> 25
+    """
+    try:
+        return Decimal(str(value)) / Decimal(str(arg))
+    except (ValueError, TypeError, InvalidOperation, ZeroDivisionError):
+        return 0
+
+
+@register.filter(name='multiply')
+def multiply(value, arg):
+    """
+    Multiply value by arg.
+    Example: {{ 10|multiply:5 }} -> 50
+    """
+    try:
+        return Decimal(str(value)) * Decimal(str(arg))
+    except (ValueError, TypeError, InvalidOperation):
+        return 0

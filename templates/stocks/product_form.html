@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - CHE GOLOSO{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-{% if product %}edit{% else %}plus{% endif %} me-2"></i>{{ title }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="id_name" class="form-label">Nombre del Producto *</label>
+                                    <input type="text" name="name" id="id_name" 
+                                           class="form-control" value="{{ form.name.value|default:'' }}" required>
+                                    {% if form.name.errors %}
+                                    <div class="text-danger small">{{ form.name.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="id_category" class="form-label">Categoría</label>
+                                    <select name="category" id="id_category" class="form-select">
+                                        <option value="">Sin categoría</option>
+                                        {% for cat in form.category.field.queryset %}
+                                        <option value="{{ cat.pk }}" {% if form.category.value == cat.pk %}selected{% endif %}>
+                                            {{ cat.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_sku" class="form-label">SKU</label>
+                                    <input type="text" name="sku" id="id_sku" 
+                                           class="form-control" value="{{ form.sku.value|default:'' }}"
+                                           placeholder="Código interno">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_barcode" class="form-label">Código de Barras</label>
+                                    <div class="input-group">
+                                        <input type="text" name="barcode" id="id_barcode" 
+                                               class="form-control" value="{{ form.barcode.value|default:'' }}"
+                                               placeholder="EAN-13">
+                                        <button type="button" class="btn btn-outline-secondary" id="btn-generate-barcode" title="Generar código">
+                                            <i class="fas fa-magic"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_unit_of_measure" class="form-label">Unidad de Medida</label>
+                                    <select name="unit_of_measure" id="id_unit_of_measure" class="form-select">
+                                        {% for unit in form.unit_of_measure.field.queryset %}
+                                        <option value="{{ unit.pk }}" {% if form.unit_of_measure.value == unit.pk %}selected{% endif %}>
+                                            {{ unit.name }} ({{ unit.abbreviation }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h6 class="text-muted mb-3"><i class="fas fa-dollar-sign me-2"></i>Precios</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_cost_price" class="form-label">Precio de Costo *</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" name="cost_price" id="id_cost_price" 
+                                               class="form-control text-end" step="0.01" min="0"
+                                               value="{{ form.cost_price.value|default:'0.00' }}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_margin" class="form-label">Margen %</label>
+                                    <div class="input-group">
+                                        <input type="number" name="profit_margin" id="id_margin" 
+                                               class="form-control text-end" step="0.01" min="0"
+                                               value="{{ form.profit_margin.value|default:'30.00' }}">
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_sale_price" class="form-label">Precio de Venta *</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" name="sale_price" id="id_sale_price" 
+                                               class="form-control text-end" step="0.01" min="0"
+                                               value="{{ form.sale_price.value|default:'0.00' }}" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h6 class="text-muted mb-3"><i class="fas fa-boxes me-2"></i>Inventario</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_current_stock" class="form-label">Stock Actual</label>
+                                    <input type="number" name="current_stock" id="id_current_stock" 
+                                           class="form-control text-end" step="0.001" min="0"
+                                           value="{{ form.current_stock.value|default:'0' }}"
+                                           {% if product %}readonly{% endif %}>
+                                    {% if product %}
+                                    <small class="text-muted">Use "Ajustar Stock" para modificar</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_min_stock" class="form-label">Stock Mínimo</label>
+                                    <input type="number" name="min_stock" id="id_min_stock" 
+                                           class="form-control text-end" step="0.001" min="0"
+                                           value="{{ form.min_stock.value|default:'5' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="id_max_stock" class="form-label">Stock Máximo</label>
+                                    <input type="number" name="max_stock" id="id_max_stock" 
+                                           class="form-control text-end" step="0.001" min="0"
+                                           value="{{ form.max_stock.value|default:'100' }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h6 class="text-muted mb-3"><i class="fas fa-cogs me-2"></i>Opciones</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" name="is_active" id="id_is_active" 
+                                           class="form-check-input" value="true"
+                                           {% if form.is_active.value != False %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_is_active">
+                                        Producto Activo
+                                    </label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" name="is_quick_access" id="id_is_quick_access" 
+                                           class="form-check-input" value="true"
+                                           {% if form.is_quick_access.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_is_quick_access">
+                                        Mostrar en Acceso Rápido (POS)
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" name="track_stock" id="id_track_stock" 
+                                           class="form-check-input" value="true"
+                                           {% if form.track_stock.value != False %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_track_stock">
+                                        Controlar Stock
+                                    </label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" name="allow_decimal_quantity" id="id_allow_decimal" 
+                                           class="form-check-input" value="true"
+                                           {% if form.allow_decimal_quantity.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_allow_decimal">
+                                        Permitir Cantidades Decimales
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_description" class="form-label">Descripción</label>
+                            <textarea name="description" id="id_description" 
+                                      class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                <i class="fas fa-save me-1"></i>Guardar Producto
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-calculate sale price from cost and margin
+    document.getElementById('id_cost_price').addEventListener('input', calculateSalePrice);
+    document.getElementById('id_margin').addEventListener('input', calculateSalePrice);
+    
+    function calculateSalePrice() {
+        const cost = parseFloat(document.getElementById('id_cost_price').value) || 0;
+        const margin = parseFloat(document.getElementById('id_margin').value) || 0;
+        const salePrice = cost * (1 + margin / 100);
+        document.getElementById('id_sale_price').value = salePrice.toFixed(2);
+    }
+    
+    // Generate barcode
+    document.getElementById('btn-generate-barcode').addEventListener('click', async function() {
+        try {
+            const response = await fetch('{% url "stocks:generate_barcode" %}');
+            const data = await response.json();
+            if (data.barcode) {
+                document.getElementById('id_barcode').value = data.barcode;
+            }
+        } catch (error) {
+            console.error('Error generating barcode:', error);
+        }
+    });
+</script>
+{% endblock %}

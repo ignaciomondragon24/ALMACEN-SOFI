@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load currency_filters %}
+
+{% block title %}Punto de Venta - CHE GOLOSO{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block body_class %}pos-body{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'css/pos-dark.css' %}" rel="stylesheet">
+<style>
+    /* Keyboard shortcut badges */
+    .shortcut-badge {
+        font-size: 0.65rem;
+        padding: 2px 5px;
+        border-radius: 3px;
+        background: rgba(255,255,255,0.1);
+        color: rgba(255,255,255,0.6);
+        font-family: monospace;
+        margin-left: 5px;
+    }
+    .btn .shortcut-badge {
+        opacity: 0.7;
+    }
+    
+    /* Focus indicator */
+    #product-search:focus {
+        box-shadow: 0 0 0 3px rgba(0, 210, 211, 0.5);
+        border-color: #00d2d3;
+    }
+    
+    /* Quick access button numbers */
+    .quick-btn {
+        position: relative;
+    }
+    .quick-btn::before {
+        content: attr(data-shortcut);
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        font-size: 0.6rem;
+        background: rgba(0,0,0,0.5);
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-family: monospace;
+    }
+    
+    /* Active cart item highlight */
+    .cart-item:last-child {
+        border-left: 3px solid #00d2d3;
+    }
+    
+    /* Help button */
+    .help-float {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 100;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        color: white;
+        font-size: 1.2rem;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        transition: transform 0.2s;
+    }
+    .help-float:hover {
+        transform: scale(1.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pos-container">
+    <!-- Header -->
+    <div class="pos-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="pos-logo">
+                <i class="fas fa-store me-2"></i>CHE GOLOSO
+            </div>
+            <div class="pos-info">
+                <span class="me-3">
+                    <i class="fas fa-user me-1"></i>{{ user.get_short_name|default:user.username }}
+                </span>
+                <span class="me-3">
+                    <i class="fas fa-cash-register me-1"></i>{{ cash_register.name }}
+                </span>
+                <span id="pos-clock">
+                    <i class="fas fa-clock me-1"></i>--:--:--
+                </span>
+            </div>
+            <div class="pos-actions">
+                <a href="{% url 'accounts:dashboard' %}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-home me-1"></i>Dashboard
+                    <span class="shortcut-badge">F12</span>
+                </a>
+                <a href="{% url 'accounts:logout' %}" class="btn btn-outline-danger btn-sm ms-2">
+                    <i class="fas fa-sign-out-alt me-1"></i>Salir
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="pos-main">
+        <!-- Left Panel - Product Search & Cart -->
+        <div class="pos-left">
+            <!-- Search Bar -->
+            <div class="pos-search">
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary">
+                        <i class="fas fa-barcode text-primary"></i>
+                    </span>
+                    <input type="text" 
+                           id="product-search" 
+                           class="form-control bg-dark text-white border-secondary"
+                           placeholder="Escanear código de barras o buscar... (F2)"
+                           autofocus
+                           autocomplete="off">
+                    <button type="button" class="btn btn-primary" id="search-btn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <small class="text-muted mt-1 d-block">
+                    <kbd>Enter</kbd> agregar | <kbd>↑↓</kbd> navegar | <kbd>Esc</kbd> limpiar
+                </small>
+            </div>
+            
+            <!-- Search Results -->
+            <div class="pos-search-results" id="search-results" style="display: none;">
+                <div class="search-results-list" id="search-results-list">
+                    <!-- Results will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Cart -->
+            <div class="pos-cart">
+                <div class="cart-header">
+                    <h5><i class="fas fa-shopping-cart me-2"></i>Carrito</h5>
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="clear-cart">
+                        <i class="fas fa-trash me-1"></i>Vaciar
+                    </button>
+                </div>
+                
+                <div class="cart-items" id="cart-items">
+                    <!-- Cart items will be populated by JavaScript -->
+                    <div class="cart-empty text-center text-muted py-5">
+                        <i class="fas fa-shopping-basket fa-3x mb-3"></i>
+                        <p>El carrito está vacío</p>
+                        <small>Escanee o busque productos para agregar</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Totals & Quick Access -->
+        <div class="pos-right">
+            <!-- Totals -->
+            <div class="pos-totals">
+                <div class="total-row">
+                    <span>Subtotal:</span>
+                    <span id="cart-subtotal">$0,00</span>
+                </div>
+                <div class="total-row discount-row" id="discount-row" style="display: none;">
+                    <span>Descuento:</span>
+                    <span id="cart-discount" class="text-success">-$0,00</span>
+                </div>
+                <div class="total-row total-final">
+                    <span>TOTAL:</span>
+                    <span id="cart-total">$0,00</span>
+                </div>
+                <div class="total-row items-count">
+                    <span>Artículos:</span>
+                    <span id="cart-items-count">0</span>
+                </div>
+            </div>
+            
+            <!-- Quick Access Buttons -->
+            <div class="pos-quick-access">
+                <h6 class="text-muted mb-2">Acceso Rápido</h6>
+                <div class="quick-access-grid" id="quick-access-grid">
+                    {% for button in quick_buttons %}
+                    <button type="button" 
+                            class="quick-btn" 
+                            data-product-id="{{ button.product.id }}"
+                            style="background-color: {{ button.color }};">
+                        <span class="quick-btn-name">{{ button.product.name|truncatechars:15 }}</span>
+                        <span class="quick-btn-price">{{ button.product.selling_price|currency_ar }}</span>
+                    </button>
+                    {% empty %}
+                    <p class="text-muted text-center w-100">
+                        No hay botones configurados
+                    </p>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="pos-action-buttons">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button type="button" class="btn btn-outline-warning w-100 action-btn" id="btn-discount">
+                            <i class="fas fa-percent me-1"></i>Descuento
+                            <span class="shortcut-badge">F6</span>
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-outline-info w-100 action-btn" id="btn-hold">
+                            <i class="fas fa-pause me-1"></i>Apartar
+                            <span class="shortcut-badge">F4</span>
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-outline-danger w-100 action-btn" id="btn-cancel">
+                            <i class="fas fa-times me-1"></i>Cancelar
+                            <span class="shortcut-badge">F7</span>
+                        </button>
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-outline-secondary w-100 action-btn" id="btn-reprint">
+                            <i class="fas fa-print me-1"></i>Reimprimir
+                            <span class="shortcut-badge">F9</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <button type="button" class="btn btn-success w-100 btn-lg mt-3" id="btn-checkout" disabled>
+                    <i class="fas fa-check-circle me-2"></i>COBRAR
+                    <span class="shortcut-badge">F8</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Help floating button -->
+<button type="button" class="help-float" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {key: 'F1'}))">
+    <i class="fas fa-keyboard"></i>
+</button>
+
+<!-- Checkout Modal -->
+<div class="modal fade" id="checkoutModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-money-bill-wave me-2"></i>Cobrar
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Total a Cobrar</h4>
+                        <div class="checkout-total display-4 text-primary mb-4" id="checkout-total">
+                            $0,00
+                        </div>
+                        
+                        <h5>Métodos de Pago</h5>
+                        <div class="payment-methods" id="payment-methods">
+                            {% for method in payment_methods %}
+                            <div class="form-check mb-2">
+                                <input type="checkbox" 
+                                       class="form-check-input payment-method-check" 
+                                       id="payment-{{ method.id }}"
+                                       data-method-id="{{ method.id }}"
+                                       data-method-name="{{ method.name }}">
+                                <label class="form-check-label" for="payment-{{ method.id }}">
+                                    <i class="{{ method.icon }} me-1"></i>{{ method.name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="payment-inputs">
+                            <!-- Payment amount inputs will be added dynamically -->
+                        </div>
+                        
+                        <div class="mt-4 p-3 bg-secondary rounded">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Total Recibido:</span>
+                                <span id="total-received">$0,00</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Vuelto:</span>
+                                <span id="change-amount" class="text-success">$0,00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-success btn-lg" id="confirm-payment" disabled>
+                    <i class="fas fa-check me-2"></i>Confirmar Pago
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quantity Modal -->
+<div class="modal fade" id="quantityModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Cantidad</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="number" 
+                       class="form-control form-control-lg bg-secondary text-white text-center" 
+                       id="quantity-input"
+                       min="0.001"
+                       step="0.001"
+                       value="1">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-quantity">Aceptar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Transaction ID
+    const TRANSACTION_ID = {{ transaction.id }};
+    
+    // API URLs
+    const API_URLS = {
+        search: '{% url "pos:api_search" %}',
+        addToCart: '{% url "pos:api_cart_add" %}',
+        updateCart: '/pos/api/cart/item/',
+        removeFromCart: '/pos/api/cart/item/',
+        clearCart: '/pos/api/cart/{{ transaction.id }}/clear/',
+        getCart: '/pos/api/transaction/{{ transaction.id }}/',
+        checkout: '{% url "pos:api_checkout" %}',
+    };
+    
+    // CSRF Token
+    const CSRF_TOKEN = '{{ csrf_token }}';
+</script>
+<script src="{% static 'js/pos-main.js' %}"></script>
+{% endblock %}

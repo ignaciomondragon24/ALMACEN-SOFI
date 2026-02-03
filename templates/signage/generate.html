@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Generar Cartel{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-plus-circle me-2"></i>Generar Cartel
+        </h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'signage:home' %}">Cartelería</a></li>
+                <li class="breadcrumb-item active">Generar</li>
+            </ol>
+        </nav>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Products Selection -->
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-box me-2"></i>Seleccionar Productos
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Search -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="productSearch" placeholder="Buscar productos...">
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="categoryFilter">
+                                    <option value="">Todas las categorías</option>
+                                    {% for cat in categories %}
+                                    <option value="{{ cat.pk }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-primary w-100" onclick="selectAll()">
+                                    <i class="fas fa-check-double"></i> Todos
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Products Grid -->
+                        <div class="row g-2" id="productGrid" style="max-height: 400px; overflow-y: auto;">
+                            {% for product in products %}
+                            <div class="col-md-4 col-lg-3 product-item" data-category="{{ product.category_id }}" data-name="{{ product.name|lower }}">
+                                <div class="card h-100 product-card" data-id="{{ product.pk }}">
+                                    <div class="card-body p-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input product-checkbox" type="checkbox" 
+                                                   name="products" value="{{ product.pk }}" id="product_{{ product.pk }}">
+                                            <label class="form-check-label small" for="product_{{ product.pk }}">
+                                                <strong>{{ product.name|truncatechars:30 }}</strong>
+                                                <br>
+                                                <span class="text-success">{{ product.sale_price|currency }}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center py-4">
+                                <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No hay productos disponibles</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="col-lg-4">
+                <!-- Template Selection -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-file-alt me-2"></i>Plantilla
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Seleccionar Plantilla <span class="text-danger">*</span></label>
+                            <select name="template" class="form-select" required>
+                                <option value="">Elegir plantilla...</option>
+                                {% for template in templates %}
+                                <option value="{{ template.pk }}" 
+                                        data-type="{{ template.template_type }}"
+                                        {% if request.GET.template == template.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ template.name }} ({{ template.get_size_display }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected Summary -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-list-check me-2"></i>Resumen
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <span>Productos seleccionados:</span>
+                            <strong id="selectedCount">0</strong>
+                        </div>
+                        <div id="selectedProductsList" style="max-height: 200px; overflow-y: auto;">
+                            <p class="text-muted small mb-0" id="noSelectionMsg">Selecciona productos de la lista</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="generateBtn" disabled>
+                                <i class="fas fa-file-pdf me-2"></i>Generar Cartel
+                            </button>
+                            <a href="{% url 'signage:home' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Cancelar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.product-card {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.product-card:hover {
+    border-color: var(--bs-primary);
+}
+.product-card.selected {
+    border-color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productSearch = document.getElementById('productSearch');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const productItems = document.querySelectorAll('.product-item');
+    const checkboxes = document.querySelectorAll('.product-checkbox');
+    const selectedCount = document.getElementById('selectedCount');
+    const selectedProductsList = document.getElementById('selectedProductsList');
+    const noSelectionMsg = document.getElementById('noSelectionMsg');
+    const generateBtn = document.getElementById('generateBtn');
+
+    // Click on card to toggle checkbox
+    document.querySelectorAll('.product-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = this.querySelector('.product-checkbox');
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    // Update selection
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const card = this.closest('.product-card');
+            if (this.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+            updateSummary();
+        });
+    });
+
+    // Search filter
+    productSearch.addEventListener('input', filterProducts);
+    categoryFilter.addEventListener('change', filterProducts);
+
+    function filterProducts() {
+        const search = productSearch.value.toLowerCase();
+        const category = categoryFilter.value;
+
+        productItems.forEach(item => {
+            const name = item.dataset.name;
+            const cat = item.dataset.category;
+            
+            const matchesSearch = !search || name.includes(search);
+            const matchesCategory = !category || cat === category;
+            
+            item.style.display = (matchesSearch && matchesCategory) ? '' : 'none';
+        });
+    }
+
+    function updateSummary() {
+        const selected = document.querySelectorAll('.product-checkbox:checked');
+        selectedCount.textContent = selected.length;
+        
+        if (selected.length > 0) {
+            noSelectionMsg.style.display = 'none';
+            generateBtn.disabled = false;
+            
+            let html = '<ul class="list-unstyled small mb-0">';
+            selected.forEach(cb => {
+                const label = cb.closest('.card-body').querySelector('label strong').textContent;
+                html += `<li><i class="fas fa-check text-success me-1"></i>${label}</li>`;
+            });
+            html += '</ul>';
+            selectedProductsList.innerHTML = html;
+        } else {
+            noSelectionMsg.style.display = 'block';
+            generateBtn.disabled = true;
+            selectedProductsList.innerHTML = '<p class="text-muted small mb-0" id="noSelectionMsg">Selecciona productos de la lista</p>';
+        }
+    }
+
+    window.selectAll = function() {
+        const visibleCheckboxes = document.querySelectorAll('.product-item:not([style*="display: none"]) .product-checkbox');
+        const allChecked = Array.from(visibleCheckboxes).every(cb => cb.checked);
+        
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = !allChecked;
+            cb.dispatchEvent(new Event('change'));
+        });
+    };
+});
+</script>
+{% endblock %}

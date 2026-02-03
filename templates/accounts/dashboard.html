@@ -1,0 +1,391 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Dashboard - CHE GOLOSO{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h2>
+            <p class="text-muted">
+                Bienvenido, {{ user.get_full_name|default:user.username }}
+                {% if is_admin %}
+                <span class="badge bg-danger ms-2">Administrador</span>
+                {% elif is_manager %}
+                <span class="badge bg-warning text-dark ms-2">Gerente</span>
+                {% elif is_stock_manager %}
+                <span class="badge bg-info ms-2">Enc. Stock</span>
+                {% elif is_cashier %}
+                <span class="badge bg-success ms-2">Cajero</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- SECCION CAJERO: Estado del Turno -->
+    {% if can_pos %}
+    <div class="row mb-4">
+        <div class="col-12">
+            {% if user_shift %}
+            <div class="card border-success">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="text-success mb-1">
+                                <i class="fas fa-check-circle me-2"></i>Turno Activo
+                            </h5>
+                            <p class="mb-0">
+                                Caja: <strong>{{ user_shift.cash_register.code }}</strong> | 
+                                Desde: {{ user_shift.opened_at|date:"H:i" }}
+                            </p>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <small class="text-muted d-block">Mis Ventas Hoy</small>
+                            <h4 class="text-success mb-0">{{ my_sales_today|currency_ar|default:"$0,00" }}</h4>
+                            <small class="text-muted">{{ my_transactions_count|default:0 }} transacciones</small>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <a href="{% url 'pos:pos_main' %}" class="btn btn-success btn-lg">
+                                <i class="fas fa-cash-register me-2"></i>Ir al POS
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-warning">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="text-warning mb-1">
+                                <i class="fas fa-exclamation-circle me-2"></i>Sin Turno Activo
+                            </h5>
+                            <p class="mb-0 text-muted">Debes abrir un turno para comenzar a vender</p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{% url 'cashregister:open_shift' %}" class="btn btn-warning btn-lg">
+                                <i class="fas fa-play me-2"></i>Abrir Turno
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h5 class="mb-3"><i class="fas fa-bolt me-2"></i>Acciones Rápidas</h5>
+        </div>
+        
+        {% if can_pos %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <a href="{% url 'pos:pos_main' %}" class="card text-decoration-none h-100 border-primary">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-cash-register fa-2x text-primary mb-2"></i>
+                    <h6 class="card-title mb-0">POS</h6>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if can_stocks %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <a href="{% url 'stocks:product_list' %}" class="card text-decoration-none h-100 border-success">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-boxes fa-2x text-success mb-2"></i>
+                    <h6 class="card-title mb-0">Productos</h6>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if can_promotions %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <a href="{% url 'promotions:promotion_list' %}" class="card text-decoration-none h-100 border-warning">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-tags fa-2x text-warning mb-2"></i>
+                    <h6 class="card-title mb-0">Promociones</h6>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if can_reports %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <a href="{% url 'sales:dashboard' %}" class="card text-decoration-none h-100 border-info">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                    <h6 class="card-title mb-0">Reportes</h6>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if can_signage %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <a href="{% url 'signage:home' %}" class="card text-decoration-none h-100 border-secondary">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-sign fa-2x text-secondary mb-2"></i>
+                    <h6 class="card-title mb-0">Cartelería</h6>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if is_admin %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <a href="{% url 'accounts:user_list' %}" class="card text-decoration-none h-100 border-danger">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-users fa-2x text-danger mb-2"></i>
+                    <h6 class="card-title mb-0">Usuarios</h6>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- SECCION MANAGER/ADMIN: Stats Cards -->
+    {% if can_reports %}
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Ventas Hoy</h6>
+                            <h3 class="mb-0">{{ today_sales|currency_ar|default:"$0,00" }}</h3>
+                        </div>
+                        <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                    </div>
+                    <small>{{ today_transactions|default:0 }} transacciones</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Turnos Abiertos</h6>
+                            <h3 class="mb-0">{{ open_shifts_count|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-user-clock fa-2x opacity-50"></i>
+                    </div>
+                    <small>Cajas en operación</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Stock Bajo</h6>
+                            <h3 class="mb-0">{{ low_stock_count|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                    </div>
+                    <small>Productos por reponer</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Promociones</h6>
+                            <h3 class="mb-0">{{ active_promotions|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-tags fa-2x opacity-50"></i>
+                    </div>
+                    <small>Ofertas activas</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- SECCION MANAGER/ADMIN: Recent Sales -->
+        {% if can_reports %}
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Últimas Ventas</h5>
+                    <a href="{% url 'sales:sale_list' %}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ticket</th>
+                                    <th>Hora</th>
+                                    <th>Caja</th>
+                                    <th>Cajero</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sale in recent_sales %}
+                                <tr>
+                                    <td><code>{{ sale.ticket_number }}</code></td>
+                                    <td>{{ sale.created_at|date:"H:i" }}</td>
+                                    <td>
+                                        {% if sale.session.cash_shift %}
+                                        <span class="badge bg-secondary">
+                                            {{ sale.session.cash_shift.cash_register.code }}
+                                        </span>
+                                        {% else %}-{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sale.session.cash_shift.cashier %}
+                                        {{ sale.session.cash_shift.cashier.get_short_name }}
+                                        {% else %}-{% endif %}
+                                    </td>
+                                    <td class="text-end"><strong>{{ sale.total|currency_ar }}</strong></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                        No hay ventas hoy
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- SECCION STOCK: Low Stock Alert -->
+        {% if can_stocks %}
+        <div class="{% if can_reports %}col-lg-4{% else %}col-lg-6{% endif %} mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Stock Bajo</h5>
+                    <span class="badge bg-danger">{{ low_stock_count|default:0 }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for product in low_stock_products %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ product.name|truncatechars:30 }}</strong>
+                                <br><small class="text-muted">{{ product.category.name }}</small>
+                            </div>
+                            <span class="badge bg-danger rounded-pill">
+                                {{ product.current_stock|floatformat:0 }}
+                            </span>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-4">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2 d-block"></i>
+                            Todo el stock está OK
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% if low_stock_count %}
+                <div class="card-footer">
+                    <a href="{% url 'stocks:low_stock' %}" class="btn btn-warning btn-sm w-100">
+                        <i class="fas fa-eye me-1"></i>Ver todos los productos
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- SECCION STOCK: Resumen de Inventario (solo para stock managers sin acceso a reportes) -->
+        {% if can_stocks and not can_reports %}
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-boxes me-2"></i>Resumen de Inventario</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 border-end">
+                            <h3 class="text-primary">{{ total_products|default:0 }}</h3>
+                            <p class="text-muted mb-0">Productos Activos</p>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-success">{{ total_categories|default:0 }}</h3>
+                            <p class="text-muted mb-0">Categorías</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'stocks:product_create' %}" class="btn btn-success btn-sm">
+                        <i class="fas fa-plus me-1"></i>Nuevo Producto
+                    </a>
+                    <a href="{% url 'stocks:price_list' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-list me-1"></i>Lista de Precios
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- SECCION MANAGER: Turnos Abiertos -->
+    {% if can_reports and open_shifts %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-clock me-2"></i>Turnos Abiertos</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Caja</th>
+                                    <th>Cajero</th>
+                                    <th>Apertura</th>
+                                    <th>Monto Inicial</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for shift in open_shifts %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-primary">{{ shift.cash_register.code }}</span>
+                                        {{ shift.cash_register.name }}
+                                    </td>
+                                    <td>{{ shift.cashier.get_full_name }}</td>
+                                    <td>{{ shift.opened_at|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ shift.initial_amount|currency_ar }}</td>
+                                    <td>
+                                        <a href="{% url 'cashregister:shift_detail' shift.pk %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
