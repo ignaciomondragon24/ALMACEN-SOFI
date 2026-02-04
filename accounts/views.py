@@ -181,11 +181,12 @@ def user_create(request):
             messages.success(request, f'Usuario {user.username} creado correctamente.')
             return redirect('accounts:user_list')
     else:
-        form = UserForm()
+        form = UserForm(initial={'is_active': True})
     
     return render(request, 'accounts/user_form.html', {
         'form': form,
-        'title': 'Crear Usuario'
+        'title': 'Crear Usuario',
+        'is_edit': False
     })
 
 
@@ -216,7 +217,7 @@ def user_edit(request, pk):
     return render(request, 'accounts/user_form.html', {
         'form': form,
         'title': 'Editar Usuario',
-        'editing': True
+        'is_edit': True
     })
 
 
@@ -233,6 +234,23 @@ def user_delete(request, pk):
         return redirect('accounts:user_list')
     
     return render(request, 'accounts/user_confirm_delete.html', {'user': user})
+
+
+@login_required
+@group_required(['Admin'])
+def user_toggle(request, pk):
+    """Activar/desactivar usuario."""
+    user = get_object_or_404(User, pk=pk)
+    
+    if user.pk == request.user.pk:
+        messages.error(request, 'No puedes desactivarte a ti mismo.')
+    else:
+        user.is_active = not user.is_active
+        user.save()
+        estado = 'activado' if user.is_active else 'desactivado'
+        messages.success(request, f'Usuario {user.username} {estado} correctamente.')
+    
+    return redirect('accounts:user_list')
 
 
 @login_required

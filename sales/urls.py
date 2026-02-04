@@ -21,4 +21,7 @@ urlpatterns = [
     # Export
     path('export/excel/', views.export_excel, name='export_excel'),
     path('export/pdf/', views.export_pdf, name='export_pdf'),
+    
+    # API endpoints
+    path('api/today-stats/', views.api_today_stats, name='api_today_stats'),
 ]

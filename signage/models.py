@@ -80,17 +80,57 @@ class SignTemplate(models.Model):
 class SignGeneration(models.Model):
     """Generated sign record."""
     
+    SIGN_TYPES = [
+        ('price', 'Precio Simple'),
+        ('promotion', 'Promoción'),
+        ('offer', 'Oferta'),
+        ('custom', 'Personalizado'),
+    ]
+    
+    SIZE_CHOICES = [
+        ('A4', 'A4 - Grande'),
+        ('A5', 'A5 - Mediano'),
+        ('10x15', '10x15 - Pequeño'),
+    ]
+    
     template = models.ForeignKey(
         SignTemplate,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name='generations',
         verbose_name='Plantilla'
     )
     products = models.ManyToManyField(
         'stocks.Product',
         related_name='sign_generations',
-        verbose_name='Productos'
+        verbose_name='Productos',
+        blank=True
+    )
+    promotion = models.ForeignKey(
+        'promotions.Promotion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sign_generations',
+        verbose_name='Promoción'
+    )
+    sign_type = models.CharField(
+        'Tipo de Cartel',
+        max_length=20,
+        choices=SIGN_TYPES,
+        default='price'
+    )
+    sign_size = models.CharField(
+        'Tamaño',
+        max_length=20,
+        choices=SIZE_CHOICES,
+        default='A4'
+    )
+    custom_text = models.CharField(
+        'Texto Personalizado',
+        max_length=200,
+        blank=True
     )
     generated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

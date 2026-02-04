@@ -1,0 +1,452 @@
+"""
+MercadoPago Point API Service
+Servicio para comunicarse con la API de Mercado Pago Point.
+"""
+import requests
+import logging
+from decimal import Decimal
+from django.utils import timezone
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+class MPPointService:
+    """
+    Servicio para interactuar con la API de Mercado Pago Point.
+    
+    Documentación oficial:
+    https://www.mercadopago.com.ar/developers/es/docs/mp-point/integration-api/introduction
+    """
+    
+    BASE_URL = "https://api.mercadopago.com"
+    SANDBOX_URL = "https://api.mercadopago.com"  # MP usa el mismo URL, el modo se controla con credenciales
+    
+    def __init__(self, credentials=None):
+        """
+        Inicializa el servicio con las credenciales.
+        
+        Args:
+            credentials: Objeto MPCredentials. Si no se provee, busca las credenciales activas.
+        """
+        if credentials is None:
+            from .models import MPCredentials
+            credentials = MPCredentials.get_active()
+        
+        if not credentials:
+            raise ValueError("No hay credenciales de Mercado Pago configuradas")
+        
+        self.credentials = credentials
+        self.access_token = credentials.access_token
+        self.is_sandbox = credentials.is_sandbox
+        self.base_url = self.BASE_URL
+    
+    def _get_headers(self):
+        """Obtiene los headers para las peticiones."""
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": str(timezone.now().timestamp())
+        }
+    
+    def _make_request(self, method, endpoint, data=None, params=None):
+        """
+        Realiza una petición a la API de MP.
+        
+        Args:
+            method: HTTP method (GET, POST, DELETE, etc.)
+            endpoint: Endpoint de la API (sin base URL)
+            data: Datos para enviar en el body (dict)
+            params: Query parameters (dict)
+        
+        Returns:
+            tuple: (success: bool, data: dict)
+        """
+        url = f"{self.base_url}{endpoint}"
+        
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=self._get_headers(),
+                json=data,
+                params=params,
+                timeout=30
+            )
+            
+            logger.info(f"MP API {method} {endpoint} - Status: {response.status_code}")
+            
+            if response.status_code in [200, 201]:
+                return True, response.json()
+            else:
+                error_data = response.json() if response.text else {"error": "Unknown error"}
+                logger.error(f"MP API Error: {error_data}")
+                return False, error_data
+                
+        except requests.exceptions.Timeout:
+            logger.error(f"MP API Timeout: {endpoint}")
+            return False, {"error": "Timeout en la conexión con Mercado Pago"}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"MP API Request Error: {e}")
+            return False, {"error": str(e)}
+        except Exception as e:
+            logger.error(f"MP API Unexpected Error: {e}")
+            return False, {"error": f"Error inesperado: {str(e)}"}
+    
+    # ==================== DISPOSITIVOS ====================
+    
+    def get_devices(self):
+        """
+        Obtiene la lista de dispositivos Point vinculados.
+        
+        Returns:
+            tuple: (success, data)
+        """
+        return self._make_request("GET", "/point/integration-api/devices")
+    
+    def get_device(self, device_id):
+        """
+        Obtiene información de un dispositivo específico.
+        
+        Args:
+            device_id: ID del dispositivo
+        
+        Returns:
+            tuple: (success, data)
+        """
+        return self._make_request("GET", f"/point/integration-api/devices/{device_id}")
+    
+    def change_device_mode(self, device_id, mode="PDV"):
+        """
+        Cambia el modo de operación del dispositivo.
+        
+        Args:
+            device_id: ID del dispositivo
+            mode: "PDV" para integrado, "STANDALONE" para independiente
+        
+        Returns:
+            tuple: (success, data)
+        """
+        data = {"operating_mode": mode}
+        return self._make_request(
+            "PATCH", 
+            f"/point/integration-api/devices/{device_id}",
+            data=data
+        )
+    
+    # ==================== INTENCIONES DE PAGO ====================
+    
+    def create_payment_intent(self, device_id, amount, description="Venta", 
+                              external_reference=None, additional_info=None):
+        """
+        Crea una intención de pago y la envía al dispositivo Point.
+        
+        Args:
+            device_id: ID del dispositivo Point
+            amount: Monto a cobrar (Decimal o float)
+            description: Descripción del cobro
+            external_reference: Referencia externa para rastrear el pago
+            additional_info: Información adicional (dict)
+        
+        Returns:
+            tuple: (success, data)
+        """
+        # Convertir a centavos (MP usa enteros)
+        amount_cents = int(Decimal(str(amount)) * 100)
+        
+        payload = {
+            "amount": amount_cents,
+            "description": description[:50],  # MP limita a 50 caracteres
+        }
+        
+        if external_reference:
+            payload["external_reference"] = external_reference
+        
+        if additional_info:
+            payload["additional_info"] = additional_info
+        
+        return self._make_request(
+            "POST",
+            f"/point/integration-api/devices/{device_id}/payment-intents",
+            data=payload
+        )
+    
+    def get_payment_intent(self, device_id, payment_intent_id):
+        """
+        Obtiene el estado de una intención de pago.
+        
+        Args:
+            device_id: ID del dispositivo
+            payment_intent_id: ID de la intención de pago
+        
+        Returns:
+            tuple: (success, data)
+        """
+        return self._make_request(
+            "GET",
+            f"/point/integration-api/devices/{device_id}/payment-intents/{payment_intent_id}"
+        )
+    
+    def cancel_payment_intent(self, device_id, payment_intent_id):
+        """
+        Cancela una intención de pago pendiente.
+        
+        Args:
+            device_id: ID del dispositivo
+            payment_intent_id: ID de la intención de pago
+        
+        Returns:
+            tuple: (success, data)
+        """
+        return self._make_request(
+            "DELETE",
+            f"/point/integration-api/devices/{device_id}/payment-intents/{payment_intent_id}"
+        )
+    
+    def get_last_payment_intent_status(self, device_id):
+        """
+        Obtiene el estado de la última intención de pago del dispositivo.
+        
+        Args:
+            device_id: ID del dispositivo
+        
+        Returns:
+            tuple: (success, data)
+        """
+        return self._make_request(
+            "GET",
+            f"/point/integration-api/devices/{device_id}/payment-intents"
+        )
+    
+    # ==================== PAGOS ====================
+    
+    def get_payment(self, payment_id):
+        """
+        Obtiene información detallada de un pago.
+        
+        Args:
+            payment_id: ID del pago en MP
+        
+        Returns:
+            tuple: (success, data)
+        """
+        return self._make_request("GET", f"/v1/payments/{payment_id}")
+    
+    def search_payments(self, external_reference=None, date_from=None, date_to=None):
+        """
+        Busca pagos con filtros.
+        
+        Args:
+            external_reference: Referencia externa
+            date_from: Fecha desde (datetime)
+            date_to: Fecha hasta (datetime)
+        
+        Returns:
+            tuple: (success, data)
+        """
+        params = {}
+        
+        if external_reference:
+            params["external_reference"] = external_reference
+        if date_from:
+            params["begin_date"] = date_from.isoformat()
+        if date_to:
+            params["end_date"] = date_to.isoformat()
+        
+        return self._make_request("GET", "/v1/payments/search", params=params)
+    
+    # ==================== REFUNDS ====================
+    
+    def create_refund(self, payment_id, amount=None):
+        """
+        Crea una devolución total o parcial.
+        
+        Args:
+            payment_id: ID del pago a devolver
+            amount: Monto a devolver (None para total)
+        
+        Returns:
+            tuple: (success, data)
+        """
+        data = {}
+        if amount:
+            data["amount"] = float(amount)
+        
+        return self._make_request("POST", f"/v1/payments/{payment_id}/refunds", data=data)
+
+
+class PaymentIntentManager:
+    """
+    Manager para manejar el flujo de intenciones de pago.
+    """
+    
+    def __init__(self):
+        self.service = None
+    
+    def _get_service(self):
+        """Obtiene o inicializa el servicio."""
+        if self.service is None:
+            self.service = MPPointService()
+        return self.service
+    
+    def create_and_send(self, device, amount, pos_transaction=None, user=None, description=None):
+        """
+        Crea una intención de pago y la envía al dispositivo.
+        
+        Args:
+            device: PointDevice instance
+            amount: Monto a cobrar
+            pos_transaction: POSTransaction relacionada (opcional)
+            user: Usuario que crea el pago
+            description: Descripción personalizada
+        
+        Returns:
+            tuple: (success, PaymentIntent or error_message)
+        """
+        from .models import PaymentIntent
+        
+        # Crear el registro local
+        payment_intent = PaymentIntent(
+            device=device,
+            amount=Decimal(str(amount)),
+            pos_transaction=pos_transaction,
+            created_by=user,
+            description=description or "Venta CHE GOLOSO"
+        )
+        payment_intent.save()  # Esto genera el external_reference
+        
+        try:
+            service = self._get_service()
+            
+            # Enviar al dispositivo
+            success, response = service.create_payment_intent(
+                device_id=device.device_id,
+                amount=amount,
+                description=payment_intent.description,
+                external_reference=payment_intent.external_reference
+            )
+            
+            if success:
+                # Actualizar con el ID de MP
+                payment_intent.mp_payment_intent_id = response.get("id", "")
+                payment_intent.status = "processing"
+                payment_intent.sent_at = timezone.now()
+                payment_intent.save()
+                
+                logger.info(f"Payment intent enviado: {payment_intent.external_reference}")
+                return True, payment_intent
+            else:
+                # Error al enviar
+                error_msg = response.get("message", response.get("error", "Error desconocido"))
+                payment_intent.mark_error(error_msg)
+                logger.error(f"Error al enviar payment intent: {error_msg}")
+                return False, error_msg
+                
+        except Exception as e:
+            payment_intent.mark_error(str(e))
+            logger.exception(f"Excepción al crear payment intent: {e}")
+            return False, str(e)
+    
+    def check_status(self, payment_intent):
+        """
+        Consulta el estado actual de una intención de pago.
+        
+        Args:
+            payment_intent: PaymentIntent instance
+        
+        Returns:
+            tuple: (success, status_data or error)
+        """
+        try:
+            service = self._get_service()
+            
+            if not payment_intent.mp_payment_intent_id:
+                return False, "La intención de pago no tiene ID de MP"
+            
+            success, response = service.get_payment_intent(
+                device_id=payment_intent.device.device_id,
+                payment_intent_id=payment_intent.mp_payment_intent_id
+            )
+            
+            if success:
+                return True, response
+            else:
+                return False, response.get("error", "Error al consultar estado")
+                
+        except Exception as e:
+            logger.exception(f"Error al consultar estado: {e}")
+            return False, str(e)
+    
+    def cancel(self, payment_intent):
+        """
+        Cancela una intención de pago.
+        
+        Args:
+            payment_intent: PaymentIntent instance
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if payment_intent.is_terminal_state:
+            return False, "La intención de pago ya está en estado final"
+        
+        try:
+            service = self._get_service()
+            
+            if payment_intent.mp_payment_intent_id:
+                success, response = service.cancel_payment_intent(
+                    device_id=payment_intent.device.device_id,
+                    payment_intent_id=payment_intent.mp_payment_intent_id
+                )
+                
+                if not success:
+                    logger.warning(f"Error al cancelar en MP: {response}")
+            
+            payment_intent.mark_cancelled()
+            return True, "Intención de pago cancelada"
+            
+        except Exception as e:
+            logger.exception(f"Error al cancelar: {e}")
+            return False, str(e)
+    
+    def sync_devices(self):
+        """
+        Sincroniza los dispositivos desde Mercado Pago.
+        
+        Returns:
+            tuple: (success, devices_synced or error)
+        """
+        from .models import PointDevice
+        
+        try:
+            service = self._get_service()
+            success, response = service.get_devices()
+            
+            if not success:
+                return False, response.get("error", "Error al obtener dispositivos")
+            
+            devices = response.get("devices", [])
+            synced = []
+            
+            for device_data in devices:
+                device, created = PointDevice.objects.update_or_create(
+                    device_id=device_data["id"],
+                    defaults={
+                        "device_name": device_data.get("store_name", device_data["id"]),
+                        "serial_number": device_data.get("serial_number", ""),
+                        "operating_mode": device_data.get("operating_mode", "PDV"),
+                        "last_sync": timezone.now(),
+                    }
+                )
+                synced.append(device)
+                logger.info(f"Dispositivo sincronizado: {device.device_id}")
+            
+            return True, synced
+            
+        except Exception as e:
+            logger.exception(f"Error al sincronizar dispositivos: {e}")
+            return False, str(e)
+
+
+# Instancia global del manager
+payment_manager = PaymentIntentManager()

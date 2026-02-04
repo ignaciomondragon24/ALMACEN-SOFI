@@ -18,6 +18,7 @@ urlpatterns = [
     path('users/create/', views.user_create, name='user_create'),
     path('users/<int:pk>/edit/', views.user_edit, name='user_edit'),
     path('users/<int:pk>/delete/', views.user_delete, name='user_delete'),
+    path('users/<int:pk>/toggle/', views.user_toggle, name='user_toggle'),
     
     # Profile
     path('profile/', views.profile_view, name='profile'),

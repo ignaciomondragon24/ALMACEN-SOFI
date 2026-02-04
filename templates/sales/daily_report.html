@@ -146,5 +146,45 @@
             </div>
         </div>
     </div>
+
+    <!-- By Payment Method -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-credit-card me-2"></i>Por Método de Pago
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if by_payment %}
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Método</th>
+                                <th class="text-end">Transacciones</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in by_payment %}
+                            <tr>
+                                <td>
+                                    <i class="{{ item.payment_method__icon|default:'fas fa-money-bill-wave' }} me-2" style="color: {{ item.payment_method__color|default:'#198754' }}"></i>
+                                    {{ item.payment_method__name }}
+                                </td>
+                                <td class="text-end">{{ item.count }}</td>
+                                <td class="text-end"><strong>{{ item.total|currency }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted text-center py-4">Sin datos de pagos</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

@@ -14,6 +14,9 @@ urlpatterns = [
     # Suspended transactions
     path('suspended/', views.suspended_transactions, name='suspended'),
     
+    # Ticket printing
+    path('ticket/<int:transaction_id>/', views.print_ticket, name='print_ticket'),
+    
     # API endpoints
     path('api/search/', views.api_search, name='api_search'),
     path('api/cart/add/', views.api_cart_add, name='api_cart_add'),
@@ -23,8 +26,12 @@ urlpatterns = [
     path('api/cart/item/<int:item_id>/remove/', views.api_cart_remove, name='api_cart_remove'),
     path('api/cart/<int:transaction_id>/clear/', views.api_cart_clear, name='api_cart_clear'),
     path('api/transaction/<int:transaction_id>/', views.api_transaction_detail, name='api_transaction_detail'),
+    path('api/transaction/<int:transaction_id>/cost-total/', views.api_calculate_cost_total, name='api_calculate_cost_total'),
     path('api/checkout/', views.api_checkout, name='api_checkout'),
+    path('api/checkout/cost-sale/', views.api_checkout_cost_sale, name='api_checkout_cost_sale'),
+    path('api/checkout/internal-consumption/', views.api_checkout_internal_consumption, name='api_checkout_internal_consumption'),
     path('api/transaction/<int:transaction_id>/suspend/', views.api_transaction_suspend, name='api_transaction_suspend'),
     path('api/transaction/<int:transaction_id>/resume/', views.api_transaction_resume, name='api_transaction_resume'),
     path('api/transaction/<int:transaction_id>/cancel/', views.api_transaction_cancel, name='api_transaction_cancel'),
+    path('api/last-transaction/', views.api_last_transaction, name='api_last_transaction'),
 ]

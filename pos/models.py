@@ -69,6 +69,12 @@ class POSTransaction(models.Model):
         ('suspended', 'Suspendida'),
     ]
     
+    TRANSACTION_TYPE_CHOICES = [
+        ('sale', 'Venta'),
+        ('cost_sale', 'Venta al Costo'),
+        ('internal_consumption', 'Consumo Interno'),
+    ]
+    
     session = models.ForeignKey(
         POSSession,
         on_delete=models.CASCADE,
@@ -86,6 +92,12 @@ class POSTransaction(models.Model):
         max_length=20,
         choices=STATUS_CHOICES,
         default='pending'
+    )
+    transaction_type = models.CharField(
+        'Tipo de Transacción',
+        max_length=30,
+        choices=TRANSACTION_TYPE_CHOICES,
+        default='sale'
     )
     
     # Totals

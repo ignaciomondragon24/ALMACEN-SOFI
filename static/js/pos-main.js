@@ -592,6 +592,9 @@
     function renderCart() {
         if (!cartItems) return;
         
+        const btnCostSale = document.getElementById('btn-cost-sale');
+        const btnInternalConsumption = document.getElementById('btn-internal-consumption');
+        
         if (!cart.items || cart.items.length === 0) {
             cartItems.innerHTML = `
                 <div class="cart-empty text-center text-muted py-5">
@@ -601,6 +604,8 @@
                 </div>
             `;
             if (btnCheckout) btnCheckout.disabled = true;
+            if (btnCostSale) btnCostSale.disabled = true;
+            if (btnInternalConsumption) btnInternalConsumption.disabled = true;
         } else {
             cartItems.innerHTML = cart.items.map(item => `
                 <div class="cart-item" data-item-id="${item.id}">
@@ -631,6 +636,8 @@
             `).join('');
             
             if (btnCheckout) btnCheckout.disabled = false;
+            if (btnCostSale) btnCostSale.disabled = false;
+            if (btnInternalConsumption) btnInternalConsumption.disabled = false;
             
             // Add event listeners
             cartItems.querySelectorAll('.cart-item').forEach(itemEl => {
@@ -759,6 +766,274 @@
                 }
             });
         }
+        
+        // Cost Sale button
+        const btnCostSale = document.getElementById('btn-cost-sale');
+        if (btnCostSale) {
+            btnCostSale.addEventListener('click', () => {
+                if (cart.items.length === 0) {
+                    showToast('El carrito está vacío', 'warning');
+                    return;
+                }
+                openCostSaleModal();
+            });
+        }
+        
+        // Internal Consumption button
+        const btnInternalConsumption = document.getElementById('btn-internal-consumption');
+        if (btnInternalConsumption) {
+            btnInternalConsumption.addEventListener('click', () => {
+                if (cart.items.length === 0) {
+                    showToast('El carrito está vacío', 'warning');
+                    return;
+                }
+                openInternalConsumptionModal();
+            });
+        }
+    }
+    
+    // Cost Sale Modal Functions
+    function openCostSaleModal() {
+        const costSaleModal = document.getElementById('costSaleModal');
+        if (!costSaleModal) return;
+        
+        // Calculate cost total (estimate - real calculation happens on server)
+        // We'll show the current total as estimate
+        const costSaleTotal = document.getElementById('cost-sale-total');
+        if (costSaleTotal) {
+            costSaleTotal.textContent = 'Calculando...';
+        }
+        
+        // Clear items list temporarily
+        const costSaleItems = document.getElementById('cost-sale-items');
+        if (costSaleItems) {
+            costSaleItems.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Calculando costos...</div>';
+        }
+        
+        // Fetch cost total from server
+        fetchCostTotal();
+        
+        const modal = new bootstrap.Modal(costSaleModal);
+        modal.show();
+        
+        // Setup confirm button
+        const confirmBtn = document.getElementById('confirm-cost-sale');
+        if (confirmBtn) {
+            // Remove old listeners
+            const newBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+            
+            newBtn.addEventListener('click', processCostSale);
+        }
+    }
+    
+    async function fetchCostTotal() {
+        const costSaleTotal = document.getElementById('cost-sale-total');
+        const costSaleItems = document.getElementById('cost-sale-items');
+        
+        try {
+            const response = await fetch(API_URLS.calculateCost);
+            const data = await response.json();
+            
+            if (data.success) {
+                // Store the cost total for later use
+                window.costSaleTotal = data.total_cost;
+                
+                if (costSaleTotal) {
+                    costSaleTotal.textContent = formatCurrency(data.total_cost);
+                }
+                
+                if (costSaleItems && data.items) {
+                    costSaleItems.innerHTML = data.items.map(item => `
+                        <div class="d-flex justify-content-between py-1 border-bottom border-secondary">
+                            <span>${item.product_name} x ${item.quantity}</span>
+                            <span>${formatCurrency(item.total)}</span>
+                        </div>
+                    `).join('');
+                }
+            } else {
+                if (costSaleTotal) {
+                    costSaleTotal.textContent = 'Error';
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching cost total:', error);
+            if (costSaleTotal) {
+                costSaleTotal.textContent = 'Error de conexión';
+            }
+        }
+    }
+    
+    async function processCostSale() {
+        const note = document.getElementById('cost-sale-note')?.value || '';
+        const selectedMethod = document.querySelector('input[name="cost-payment-method"]:checked');
+        
+        if (!selectedMethod) {
+            showToast('Seleccione un método de pago', 'warning');
+            return;
+        }
+        
+        const costTotal = window.costSaleTotal || 0;
+        if (costTotal <= 0) {
+            showToast('Error: No se pudo calcular el costo', 'error');
+            return;
+        }
+        
+        const confirmBtn = document.getElementById('confirm-cost-sale');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+        }
+        
+        try {
+            const response = await fetch(API_URLS.costSale, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    transaction_id: TRANSACTION_ID,
+                    payments: [{
+                        method_id: selectedMethod.dataset.methodId,
+                        method_code: selectedMethod.dataset.methodCode,
+                        amount: costTotal
+                    }],
+                    note: note
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(`Venta al costo completada. Total: ${formatCurrency(data.total)}`, 'success');
+                
+                // Close modal and redirect to ticket
+                bootstrap.Modal.getInstance(document.getElementById('costSaleModal'))?.hide();
+                
+                if (data.transaction_id) {
+                    window.open(`/pos/ticket/${data.transaction_id}/`, '_blank');
+                }
+                
+                window.location.reload();
+            } else {
+                showToast(data.error || 'Error al procesar venta al costo', 'error');
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Venta al Costo';
+                }
+            }
+        } catch (error) {
+            console.error('Cost sale error:', error);
+            showToast('Error de conexión', 'error');
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Venta al Costo';
+            }
+        }
+    }
+    
+    // Internal Consumption Modal Functions
+    function openInternalConsumptionModal() {
+        const consumptionModal = document.getElementById('internalConsumptionModal');
+        if (!consumptionModal) return;
+        
+        // Populate items list
+        const consumptionItems = document.getElementById('consumption-items');
+        if (consumptionItems && cart.items) {
+            consumptionItems.innerHTML = cart.items.map(item => `
+                <div class="d-flex justify-content-between py-1 border-bottom border-secondary">
+                    <span>${item.product_name || item.name}</span>
+                    <span>x ${item.quantity}</span>
+                </div>
+            `).join('');
+        }
+        
+        // Fetch real cost value
+        const costValue = document.getElementById('consumption-cost-value');
+        if (costValue) {
+            costValue.textContent = 'Calculando...';
+            fetch(API_URLS.calculateCost)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        costValue.textContent = formatCurrency(data.total_cost);
+                    }
+                })
+                .catch(() => {
+                    costValue.textContent = 'N/A';
+                });
+        }
+        
+        const modal = new bootstrap.Modal(consumptionModal);
+        modal.show();
+        
+        // Setup confirm button
+        const confirmBtn = document.getElementById('confirm-consumption');
+        if (confirmBtn) {
+            // Remove old listeners
+            const newBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+            
+            newBtn.addEventListener('click', processInternalConsumption);
+        }
+    }
+    
+    async function processInternalConsumption() {
+        const note = document.getElementById('consumption-note')?.value || '';
+        
+        if (!note.trim()) {
+            showToast('Ingrese quién consume para el registro', 'warning');
+            return;
+        }
+        
+        const confirmBtn = document.getElementById('confirm-consumption');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+        }
+        
+        try {
+            const response = await fetch(API_URLS.internalConsumption, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    transaction_id: TRANSACTION_ID,
+                    note: note
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(`Consumo interno registrado. Ticket: ${data.ticket_number}`, 'success');
+                
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('internalConsumptionModal'))?.hide();
+                
+                if (data.transaction_id) {
+                    window.open(`/pos/ticket/${data.transaction_id}/`, '_blank');
+                }
+                
+                window.location.reload();
+            } else {
+                showToast(data.error || 'Error al registrar consumo', 'error');
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Consumo';
+                }
+            }
+        } catch (error) {
+            console.error('Internal consumption error:', error);
+            showToast('Error de conexión', 'error');
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Consumo';
+            }
+        }
     }
 
     // Checkout
@@ -795,8 +1070,12 @@
             checkbox.addEventListener('change', function() {
                 const methodId = this.dataset.methodId;
                 const methodName = this.dataset.methodName;
+                const methodCode = this.dataset.methodCode;
                 
                 if (this.checked) {
+                    // Check if Mercado Pago Point method
+                    const isMercadoPago = methodCode === 'mercadopago' || methodCode === 'mp_point';
+                    
                     // Add input
                     const inputHtml = `
                         <div class="payment-method-input mb-3" id="input-method-${methodId}">
@@ -806,10 +1085,19 @@
                                 <input type="number" 
                                        class="form-control bg-dark text-white payment-amount" 
                                        data-method-id="${methodId}"
+                                       data-method-code="${methodCode || ''}"
                                        step="0.01" 
                                        min="0"
                                        value="${cart.total.toFixed(2)}">
                             </div>
+                            ${isMercadoPago ? `
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-info btn-sm btn-mp-point" data-method-id="${methodId}">
+                                    <i class="fas fa-mobile-alt me-1"></i>Enviar a Point
+                                </button>
+                                <span class="ms-2 mp-status text-muted small" id="mp-status-${methodId}"></span>
+                            </div>
+                            ` : ''}
                         </div>
                     `;
                     if (paymentInputs) {
@@ -822,6 +1110,14 @@
                             input.select();
                             input.addEventListener('input', updatePaymentTotals);
                         }
+                        
+                        // Add Mercado Pago Point button handler
+                        if (isMercadoPago) {
+                            const mpBtn = paymentInputs.querySelector(`.btn-mp-point[data-method-id="${methodId}"]`);
+                            if (mpBtn) {
+                                mpBtn.addEventListener('click', () => handleMercadoPagoPoint(methodId));
+                            }
+                        }
                     }
                 } else {
                     // Remove input
@@ -832,6 +1128,108 @@
                 updatePaymentTotals();
             });
         });
+        
+        // Handle Mercado Pago Point integration
+        async function handleMercadoPagoPoint(methodId) {
+            const input = document.querySelector(`.payment-amount[data-method-id="${methodId}"]`);
+            const statusEl = document.getElementById(`mp-status-${methodId}`);
+            const mpBtn = document.querySelector(`.btn-mp-point[data-method-id="${methodId}"]`);
+            
+            if (!input) return;
+            
+            const amount = parseFloat(input.value) || 0;
+            if (amount <= 0) {
+                showToast('Ingrese un monto válido', 'warning');
+                return;
+            }
+            
+            try {
+                mpBtn.disabled = true;
+                mpBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
+                statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con Point...';
+                statusEl.className = 'ms-2 mp-status text-info small';
+                
+                const response = await fetch('/mercadopago/api/create-intent/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': CSRF_TOKEN
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        transaction_id: TRANSACTION_ID,
+                        description: `Venta POS - ${cart.itemCount} items`
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusEl.innerHTML = '<i class="fas fa-check text-success"></i> Enviado al Point';
+                    statusEl.className = 'ms-2 mp-status text-success small';
+                    mpBtn.innerHTML = '<i class="fas fa-check me-1"></i>Enviado';
+                    
+                    // Start polling for payment status
+                    if (data.payment_intent && data.payment_intent.id) {
+                        pollMercadoPagoStatus(data.payment_intent.id, methodId, statusEl, mpBtn);
+                    }
+                    
+                    showToast('Pago enviado al Point. Esperando confirmación...', 'info');
+                } else {
+                    throw new Error(data.error || 'Error al conectar con Mercado Pago');
+                }
+            } catch (error) {
+                console.error('MP Point error:', error);
+                statusEl.innerHTML = '<i class="fas fa-times text-danger"></i> Error';
+                statusEl.className = 'ms-2 mp-status text-danger small';
+                mpBtn.disabled = false;
+                mpBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                showToast(error.message || 'Error al conectar con Mercado Pago Point', 'error');
+            }
+        }
+        
+        // Poll for Mercado Pago payment status
+        async function pollMercadoPagoStatus(paymentIntentId, methodId, statusEl, mpBtn) {
+            let attempts = 0;
+            const maxAttempts = 60; // 2 minutes max
+            
+            const pollInterval = setInterval(async () => {
+                attempts++;
+                
+                if (attempts > maxAttempts) {
+                    clearInterval(pollInterval);
+                    statusEl.innerHTML = '<i class="fas fa-clock text-warning"></i> Tiempo agotado';
+                    mpBtn.disabled = false;
+                    mpBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/mercadopago/api/status/${paymentIntentId}/`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'approved' || data.status === 'FINISHED') {
+                        clearInterval(pollInterval);
+                        statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> ¡Pago aprobado!';
+                        mpBtn.classList.remove('btn-info');
+                        mpBtn.classList.add('btn-success');
+                        mpBtn.innerHTML = '<i class="fas fa-check me-1"></i>Aprobado';
+                        showToast('¡Pago con Mercado Pago aprobado!', 'success');
+                    } else if (data.status === 'rejected' || data.status === 'cancelled' || data.status === 'CANCELED') {
+                        clearInterval(pollInterval);
+                        statusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Rechazado';
+                        mpBtn.disabled = false;
+                        mpBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                        showToast('Pago rechazado o cancelado', 'warning');
+                    } else {
+                        // Still processing
+                        statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Esperando... (${attempts}s)`;
+                    }
+                } catch (error) {
+                    console.error('Poll error:', error);
+                }
+            }, 2000); // Poll every 2 seconds
+        }
         
         function updatePaymentTotals() {
             let total = 0;
@@ -890,19 +1288,9 @@
                     
                     if (data.success) {
                         bootstrap.Modal.getInstance(checkoutModal).hide();
-                        showToast(`¡Venta completada! Ticket: ${data.ticket_number}`, 'success');
                         
-                        // Show change amount
-                        if (data.change > 0) {
-                            setTimeout(() => {
-                                alert(`Vuelto: ${formatCurrency(data.change)}`);
-                            }, 500);
-                        }
-                        
-                        // Reload to start new transaction
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1500);
+                        // Show success modal with print option
+                        showSaleSuccessModal(data);
                     } else {
                         showToast(data.error || 'Error al procesar la venta', 'error');
                     }
@@ -915,6 +1303,76 @@
                 }
             });
         }
+    }
+    
+    // Show sale success modal with print option
+    function showSaleSuccessModal(data) {
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="saleSuccessModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content bg-dark text-white">
+                        <div class="modal-body text-center py-5">
+                            <div class="mb-4">
+                                <i class="fas fa-check-circle text-success" style="font-size: 5rem;"></i>
+                            </div>
+                            <h3 class="mb-3">¡Venta Completada!</h3>
+                            <p class="mb-2 text-muted">Ticket: <strong class="text-white">${data.ticket_number}</strong></p>
+                            <p class="mb-4 h4">Total: <strong class="text-success">${formatCurrency(data.total)}</strong></p>
+                            ${data.change > 0 ? `
+                                <div class="alert alert-warning mb-4">
+                                    <i class="fas fa-coins me-2"></i>
+                                    <strong>Vuelto: ${formatCurrency(data.change)}</strong>
+                                </div>
+                            ` : ''}
+                            <div class="d-flex justify-content-center gap-3">
+                                <button type="button" class="btn btn-outline-light btn-lg" id="btnSkipPrint">
+                                    <i class="fas fa-forward me-2"></i>Continuar
+                                </button>
+                                <button type="button" class="btn btn-primary btn-lg" id="btnPrintTicket">
+                                    <i class="fas fa-print me-2"></i>Imprimir Ticket
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('saleSuccessModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const successModal = document.getElementById('saleSuccessModal');
+        const modal = new bootstrap.Modal(successModal);
+        modal.show();
+        
+        // Print ticket button
+        document.getElementById('btnPrintTicket').addEventListener('click', () => {
+            // Open print window
+            window.open(`/pos/ticket/${data.transaction_id}/`, '_blank', 'width=400,height=600');
+            // Continue after short delay
+            setTimeout(() => {
+                modal.hide();
+                window.location.reload();
+            }, 500);
+        });
+        
+        // Skip print button
+        document.getElementById('btnSkipPrint').addEventListener('click', () => {
+            modal.hide();
+            window.location.reload();
+        });
+        
+        // Cleanup on hide
+        successModal.addEventListener('hidden.bs.modal', () => {
+            successModal.remove();
+        });
     }
 
     // Keyboard Shortcuts
@@ -959,6 +1417,30 @@
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         document.getElementById('confirm-quantity')?.click();
+                    }
+                }
+                
+                // Cost sale modal shortcuts
+                if (modalId === 'costSaleModal') {
+                    if (e.key === 'Enter' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+                        e.preventDefault();
+                        document.getElementById('confirm-cost-sale')?.click();
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        bootstrap.Modal.getInstance(activeModal).hide();
+                    }
+                }
+                
+                // Internal consumption modal shortcuts
+                if (modalId === 'internalConsumptionModal') {
+                    if (e.key === 'Enter' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+                        e.preventDefault();
+                        document.getElementById('confirm-consumption')?.click();
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        bootstrap.Modal.getInstance(activeModal).hide();
                     }
                 }
                 
@@ -1047,6 +1529,18 @@
                     // F9 - Reprint last ticket
                     e.preventDefault();
                     document.getElementById('btn-reprint')?.click();
+                    break;
+                
+                case 'F10':
+                    // F10 - Cost sale
+                    e.preventDefault();
+                    document.getElementById('btn-cost-sale')?.click();
+                    break;
+                
+                case 'F11':
+                    // F11 - Internal consumption
+                    e.preventDefault();
+                    document.getElementById('btn-internal-consumption')?.click();
                     break;
                     
                 case 'F12':
@@ -1147,6 +1641,8 @@
                                     <tr><td><kbd>F7</kbd></td><td>Cancelar venta</td></tr>
                                     <tr><td><kbd>F8</kbd></td><td>Cobrar / Pagar</td></tr>
                                     <tr><td><kbd>F9</kbd></td><td>Reimprimir ticket</td></tr>
+                                    <tr><td><kbd>F10</kbd></td><td>Venta al costo</td></tr>
+                                    <tr><td><kbd>F11</kbd></td><td>Consumo interno</td></tr>
                                     <tr><td><kbd>F12</kbd></td><td>Salir del POS</td></tr>
                                     <tr><td><kbd>Esc</kbd></td><td>Limpiar búsqueda</td></tr>
                                     <tr><td><kbd>Enter</kbd></td><td>Agregar producto buscado</td></tr>

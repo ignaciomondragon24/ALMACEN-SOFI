@@ -28,7 +28,8 @@
                         <tr>
                             <th>#</th>
                             <th>Fecha</th>
-                            <th>Plantilla</th>
+                            <th>Tipo</th>
+                            <th>Promoción</th>
                             <th>Productos</th>
                             <th>Generado por</th>
                             <th class="text-center">Acciones</th>
@@ -40,14 +41,25 @@
                             <td><strong>{{ gen.pk }}</strong></td>
                             <td>{{ gen.generated_at|date:"d/m/Y H:i" }}</td>
                             <td>
-                                {% if gen.template %}
-                                    <span class="badge bg-secondary">{{ gen.template.name }}</span>
+                                {% if gen.sign_type == 'promotion' %}
+                                    <span class="badge bg-danger"><i class="fas fa-tags me-1"></i>Promoción</span>
+                                {% elif gen.sign_type == 'offer' %}
+                                    <span class="badge bg-warning text-dark"><i class="fas fa-percentage me-1"></i>Oferta</span>
+                                {% elif gen.sign_type == 'custom' %}
+                                    <span class="badge bg-info"><i class="fas fa-edit me-1"></i>Personalizado</span>
+                                {% else %}
+                                    <span class="badge bg-success"><i class="fas fa-dollar-sign me-1"></i>Precio</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if gen.promotion %}
+                                    <span class="badge bg-primary">{{ gen.promotion.name }}</span>
                                 {% else %}
                                     <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="badge bg-primary">{{ gen.products.count }}</span> productos
+                                <span class="badge bg-secondary">{{ gen.products.count }}</span> productos
                             </td>
                             <td>{{ gen.generated_by.get_full_name|default:gen.generated_by.username }}</td>
                             <td class="text-center">

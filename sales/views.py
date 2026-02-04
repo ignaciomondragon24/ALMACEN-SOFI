@@ -5,13 +5,13 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Avg, F
 from django.db.models.functions import TruncDate, TruncMonth
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 from .models import Sale
-from pos.models import POSTransaction, POSTransactionItem, POSSession
+from pos.models import POSTransaction, POSTransactionItem, POSSession, POSPayment
 from cashregister.models import CashShift, PaymentMethod
 from stocks.models import Product, ProductCategory
 from decorators.decorators import group_required
@@ -54,8 +54,18 @@ def reports_dashboard(request):
         status='completed'
     ).select_related('session__cash_shift__cash_register', 'session__cash_shift__cashier').order_by('-created_at')[:10]
     
-    # Sales by payment method today - simplified for now
-    payment_stats = []
+    # Sales by payment method today - AHORA FUNCIONAL
+    payment_stats = POSPayment.objects.filter(
+        transaction__created_at__date=today,
+        transaction__status='completed'
+    ).values(
+        'payment_method__name',
+        'payment_method__icon',
+        'payment_method__color'
+    ).annotate(
+        total=Sum('amount'),
+        count=Count('id')
+    ).order_by('-total')
     
     context = {
         'today_sales': today_sales,
@@ -139,12 +149,26 @@ def daily_report(request):
         count=Count('id')
     ).order_by('hour')
     
+    # By payment method
+    by_payment = POSPayment.objects.filter(
+        transaction__created_at__date=report_date,
+        transaction__status='completed'
+    ).values(
+        'payment_method__name',
+        'payment_method__icon',
+        'payment_method__color'
+    ).annotate(
+        total=Sum('amount'),
+        count=Count('id')
+    ).order_by('-total')
+    
     context = {
         'report_date': report_date,
         'transactions': transactions,
         'stats': stats,
         'by_cashier': by_cashier,
         'by_hour': by_hour,
+        'by_payment': by_payment,
     }
     return render(request, 'sales/daily_report.html', context)
 
@@ -188,19 +212,26 @@ def period_report(request):
         count=Count('id')
     ).order_by('date')
     
-    context = {
-        'start_date': start_date,
-        'end_date': end_date,
-        'stats': stats,
-        'daily_sales': list(daily_sales),
-    }
-    return render(request, 'sales/period_report.html', context)
+    # By payment method
+    by_payment = POSPayment.objects.filter(
+        transaction__created_at__date__gte=start_date,
+        transaction__created_at__date__lte=end_date,
+        transaction__status='completed'
+    ).values(
+        'payment_method__name',
+        'payment_method__icon',
+        'payment_method__color'
+    ).annotate(
+        total=Sum('amount'),
+        count=Count('id')
+    ).order_by('-total')
     
     context = {
         'start_date': start_date,
         'end_date': end_date,
         'stats': stats,
         'daily_sales': list(daily_sales),
+        'by_payment': by_payment,
     }
     return render(request, 'sales/period_report.html', context)
 
@@ -383,7 +414,6 @@ def export_excel(request):
 @group_required(['Admin', 'Manager'])
 def export_pdf(request):
     """Export sales report to PDF."""
-    # Placeholder - PDF generation would require ReportLab
     response = HttpResponse(content_type='text/plain')
     response['Content-Disposition'] = 'attachment; filename="reporte_ventas.txt"'
     
@@ -393,3 +423,48 @@ def export_pdf(request):
     response.write("pip install reportlab\n")
     
     return response
+
+
+# API for real-time stats
+@login_required
+def api_today_stats(request):
+    """API endpoint for real-time today stats."""
+    today = timezone.localdate()
+    
+    transactions = POSTransaction.objects.filter(
+        created_at__date=today,
+        status='completed'
+    )
+    
+    stats = transactions.aggregate(
+        total=Sum('total'),
+        count=Count('id')
+    )
+    
+    # By payment method
+    payments = POSPayment.objects.filter(
+        transaction__created_at__date=today,
+        transaction__status='completed'
+    ).values('payment_method__name', 'payment_method__color').annotate(
+        total=Sum('amount'),
+        count=Count('id')
+    )
+    
+    # Convert Decimals to floats for JSON serialization
+    payments_list = [
+        {
+            'payment_method__name': p['payment_method__name'],
+            'payment_method__color': p['payment_method__color'],
+            'total': float(p['total'] or 0),
+            'count': p['count']
+        }
+        for p in payments
+    ]
+    
+    return JsonResponse({
+        'success': True,
+        'total': float(stats['total'] or 0),
+        'count': stats['count'] or 0,
+        'by_payment': payments_list,
+        'timestamp': timezone.now().isoformat()
+    })

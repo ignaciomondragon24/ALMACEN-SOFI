@@ -11,7 +11,7 @@ from decimal import Decimal
 import json
 import unicodedata
 
-from .models import POSSession, POSTransaction, POSTransactionItem, QuickAccessButton
+from .models import POSSession, POSTransaction, POSTransactionItem, POSPayment, QuickAccessButton
 
 
 def normalize_text(text):
@@ -25,6 +25,7 @@ def normalize_text(text):
 from .services import POSService, CartService, CheckoutService
 from cashregister.models import CashShift, PaymentMethod
 from stocks.models import Product
+from company.models import Company
 from decorators.decorators import group_required
 
 
@@ -142,6 +143,38 @@ def api_search(request):
     }
     
     return JsonResponse(data)
+
+
+@login_required
+@require_GET
+def api_calculate_cost_total(request, transaction_id):
+    """Calculate total at cost price for a transaction."""
+    from decimal import Decimal
+    
+    try:
+        transaction = POSTransaction.objects.get(id=transaction_id, status='pending')
+    except POSTransaction.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Transacción no encontrada'}, status=404)
+    
+    total_cost = Decimal('0.00')
+    items_cost = []
+    
+    for item in transaction.items.select_related('product').all():
+        cost_price = item.product.cost_price or item.product.purchase_price or Decimal('0.00')
+        item_cost = cost_price * item.quantity
+        total_cost += item_cost
+        items_cost.append({
+            'product_name': item.product.name,
+            'quantity': float(item.quantity),
+            'cost_price': float(cost_price),
+            'total': float(item_cost)
+        })
+    
+    return JsonResponse({
+        'success': True,
+        'total_cost': float(total_cost),
+        'items': items_cost
+    })
 
 
 @login_required
@@ -411,6 +444,53 @@ def api_checkout(request):
 
 @login_required
 @require_POST
+def api_checkout_cost_sale(request):
+    """Process checkout at cost price for employees/owners."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+    
+    transaction_id = data.get('transaction_id')
+    payments = data.get('payments', [])
+    employee_note = data.get('note', '')
+    
+    if not transaction_id or not payments:
+        return JsonResponse({'success': False, 'error': 'Datos incompletos'}, status=400)
+    
+    success, result = CheckoutService.process_cost_sale(transaction_id, payments, employee_note)
+    
+    if success:
+        return JsonResponse(result)
+    
+    return JsonResponse({'success': False, **result}, status=400)
+
+
+@login_required
+@require_POST
+def api_checkout_internal_consumption(request):
+    """Process internal consumption (stock deduction without payment)."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+    
+    transaction_id = data.get('transaction_id')
+    consumer_note = data.get('note', request.user.get_full_name() or request.user.username)
+    
+    if not transaction_id:
+        return JsonResponse({'success': False, 'error': 'Datos incompletos'}, status=400)
+    
+    success, result = CheckoutService.process_internal_consumption(transaction_id, consumer_note)
+    
+    if success:
+        return JsonResponse(result)
+    
+    return JsonResponse({'success': False, **result}, status=400)
+
+
+@login_required
+@require_POST
 def api_transaction_suspend(request, transaction_id):
     """Suspend transaction."""
     success, message = CheckoutService.suspend_transaction(transaction_id)
@@ -453,3 +533,71 @@ def suspended_transactions(request):
     return render(request, 'pos/suspended_transactions.html', {
         'transactions': transactions
     })
+
+
+@login_required
+def print_ticket(request, transaction_id):
+    """Generate printable ticket for a transaction."""
+    transaction = get_object_or_404(
+        POSTransaction.objects.select_related(
+            'session__cash_shift__cashier',
+            'session__cash_shift__cash_register'
+        ),
+        pk=transaction_id
+    )
+    
+    # Get items with products
+    items = transaction.items.select_related('product', 'product__unit_of_measure', 'promotion').all()
+    
+    # Get payments
+    payments = []
+    payment_method_name = None
+    for payment in transaction.payments.select_related('payment_method').all():
+        payments.append({
+            'method_name': payment.payment_method.name,
+            'amount': payment.amount
+        })
+        if not payment_method_name:
+            payment_method_name = payment.payment_method.name
+    
+    # Get company info
+    company = Company.get_company()
+    
+    context = {
+        'transaction': transaction,
+        'items': items,
+        'payments': payments,
+        'payment_method_name': payment_method_name,
+        'company': company,
+    }
+    
+    return render(request, 'pos/ticket.html', context)
+
+
+@login_required
+@require_GET
+def api_last_transaction(request):
+    """Get the last completed transaction for the current user's shift."""
+    shift = CashShift.objects.filter(
+        cashier=request.user,
+        status='open'
+    ).first()
+    
+    if not shift:
+        return JsonResponse({'success': False, 'error': 'No hay turno abierto'}, status=400)
+    
+    transaction = POSTransaction.objects.filter(
+        session__cash_shift=shift,
+        status='completed'
+    ).order_by('-completed_at').first()
+    
+    if not transaction:
+        return JsonResponse({'success': False, 'error': 'No hay transacciones completadas'}, status=404)
+    
+    return JsonResponse({
+        'success': True,
+        'transaction_id': transaction.id,
+        'ticket_number': transaction.ticket_number,
+        'total': float(transaction.total)
+    })
+

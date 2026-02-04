@@ -160,7 +160,7 @@
                                 {% for item in payment_stats %}
                                 <tr>
                                     <td>
-                                        <i class="fas fa-money-bill-wave me-2 text-success"></i>
+                                        <i class="{{ item.payment_method__icon|default:'fas fa-money-bill-wave' }} me-2" style="color: {{ item.payment_method__color|default:'#198754' }}"></i>
                                         {{ item.payment_method__name|default:"Efectivo" }}
                                     </td>
                                     <td class="text-end">{{ item.count }}</td>

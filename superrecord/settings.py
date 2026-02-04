@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'expenses.apps.ExpensesConfig',
     'sales.apps.SalesConfig',
     'company.apps.CompanyConfig',
+    'mercadopago.apps.MercadopagoConfig',
 ]
 
 MIDDLEWARE = [

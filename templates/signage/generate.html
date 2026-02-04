@@ -1,139 +1,158 @@
 {% extends 'base.html' %}
+{% load static %}
 {% load currency_filters %}
 
-{% block title %}Generar Cartel{% endblock %}
+{% block title %}Generar Cartel - CHE GOLOSO{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Header -->
-    <div class="mb-4">
-        <h1 class="h3 mb-0">
-            <i class="fas fa-plus-circle me-2"></i>Generar Cartel
-        </h1>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a href="{% url 'signage:home' %}">Cartelería</a></li>
-                <li class="breadcrumb-item active">Generar</li>
-            </ol>
-        </nav>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0"><i class="fas fa-plus-circle me-2"></i>Generar Cartel</h1>
+            <p class="text-muted mb-0">Selecciona productos y tipo de cartel</p>
+        </div>
+        <a href="{% url 'signage:home' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver
+        </a>
     </div>
 
-    <form method="post">
+    <form method="post" id="sign-form">
         {% csrf_token %}
         
         <div class="row">
-            <!-- Products Selection -->
-            <div class="col-lg-8">
-                <div class="card mb-4">
+            <!-- Configuración del cartel -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-box me-2"></i>Seleccionar Productos
-                        </h5>
+                        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Configuración</h5>
                     </div>
                     <div class="card-body">
-                        <!-- Search -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <input type="text" class="form-control" id="productSearch" placeholder="Buscar productos...">
-                            </div>
-                            <div class="col-md-4">
-                                <select class="form-select" id="categoryFilter">
-                                    <option value="">Todas las categorías</option>
-                                    {% for cat in categories %}
-                                    <option value="{{ cat.pk }}">{{ cat.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <button type="button" class="btn btn-outline-primary w-100" onclick="selectAll()">
-                                    <i class="fas fa-check-double"></i> Todos
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Products Grid -->
-                        <div class="row g-2" id="productGrid" style="max-height: 400px; overflow-y: auto;">
-                            {% for product in products %}
-                            <div class="col-md-4 col-lg-3 product-item" data-category="{{ product.category_id }}" data-name="{{ product.name|lower }}">
-                                <div class="card h-100 product-card" data-id="{{ product.pk }}">
-                                    <div class="card-body p-2">
-                                        <div class="form-check">
-                                            <input class="form-check-input product-checkbox" type="checkbox" 
-                                                   name="products" value="{{ product.pk }}" id="product_{{ product.pk }}">
-                                            <label class="form-check-label small" for="product_{{ product.pk }}">
-                                                <strong>{{ product.name|truncatechars:30 }}</strong>
-                                                <br>
-                                                <span class="text-success">{{ product.sale_price|currency }}</span>
-                                            </label>
-                                        </div>
-                                    </div>
+                        <!-- Tipo de cartel -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Tipo de Cartel</label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <input type="radio" class="btn-check" name="sign_type" id="type_price" value="price" checked>
+                                    <label class="btn btn-outline-primary w-100 py-3" for="type_price">
+                                        <i class="fas fa-dollar-sign fa-2x d-block mb-2"></i>
+                                        Precio
+                                    </label>
+                                </div>
+                                <div class="col-6">
+                                    <input type="radio" class="btn-check" name="sign_type" id="type_promo" value="promotion">
+                                    <label class="btn btn-outline-danger w-100 py-3" for="type_promo">
+                                        <i class="fas fa-percent fa-2x d-block mb-2"></i>
+                                        Promoción
+                                    </label>
+                                </div>
+                                <div class="col-6">
+                                    <input type="radio" class="btn-check" name="sign_type" id="type_offer" value="offer">
+                                    <label class="btn btn-outline-warning w-100 py-3" for="type_offer">
+                                        <i class="fas fa-fire fa-2x d-block mb-2"></i>
+                                        Oferta
+                                    </label>
+                                </div>
+                                <div class="col-6">
+                                    <input type="radio" class="btn-check" name="sign_type" id="type_custom" value="custom">
+                                    <label class="btn btn-outline-secondary w-100 py-3" for="type_custom">
+                                        <i class="fas fa-paint-brush fa-2x d-block mb-2"></i>
+                                        Personalizado
+                                    </label>
                                 </div>
                             </div>
-                            {% empty %}
-                            <div class="col-12 text-center py-4">
-                                <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
-                                <p class="text-muted">No hay productos disponibles</p>
-                            </div>
-                            {% endfor %}
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Options -->
-            <div class="col-lg-4">
-                <!-- Template Selection -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-file-alt me-2"></i>Plantilla
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Seleccionar Plantilla <span class="text-danger">*</span></label>
-                            <select name="template" class="form-select" required>
-                                <option value="">Elegir plantilla...</option>
-                                {% for template in templates %}
-                                <option value="{{ template.pk }}" 
-                                        data-type="{{ template.template_type }}"
-                                        {% if request.GET.template == template.pk|stringformat:"s" %}selected{% endif %}>
-                                    {{ template.name }} ({{ template.get_size_display }})
+                        <!-- Tamaño -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Tamaño</label>
+                            <select name="sign_size" class="form-select">
+                                <option value="A4">A4 - Grande (para góndola)</option>
+                                <option value="A5">A5 - Mediano</option>
+                                <option value="10x15">10x15 cm - Pequeño</option>
+                            </select>
+                        </div>
+
+                        <!-- Promoción (solo si es tipo promoción) -->
+                        <div class="mb-4" id="promo-select" style="display: none;">
+                            <label class="form-label fw-bold">Seleccionar Promoción</label>
+                            <select name="promotion" class="form-select">
+                                <option value="">-- Sin promoción --</option>
+                                {% for promo in promotions %}
+                                <option value="{{ promo.pk }}" data-type="{{ promo.promo_type }}" data-qty-req="{{ promo.quantity_required }}" data-qty-chr="{{ promo.quantity_charged }}" data-discount="{{ promo.discount_percent }}" data-second="{{ promo.second_unit_discount }}">
+                                    {{ promo.name }} - 
+                                    {% if promo.promo_type == 'nxm' %}
+                                        {{ promo.quantity_required }}x{{ promo.quantity_charged }}
+                                    {% elif promo.promo_type == 'second_unit' %}
+                                        2da unidad {{ promo.second_unit_discount|floatformat:0 }}% OFF
+                                    {% elif promo.promo_type == 'simple_discount' %}
+                                        {{ promo.discount_percent|floatformat:0 }}% OFF
+                                    {% else %}
+                                        {{ promo.get_promo_type_display }}
+                                    {% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
                         </div>
+
+                        <!-- Texto personalizado -->
+                        <div class="mb-4" id="custom-text" style="display: none;">
+                            <label class="form-label fw-bold">Texto Personalizado</label>
+                            <input type="text" name="custom_text" class="form-control" placeholder="Ej: ¡OFERTA ESPECIAL!">
+                        </div>
                     </div>
                 </div>
 
-                <!-- Selected Summary -->
-                <div class="card mb-4">
+                <!-- Botón generar -->
+                <button type="submit" class="btn btn-success btn-lg w-100 mb-4" id="btn-generate" disabled>
+                    <i class="fas fa-magic me-2"></i>Generar Cartel
+                    <span class="badge bg-white text-success ms-2" id="product-count">0</span>
+                </button>
+            </div>
+
+            <!-- Selección de productos -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-list-check me-2"></i>Resumen
-                        </h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-boxes me-2"></i>Seleccionar Productos</h5>
+                            <div>
+                                <input type="text" id="product-search" class="form-control form-control-sm" placeholder="Buscar producto..." style="width: 250px;">
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body">
-                        <div class="d-flex justify-content-between mb-3">
-                            <span>Productos seleccionados:</span>
-                            <strong id="selectedCount">0</strong>
+                        <!-- Filtro por categoría -->
+                        <div class="mb-3">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all">
+                                    Todos
+                                </button>
+                                {% for cat in categories %}
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="{{ cat.pk }}">
+                                    {{ cat.name }}
+                                </button>
+                                {% endfor %}
+                            </div>
                         </div>
-                        <div id="selectedProductsList" style="max-height: 200px; overflow-y: auto;">
-                            <p class="text-muted small mb-0" id="noSelectionMsg">Selecciona productos de la lista</p>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Actions -->
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg" id="generateBtn" disabled>
-                                <i class="fas fa-file-pdf me-2"></i>Generar Cartel
-                            </button>
-                            <a href="{% url 'signage:home' %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-2"></i>Cancelar
-                            </a>
+                        <!-- Grid de productos -->
+                        <div class="row g-2" id="products-grid" style="max-height: 500px; overflow-y: auto;">
+                            {% for product in products %}
+                            <div class="col-md-4 col-lg-3 product-item" data-category="{{ product.category_id }}" data-name="{{ product.name|lower }}">
+                                <div class="card h-100 product-card" data-id="{{ product.pk }}">
+                                    <div class="card-body p-2 text-center">
+                                        <div class="form-check position-absolute top-0 end-0 m-1">
+                                            <input class="form-check-input product-checkbox" type="checkbox" name="products" value="{{ product.pk }}" id="prod-{{ product.pk }}">
+                                        </div>
+                                        <i class="fas fa-box fa-2x text-muted mb-2"></i>
+                                        <h6 class="card-title mb-1 small">{{ product.name|truncatechars:25 }}</h6>
+                                        <p class="card-text mb-0">
+                                            <strong class="text-success">{{ product.sale_price|currency }}</strong>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
                         </div>
                     </div>
                 </div>
@@ -146,28 +165,39 @@
 .product-card {
     cursor: pointer;
     transition: all 0.2s;
+    border: 2px solid transparent;
 }
 .product-card:hover {
-    border-color: var(--bs-primary);
+    border-color: #0d6efd;
+    transform: translateY(-2px);
 }
 .product-card.selected {
-    border-color: var(--bs-primary);
-    background-color: rgba(var(--bs-primary-rgb), 0.1);
+    border-color: #198754;
+    background-color: #d1e7dd;
+}
+.btn-check:checked + .btn {
+    transform: scale(1.02);
 }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const productSearch = document.getElementById('productSearch');
-    const categoryFilter = document.getElementById('categoryFilter');
-    const productItems = document.querySelectorAll('.product-item');
-    const checkboxes = document.querySelectorAll('.product-checkbox');
-    const selectedCount = document.getElementById('selectedCount');
-    const selectedProductsList = document.getElementById('selectedProductsList');
-    const noSelectionMsg = document.getElementById('noSelectionMsg');
-    const generateBtn = document.getElementById('generateBtn');
-
-    // Click on card to toggle checkbox
+    const form = document.getElementById('sign-form');
+    const btnGenerate = document.getElementById('btn-generate');
+    const productCount = document.getElementById('product-count');
+    const promoSelect = document.getElementById('promo-select');
+    const customText = document.getElementById('custom-text');
+    const productSearch = document.getElementById('product-search');
+    
+    // Mostrar/ocultar opciones según tipo
+    document.querySelectorAll('input[name="sign_type"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            promoSelect.style.display = this.value === 'promotion' ? 'block' : 'none';
+            customText.style.display = this.value === 'custom' || this.value === 'offer' ? 'block' : 'none';
+        });
+    });
+    
+    // Selección de productos con click en card
     document.querySelectorAll('.product-card').forEach(card => {
         card.addEventListener('click', function(e) {
             if (e.target.type !== 'checkbox') {
@@ -177,70 +207,55 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-
-    // Update selection
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
+    
+    // Actualizar contador y estado del botón
+    document.querySelectorAll('.product-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
             const card = this.closest('.product-card');
-            if (this.checked) {
-                card.classList.add('selected');
-            } else {
-                card.classList.remove('selected');
-            }
-            updateSummary();
+            card.classList.toggle('selected', this.checked);
+            
+            const count = document.querySelectorAll('.product-checkbox:checked').length;
+            productCount.textContent = count;
+            btnGenerate.disabled = count === 0;
+        });
+    });
+    
+    // Búsqueda de productos
+    productSearch.addEventListener('input', function() {
+        const search = this.value.toLowerCase();
+        document.querySelectorAll('.product-item').forEach(item => {
+            const name = item.dataset.name;
+            item.style.display = name.includes(search) ? '' : 'none';
+        });
+    });
+    
+    // Filtro por categoría
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const filter = this.dataset.filter;
+            document.querySelectorAll('.product-item').forEach(item => {
+                if (filter === 'all' || item.dataset.category === filter) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         });
     });
 
-    // Search filter
-    productSearch.addEventListener('input', filterProducts);
-    categoryFilter.addEventListener('change', filterProducts);
-
-    function filterProducts() {
-        const search = productSearch.value.toLowerCase();
-        const category = categoryFilter.value;
-
-        productItems.forEach(item => {
-            const name = item.dataset.name;
-            const cat = item.dataset.category;
-            
-            const matchesSearch = !search || name.includes(search);
-            const matchesCategory = !category || cat === category;
-            
-            item.style.display = (matchesSearch && matchesCategory) ? '' : 'none';
-        });
-    }
-
-    function updateSummary() {
-        const selected = document.querySelectorAll('.product-checkbox:checked');
-        selectedCount.textContent = selected.length;
-        
-        if (selected.length > 0) {
-            noSelectionMsg.style.display = 'none';
-            generateBtn.disabled = false;
-            
-            let html = '<ul class="list-unstyled small mb-0">';
-            selected.forEach(cb => {
-                const label = cb.closest('.card-body').querySelector('label strong').textContent;
-                html += `<li><i class="fas fa-check text-success me-1"></i>${label}</li>`;
-            });
-            html += '</ul>';
-            selectedProductsList.innerHTML = html;
-        } else {
-            noSelectionMsg.style.display = 'block';
-            generateBtn.disabled = true;
-            selectedProductsList.innerHTML = '<p class="text-muted small mb-0" id="noSelectionMsg">Selecciona productos de la lista</p>';
+    // Inicializar según parámetros URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const type = urlParams.get('type');
+    if (type) {
+        const radio = document.querySelector(`input[name="sign_type"][value="${type}"]`);
+        if (radio) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change'));
         }
     }
-
-    window.selectAll = function() {
-        const visibleCheckboxes = document.querySelectorAll('.product-item:not([style*="display: none"]) .product-checkbox');
-        const allChecked = Array.from(visibleCheckboxes).every(cb => cb.checked);
-        
-        visibleCheckboxes.forEach(cb => {
-            cb.checked = !allChecked;
-            cb.dispatchEvent(new Event('change'));
-        });
-    };
 });
 </script>
 {% endblock %}

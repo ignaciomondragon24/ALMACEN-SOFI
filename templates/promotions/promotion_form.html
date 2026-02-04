@@ -232,18 +232,18 @@
                         
                         <label class="form-label">Productos Seleccionados</label>
                         <div id="selectedProducts" class="border rounded p-3" style="min-height: 100px;">
-                            {% if form.products.value %}
-                            {% for product in form.products.value %}
-                            <span class="badge bg-primary me-2 mb-2" data-id="{{ product.pk }}">
-                                {{ product.name }}
-                                <button type="button" class="btn-close btn-close-white ms-1" aria-label="Quitar" onclick="removeProduct({{ product.pk }})"></button>
-                            </span>
-                            {% endfor %}
+                            {% if promotion and promotion.products.exists %}
+                                {% for product in promotion.products.all %}
+                                <span class="badge bg-primary me-2 mb-2 existing-product" data-id="{{ product.pk }}">
+                                    {{ product.name }}
+                                    <button type="button" class="btn-close btn-close-white ms-1" aria-label="Quitar" onclick="removeProduct({{ product.pk }})"></button>
+                                </span>
+                                {% endfor %}
                             {% else %}
                             <p class="text-muted mb-0" id="noProductsMessage">No hay productos seleccionados</p>
                             {% endif %}
                         </div>
-                        <input type="hidden" name="products" id="selectedProductIds" value="">
+                        <input type="hidden" name="products" id="selectedProductIds" value="{% if promotion %}{% for p in promotion.products.all %}{{ p.pk }}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}">
                     </div>
                 </div>
             </div>
@@ -358,7 +358,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeCards = document.querySelectorAll('.promo-type-card');
     const promoTypeInput = document.getElementById('id_promo_type');
     const configSections = document.querySelectorAll('.config-section');
+    
+    // Initialize selected products from existing badges
     const selectedProducts = [];
+    const existingBadges = document.querySelectorAll('.existing-product');
+    existingBadges.forEach(badge => {
+        const id = parseInt(badge.dataset.id);
+        if (id && !selectedProducts.includes(id)) {
+            selectedProducts.push(id);
+        }
+    });
+    // Hide "no products" message if there are products
+    if (selectedProducts.length > 0) {
+        const noProductsMsg = document.getElementById('noProductsMessage');
+        if (noProductsMsg) noProductsMsg.style.display = 'none';
+    }
     
     // Promo type selection
     typeCards.forEach(card => {
@@ -449,7 +463,8 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     function updateSelectedProducts(product) {
-        document.getElementById('noProductsMessage').style.display = 'none';
+        const noProductsMsg = document.getElementById('noProductsMessage');
+        if (noProductsMsg) noProductsMsg.style.display = 'none';
         const container = document.getElementById('selectedProducts');
         const badge = document.createElement('span');
         badge.className = 'badge bg-primary me-2 mb-2';

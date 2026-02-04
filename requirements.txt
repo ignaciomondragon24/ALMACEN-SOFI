@@ -28,6 +28,8 @@ qrcode==7.3
 # Environment Variables
 python-dotenv==0.19.0
 
+# HTTP Client (Mercado Pago API)
+requests>=2.25.0
 # Production Server
 gunicorn==20.1.0
 

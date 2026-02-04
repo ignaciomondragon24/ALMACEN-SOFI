@@ -314,6 +314,7 @@ class CheckoutService:
         
         return True, {
             'success': True,
+            'transaction_id': pos_transaction.id,
             'ticket_number': pos_transaction.ticket_number,
             'total': float(total_to_pay),
             'paid': float(total_paid),
@@ -375,3 +376,183 @@ class CheckoutService:
         pos_transaction.save()
         
         return True, 'Transacción reanudada'
+    
+    @staticmethod
+    @transaction.atomic
+    def process_cost_sale(transaction_id, payments, employee_note=''):
+        """
+        Process a sale at cost price (for employees/owners).
+        
+        Args:
+            transaction_id: POSTransaction ID
+            payments: List of dicts with 'method_code' and 'amount'
+            employee_note: Optional note about who consumed
+        
+        Returns:
+            tuple (success: bool, result: dict)
+        """
+        from cashregister.models import PaymentMethod, CashMovement
+        from stocks.services import StockManagementService
+        
+        try:
+            pos_transaction = POSTransaction.objects.get(
+                id=transaction_id,
+                status='pending'
+            )
+        except POSTransaction.DoesNotExist:
+            return False, {'error': 'Transacción no encontrada o ya procesada'}
+        
+        # Update item prices to cost price and recalculate
+        for item in pos_transaction.items.all():
+            item.unit_price = item.product.cost_price or item.product.purchase_price
+            item.discount = Decimal('0.00')  # No discounts on cost sales
+            item.subtotal = item.unit_price * item.quantity
+            item.save()
+        
+        # Recalculate totals
+        pos_transaction.calculate_totals()
+        pos_transaction.refresh_from_db()
+        
+        # Calculate total to pay (at cost)
+        total_to_pay = pos_transaction.total
+        total_paid = Decimal('0.00')
+        
+        # Validate and create payments
+        for payment_data in payments:
+            method_id = payment_data.get('method_id')
+            method_code = payment_data.get('method_code')
+            amount = Decimal(str(payment_data.get('amount', 0)))
+            
+            if amount <= 0:
+                continue
+            
+            try:
+                if method_id:
+                    method = PaymentMethod.objects.get(id=method_id, is_active=True)
+                elif method_code:
+                    method = PaymentMethod.objects.get(code=method_code, is_active=True)
+                else:
+                    return False, {'error': 'Método de pago no especificado'}
+            except PaymentMethod.DoesNotExist:
+                return False, {'error': f'Método de pago inválido'}
+            
+            POSPayment.objects.create(
+                transaction=pos_transaction,
+                payment_method=method,
+                amount=amount,
+                reference=f'Venta al costo - {employee_note}'
+            )
+            
+            # Register cash movement
+            CashMovement.objects.create(
+                cash_shift=pos_transaction.session.cash_shift,
+                movement_type='income',
+                amount=min(amount, total_to_pay - total_paid + amount),
+                payment_method=method,
+                description=f'Venta al costo {pos_transaction.ticket_number}',
+                reference=pos_transaction.ticket_number
+            )
+            
+            total_paid += amount
+        
+        # Verify sufficient payment
+        if total_paid < total_to_pay:
+            POSPayment.objects.filter(transaction=pos_transaction).delete()
+            return False, {'error': f'Pago insuficiente. Faltan ${total_to_pay - total_paid}'}
+        
+        # Calculate change
+        change = total_paid - total_to_pay
+        
+        # Deduct stock
+        for item in pos_transaction.items.all():
+            StockManagementService.deduct_stock(
+                product=item.product,
+                quantity=item.quantity,
+                reference=f'Venta al costo {pos_transaction.ticket_number}',
+                reference_id=pos_transaction.id
+            )
+        
+        # Complete transaction
+        pos_transaction.transaction_type = 'cost_sale'
+        pos_transaction.status = 'completed'
+        pos_transaction.completed_at = timezone.now()
+        pos_transaction.amount_paid = total_paid
+        pos_transaction.change_given = change
+        pos_transaction.notes = f'VENTA AL COSTO - {employee_note}'
+        pos_transaction.save()
+        
+        return True, {
+            'success': True,
+            'transaction_id': pos_transaction.id,
+            'ticket_number': pos_transaction.ticket_number,
+            'total': float(total_to_pay),
+            'paid': float(total_paid),
+            'change': float(change),
+            'items_count': pos_transaction.items_count,
+            'type': 'cost_sale'
+        }
+    
+    @staticmethod
+    @transaction.atomic
+    def process_internal_consumption(transaction_id, consumer_note=''):
+        """
+        Process internal consumption (deduct from stock without payment).
+        
+        Args:
+            transaction_id: POSTransaction ID
+            consumer_note: Who/why consumed (for traceability)
+        
+        Returns:
+            tuple (success: bool, result: dict)
+        """
+        from stocks.services import StockManagementService
+        
+        try:
+            pos_transaction = POSTransaction.objects.get(
+                id=transaction_id,
+                status='pending'
+            )
+        except POSTransaction.DoesNotExist:
+            return False, {'error': 'Transacción no encontrada o ya procesada'}
+        
+        if pos_transaction.items.count() == 0:
+            return False, {'error': 'El carrito está vacío'}
+        
+        # Update to cost prices for record keeping
+        total_cost = Decimal('0.00')
+        for item in pos_transaction.items.all():
+            cost = item.product.cost_price or item.product.purchase_price
+            item.unit_price = cost
+            item.discount = Decimal('0.00')
+            item.subtotal = cost * item.quantity
+            item.save()
+            total_cost += item.subtotal
+        
+        # Deduct stock
+        for item in pos_transaction.items.all():
+            StockManagementService.deduct_stock(
+                product=item.product,
+                quantity=item.quantity,
+                reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
+                reference_id=pos_transaction.id
+            )
+        
+        # Complete transaction with zero payment
+        pos_transaction.transaction_type = 'internal_consumption'
+        pos_transaction.status = 'completed'
+        pos_transaction.completed_at = timezone.now()
+        pos_transaction.subtotal = total_cost
+        pos_transaction.total = Decimal('0.00')  # No payment required
+        pos_transaction.amount_paid = Decimal('0.00')
+        pos_transaction.change_given = Decimal('0.00')
+        pos_transaction.notes = f'CONSUMO INTERNO - {consumer_note}'
+        pos_transaction.save()
+        
+        return True, {
+            'success': True,
+            'transaction_id': pos_transaction.id,
+            'ticket_number': pos_transaction.ticket_number,
+            'cost_value': float(total_cost),  # Value at cost for reference
+            'items_count': pos_transaction.items_count,
+            'type': 'internal_consumption'
+        }

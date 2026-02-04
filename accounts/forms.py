@@ -39,8 +39,9 @@ class UserForm(forms.ModelForm):
     role = forms.ChoiceField(
         label='Rol',
         choices=[('', '-- Seleccionar --')] + Role.ROLE_CHOICES,
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        error_messages={'required': 'Debe seleccionar un rol'}
     )
     
     class Meta:
