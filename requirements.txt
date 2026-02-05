@@ -1,4 +1,4 @@
-# Django Core
+# Django Core - Updated 2026-02-05 for Python 3.13 compatibility
 Django>=4.2,<5.0
 djangorestframework>=3.14.0
 django-cors-headers>=4.3.0
