@@ -161,7 +161,7 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-end">{{ movement.stock_after|floatformat:2 }}</td>
-                                    <td>{{ movement.user.get_full_name|default:movement.user.username }}</td>
+                                    <td>{{ movement.created_by.get_full_name|default:movement.created_by.username|default:"-" }}</td>
                                     <td>
                                         <small class="text-muted">{{ movement.reference|default:"-" }}</small>
                                     </td>
