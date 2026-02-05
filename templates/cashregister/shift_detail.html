@@ -356,3 +356,70 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+{% if shift.status == 'open' %}
+<script>
+// Actualización en tiempo real del turno
+(function() {
+    const shiftId = {{ shift.pk }};
+    const updateInterval = 15000; // 15 segundos
+    
+    function formatCurrency(amount) {
+        return '$' + amount.toLocaleString('es-AR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+    
+    async function updateShiftData() {
+        try {
+            const response = await fetch('{% url "cashregister:shift_data_api" shift.pk %}');
+            if (!response.ok) return;
+            
+            const data = await response.json();
+            
+            // Actualizar tarjetas
+            const salesCard = document.querySelector('.bg-info h4');
+            if (salesCard) {
+                salesCard.textContent = formatCurrency(data.total_sales);
+            }
+            
+            const expectedCard = document.querySelector('.bg-warning h4, .bg-secondary h4');
+            if (expectedCard) {
+                expectedCard.textContent = formatCurrency(data.expected);
+            }
+            
+            // Mostrar indicador de última actualización
+            updateLastSync();
+            
+        } catch (error) {
+            console.error('Error actualizando datos:', error);
+        }
+    }
+    
+    function updateLastSync() {
+        let syncIndicator = document.getElementById('sync-indicator');
+        if (!syncIndicator) {
+            syncIndicator = document.createElement('small');
+            syncIndicator.id = 'sync-indicator';
+            syncIndicator.className = 'text-muted';
+            const header = document.querySelector('.row.mb-4 .col');
+            if (header) {
+                header.appendChild(document.createElement('br'));
+                header.appendChild(syncIndicator);
+            }
+        }
+        const now = new Date();
+        syncIndicator.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Última actualización: ' + now.toLocaleTimeString();
+    }
+    
+    // Actualizar cada 15 segundos solo si el turno está abierto
+    setInterval(updateShiftData, updateInterval);
+    
+    // Primera actualización después de 5 segundos
+    setTimeout(updateShiftData, 5000);
+})();
+</script>
+{% endif %}
+{% endblock %}

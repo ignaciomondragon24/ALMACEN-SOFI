@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-file-invoice me-2"></i>{{ title }}
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a href="{% url 'purchase:purchase_list' %}">Compras</a></li>
+                            <li class="breadcrumb-item active">{{ title }}</li>
+                        </ol>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Datos de la Orden
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_supplier" class="form-label">Proveedor <span class="text-danger">*</span></label>
+                                <select name="supplier" id="id_supplier" class="form-select" required>
+                                    <option value="">Seleccionar proveedor...</option>
+                                    {% for supplier in form.supplier.field.queryset %}
+                                    <option value="{{ supplier.pk }}" {% if form.supplier.value == supplier.pk|stringformat:"i" %}selected{% endif %}>
+                                        {{ supplier.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.supplier.errors %}
+                                <div class="text-danger small">{{ form.supplier.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="id_order_date" class="form-label">Fecha de Orden</label>
+                                <input type="date" name="order_date" id="id_order_date" class="form-control" 
+                                       value="{{ form.order_date.value|date:'Y-m-d'|default:'' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_tax" class="form-label">IVA / Impuestos</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="tax" id="id_tax" class="form-control" 
+                                           step="0.01" min="0" value="{{ form.tax.value|default:'0' }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_notes" class="form-label">Notas</label>
+                            <textarea name="notes" id="id_notes" class="form-control" rows="3" 
+                                      placeholder="Notas adicionales...">{{ form.notes.value|default:'' }}</textarea>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Crear Orden
+                            </button>
+                            <a href="{% url 'purchase:purchase_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Después de crear la orden, podrás agregar los productos.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

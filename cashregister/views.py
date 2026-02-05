@@ -341,6 +341,49 @@ def register_create(request):
 
 
 @login_required
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
+def shift_data_api(request, pk):
+    """API endpoint for real-time shift data updates."""
+    shift = get_object_or_404(CashShift, pk=pk)
+    
+    # Get totals by payment method
+    from pos.models import POSTransaction
+    
+    # Sales from POS transactions
+    pos_sales = POSTransaction.objects.filter(
+        session__cash_shift=shift,
+        status='completed'
+    ).aggregate(
+        total=Sum('total'),
+        count=Count('id')
+    )
+    
+    # Manual movements
+    movements_income = shift.movements.filter(
+        movement_type='income'
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    
+    movements_expense = shift.movements.filter(
+        movement_type='expense'
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    
+    # Calculate expected
+    expected = shift.calculate_expected()
+    
+    data = {
+        'total_sales': float(pos_sales['total'] or 0),
+        'transactions_count': pos_sales['count'] or 0,
+        'initial_amount': float(shift.initial_amount),
+        'expected': float(expected),
+        'movements_income': float(movements_income),
+        'movements_expense': float(movements_expense),
+        'status': shift.status,
+    }
+    
+    return JsonResponse(data)
+
+
+@login_required
 def shift_report_pdf(request, pk):
     """Generate PDF report for a shift."""
     shift = get_object_or_404(CashShift, pk=pk)
