@@ -220,12 +220,10 @@ class POSTransactionItem(models.Model):
         related_name='pos_items',
         verbose_name='Producto'
     )
-    quantity = models.DecimalField(
+    quantity = models.PositiveIntegerField(
         'Cantidad',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('1.000'),
-        validators=[MinValueValidator(Decimal('0.001'))]
+        default=1,
+        validators=[MinValueValidator(1)]
     )
     unit_price = models.DecimalField(
         'Precio Unitario',

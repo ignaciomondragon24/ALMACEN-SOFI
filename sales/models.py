@@ -91,10 +91,8 @@ class SaleItem(models.Model):
         'Nombre del Producto',
         max_length=200
     )
-    quantity = models.DecimalField(
-        'Cantidad',
-        max_digits=10,
-        decimal_places=3
+    quantity = models.PositiveIntegerField(
+        'Cantidad'
     )
     unit_price = models.DecimalField(
         'Precio Unitario',

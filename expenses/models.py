@@ -18,6 +18,12 @@ class ExpenseCategory(models.Model):
         'Descripción',
         blank=True
     )
+    color = models.CharField(
+        'Color',
+        max_length=7,
+        default='#6c757d',
+        help_text='Código hexadecimal del color'
+    )
     is_active = models.BooleanField(
         'Activa',
         default=True

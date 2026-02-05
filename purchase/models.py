@@ -158,11 +158,9 @@ class PurchaseItem(models.Model):
         related_name='purchase_items',
         verbose_name='Producto'
     )
-    quantity = models.DecimalField(
+    quantity = models.PositiveIntegerField(
         'Cantidad',
-        max_digits=10,
-        decimal_places=3,
-        validators=[MinValueValidator(Decimal('0.001'))]
+        validators=[MinValueValidator(1)]
     )
     unit_cost = models.DecimalField(
         'Costo Unitario',
@@ -176,11 +174,9 @@ class PurchaseItem(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
-    received_quantity = models.DecimalField(
+    received_quantity = models.PositiveIntegerField(
         'Cantidad Recibida',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('0.000')
+        default=0
     )
     
     class Meta:

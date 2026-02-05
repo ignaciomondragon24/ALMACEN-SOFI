@@ -10,7 +10,7 @@ class ExpenseCategoryForm(forms.ModelForm):
     
     class Meta:
         model = ExpenseCategory
-        fields = ['name', 'description', 'is_active']
+        fields = ['name', 'description', 'color', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -20,6 +20,10 @@ class ExpenseCategoryForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 3,
                 'placeholder': 'Descripción'
+            }),
+            'color': forms.TextInput(attrs={
+                'class': 'form-control form-control-color',
+                'type': 'color'
             }),
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'

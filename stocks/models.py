@@ -185,28 +185,19 @@ class Product(models.Model):
     )
     
     # Stock
-    current_stock = models.DecimalField(
+    current_stock = models.PositiveIntegerField(
         'Stock Actual',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('0.000'),
-        validators=[MinValueValidator(Decimal('0'))]
+        default=0
     )
-    min_stock = models.DecimalField(
+    min_stock = models.PositiveIntegerField(
         'Stock Mínimo',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('0.000'),
-        validators=[MinValueValidator(Decimal('0'))],
+        default=0,
         help_text='Alerta cuando el stock llegue a este nivel'
     )
-    max_stock = models.DecimalField(
+    max_stock = models.PositiveIntegerField(
         'Stock Máximo',
-        max_digits=10,
-        decimal_places=3,
         null=True,
-        blank=True,
-        validators=[MinValueValidator(Decimal('0'))]
+        blank=True
     )
     
     # Additional info
@@ -282,12 +273,9 @@ class Product(models.Model):
         verbose_name='Producto Padre',
         help_text='Para cajas/bultos, indica el producto individual que contiene'
     )
-    units_per_package = models.DecimalField(
+    units_per_package = models.PositiveIntegerField(
         'Unidades por Paquete',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('1.000'),
-        validators=[MinValueValidator(Decimal('0.001'))],
+        default=1,
         help_text='Cuántas unidades del producto hijo contiene (ej: 24 para caja de 24)'
     )
     
@@ -446,10 +434,8 @@ class StockMovement(models.Model):
         max_length=20,
         choices=MOVEMENT_TYPES
     )
-    quantity = models.DecimalField(
-        'Cantidad',
-        max_digits=10,
-        decimal_places=3
+    quantity = models.IntegerField(
+        'Cantidad'
     )
     unit_cost = models.DecimalField(
         'Costo Unitario',
@@ -457,17 +443,13 @@ class StockMovement(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
-    stock_before = models.DecimalField(
+    stock_before = models.PositiveIntegerField(
         'Stock Antes',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('0.000')
+        default=0
     )
-    stock_after = models.DecimalField(
+    stock_after = models.PositiveIntegerField(
         'Stock Después',
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal('0.000')
+        default=0
     )
     reference = models.CharField(
         'Referencia',
@@ -520,11 +502,9 @@ class ProductPresentation(models.Model):
         max_length=100,
         help_text='Ej: Pack x 6, Caja x 12'
     )
-    quantity = models.DecimalField(
+    quantity = models.PositiveIntegerField(
         'Cantidad de Unidades',
-        max_digits=10,
-        decimal_places=3,
-        validators=[MinValueValidator(Decimal('0.001'))]
+        validators=[MinValueValidator(1)]
     )
     barcode = models.CharField(
         'Código de Barras',

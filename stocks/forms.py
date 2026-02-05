@@ -72,11 +72,10 @@ class UnitForm(forms.ModelForm):
 class StockAdjustmentForm(forms.Form):
     """Form for stock adjustments."""
     
-    new_quantity = forms.DecimalField(
+    new_quantity = forms.IntegerField(
         label='Nueva Cantidad',
-        max_digits=10,
-        decimal_places=3,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'})
+        min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'})
     )
     reason = forms.CharField(
         label='Motivo del Ajuste',

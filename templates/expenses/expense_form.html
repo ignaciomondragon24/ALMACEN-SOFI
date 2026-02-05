@@ -49,21 +49,32 @@
                                 </div>
                             </div>
                             <div class="col-md-4">
+                                <label class="form-label">Método de Pago *</label>
+                                <select name="payment_method" class="form-select" required>
+                                    <option value="cash" {% if form.instance.payment_method == 'cash' %}selected{% endif %}>Efectivo</option>
+                                    <option value="card" {% if form.instance.payment_method == 'card' %}selected{% endif %}>Tarjeta</option>
+                                    <option value="transfer" {% if form.instance.payment_method == 'transfer' %}selected{% endif %}>Transferencia</option>
+                                    <option value="check" {% if form.instance.payment_method == 'check' %}selected{% endif %}>Cheque</option>
+                                    <option value="other" {% if form.instance.payment_method == 'other' %}selected{% endif %}>Otro</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label">N° Recibo/Factura</label>
                                 <input type="text" name="receipt_number" class="form-control" 
                                        value="{{ form.instance.receipt_number|default:'' }}">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Proveedor</label>
-                                <select name="supplier" class="form-select">
-                                    <option value="">Sin proveedor</option>
-                                    {% for sup in form.fields.supplier.queryset %}
-                                    <option value="{{ sup.pk }}" {% if form.instance.supplier_id == sup.pk %}selected{% endif %}>
-                                        {{ sup.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Proveedor</label>
+                            <select name="supplier" class="form-select">
+                                <option value="">Sin proveedor</option>
+                                {% for sup in form.fields.supplier.queryset %}
+                                <option value="{{ sup.pk }}" {% if form.instance.supplier_id == sup.pk %}selected{% endif %}>
+                                    {{ sup.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
                         </div>
                         
                         <div class="mb-3">
