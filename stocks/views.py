@@ -15,7 +15,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'Cashier', 'General Manager'])
 def product_list(request):
     """List all products."""
     products = Product.objects.select_related('category', 'unit_of_measure')
@@ -122,7 +122,7 @@ def product_delete(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def product_detail(request, pk):
     """Product detail view."""
     product = get_object_or_404(Product, pk=pk)
@@ -165,7 +165,7 @@ def stock_adjust(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def category_list(request):
     """List categories."""
     categories = ProductCategory.objects.all()

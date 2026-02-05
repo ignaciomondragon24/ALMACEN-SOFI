@@ -16,7 +16,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Manager', 'General Manager'])
 def promotion_list(request):
     """List all promotions."""
     promotions = Promotion.objects.all()
@@ -204,7 +204,7 @@ def promotion_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Manager', 'General Manager'])
 def promotion_detail(request, pk):
     """Promotion detail."""
     promotion = get_object_or_404(Promotion, pk=pk)

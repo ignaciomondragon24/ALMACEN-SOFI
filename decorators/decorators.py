@@ -15,7 +15,16 @@ def group_required(*group_names):
         @group_required('Admin', 'Manager')
         def my_view(request):
             ...
+        
+        # Also supports list syntax:
+        @group_required(['Admin', 'Manager'])
+        def my_view(request):
+            ...
     """
+    # Handle case where a list is passed as a single argument
+    if len(group_names) == 1 and isinstance(group_names[0], (list, tuple)):
+        group_names = tuple(group_names[0])
+    
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):

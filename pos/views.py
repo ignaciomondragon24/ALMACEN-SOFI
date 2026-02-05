@@ -30,7 +30,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def pos_main(request):
     """Main POS view."""
     # Check if user has an open shift

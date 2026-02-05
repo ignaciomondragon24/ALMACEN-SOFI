@@ -16,7 +16,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def dashboard(request):
     """Cash register dashboard."""
     registers = CashRegister.objects.filter(is_active=True)
@@ -33,7 +33,7 @@ def dashboard(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def open_shift(request):
     """Open a new cash shift."""
     # Check if user already has an open shift
@@ -67,7 +67,7 @@ def open_shift(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def close_shift(request, pk):
     """Close a cash shift with bill counting (Cierre Z)."""
     from .models import BillCount, ShiftPaymentSummary
@@ -185,7 +185,7 @@ def close_shift(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def shift_detail(request, pk):
     """Shift detail view."""
     shift = get_object_or_404(CashShift, pk=pk)
@@ -209,7 +209,7 @@ def shift_detail(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def add_movement(request, shift_pk):
     """Add a manual movement to shift."""
     shift = get_object_or_404(CashShift, pk=shift_pk)
@@ -238,7 +238,7 @@ def add_movement(request, shift_pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
 def shift_list(request):
     """List all shifts."""
     shifts = CashShift.objects.select_related(

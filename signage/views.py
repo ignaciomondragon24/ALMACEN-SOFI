@@ -16,7 +16,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def signage_home(request):
     """Página principal de cartelería con accesos rápidos."""
     templates = SignTemplate.objects.filter(is_active=True)
@@ -35,7 +35,7 @@ def signage_home(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def generate_sign(request):
     """Generar cartel - interfaz principal mejorada."""
     categories = ProductCategory.objects.filter(is_active=True)
@@ -74,7 +74,7 @@ def generate_sign(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def preview_sign(request, pk):
     """Vista previa del cartel generado."""
     generation = get_object_or_404(SignGeneration, pk=pk)
@@ -142,7 +142,7 @@ def preview_sign(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def download_sign(request, pk):
     """Descargar cartel como HTML imprimible."""
     generation = get_object_or_404(SignGeneration, pk=pk)
@@ -184,7 +184,7 @@ def download_sign(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def quick_promo_sign(request, promo_id):
     """Generar cartel rápido desde una promoción."""
     promotion = get_object_or_404(Promotion, pk=promo_id)
@@ -209,7 +209,7 @@ def quick_promo_sign(request, promo_id):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def history(request):
     """Historial de carteles generados."""
     generations = SignGeneration.objects.all().order_by('-generated_at')
@@ -220,7 +220,7 @@ def history(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Manager', 'General Manager'])
 def template_list(request):
     """Lista de plantillas."""
     templates = SignTemplate.objects.all()

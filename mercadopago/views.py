@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # ==================== DASHBOARD Y CONFIG ====================
 
 @login_required
-@group_required(['Admin'])
+@group_required(['Admin', 'Manager', 'General Manager'])
 def mp_dashboard(request):
     """Dashboard principal de Mercado Pago."""
     credentials = MPCredentials.get_active()

@@ -7,9 +7,11 @@ from django.contrib import messages
 
 from .models import Company, Branch
 from .forms import CompanyForm, BranchForm
+from decorators.decorators import group_required
 
 
 @login_required
+@group_required(['Admin', 'General Manager'])
 def company_settings(request):
     """View and edit company settings."""
     company = Company.get_company()
@@ -31,6 +33,7 @@ def company_settings(request):
 
 
 @login_required
+@group_required(['Admin', 'Manager', 'General Manager'])
 def branch_list(request):
     """List all branches."""
     branches = Branch.objects.select_related('company').all()
@@ -40,6 +43,7 @@ def branch_list(request):
 
 
 @login_required
+@group_required(['Admin'])
 def branch_create(request):
     """Create a new branch."""
     if request.method == 'POST':
@@ -58,6 +62,7 @@ def branch_create(request):
 
 
 @login_required
+@group_required(['Admin'])
 def branch_edit(request, pk):
     """Edit a branch."""
     branch = get_object_or_404(Branch, pk=pk)
@@ -80,6 +85,7 @@ def branch_edit(request, pk):
 
 
 @login_required
+@group_required(['Admin'])
 def branch_delete(request, pk):
     """Delete a branch."""
     branch = get_object_or_404(Branch, pk=pk)
