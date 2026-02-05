@@ -141,22 +141,43 @@ def stock_adjust(request, pk):
     product = get_object_or_404(Product, pk=pk)
     
     if request.method == 'POST':
-        form = StockAdjustmentForm(request.POST)
-        if form.is_valid():
-            new_quantity = form.cleaned_data['new_quantity']
-            reason = form.cleaned_data['reason']
+        new_quantity = request.POST.get('new_quantity')
+        reason = request.POST.get('reason', '')
+        notes = request.POST.get('notes', '')
+        
+        # Mapear motivos a texto legible
+        reason_map = {
+            'conteo_fisico': 'Conteo Físico / Inventario',
+            'mercaderia_danada': 'Mercadería Dañada',
+            'mercaderia_vencida': 'Mercadería Vencida',
+            'robo_perdida': 'Robo / Pérdida',
+            'devolucion': 'Devolución',
+            'correccion_error': 'Corrección de Error',
+            'consumo_interno': 'Consumo Interno',
+            'otro': 'Otro',
+        }
+        
+        reason_text = reason_map.get(reason, reason)
+        if notes:
+            reason_text = f"{reason_text}: {notes}"
+        
+        try:
+            from decimal import Decimal
+            new_quantity = Decimal(new_quantity)
             
             StockManagementService.adjust_stock(
                 product=product,
                 new_quantity=new_quantity,
-                reason=reason,
+                reason=reason_text,
                 user=request.user
             )
             
             messages.success(request, f'Stock de "{product.name}" ajustado correctamente.')
             return redirect('stocks:product_detail', pk=pk)
-    else:
-        form = StockAdjustmentForm(initial={'new_quantity': product.current_stock})
+        except Exception as e:
+            messages.error(request, f'Error al ajustar stock: {str(e)}')
+    
+    form = StockAdjustmentForm(initial={'new_quantity': product.current_stock})
     
     return render(request, 'stocks/stock_adjust.html', {
         'form': form,
