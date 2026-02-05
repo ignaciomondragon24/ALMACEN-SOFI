@@ -20,6 +20,10 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
 
+# Railway automatic domain support
+if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+    ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -34,6 +38,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'crispy_forms',
+    'crispy_bootstrap5',
     'widget_tweaks',
     'django_extensions',
     
@@ -49,6 +54,7 @@ INSTALLED_APPS = [
     'sales.apps.SalesConfig',
     'company.apps.CompanyConfig',
     'mercadopago.apps.MercadopagoConfig',
+    'assistant.apps.AssistantConfig',
 ]
 
 MIDDLEWARE = [
@@ -142,8 +148,11 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# WhiteNoise for static files
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# WhiteNoise for static files - only use manifest storage in production
+if DEBUG:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -193,9 +202,24 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
+if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+    CORS_ALLOWED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF Trusted Origins for Railway
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+if os.getenv('ALLOWED_HOSTS'):
+    for host in os.getenv('ALLOWED_HOSTS').split(','):
+        if host and host not in ['localhost', '127.0.0.1', 'testserver']:
+            CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
+
 # Crispy Forms
+CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
 CRISPY_TEMPLATE_PACK = 'bootstrap5'
 
 # Logging
@@ -213,11 +237,6 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'debug.log',
-        },
         'console': {
             'class': 'logging.StreamHandler',
         },
