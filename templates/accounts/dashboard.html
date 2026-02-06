@@ -1,24 +1,82 @@
 {% extends 'base.html' %}
 {% load currency_filters %}
+{% load static %}
 
 {% block title %}Dashboard - CHE GOLOSO{% endblock %}
 
+{% block extra_css %}
+<style>
+    .welcome-header {
+        background: linear-gradient(135deg, #E91E8C, #2D1E5F);
+        border-radius: 1rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+    }
+    .welcome-header .logo-small {
+        height: 60px;
+        margin-right: 1rem;
+    }
+    .quick-action-card {
+        transition: all 0.3s ease;
+        border: none;
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+    .quick-action-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    .quick-action-card .card-body {
+        padding: 1.5rem;
+    }
+    .quick-action-card i {
+        transition: transform 0.3s ease;
+    }
+    .quick-action-card:hover i {
+        transform: scale(1.2);
+    }
+    .stats-card {
+        border-radius: 1rem;
+        border: none;
+        overflow: hidden;
+    }
+    .stats-card.pink {
+        background: linear-gradient(135deg, #E91E8C, #D11A7D);
+        color: white;
+    }
+    .stats-card.yellow {
+        background: linear-gradient(135deg, #F5D000, #FFE066);
+        color: #2D1E5F;
+    }
+    .stats-card.purple {
+        background: linear-gradient(135deg, #2D1E5F, #3D2E6F);
+        color: white;
+    }
+    .badge-admin { background: linear-gradient(135deg, #E91E8C, #D11A7D); }
+    .badge-manager { background: linear-gradient(135deg, #F5D000, #FFE066); color: #2D1E5F; }
+    .badge-stock { background: linear-gradient(135deg, #2D1E5F, #3D2E6F); }
+    .badge-cashier { background: linear-gradient(135deg, #198754, #20c997); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col">
-            <h2><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h2>
-            <p class="text-muted">
-                Bienvenido, {{ user.get_full_name|default:user.username }}
+    <!-- Welcome Header -->
+    <div class="welcome-header d-flex align-items-center">
+        <img src="{% static 'img/logo.png' %}" alt="Che Goloso" class="logo-small">
+        <div>
+            <h2 class="mb-1">¡Hola, {{ user.get_full_name|default:user.username }}!</h2>
+            <p class="mb-0 opacity-75">
+                Bienvenido al sistema de gestión
                 {% if is_admin %}
-                <span class="badge bg-danger ms-2">Administrador</span>
+                <span class="badge badge-admin ms-2">Administrador</span>
                 {% elif is_manager %}
-                <span class="badge bg-warning text-dark ms-2">Gerente</span>
+                <span class="badge badge-manager ms-2">Gerente</span>
                 {% elif is_stock_manager %}
-                <span class="badge bg-info ms-2">Enc. Stock</span>
+                <span class="badge badge-stock ms-2">Enc. Stock</span>
                 {% elif is_cashier %}
-                <span class="badge bg-success ms-2">Cajero</span>
+                <span class="badge badge-cashier ms-2">Cajero</span>
                 {% endif %}
             </p>
         </div>
@@ -85,9 +143,9 @@
         
         {% if can_pos %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'pos:pos_main' %}" class="card text-decoration-none h-100 border-primary">
-                <div class="card-body text-center py-4">
-                    <i class="fas fa-cash-register fa-2x text-primary mb-2"></i>
+            <a href="{% url 'pos:pos_main' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #E91E8C, #D11A7D);">
+                <div class="card-body text-center text-white">
+                    <i class="fas fa-cash-register fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">POS</h6>
                 </div>
             </a>
@@ -96,9 +154,9 @@
         
         {% if can_stocks %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'stocks:product_list' %}" class="card text-decoration-none h-100 border-success">
-                <div class="card-body text-center py-4">
-                    <i class="fas fa-boxes fa-2x text-success mb-2"></i>
+            <a href="{% url 'stocks:product_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #2D1E5F, #3D2E6F);">
+                <div class="card-body text-center text-white">
+                    <i class="fas fa-boxes fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Productos</h6>
                 </div>
             </a>
@@ -107,9 +165,9 @@
         
         {% if can_promotions %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'promotions:promotion_list' %}" class="card text-decoration-none h-100 border-warning">
-                <div class="card-body text-center py-4">
-                    <i class="fas fa-tags fa-2x text-warning mb-2"></i>
+            <a href="{% url 'promotions:promotion_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #F5D000, #FFE066);">
+                <div class="card-body text-center" style="color: #2D1E5F;">
+                    <i class="fas fa-tags fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Promociones</h6>
                 </div>
             </a>
@@ -118,9 +176,9 @@
         
         {% if can_reports %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'sales:dashboard' %}" class="card text-decoration-none h-100 border-info">
-                <div class="card-body text-center py-4">
-                    <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+            <a href="{% url 'sales:dashboard' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #E91E8C, #2D1E5F);">
+                <div class="card-body text-center text-white">
+                    <i class="fas fa-chart-bar fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Reportes</h6>
                 </div>
             </a>
@@ -129,9 +187,9 @@
         
         {% if can_signage %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'signage:home' %}" class="card text-decoration-none h-100 border-secondary">
-                <div class="card-body text-center py-4">
-                    <i class="fas fa-sign fa-2x text-secondary mb-2"></i>
+            <a href="{% url 'signage:home' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #6c757d, #495057);">
+                <div class="card-body text-center text-white">
+                    <i class="fas fa-sign fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Cartelería</h6>
                 </div>
             </a>
@@ -140,9 +198,9 @@
         
         {% if is_admin %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'accounts:user_list' %}" class="card text-decoration-none h-100 border-danger">
-                <div class="card-body text-center py-4">
-                    <i class="fas fa-users fa-2x text-danger mb-2"></i>
+            <a href="{% url 'accounts:user_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #dc3545, #c82333);">
+                <div class="card-body text-center text-white">
+                    <i class="fas fa-users fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Usuarios</h6>
                 </div>
             </a>

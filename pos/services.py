@@ -55,7 +55,11 @@ class POSService:
     @staticmethod
     def generate_ticket_number(session):
         """Generate a unique ticket number."""
-        register_code = session.cash_shift.cash_register.code
+        import random
+        import string
+        from django.db import IntegrityError
+        
+        register_code = session.cash_shift.cash_register.code or 'CAJA'
         date_str = timezone.now().strftime('%Y%m%d')
         
         # Count today's transactions for this register
@@ -65,7 +69,15 @@ class POSService:
             created_at__gte=today_start
         ).count() + 1
         
-        return f'{register_code}-{date_str}-{count:04d}'
+        # Generate base ticket number
+        ticket_number = f'{register_code}-{date_str}-{count:04d}'
+        
+        # Check if it already exists and add suffix if needed
+        while POSTransaction.objects.filter(ticket_number=ticket_number).exists():
+            count += 1
+            ticket_number = f'{register_code}-{date_str}-{count:04d}'
+        
+        return ticket_number
 
 
 class CartService:

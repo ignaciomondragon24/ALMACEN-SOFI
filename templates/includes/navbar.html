@@ -1,8 +1,9 @@
 {% load static %}
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+<nav class="navbar navbar-expand-lg navbar-dark navbar-che">
     <div class="container-fluid">
-        <a class="navbar-brand" href="{% url 'accounts:dashboard' %}">
-            <i class="fas fa-store me-2"></i>CHE GOLOSO
+        <a class="navbar-brand logo-animated" href="{% url 'accounts:dashboard' %}">
+            <img src="{% static 'img/logo.png' %}" alt="Che Goloso" class="d-inline-block">
+            <span class="navbar-brand-text d-none d-md-inline">CHE GOLOSO</span>
         </a>
         
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -128,6 +129,15 @@
                 </li>
                 {% endif %}
                 
+                <!-- AI Assistant - Manager, Admin -->
+                {% if is_manager or is_admin %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'assistant:home' %}" style="color: #ff6b6b;">
+                        <i class="fas fa-robot me-1"></i>Asistente IA
+                    </a>
+                </li>
+                {% endif %}
+                
                 <!-- Admin Menu - Solo Admin -->
                 {% if is_admin %}
                 <li class="nav-item dropdown">
@@ -145,6 +155,9 @@
                             <i class="fas fa-store-alt me-2"></i>Sucursales
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'assistant:settings' %}">
+                            <i class="fas fa-robot me-2 text-danger"></i>Configurar Asistente IA
+                        </a></li>
                         <li><a class="dropdown-item" href="{% url 'mercadopago:dashboard' %}">
                             <i class="fas fa-credit-card me-2 text-info"></i>Mercado Pago
                         </a></li>

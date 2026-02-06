@@ -5,12 +5,14 @@
     --pos-bg: #1a1a2e;
     --pos-bg-light: #16213e;
     --pos-bg-lighter: #0f3460;
-    --pos-accent: #e94560;
+    --pos-accent: #E91E8C;
+    --pos-accent-yellow: #F5D000;
+    --pos-accent-purple: #2D1E5F;
     --pos-text: #eaeaea;
     --pos-text-muted: #9a9a9a;
     --pos-border: #2a2a4e;
     --pos-success: #00d9a5;
-    --pos-warning: #ffc107;
+    --pos-warning: #F5D000;
     --pos-danger: #ff4757;
 }
 
@@ -31,20 +33,24 @@
 
 /* Header */
 .pos-header {
-    background-color: var(--pos-bg-light);
+    background: linear-gradient(135deg, var(--pos-accent), var(--pos-accent-purple));
     padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid var(--pos-border);
+    border-bottom: none;
 }
 
 .pos-logo {
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--pos-accent);
+    color: white;
+}
+
+.pos-logo img {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
 .pos-info {
     font-size: 0.9rem;
-    color: var(--pos-text-muted);
+    color: rgba(255,255,255,0.85);
 }
 
 #pos-clock {
@@ -339,6 +345,14 @@
     padding: 1rem;
     font-size: 1.25rem;
     font-weight: 700;
+    background: linear-gradient(135deg, var(--pos-accent), var(--pos-accent-purple)) !important;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+#btn-checkout:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(233, 30, 140, 0.4);
 }
 
 #btn-checkout:disabled {

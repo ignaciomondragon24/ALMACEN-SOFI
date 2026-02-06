@@ -33,5 +33,8 @@ urlpatterns = [
     path('api/transaction/<int:transaction_id>/suspend/', views.api_transaction_suspend, name='api_transaction_suspend'),
     path('api/transaction/<int:transaction_id>/resume/', views.api_transaction_resume, name='api_transaction_resume'),
     path('api/transaction/<int:transaction_id>/cancel/', views.api_transaction_cancel, name='api_transaction_cancel'),
+    path('api/transaction/<int:transaction_id>/discount/', views.api_apply_discount, name='api_apply_discount'),
     path('api/last-transaction/', views.api_last_transaction, name='api_last_transaction'),
+    path('api/suspended-transactions/', views.api_suspended_transactions, name='api_suspended_transactions'),
+    path('api/quick-add-product/', views.api_quick_add_product, name='api_quick_add_product'),
 ]

@@ -4,7 +4,7 @@ Sales Views - Reports and Analytics
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Avg, F
-from django.db.models.functions import TruncDate, TruncMonth
+from django.db.models.functions import TruncDate, TruncMonth, ExtractHour
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -141,9 +141,9 @@ def daily_report(request):
         count=Count('id')
     )
     
-    # By hour
-    by_hour = transactions.extra(
-        select={'hour': "strftime('%%H', created_at)"}
+    # By hour - compatible with both SQLite and PostgreSQL
+    by_hour = transactions.annotate(
+        hour=ExtractHour('created_at')
     ).values('hour').annotate(
         total=Sum('total'),
         count=Count('id')

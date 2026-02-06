@@ -243,6 +243,15 @@ def purchase_cancel(request, pk):
     return render(request, 'purchase/purchase_cancel.html', context)
 
 
+@login_required
+@group_required(['Admin', 'Manager', 'Stock Manager'])
+def purchase_detail(request, pk):
+    """View purchase order details."""
+    purchase = get_object_or_404(Purchase, pk=pk)
+    context = {'purchase': purchase}
+    return render(request, 'purchase/purchase_detail.html', context)
+
+
 # API Views
 @login_required
 @group_required(['Admin', 'Manager', 'Stock Manager'])

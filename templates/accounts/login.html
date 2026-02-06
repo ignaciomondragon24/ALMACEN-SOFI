@@ -1,22 +1,82 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Iniciar Sesión - CHE GOLOSO{% endblock %}
 
 {% block navbar %}{% endblock %}
 
-{% block body_class %}bg-light{% endblock %}
+{% block body_class %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #E91E8C 0%, #2D1E5F 100%);
+        min-height: 100vh;
+    }
+    .login-card {
+        border: none;
+        border-radius: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .login-header {
+        background: linear-gradient(135deg, #F5D000 0%, #FFE066 100%);
+        padding: 2rem;
+        text-align: center;
+    }
+    .login-logo {
+        max-width: 120px;
+        margin-bottom: 0.5rem;
+    }
+    .login-title {
+        color: #2D1E5F;
+        font-family: var(--font-display);
+        font-weight: 700;
+        margin: 0;
+    }
+    .login-subtitle {
+        color: #2D1E5F;
+        opacity: 0.8;
+        margin: 0;
+    }
+    .input-group-text {
+        background: #E91E8C;
+        border: none;
+        color: white;
+    }
+    .form-control {
+        border: 2px solid #eee;
+    }
+    .form-control:focus {
+        border-color: #E91E8C;
+        box-shadow: 0 0 0 0.2rem rgba(233, 30, 140, 0.25);
+    }
+    .btn-login {
+        background: linear-gradient(135deg, #E91E8C, #2D1E5F);
+        border: none;
+        font-family: var(--font-display);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .btn-login:hover {
+        background: linear-gradient(135deg, #2D1E5F, #E91E8C);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(233, 30, 140, 0.4);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container">
     <div class="row justify-content-center align-items-center min-vh-100">
         <div class="col-md-6 col-lg-4">
-            <div class="card shadow">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <i class="fas fa-store fa-3x text-primary mb-3"></i>
-                        <h2 class="fw-bold">CHE GOLOSO</h2>
-                        <p class="text-muted">Sistema de Gestión</p>
-                    </div>
+            <div class="card login-card">
+                <div class="login-header">
+                    <img src="{% static 'img/logo.png' %}" alt="Che Goloso" class="login-logo">
+                    <h2 class="login-title">CHE GOLOSO</h2>
+                    <p class="login-subtitle">Sistema de Gestión</p>
+                </div>
+                <div class="card-body p-4">
                     
                     <form method="post">
                         {% csrf_token %}
@@ -70,7 +130,7 @@
                         {% endif %}
                         
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary btn-lg">
+                            <button type="submit" class="btn btn-login btn-lg text-white">
                                 <i class="fas fa-sign-in-alt me-2"></i>Ingresar
                             </button>
                         </div>
@@ -78,7 +138,7 @@
                 </div>
             </div>
             
-            <p class="text-center text-muted mt-3">
+            <p class="text-center text-white mt-3">
                 <small>&copy; {% now "Y" %} CHE GOLOSO - Todos los derechos reservados</small>
             </p>
         </div>

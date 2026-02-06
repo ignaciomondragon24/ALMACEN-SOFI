@@ -45,6 +45,54 @@
     
     {% block content %}{% endblock %}
     
+    <!-- AI Assistant Floating Widget -->
+    {% if user.is_authenticated and not request.resolver_match.url_name == 'home' %}
+    {% if request.resolver_match.app_name != 'assistant' %}
+    <div class="assistant-widget" id="assistantWidget">
+        <a href="{% url 'assistant:home' %}" class="assistant-widget-btn" title="Asistente Virtual">
+            <i class="fas fa-robot"></i>
+        </a>
+    </div>
+    <style>
+        .assistant-widget {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            z-index: 9999;
+        }
+        .assistant-widget-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #E91E8C, #2D1E5F);
+            border-radius: 50%;
+            color: white;
+            font-size: 1.5rem;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(233, 30, 140, 0.4);
+            transition: all 0.3s ease;
+        }
+        .assistant-widget-btn:hover {
+            transform: scale(1.1);
+            color: white;
+            box-shadow: 0 6px 20px rgba(233, 30, 140, 0.5);
+        }
+        .assistant-widget-btn:active {
+            transform: scale(0.95);
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(233, 30, 140, 0.4); }
+            50% { box-shadow: 0 4px 25px rgba(233, 30, 140, 0.6); }
+        }
+        .assistant-widget-btn {
+            animation: pulse 2s infinite;
+        }
+    </style>
+    {% endif %}
+    {% endif %}
+    
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     

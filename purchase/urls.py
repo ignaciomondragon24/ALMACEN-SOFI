@@ -19,6 +19,7 @@ urlpatterns = [
     path('<int:pk>/edit/', views.purchase_edit, name='purchase_edit'),
     path('<int:pk>/receive/', views.purchase_receive, name='purchase_receive'),
     path('<int:pk>/cancel/', views.purchase_cancel, name='purchase_cancel'),
+    path('<int:pk>/', views.purchase_detail, name='purchase_detail'),
     
     # API
     path('api/products/search/', views.api_search_products, name='api_search_products'),

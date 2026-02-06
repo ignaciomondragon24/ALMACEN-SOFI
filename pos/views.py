@@ -24,7 +24,7 @@ def normalize_text(text):
     return ''.join(c for c in nfkd_form if not unicodedata.combining(c)).lower()
 from .services import POSService, CartService, CheckoutService
 from cashregister.models import CashShift, PaymentMethod
-from stocks.models import Product
+from stocks.models import Product, ProductCategory
 from company.models import Company
 from decorators.decorators import group_required
 
@@ -46,8 +46,20 @@ def pos_main(request):
     # Get or create POS session
     session = POSService.get_or_create_session(shift)
     
-    # Get or create pending transaction
-    transaction = POSService.get_pending_transaction(session)
+    # Check if resuming a specific transaction
+    transaction_id = request.GET.get('transaction')
+    if transaction_id:
+        try:
+            transaction = POSTransaction.objects.get(
+                id=transaction_id,
+                session__cash_shift=shift,
+                status='pending'
+            )
+        except POSTransaction.DoesNotExist:
+            transaction = POSService.get_pending_transaction(session)
+    else:
+        # Get or create pending transaction
+        transaction = POSService.get_pending_transaction(session)
     
     # If transaction is completed, create a new one
     if transaction.status == 'completed':
@@ -71,6 +83,15 @@ def pos_main(request):
     # Get payment methods
     payment_methods = PaymentMethod.objects.filter(is_active=True).order_by('position')
     
+    # Count suspended transactions for this shift
+    suspended_count = POSTransaction.objects.filter(
+        session__cash_shift=shift,
+        status='suspended'
+    ).count()
+    
+    # Get categories for quick product add
+    categories = ProductCategory.objects.filter(is_active=True).order_by('name')
+    
     context = {
         'shift': shift,
         'cash_register': shift.cash_register,
@@ -80,6 +101,8 @@ def pos_main(request):
         'quick_buttons': quick_buttons,
         'quick_access_products': quick_access_products,
         'payment_methods': payment_methods,
+        'suspended_count': suspended_count,
+        'categories': categories,
     }
     
     return render(request, 'pos/pos_main.html', context)
@@ -523,6 +546,55 @@ def api_transaction_cancel(request, transaction_id):
 
 
 @login_required
+@require_POST
+def api_apply_discount(request, transaction_id):
+    """Apply discount to transaction."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+    
+    discount_type = data.get('type', 'percent')  # 'percent' or 'fixed'
+    discount_value = Decimal(str(data.get('value', 0)))
+    reason = data.get('reason', '')
+    
+    if discount_value <= 0:
+        return JsonResponse({'success': False, 'error': 'Valor de descuento inválido'}, status=400)
+    
+    try:
+        transaction = POSTransaction.objects.get(id=transaction_id, status='pending')
+    except POSTransaction.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Transacción no encontrada'}, status=404)
+    
+    # Calculate discount amount
+    if discount_type == 'percent':
+        if discount_value > 100:
+            return JsonResponse({'success': False, 'error': 'El porcentaje no puede ser mayor a 100%'}, status=400)
+        discount_amount = (transaction.subtotal * discount_value) / Decimal('100')
+    else:  # fixed
+        if discount_value > transaction.subtotal:
+            return JsonResponse({'success': False, 'error': 'El descuento no puede ser mayor al subtotal'}, status=400)
+        discount_amount = discount_value
+    
+    # Apply discount to transaction
+    transaction.discount_total = discount_amount
+    transaction.notes = f"Descuento: {reason}" if reason else f"Descuento: {discount_value}{'%' if discount_type == 'percent' else '$'}"
+    transaction.total = transaction.subtotal - discount_amount + transaction.tax_total
+    transaction.save()
+    
+    return JsonResponse({
+        'success': True,
+        'message': 'Descuento aplicado',
+        'totals': {
+            'subtotal': float(transaction.subtotal),
+            'discount': float(transaction.discount_total),
+            'total': float(transaction.total),
+            'items_count': transaction.items_count
+        }
+    })
+
+
+@login_required
 def suspended_transactions(request):
     """View suspended transactions."""
     transactions = POSTransaction.objects.filter(
@@ -600,4 +672,120 @@ def api_last_transaction(request):
         'ticket_number': transaction.ticket_number,
         'total': float(transaction.total)
     })
+
+
+@login_required
+@require_GET
+def api_suspended_transactions(request):
+    """Get all suspended transactions for the current user's shift."""
+    shift = CashShift.objects.filter(
+        cashier=request.user,
+        status='open'
+    ).first()
+    
+    if not shift:
+        return JsonResponse({'success': False, 'error': 'No hay turno abierto'}, status=400)
+    
+    transactions = POSTransaction.objects.filter(
+        session__cash_shift=shift,
+        status='suspended'
+    ).order_by('-created_at')
+    
+    transactions_data = []
+    for tx in transactions:
+        items_count = tx.items.count()
+        transactions_data.append({
+            'id': tx.id,
+            'ticket_number': tx.ticket_number,
+            'created_at': tx.created_at.isoformat(),
+            'total': float(tx.total),
+            'items_count': items_count
+        })
+    
+    return JsonResponse({
+        'success': True,
+        'transactions': transactions_data
+    })
+
+
+@login_required
+@require_POST
+def api_quick_add_product(request):
+    """Quickly add a new product from the POS when barcode is not found."""
+    try:
+        data = json.loads(request.body)
+        
+        barcode = data.get('barcode', '').strip()
+        name = data.get('name', '').strip()
+        sale_price = data.get('sale_price')
+        purchase_price = data.get('purchase_price', 0)
+        category_id = data.get('category_id')
+        initial_stock = data.get('initial_stock', 0)
+        
+        if not name:
+            return JsonResponse({'success': False, 'error': 'El nombre es requerido'}, status=400)
+        
+        if not sale_price or float(sale_price) <= 0:
+            return JsonResponse({'success': False, 'error': 'El precio de venta es requerido'}, status=400)
+        
+        # Check if barcode already exists
+        if barcode and Product.objects.filter(barcode=barcode).exists():
+            return JsonResponse({'success': False, 'error': 'Ya existe un producto con este código de barras'}, status=400)
+        
+        # Generate SKU
+        import random
+        import string
+        sku = 'POS-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        while Product.objects.filter(sku=sku).exists():
+            sku = 'POS-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        # Get category
+        category = None
+        if category_id:
+            category = ProductCategory.objects.filter(id=category_id).first()
+        
+        # Create product
+        product = Product.objects.create(
+            sku=sku,
+            barcode=barcode if barcode else None,
+            name=name,
+            sale_price=Decimal(str(sale_price)),
+            purchase_price=Decimal(str(purchase_price)) if purchase_price else Decimal('0'),
+            cost_price=Decimal(str(purchase_price)) if purchase_price else Decimal('0'),
+            category=category,
+            current_stock=int(initial_stock) if initial_stock else 0,
+            is_active=True
+        )
+        
+        # If initial stock, create stock movement
+        if initial_stock and int(initial_stock) > 0:
+            from stocks.models import StockMovement
+            StockMovement.objects.create(
+                product=product,
+                movement_type='adjustment_in',
+                quantity=int(initial_stock),
+                unit_cost=Decimal(str(purchase_price)) if purchase_price else Decimal('0'),
+                stock_before=0,
+                stock_after=int(initial_stock),
+                notes='Stock inicial desde POS',
+                created_by=request.user
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'product': {
+                'id': product.id,
+                'sku': product.sku,
+                'barcode': product.barcode,
+                'name': product.name,
+                'sale_price': float(product.sale_price),
+                'current_stock': product.current_stock
+            },
+            'message': f'Producto "{product.name}" creado exitosamente'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Datos inválidos'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 

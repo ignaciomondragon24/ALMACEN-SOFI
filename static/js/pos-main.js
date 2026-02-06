@@ -38,8 +38,106 @@
         initCheckout();
         initActionButtons();
         initKeyboardShortcuts();
+        initQuickAddProduct();
+        initHeaderSuspended();
         loadCart();
     });
+    
+    // Header suspended button
+    function initHeaderSuspended() {
+        const headerSuspendedBtn = document.getElementById('header-suspended-btn');
+        if (headerSuspendedBtn) {
+            headerSuspendedBtn.addEventListener('click', () => {
+                openSuspendedModal();
+            });
+        }
+    }
+    
+    // Quick add product
+    function initQuickAddProduct() {
+        const confirmBtn = document.getElementById('confirm-quick-add');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', handleQuickAddProduct);
+        }
+        
+        // Allow Enter key to submit in the modal
+        const quickAddForm = document.getElementById('quick-add-product-form');
+        if (quickAddForm) {
+            quickAddForm.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleQuickAddProduct();
+                }
+            });
+        }
+    }
+    
+    async function handleQuickAddProduct() {
+        const barcode = document.getElementById('quick-add-barcode').value;
+        const name = document.getElementById('quick-add-name').value.trim();
+        const salePrice = document.getElementById('quick-add-sale-price').value;
+        const purchasePrice = document.getElementById('quick-add-purchase-price').value || 0;
+        const categoryId = document.getElementById('quick-add-category').value;
+        const initialStock = document.getElementById('quick-add-stock').value || 0;
+        const shouldAddToCart = document.getElementById('quick-add-to-cart').checked;
+        
+        // Validation
+        if (!name) {
+            showToast('El nombre del producto es requerido', 'error');
+            document.getElementById('quick-add-name').focus();
+            return;
+        }
+        
+        if (!salePrice || parseFloat(salePrice) <= 0) {
+            showToast('El precio de venta es requerido', 'error');
+            document.getElementById('quick-add-sale-price').focus();
+            return;
+        }
+        
+        try {
+            const response = await fetch('/pos/api/quick-add-product/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    barcode: barcode,
+                    name: name,
+                    sale_price: parseFloat(salePrice),
+                    purchase_price: parseFloat(purchasePrice),
+                    category_id: categoryId || null,
+                    initial_stock: parseInt(initialStock)
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(data.message, 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('quickAddProductModal'));
+                if (modal) modal.hide();
+                
+                // Add to cart if checkbox is checked
+                if (shouldAddToCart && data.product) {
+                    await addToCart(data.product.id, 1);
+                }
+                
+                // Focus back to search
+                if (productSearch) {
+                    productSearch.value = '';
+                    productSearch.focus();
+                }
+            } else {
+                showToast(data.error || 'Error al crear producto', 'error');
+            }
+        } catch (error) {
+            console.error('Quick add product error:', error);
+            showToast('Error al crear producto', 'error');
+        }
+    }
 
     // Clock
     function initClock() {
@@ -101,14 +199,59 @@
     function showSearchResultsEmpty(query) {
         if (!searchResultsList || !searchResults) return;
         
-        searchResultsList.innerHTML = `
-            <div class="search-result-empty text-center text-muted p-3">
-                <i class="fas fa-search mb-2"></i>
-                <p class="mb-0">No se encontraron productos para "${query}"</p>
-            </div>
-        `;
+        // Check if it looks like a barcode (numeric, 8-13 digits)
+        const isBarcode = /^\d{8,13}$/.test(query);
+        
+        if (isBarcode) {
+            searchResultsList.innerHTML = `
+                <div class="search-result-empty text-center p-3">
+                    <i class="fas fa-barcode fa-2x text-warning mb-2"></i>
+                    <p class="mb-2 text-light">Código de barras no encontrado:</p>
+                    <p class="mb-3"><code class="fs-5">${query}</code></p>
+                    <button type="button" class="btn btn-success btn-lg" onclick="openQuickAddProduct('${query}')">
+                        <i class="fas fa-plus-circle me-2"></i>Agregar Producto Nuevo
+                    </button>
+                </div>
+            `;
+        } else {
+            searchResultsList.innerHTML = `
+                <div class="search-result-empty text-center text-muted p-3">
+                    <i class="fas fa-search mb-2"></i>
+                    <p class="mb-0">No se encontraron productos para "${query}"</p>
+                </div>
+            `;
+        }
         searchResults.style.display = 'block';
     }
+    
+    // Open quick add product modal
+    window.openQuickAddProduct = function(barcode) {
+        const modal = document.getElementById('quickAddProductModal');
+        if (!modal) return;
+        
+        // Reset form
+        document.getElementById('quick-add-barcode').value = barcode;
+        document.getElementById('quick-add-name').value = '';
+        document.getElementById('quick-add-sale-price').value = '';
+        document.getElementById('quick-add-purchase-price').value = '';
+        document.getElementById('quick-add-category').value = '';
+        document.getElementById('quick-add-stock').value = '1';
+        document.getElementById('quick-add-to-cart').checked = true;
+        
+        // Hide search results
+        hideSearchResults();
+        
+        // Clear search input
+        if (productSearch) productSearch.value = '';
+        
+        // Show modal
+        new bootstrap.Modal(modal).show();
+        
+        // Focus on name field
+        setTimeout(() => {
+            document.getElementById('quick-add-name').focus();
+        }, 500);
+    };
 
     function handleSearchKeydown(e) {
         if (e.key === 'Enter') {
@@ -454,7 +597,8 @@
                     productSearch.value = '';
                 }
             } else {
-                showToast('Producto no encontrado', 'warning');
+                // Product not found - offer to create it
+                openQuickAddProduct(barcode);
             }
         } catch (error) {
             console.error('Barcode search error:', error);
@@ -703,6 +847,37 @@
         const btnHold = document.getElementById('btn-hold');
         const btnCancel = document.getElementById('btn-cancel');
         const btnDiscount = document.getElementById('btn-discount');
+        const btnReprint = document.getElementById('btn-reprint');
+        
+        // Discount button
+        if (btnDiscount) {
+            btnDiscount.addEventListener('click', () => {
+                if (cart.items.length === 0) {
+                    showToast('El carrito está vacío', 'warning');
+                    return;
+                }
+                openDiscountModal();
+            });
+        }
+        
+        // Reprint button
+        if (btnReprint) {
+            btnReprint.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/pos/api/last-transaction/');
+                    const data = await response.json();
+                    
+                    if (data.success && data.transaction_id) {
+                        window.open(`/pos/ticket/${data.transaction_id}/`, '_blank');
+                    } else {
+                        showToast('No hay ticket anterior para reimprimir', 'warning');
+                    }
+                } catch (error) {
+                    console.error('Reprint error:', error);
+                    showToast('Error al obtener último ticket', 'error');
+                }
+            });
+        }
         
         if (btnHold) {
             btnHold.addEventListener('click', async () => {
@@ -767,6 +942,14 @@
             });
         }
         
+        // Suspended transactions button
+        const btnSuspended = document.getElementById('btn-suspended');
+        if (btnSuspended) {
+            btnSuspended.addEventListener('click', () => {
+                openSuspendedModal();
+            });
+        }
+        
         // Cost Sale button
         const btnCostSale = document.getElementById('btn-cost-sale');
         if (btnCostSale) {
@@ -789,6 +972,205 @@
                 }
                 openInternalConsumptionModal();
             });
+        }
+    }
+    
+    // Suspended Transactions Modal
+    async function openSuspendedModal() {
+        try {
+            const response = await fetch('/pos/api/suspended-transactions/');
+            const data = await response.json();
+            
+            if (!data.success || !data.transactions || data.transactions.length === 0) {
+                showToast('No hay ventas apartadas', 'info');
+                return;
+            }
+            
+            // Create modal HTML
+            let modalHtml = `
+                <div class="modal fade" id="suspendedModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content bg-dark text-light">
+                            <div class="modal-header">
+                                <h5 class="modal-title"><i class="fas fa-pause-circle me-2"></i>Ventas Apartadas</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="list-group">
+            `;
+            
+            data.transactions.forEach(tx => {
+                const date = new Date(tx.created_at);
+                const dateStr = date.toLocaleString('es-AR');
+                modalHtml += `
+                    <div class="list-group-item list-group-item-action bg-secondary text-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Ticket: ${tx.ticket_number || '#' + tx.id}</h6>
+                            <small class="text-muted">${dateStr} - ${tx.items_count} producto(s)</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary fs-6 me-2">$${formatNumber(tx.total)}</span>
+                            <button class="btn btn-success btn-sm" onclick="resumeTransaction(${tx.id})">
+                                <i class="fas fa-play me-1"></i>Retomar
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            modalHtml += `
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if present
+            const existingModal = document.getElementById('suspendedModal');
+            if (existingModal) existingModal.remove();
+            
+            // Add modal to DOM
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('suspendedModal'));
+            modal.show();
+            
+        } catch (error) {
+            console.error('Error loading suspended transactions:', error);
+            showToast('Error al cargar ventas apartadas', 'error');
+        }
+    }
+    
+    // Resume suspended transaction
+    window.resumeTransaction = async function(transactionId) {
+        try {
+            const response = await fetch(`/pos/api/transaction/${transactionId}/resume/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Venta retomada', 'success');
+                // Redirect to POS with resumed transaction
+                window.location.href = `/pos/?transaction=${transactionId}`;
+            } else {
+                showToast(data.message || 'Error al retomar venta', 'error');
+            }
+        } catch (error) {
+            console.error('Resume error:', error);
+            showToast('Error al retomar venta', 'error');
+        }
+    };
+    
+    // Discount Modal Functions
+    function openDiscountModal() {
+        const discountModal = document.getElementById('discountModal');
+        if (!discountModal) return;
+        
+        const discountValue = document.getElementById('discount-value');
+        const discountSymbol = document.getElementById('discount-symbol');
+        const discountPreviewAmount = document.getElementById('discount-preview-amount');
+        
+        // Reset modal
+        if (discountValue) discountValue.value = 10;
+        document.getElementById('discount-percent').checked = true;
+        if (discountSymbol) discountSymbol.textContent = '%';
+        
+        // Update preview
+        updateDiscountPreview();
+        
+        // Type change handlers
+        document.querySelectorAll('input[name="discount-type"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.value === 'percent') {
+                    discountSymbol.textContent = '%';
+                } else {
+                    discountSymbol.textContent = '$';
+                }
+                updateDiscountPreview();
+            });
+        });
+        
+        // Value change handler
+        if (discountValue) {
+            discountValue.addEventListener('input', updateDiscountPreview);
+        }
+        
+        const modal = new bootstrap.Modal(discountModal);
+        modal.show();
+        
+        // Focus on value input
+        setTimeout(() => discountValue?.focus(), 300);
+        
+        // Confirm button
+        const confirmBtn = document.getElementById('confirm-discount');
+        if (confirmBtn) {
+            const newBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+            newBtn.addEventListener('click', () => applyDiscount(modal));
+        }
+    }
+    
+    function updateDiscountPreview() {
+        const discountValue = parseFloat(document.getElementById('discount-value')?.value || 0);
+        const isPercent = document.getElementById('discount-percent')?.checked;
+        const previewEl = document.getElementById('discount-preview-amount');
+        
+        if (!previewEl) return;
+        
+        let discountAmount = 0;
+        if (isPercent) {
+            discountAmount = cart.subtotal * (discountValue / 100);
+        } else {
+            discountAmount = discountValue;
+        }
+        
+        previewEl.textContent = formatCurrency(discountAmount);
+    }
+    
+    async function applyDiscount(modal) {
+        const discountValue = parseFloat(document.getElementById('discount-value')?.value || 0);
+        const isPercent = document.getElementById('discount-percent')?.checked;
+        const reason = document.getElementById('discount-reason')?.value || '';
+        
+        if (discountValue <= 0) {
+            showToast('Ingrese un valor de descuento válido', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/pos/api/transaction/${TRANSACTION_ID}/discount/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    type: isPercent ? 'percent' : 'fixed',
+                    value: discountValue,
+                    reason: reason
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Descuento aplicado', 'success');
+                modal.hide();
+                await loadCart();
+            } else {
+                showToast(data.error || 'Error al aplicar descuento', 'error');
+            }
+        } catch (error) {
+            console.error('Discount error:', error);
+            showToast('Error al aplicar descuento', 'error');
         }
     }
     
@@ -1499,10 +1881,9 @@
                     break;
                     
                 case 'F5':
-                    // F5 - Refresh cart (not page)
+                    // F5 - View suspended transactions
                     e.preventDefault();
-                    loadCart();
-                    showToast('Carrito actualizado', 'info');
+                    document.getElementById('btn-suspended')?.click();
                     break;
                     
                 case 'F6':
@@ -1636,7 +2017,7 @@
                                     <tr><td><kbd>F2</kbd></td><td>Buscar producto</td></tr>
                                     <tr><td><kbd>F3</kbd></td><td>Vaciar carrito</td></tr>
                                     <tr><td><kbd>F4</kbd></td><td>Apartar venta</td></tr>
-                                    <tr><td><kbd>F5</kbd></td><td>Actualizar carrito</td></tr>
+                                    <tr><td><kbd>F5</kbd></td><td>Ver apartados</td></tr>
                                     <tr><td><kbd>F6</kbd></td><td>Aplicar descuento</td></tr>
                                     <tr><td><kbd>F7</kbd></td><td>Cancelar venta</td></tr>
                                     <tr><td><kbd>F8</kbd></td><td>Cobrar / Pagar</td></tr>

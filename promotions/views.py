@@ -21,19 +21,35 @@ def promotion_list(request):
     """List all promotions."""
     promotions = Promotion.objects.all()
     
+    # Counts for stats cards
+    active_count = Promotion.objects.filter(status='active').count()
+    paused_count = Promotion.objects.filter(status='paused').count()
+    draft_count = Promotion.objects.filter(status='draft').count()
+    total_count = Promotion.objects.count()
+    
     # Filters
     status = request.GET.get('status', '')
     promo_type = request.GET.get('type', '')
+    search = request.GET.get('search', '')
     
     if status:
         promotions = promotions.filter(status=status)
     if promo_type:
         promotions = promotions.filter(promo_type=promo_type)
+    if search:
+        promotions = promotions.filter(name__icontains=search)
     
     context = {
         'promotions': promotions,
         'selected_status': status,
         'selected_type': promo_type,
+        'search': search,
+        'status': status,
+        'type': promo_type,
+        'active_count': active_count,
+        'paused_count': paused_count,
+        'draft_count': draft_count,
+        'total_count': total_count,
     }
     
     return render(request, 'promotions/promotion_list.html', context)

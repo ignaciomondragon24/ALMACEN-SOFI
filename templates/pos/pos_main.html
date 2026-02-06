@@ -72,6 +72,18 @@
     .help-float:hover {
         transform: scale(1.1);
     }
+    
+    /* Purple outline button for suspended transactions */
+    .btn-outline-purple {
+        color: #9b59b6;
+        border-color: #9b59b6;
+        background: transparent;
+    }
+    .btn-outline-purple:hover, .btn-outline-purple:focus {
+        color: #fff;
+        background-color: #9b59b6;
+        border-color: #9b59b6;
+    }
 </style>
 {% endblock %}
 
@@ -80,8 +92,9 @@
     <!-- Header -->
     <div class="pos-header">
         <div class="d-flex justify-content-between align-items-center">
-            <div class="pos-logo">
-                <i class="fas fa-store me-2"></i>CHE GOLOSO
+            <div class="pos-logo d-flex align-items-center">
+                <img src="{% static 'img/logo.png' %}" alt="Che Goloso" style="height: 35px; margin-right: 10px;">
+                <span>CHE GOLOSO</span>
             </div>
             <div class="pos-info">
                 <span class="me-3">
@@ -95,6 +108,14 @@
                 </span>
             </div>
             <div class="pos-actions">
+                {% if suspended_count > 0 %}
+                <button type="button" class="btn btn-warning btn-sm me-2 position-relative" id="header-suspended-btn">
+                    <i class="fas fa-pause-circle me-1"></i>Apartados
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        {{ suspended_count }}
+                    </span>
+                </button>
+                {% endif %}
                 <a href="{% url 'accounts:dashboard' %}" class="btn btn-outline-light btn-sm">
                     <i class="fas fa-home me-1"></i>Dashboard
                     <span class="shortcut-badge">F12</span>
@@ -189,7 +210,7 @@
                             data-product-id="{{ button.product.id }}"
                             style="background-color: {{ button.color }};">
                         <span class="quick-btn-name">{{ button.product.name|truncatechars:15 }}</span>
-                        <span class="quick-btn-price">{{ button.product.selling_price|currency_ar }}</span>
+                        <span class="quick-btn-price">{{ button.product.sale_price|currency_ar }}</span>
                     </button>
                     {% empty %}
                     <p class="text-muted text-center w-100">
@@ -224,6 +245,12 @@
                         <button type="button" class="btn btn-outline-secondary w-100 action-btn" id="btn-reprint">
                             <i class="fas fa-print me-1"></i>Reimprimir
                             <span class="shortcut-badge">F9</span>
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-outline-purple w-100 action-btn" id="btn-suspended">
+                            <i class="fas fa-pause-circle me-1"></i>Apartados
+                            <span class="shortcut-badge">F5</span>
                         </button>
                     </div>
                 </div>
@@ -347,6 +374,64 @@
     </div>
 </div>
 
+<!-- Discount Modal -->
+<div class="modal fade" id="discountModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-percent me-2 text-warning"></i>Aplicar Descuento
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Tipo de Descuento</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="discount-type" id="discount-percent" value="percent" checked>
+                        <label class="btn btn-outline-warning" for="discount-percent">
+                            <i class="fas fa-percent"></i> Porcentaje
+                        </label>
+                        <input type="radio" class="btn-check" name="discount-type" id="discount-fixed" value="fixed">
+                        <label class="btn btn-outline-warning" for="discount-fixed">
+                            <i class="fas fa-dollar-sign"></i> Monto Fijo
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Valor del Descuento</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-secondary text-white" id="discount-symbol">%</span>
+                        <input type="number" 
+                               class="form-control form-control-lg bg-secondary text-white text-center" 
+                               id="discount-value"
+                               min="0"
+                               step="0.01"
+                               value="10"
+                               placeholder="0">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Motivo (opcional)</label>
+                    <input type="text" 
+                           class="form-control bg-secondary text-white" 
+                           id="discount-reason"
+                           placeholder="Ej: Cliente frecuente">
+                </div>
+                <div class="alert alert-info py-2" id="discount-preview">
+                    <small>Descuento: <strong id="discount-preview-amount">$0,00</strong></small>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="confirm-discount">
+                    <i class="fas fa-check me-2"></i>Aplicar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Cost Sale Modal -->
 <div class="modal fade" id="costSaleModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
@@ -458,6 +543,94 @@
                 </button>
                 <button type="button" class="btn btn-warning btn-lg" id="confirm-consumption">
                     <i class="fas fa-check me-2"></i>Confirmar Consumo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Agregar Producto Rápido -->
+<div class="modal fade" id="quickAddProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle text-success me-2"></i>Agregar Producto Nuevo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Código de barras no encontrado. Podés agregar el producto rápidamente.
+                </div>
+                
+                <form id="quick-add-product-form">
+                    <div class="mb-3">
+                        <label class="form-label">Código de Barras</label>
+                        <input type="text" class="form-control bg-secondary text-light border-secondary" 
+                               id="quick-add-barcode" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Producto <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control bg-secondary text-light border-secondary" 
+                               id="quick-add-name" required placeholder="Ej: Coca Cola 500ml">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Precio Venta <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-secondary border-secondary">$</span>
+                                <input type="number" step="0.01" min="0.01" 
+                                       class="form-control bg-secondary text-light border-secondary" 
+                                       id="quick-add-sale-price" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Precio Costo</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-secondary border-secondary">$</span>
+                                <input type="number" step="0.01" min="0" 
+                                       class="form-control bg-secondary text-light border-secondary" 
+                                       id="quick-add-purchase-price" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Categoría</label>
+                            <select class="form-select bg-secondary text-light border-secondary" id="quick-add-category">
+                                <option value="">Sin categoría</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Stock Inicial</label>
+                            <input type="number" min="0" 
+                                   class="form-control bg-secondary text-light border-secondary" 
+                                   id="quick-add-stock" value="1" placeholder="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="quick-add-to-cart" checked>
+                        <label class="form-check-label" for="quick-add-to-cart">
+                            Agregar al carrito después de crear
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-success btn-lg" id="confirm-quick-add">
+                    <i class="fas fa-save me-2"></i>Guardar y Agregar
                 </button>
             </div>
         </div>

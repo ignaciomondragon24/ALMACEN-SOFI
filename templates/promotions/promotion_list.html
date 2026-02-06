@@ -191,17 +191,24 @@
                             <i class="fas fa-edit me-1"></i>Editar
                         </a>
                         {% if promo.status == 'active' %}
-                        <a href="{% url 'promotions:promotion_pause' promo.pk %}" class="btn btn-outline-warning btn-sm">
-                            <i class="fas fa-pause me-1"></i>Pausar
-                        </a>
+                        <form action="{% url 'promotions:promotion_pause' promo.pk %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-pause me-1"></i>Pausar
+                            </button>
+                        </form>
                         {% elif promo.status == 'paused' or promo.status == 'draft' %}
-                        <a href="{% url 'promotions:promotion_activate' promo.pk %}" class="btn btn-outline-success btn-sm">
-                            <i class="fas fa-play me-1"></i>Activar
-                        </a>
+                        <form action="{% url 'promotions:promotion_activate' promo.pk %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-play me-1"></i>Activar
+                            </button>
+                        </form>
                         {% endif %}
-                        <a href="{% url 'promotions:promotion_delete' promo.pk %}" class="btn btn-outline-danger btn-sm">
+                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                onclick="confirmDelete({{ promo.pk }}, '{{ promo.name|escapejs }}')">
                             <i class="fas fa-trash"></i>
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -247,4 +254,37 @@
     </nav>
     {% endif %}
 </div>
+
+<!-- Modal Confirmación Eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro de eliminar la promoción "<span id="deletePromoName"></span>"?</p>
+                <p class="text-danger"><small>Esta acción no se puede deshacer.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(promoId, promoName) {
+    document.getElementById('deletePromoName').textContent = promoName;
+    document.getElementById('deleteForm').action = "{% url 'promotions:promotion_delete' 0 %}".replace('/0/', '/' + promoId + '/');
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
 {% endblock %}
