@@ -93,10 +93,11 @@ WSGI_APPLICATION = 'superrecord.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-if os.getenv('DATABASE_URL'):
+DATABASE_URL = os.getenv('DATABASE_URL', '')
+if DATABASE_URL and DATABASE_URL.startswith(('postgres', 'mysql', 'sqlite')):
     import dj_database_url
     DATABASES = {
-        'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+        'default': dj_database_url.config(default=DATABASE_URL)
     }
 else:
     DATABASES = {
