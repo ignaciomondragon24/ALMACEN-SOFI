@@ -1009,7 +1009,7 @@
                             <small class="text-muted">${dateStr} - ${tx.items_count} producto(s)</small>
                         </div>
                         <div>
-                            <span class="badge bg-primary fs-6 me-2">$${formatNumber(tx.total)}</span>
+                            <span class="badge bg-primary fs-6 me-2">${formatCurrency(tx.total)}</span>
                             <button class="btn btn-success btn-sm" onclick="resumeTransaction(${tx.id})">
                                 <i class="fas fa-play me-1"></i>Retomar
                             </button>
