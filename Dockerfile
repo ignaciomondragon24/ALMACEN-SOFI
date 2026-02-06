@@ -8,8 +8,8 @@ ENV PORT=8000
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies - Updated 2026-02-05
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     libjpeg-dev \
@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libcairo2-dev \
     pkg-config \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
