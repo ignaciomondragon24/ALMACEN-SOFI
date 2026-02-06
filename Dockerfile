@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     libpng-dev \
     libfreetype6-dev \
+    libcairo2-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
