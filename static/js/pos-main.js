@@ -208,9 +208,19 @@
                     <i class="fas fa-barcode fa-2x text-warning mb-2"></i>
                     <p class="mb-2 text-light">Código de barras no encontrado:</p>
                     <p class="mb-3"><code class="fs-5">${query}</code></p>
-                    <button type="button" class="btn btn-success btn-lg" onclick="openQuickAddProduct('${query}')">
-                        <i class="fas fa-plus-circle me-2"></i>Agregar Producto Nuevo
-                    </button>
+                    <p class="text-muted small mb-3">¿Qué desea hacer?</p>
+                    <div class="d-flex justify-content-center gap-2 flex-wrap">
+                        <button type="button" class="btn btn-success" onclick="openQuickAddProduct('${query}')">
+                            <i class="fas fa-plus-circle me-2"></i>Producto Nuevo
+                        </button>
+                        <a href="/stocks/bulk-load/?barcode=${query}" class="btn btn-primary">
+                            <i class="fas fa-boxes me-2"></i>Carga por Bulto/Display
+                        </a>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Use "Carga por Bulto" para cargar desde packaging mayorista
+                    </p>
                 </div>
             `;
         } else {
@@ -237,6 +247,12 @@
         document.getElementById('quick-add-category').value = '';
         document.getElementById('quick-add-stock').value = '1';
         document.getElementById('quick-add-to-cart').checked = true;
+        
+        // Update bulk load link with barcode
+        const bulkLoadLink = document.getElementById('option-bulk-load');
+        if (bulkLoadLink) {
+            bulkLoadLink.href = `/stocks/bulk-load/?barcode=${barcode}`;
+        }
         
         // Hide search results
         hideSearchResults();
@@ -597,7 +613,7 @@
                     productSearch.value = '';
                 }
             } else {
-                // Product not found - offer to create it
+                // Product not found - open modal with options
                 openQuickAddProduct(barcode);
             }
         } catch (error) {

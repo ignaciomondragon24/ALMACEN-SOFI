@@ -57,6 +57,9 @@
                         <li><a class="dropdown-item" href="{% url 'stocks:product_list' %}">Productos</a></li>
                         <li><a class="dropdown-item" href="{% url 'stocks:category_list' %}">Categorías</a></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'stocks:bulk_stock_load' %}">
+                            <i class="fas fa-boxes-stacked text-success me-1"></i>Carga por Bultos
+                        </a></li>
                         <li><a class="dropdown-item" href="{% url 'stocks:low_stock' %}">
                             <i class="fas fa-exclamation-triangle text-warning me-1"></i>Stock Bajo
                         </a></li>

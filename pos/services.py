@@ -287,15 +287,21 @@ class CheckoutService:
                 reference=payment_data.get('reference', '')
             )
             
-            # Register cash movement
-            CashMovement.objects.create(
-                cash_shift=pos_transaction.session.cash_shift,
-                movement_type='income',
-                amount=min(amount, total_to_pay - total_paid + amount),  # Don't count change
-                payment_method=method,
-                description=f'Venta {pos_transaction.ticket_number}',
-                reference=pos_transaction.ticket_number
-            )
+            # Calculate remaining amount to pay (before this payment)
+            remaining = max(Decimal('0.00'), total_to_pay - total_paid)
+            
+            # Register cash movement only for the actual sale amount, not change
+            movement_amount = min(amount, remaining) if remaining > 0 else Decimal('0.00')
+            
+            if movement_amount > 0:
+                CashMovement.objects.create(
+                    cash_shift=pos_transaction.session.cash_shift,
+                    movement_type='income',
+                    amount=movement_amount,
+                    payment_method=method,
+                    description=f'Venta {pos_transaction.ticket_number}',
+                    reference=pos_transaction.ticket_number
+                )
             
             total_paid += amount
         
@@ -455,15 +461,21 @@ class CheckoutService:
                 reference=f'Venta al costo - {employee_note}'
             )
             
-            # Register cash movement
-            CashMovement.objects.create(
-                cash_shift=pos_transaction.session.cash_shift,
-                movement_type='income',
-                amount=min(amount, total_to_pay - total_paid + amount),
-                payment_method=method,
-                description=f'Venta al costo {pos_transaction.ticket_number}',
-                reference=pos_transaction.ticket_number
-            )
+            # Calculate remaining amount to pay (before this payment)
+            remaining = max(Decimal('0.00'), total_to_pay - total_paid)
+            
+            # Register cash movement only for the actual sale amount, not change
+            movement_amount = min(amount, remaining) if remaining > 0 else Decimal('0.00')
+            
+            if movement_amount > 0:
+                CashMovement.objects.create(
+                    cash_shift=pos_transaction.session.cash_shift,
+                    movement_type='income',
+                    amount=movement_amount,
+                    payment_method=method,
+                    description=f'Venta al costo {pos_transaction.ticket_number}',
+                    reference=pos_transaction.ticket_number
+                )
             
             total_paid += amount
         

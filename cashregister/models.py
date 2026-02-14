@@ -246,6 +246,33 @@ class CashShift(models.Model):
             total=models.Count('transactions', filter=models.Q(transactions__status='completed'))
         )['total'] or 0
     
+    @property
+    def total_income(self):
+        """Get total income amount from all payment methods."""
+        from django.db.models import Sum
+        result = self.movements.filter(
+            movement_type='income'
+        ).aggregate(total=Sum('amount'))
+        return result['total'] or Decimal('0.00')
+    
+    @property
+    def total_expense(self):
+        """Get total expense amount."""
+        from django.db.models import Sum
+        result = self.movements.filter(
+            movement_type='expense'
+        ).aggregate(total=Sum('amount'))
+        return result['total'] or Decimal('0.00')
+    
+    @property
+    def manual_movements_count(self):
+        """Get count of manual movements (not from POS sales)."""
+        return self.movements.exclude(
+            description__startswith='Venta '
+        ).exclude(
+            description__startswith='Venta al costo'
+        ).count()
+    
     def get_totals_by_payment_method(self):
         """Get sales totals grouped by payment method."""
         from django.db.models import Sum

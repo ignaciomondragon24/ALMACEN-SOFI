@@ -538,3 +538,199 @@ class ProductPresentation(models.Model):
         if self.quantity > 0:
             return self.sale_price / self.quantity
         return Decimal('0.00')
+
+
+class ProductPackaging(models.Model):
+    """
+    Modelo jerárquico para empaques de productos.
+    Define la relación Unidad → Display → Bulto con códigos de barras anidados.
+    """
+    
+    PACKAGING_TYPES = [
+        ('unit', 'Unidad'),
+        ('display', 'Display/Paquete'),
+        ('bulk', 'Bulto/Caja'),
+    ]
+    
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='packagings',
+        verbose_name='Producto'
+    )
+    packaging_type = models.CharField(
+        'Tipo de Empaque',
+        max_length=20,
+        choices=PACKAGING_TYPES
+    )
+    barcode = models.CharField(
+        'Código de Barras',
+        max_length=50,
+        unique=True,
+        help_text='Código de barras para este empaque'
+    )
+    name = models.CharField(
+        'Nombre',
+        max_length=100,
+        help_text='Ej: Unidad, Display x 12, Bulto x 144'
+    )
+    
+    # Cantidad de unidades base que contiene
+    units_quantity = models.PositiveIntegerField(
+        'Cantidad de Unidades',
+        default=1,
+        help_text='Cuántas unidades base contiene este empaque'
+    )
+    
+    # Para displays: cuántas unidades tiene
+    # Para bultos: cuántos displays tiene
+    units_per_display = models.PositiveIntegerField(
+        'Unidades por Display',
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text='Cuántas unidades contiene cada display'
+    )
+    displays_per_bulk = models.PositiveIntegerField(
+        'Displays por Bulto',
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text='Cuántos displays contiene cada bulto'
+    )
+    
+    # Precios
+    purchase_price = models.DecimalField(
+        'Precio de Compra',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))]
+    )
+    sale_price = models.DecimalField(
+        'Precio de Venta',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))]
+    )
+    
+    # Configuración de cálculo de ganancia
+    calculate_margin_on = models.CharField(
+        'Calcular Ganancia Sobre',
+        max_length=20,
+        choices=PACKAGING_TYPES,
+        default='bulk',
+        help_text='Sobre qué empaque se calcula el porcentaje de ganancia'
+    )
+    margin_percent = models.DecimalField(
+        'Margen de Ganancia (%)',
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('30.00'),
+        validators=[MinValueValidator(Decimal('0'))]
+    )
+    
+    is_default = models.BooleanField(
+        'Empaque por Defecto',
+        default=False,
+        help_text='Usar por defecto en POS'
+    )
+    is_active = models.BooleanField(
+        'Activo',
+        default=True
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Empaque de Producto'
+        verbose_name_plural = 'Empaques de Productos'
+        ordering = ['product', 'packaging_type']
+    
+    def __str__(self):
+        return f'{self.product.name} - {self.get_packaging_type_display()} ({self.name})'
+    
+    def save(self, *args, **kwargs):
+        # Calcular units_quantity automáticamente
+        if self.packaging_type == 'unit':
+            self.units_quantity = 1
+        elif self.packaging_type == 'display':
+            self.units_quantity = self.units_per_display
+        elif self.packaging_type == 'bulk':
+            self.units_quantity = self.units_per_display * self.displays_per_bulk
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def unit_purchase_price(self):
+        """Precio de compra por unidad."""
+        if self.units_quantity > 0:
+            return self.purchase_price / self.units_quantity
+        return Decimal('0.00')
+    
+    @property
+    def unit_sale_price(self):
+        """Precio de venta por unidad."""
+        if self.units_quantity > 0:
+            return self.sale_price / self.units_quantity
+        return Decimal('0.00')
+    
+    @property
+    def display_purchase_price(self):
+        """Precio de compra por display."""
+        if self.packaging_type == 'bulk' and self.displays_per_bulk > 0:
+            return self.purchase_price / self.displays_per_bulk
+        elif self.packaging_type == 'display':
+            return self.purchase_price
+        return self.purchase_price
+    
+    @property
+    def display_sale_price(self):
+        """Precio de venta por display."""
+        if self.packaging_type == 'bulk' and self.displays_per_bulk > 0:
+            return self.sale_price / self.displays_per_bulk
+        elif self.packaging_type == 'display':
+            return self.sale_price
+        return self.sale_price
+    
+    def calculate_total_units(self, quantity):
+        """Calcula el total de unidades base."""
+        return quantity * self.units_quantity
+    
+    def calculate_displays(self, quantity):
+        """Calcula cantidad de displays (para bultos)."""
+        if self.packaging_type == 'bulk':
+            return quantity * self.displays_per_bulk
+        return 0
+    
+    def calculate_prices_from_margin(self):
+        """
+        Calcula los precios de venta basado en el margen configurado.
+        Retorna dict con precios por unidad, display y bulto.
+        """
+        if self.purchase_price <= 0:
+            return None
+        
+        margin_multiplier = 1 + (self.margin_percent / 100)
+        
+        # Precio de venta del bulto
+        bulk_sale = self.purchase_price * margin_multiplier
+        
+        # Calcular precios derivados
+        unit_purchase = self.purchase_price / self.units_quantity if self.units_quantity > 0 else Decimal('0')
+        unit_sale = bulk_sale / self.units_quantity if self.units_quantity > 0 else Decimal('0')
+        
+        display_purchase = self.purchase_price / self.displays_per_bulk if self.displays_per_bulk > 0 else Decimal('0')
+        display_sale = bulk_sale / self.displays_per_bulk if self.displays_per_bulk > 0 else Decimal('0')
+        
+        return {
+            'unit_purchase': unit_purchase.quantize(Decimal('0.01')),
+            'unit_sale': unit_sale.quantize(Decimal('0.01')),
+            'display_purchase': display_purchase.quantize(Decimal('0.01')),
+            'display_sale': display_sale.quantize(Decimal('0.01')),
+            'bulk_purchase': self.purchase_price,
+            'bulk_sale': bulk_sale.quantize(Decimal('0.01')),
+            'profit_per_unit': (unit_sale - unit_purchase).quantize(Decimal('0.01')),
+            'profit_per_display': (display_sale - display_purchase).quantize(Decimal('0.01')),
+            'profit_per_bulk': (bulk_sale - self.purchase_price).quantize(Decimal('0.01')),
+        }

@@ -19,6 +19,9 @@
             </nav>
         </div>
         <div>
+            <a href="{% url 'stocks:packaging_config' product.pk %}" class="btn btn-success">
+                <i class="fas fa-boxes-stacked me-1"></i> Empaques
+            </a>
             <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>

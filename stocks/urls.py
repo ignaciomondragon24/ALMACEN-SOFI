@@ -25,7 +25,15 @@ urlpatterns = [
     path('price-list/', views.price_list, name='price_list'),
     path('export/excel/', views.export_products_excel, name='export_excel'),
     
+    # Bulk Stock Load (Carga por Bultos)
+    path('bulk-load/', views.bulk_stock_load, name='bulk_stock_load'),
+    path('packaging/<int:product_id>/', views.packaging_config, name='packaging_config'),
+    path('packaging/delete/<int:packaging_id>/', views.packaging_delete, name='packaging_delete'),
+    
     # API
     path('api/search/', views.api_search_products, name='api_search'),
     path('api/generate-barcode/', views.api_generate_barcode, name='generate_barcode'),
+    path('api/lookup-packaging/', views.api_lookup_packaging, name='api_lookup_packaging'),
+    path('api/calculate-prices/', views.api_calculate_prices, name='api_calculate_prices'),
+    path('api/create-product-packaging/', views.api_create_product_with_packaging, name='api_create_product_packaging'),
 ]

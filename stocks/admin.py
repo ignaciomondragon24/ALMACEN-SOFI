@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, ProductPresentation
+from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, ProductPresentation, ProductPackaging
 
 
 @admin.register(ProductCategory)
@@ -61,3 +61,33 @@ class ProductPresentationAdmin(admin.ModelAdmin):
     list_display = ('product', 'name', 'quantity', 'barcode', 'sale_price', 'is_active')
     list_filter = ('is_active',)
     search_fields = ('product__name', 'name', 'barcode')
+
+
+@admin.register(ProductPackaging)
+class ProductPackagingAdmin(admin.ModelAdmin):
+    list_display = ('product', 'packaging_type', 'name', 'barcode', 'units_quantity', 
+                   'displays_per_bulk', 'purchase_price', 'sale_price', 'margin_percent', 'is_active')
+    list_filter = ('packaging_type', 'is_active', 'calculate_margin_on')
+    search_fields = ('product__name', 'barcode', 'name')
+    readonly_fields = ('created_at', 'updated_at', 'units_quantity')
+    ordering = ('product', 'packaging_type')
+    
+    fieldsets = (
+        ('Producto y Tipo', {
+            'fields': ('product', 'packaging_type', 'name', 'barcode')
+        }),
+        ('Configuración de Cantidades', {
+            'fields': ('units_per_display', 'displays_per_bulk', 'units_quantity'),
+            'description': 'Define cuántas unidades contiene cada empaque'
+        }),
+        ('Precios y Margen', {
+            'fields': ('purchase_price', 'sale_price', 'margin_percent', 'calculate_margin_on')
+        }),
+        ('Estado', {
+            'fields': ('is_default', 'is_active')
+        }),
+        ('Auditoría', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

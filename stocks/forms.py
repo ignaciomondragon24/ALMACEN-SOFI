@@ -2,7 +2,8 @@
 Stocks Forms
 """
 from django import forms
-from .models import Product, ProductCategory, UnitOfMeasure
+from decimal import Decimal
+from .models import Product, ProductCategory, UnitOfMeasure, ProductPackaging
 
 
 class ProductForm(forms.ModelForm):
@@ -82,3 +83,111 @@ class StockAdjustmentForm(forms.Form):
         max_length=500,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3})
     )
+
+
+class BulkStockLoadForm(forms.Form):
+    """
+    Formulario para carga rápida de stock por bultos.
+    Escanea código de barras de bulto y calcula automáticamente.
+    """
+    
+    barcode = forms.CharField(
+        label='Código de Barras del Bulto',
+        max_length=50,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control form-control-lg',
+            'placeholder': 'Escanee el código de barras del bulto',
+            'autofocus': True,
+            'autocomplete': 'off',
+            'id': 'barcode-input'
+        })
+    )
+    
+    bulk_quantity = forms.IntegerField(
+        label='Cantidad de Bultos',
+        min_value=1,
+        initial=1,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-lg text-center',
+            'style': 'font-size: 2rem; font-weight: bold;',
+            'id': 'bulk-quantity-input'
+        })
+    )
+    
+    purchase_price_per_bulk = forms.DecimalField(
+        label='Precio de Compra por Bulto',
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'placeholder': '0.00',
+            'id': 'purchase-price-input'
+        })
+    )
+    
+    margin_percent = forms.DecimalField(
+        label='Porcentaje de Ganancia (%)',
+        max_digits=5,
+        decimal_places=2,
+        initial=Decimal('30.00'),
+        min_value=Decimal('0'),
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'id': 'margin-percent-input'
+        })
+    )
+    
+    notes = forms.CharField(
+        label='Notas',
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Observaciones sobre esta carga...'
+        })
+    )
+
+
+class ProductPackagingForm(forms.ModelForm):
+    """Formulario para configurar empaques de productos."""
+    
+    class Meta:
+        model = ProductPackaging
+        fields = [
+            'packaging_type', 'barcode', 'name',
+            'units_per_display', 'displays_per_bulk',
+            'purchase_price', 'margin_percent',
+            'is_default', 'is_active'
+        ]
+        widgets = {
+            'packaging_type': forms.Select(attrs={'class': 'form-select'}),
+            'barcode': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Escanee o ingrese el código de barras'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Bulto x 144'
+            }),
+            'units_per_display': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1'
+            }),
+            'displays_per_bulk': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1'
+            }),
+            'purchase_price': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01'
+            }),
+            'margin_percent': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01'
+            }),
+            'is_default': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }

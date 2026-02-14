@@ -560,10 +560,21 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-info">
+                <div class="alert alert-info mb-3">
                     <i class="fas fa-info-circle me-2"></i>
-                    Código de barras no encontrado. Podés agregar el producto rápidamente.
+                    Código de barras no encontrado. ¿Qué deseas hacer?
                 </div>
+                
+                <!-- Options: Quick Add or Bulk Load -->
+                <div class="d-flex gap-2 mb-3" id="barcode-not-found-options">
+                    <button type="button" class="btn btn-success flex-fill btn-option-selected" id="option-quick-add">
+                        <i class="fas fa-plus-circle me-2"></i>Producto Nuevo
+                    </button>
+                    <a href="#" class="btn btn-primary flex-fill" id="option-bulk-load">
+                        <i class="fas fa-boxes me-2"></i>Carga por Bulto/Display
+                    </a>
+                </div>
+                <hr class="border-secondary">
                 
                 <form id="quick-add-product-form">
                     <div class="mb-3">
