@@ -1,5 +1,6 @@
-# Django Core - Updated 2026-02-05 for Python 3.13 compatibility
+# Django Core
 Django>=4.2,<5.0
+gunicorn>=21.2.0
 djangorestframework>=3.14.0
 django-cors-headers>=4.3.0
 django-crispy-forms>=2.1
@@ -34,6 +35,3 @@ openai>=1.0.0
 
 # HTTP Client (Mercado Pago API)
 requests>=2.31.0
-
-# Production Server
-gunicorn>=21.2.0

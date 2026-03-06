@@ -18,11 +18,15 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',') if h.strip()]
 
 # Railway automatic domain support
 if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
     ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+
+# Railway private networking
+if os.getenv('RAILWAY_PRIVATE_DOMAIN'):
+    ALLOWED_HOSTS.append(os.getenv('RAILWAY_PRIVATE_DOMAIN'))
 
 # Application definition
 INSTALLED_APPS = [
@@ -149,11 +153,16 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# WhiteNoise for static files - only use manifest storage in production
+# WhiteNoise for static files
+# En producción usa CompressedManifestStaticFilesStorage para cache busting
 if DEBUG:
     STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 else:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# WhiteNoise - servir archivos estáticos con headers de cache
+WHITENOISE_MAX_AGE = 31536000  # 1 año para archivos con hash
+WHITENOISE_SKIP_COMPRESS_EXTENSIONS = []  # Comprimir todos los tipos
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -174,13 +183,17 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Security settings for production
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    # Railway usa un reverse proxy - necesario para detectar HTTPS correctamente
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # NO usar SECURE_SSL_REDIRECT con Railway (el proxy ya maneja HTTPS)
+    SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # REST Framework
 REST_FRAMEWORK = {

@@ -4,11 +4,12 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
+ENV DJANGO_SETTINGS_MODULE=superrecord.settings
 
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies - Updated 2026-02-05
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
@@ -28,8 +29,29 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput --clear || true
+# Create media directory
+RUN mkdir -p /app/media /app/staticfiles /app/logs
 
-# Run gunicorn
-CMD python manage.py migrate && gunicorn superrecord.wsgi --bind 0.0.0.0:$PORT
+# Collect static files (with dummy SECRET_KEY for build phase)
+RUN SECRET_KEY=build-only-key DATABASE_URL= python manage.py collectstatic --noinput --clear 2>/dev/null || true
+
+# Expose port
+EXPOSE ${PORT}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/accounts/login/')" || exit 1
+
+# Run: migrate + create superuser (if vars set) + gunicorn
+CMD python manage.py migrate --noinput && \
+    python manage.py setup_initial_data && \
+    gunicorn superrecord.wsgi \
+    --bind 0.0.0.0:${PORT} \
+    --workers 2 \
+    --threads 2 \
+    --worker-class gthread \
+    --worker-tmp-dir /dev/shm \
+    --timeout 120 \
+    --log-file - \
+    --access-logfile - \
+    --error-logfile -
