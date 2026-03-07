@@ -320,6 +320,120 @@ class POSPayment(models.Model):
         return f'{self.payment_method.name} - ${self.amount}'
 
 
+class POSKeyboardShortcut(models.Model):
+    """Configurable keyboard shortcut for POS actions."""
+
+    ACTION_CHOICES = [
+        # Navegación
+        ('search_focus',          'Enfocar Búsqueda'),
+        ('help',                  'Mostrar Ayuda'),
+        ('dashboard',             'Ir al Dashboard'),
+        # Carrito
+        ('clear_cart',            'Vaciar Carrito'),
+        ('discount',              'Aplicar Descuento'),
+        # Transacción
+        ('hold',                  'Apartar Venta'),
+        ('suspended',             'Ver Apartados'),
+        ('cancel',                'Cancelar Venta'),
+        # Cobro
+        ('checkout',              'Cobrar (abrir modal)'),
+        ('pay_cash',              'Cobrar Directo — Efectivo'),
+        ('pay_mercadopago',       'Cobrar Directo — Mercado Pago'),
+        ('pay_debit',             'Cobrar Directo — Débito'),
+        ('pay_credit',            'Cobrar Directo — Crédito'),
+        ('pay_transfer',          'Cobrar Directo — Transferencia'),
+        # Especiales
+        ('cost_sale',             'Venta al Costo'),
+        ('internal_consumption',  'Consumo Interno'),
+        ('reprint',               'Reimprimir Último Ticket'),
+        ('sales_history',         'Historial de Ventas del Turno'),
+    ]
+
+    KEY_CHOICES = [
+        ('F1', 'F1'), ('F2', 'F2'), ('F3', 'F3'), ('F4', 'F4'),
+        ('F5', 'F5'), ('F6', 'F6'), ('F7', 'F7'), ('F8', 'F8'),
+        ('F9', 'F9'), ('F10', 'F10'), ('F11', 'F11'), ('F12', 'F12'),
+        ('Escape', 'Escape'),
+        ('Alt+1', 'Alt+1'), ('Alt+2', 'Alt+2'), ('Alt+3', 'Alt+3'),
+        ('Alt+4', 'Alt+4'), ('Alt+5', 'Alt+5'), ('Alt+6', 'Alt+6'),
+        ('Alt+7', 'Alt+7'), ('Alt+8', 'Alt+8'), ('Alt+9', 'Alt+9'),
+        ('none', '(Sin atajo)'),
+    ]
+
+    action = models.CharField(
+        'Acción',
+        max_length=60,
+        choices=ACTION_CHOICES,
+        unique=True,
+    )
+    key = models.CharField(
+        'Tecla',
+        max_length=10,
+        choices=KEY_CHOICES,
+        default='none',
+        help_text='Tecla asignada a esta acción. Evite duplicados.',
+    )
+    is_enabled = models.BooleanField(
+        'Habilitado',
+        default=True,
+    )
+    order = models.PositiveSmallIntegerField(
+        'Orden de visualización',
+        default=0,
+    )
+
+    class Meta:
+        verbose_name = 'Atajo de Teclado POS'
+        verbose_name_plural = 'Atajos de Teclado POS'
+        ordering = ['order', 'action']
+
+    def __str__(self):
+        label = dict(self.ACTION_CHOICES).get(self.action, self.action)
+        return f'{self.key} → {label}'
+
+    @classmethod
+    def get_defaults(cls):
+        """Return default shortcut configuration."""
+        return [
+            {'action': 'help',                 'key': 'F1',  'order': 1},
+            {'action': 'search_focus',          'key': 'F2',  'order': 2},
+            {'action': 'clear_cart',            'key': 'F3',  'order': 3},
+            {'action': 'hold',                  'key': 'F4',  'order': 4},
+            {'action': 'suspended',             'key': 'F5',  'order': 5},
+            {'action': 'discount',              'key': 'F6',  'order': 6},
+            {'action': 'cancel',                'key': 'F7',  'order': 7},
+            {'action': 'checkout',              'key': 'F8',  'order': 8},
+            {'action': 'reprint',               'key': 'F9',  'order': 9},
+            {'action': 'cost_sale',             'key': 'F10', 'order': 10},
+            {'action': 'internal_consumption',  'key': 'F11', 'order': 11},
+            {'action': 'dashboard',             'key': 'F12', 'order': 12},
+            {'action': 'pay_cash',              'key': 'none', 'order': 13},
+            {'action': 'pay_mercadopago',       'key': 'none', 'order': 14},
+            {'action': 'pay_debit',             'key': 'none', 'order': 15},
+            {'action': 'pay_credit',            'key': 'none', 'order': 16},
+            {'action': 'pay_transfer',          'key': 'none', 'order': 17},
+            {'action': 'sales_history',         'key': 'none', 'order': 18},
+        ]
+
+    @classmethod
+    def ensure_defaults(cls):
+        """Create default shortcuts if they don't exist yet."""
+        for d in cls.get_defaults():
+            cls.objects.get_or_create(action=d['action'], defaults={
+                'key': d['key'],
+                'is_enabled': True,
+                'order': d['order'],
+            })
+
+    def to_dict(self):
+        return {
+            'action': self.action,
+            'key': self.key,
+            'label': dict(self.ACTION_CHOICES).get(self.action, self.action),
+            'is_enabled': self.is_enabled,
+        }
+
+
 class QuickAccessButton(models.Model):
     """Quick access button for POS."""
     

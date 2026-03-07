@@ -777,11 +777,11 @@
                         <div class="cart-item-price">${formatCurrency(item.unit_price)} c/u</div>
                     </div>
                     <div class="cart-item-quantity">
-                        <button class="btn btn-sm btn-outline-secondary qty-btn" data-action="decrease">
+                        <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="decrease">
                             <i class="fas fa-minus"></i>
                         </button>
                         <input type="number" class="qty-input" value="${item.quantity}" min="0.001" step="0.001">
-                        <button class="btn btn-sm btn-outline-secondary qty-btn" data-action="increase">
+                        <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="increase">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>
@@ -835,12 +835,12 @@
                 input.addEventListener('focus', () => input.select());
                 input.addEventListener('keydown', (e) => {
                     if (e.key === 'Tab' && !e.shiftKey) {
-                        e.preventDefault();
                         if (allQtyInputs[idx + 1]) {
+                            e.preventDefault();
                             allQtyInputs[idx + 1].focus();
-                        } else {
-                            productSearch?.focus();
                         }
+                        // Último item: Tab natural → btn-discount (primer botón de acción)
+                        // No hacemos preventDefault para que el navegador lo maneje solo
                     }
                     if (e.key === 'Tab' && e.shiftKey) {
                         e.preventDefault();
@@ -1493,6 +1493,14 @@
                 firstCheckbox.checked = true;
                 firstCheckbox.dispatchEvent(new Event('change'));
             }
+            // Auto-focus el input de monto después de que se cree
+            setTimeout(() => {
+                const firstAmountInput = paymentInputs?.querySelector('.payment-amount');
+                if (firstAmountInput) {
+                    firstAmountInput.focus();
+                    firstAmountInput.select();
+                }
+            }, 150);
         });
         
         btnCheckout.addEventListener('click', () => {
@@ -1511,6 +1519,14 @@
             
             const modal = new bootstrap.Modal(checkoutModal);
             modal.show();
+        });
+        
+        // Tab desde el botón COBRAR → vuelve al buscador (completa el ciclo de Tab)
+        btnCheckout.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab' && !e.shiftKey) {
+                e.preventDefault();
+                productSearch?.focus();
+            }
         });
         
         // Payment method checkboxes
@@ -1557,6 +1573,34 @@
                             input.focus();
                             input.select();
                             input.addEventListener('input', updatePaymentTotals);
+                            // Teclado: Tab → confirm; Enter → confirmar si habilitado
+                            input.addEventListener('keydown', (ev) => {
+                                if (ev.key === 'Tab' && !ev.shiftKey) {
+                                    ev.preventDefault();
+                                    const allAmts = Array.from(paymentInputs.querySelectorAll('.payment-amount'));
+                                    const ci = allAmts.indexOf(input);
+                                    if (allAmts[ci + 1]) {
+                                        allAmts[ci + 1].focus();
+                                    } else {
+                                        document.getElementById('confirm-payment')?.focus();
+                                    }
+                                }
+                                if (ev.key === 'Tab' && ev.shiftKey) {
+                                    ev.preventDefault();
+                                    const allAmts = Array.from(paymentInputs.querySelectorAll('.payment-amount'));
+                                    const ci = allAmts.indexOf(input);
+                                    if (allAmts[ci - 1]) {
+                                        allAmts[ci - 1].focus();
+                                    } else {
+                                        document.querySelector('.payment-method-check')?.focus();
+                                    }
+                                }
+                                if (ev.key === 'Enter') {
+                                    ev.preventDefault();
+                                    const btn = document.getElementById('confirm-payment');
+                                    if (btn && !btn.disabled) btn.click();
+                                }
+                            });
                         }
                         
                         // Add Mercado Pago Point button handler
@@ -1750,6 +1794,18 @@
                     confirmPayment.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Pago';
                 }
             });
+            // Shift+Tab desde confirm-payment → último input de monto
+            confirmPayment.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab' && e.shiftKey) {
+                    e.preventDefault();
+                    const allAmts = paymentInputs?.querySelectorAll('.payment-amount');
+                    if (allAmts && allAmts.length > 0) {
+                        allAmts[allAmts.length - 1].focus();
+                    } else {
+                        document.querySelector('.payment-method-check')?.focus();
+                    }
+                }
+            });
         }
     }
     
@@ -1800,6 +1856,11 @@
         const modal = new bootstrap.Modal(successModal);
         modal.show();
         
+        // Foco en "Continuar" al mostrar el modal (navegación por teclado)
+        successModal.addEventListener('shown.bs.modal', () => {
+            document.getElementById('btnSkipPrint')?.focus();
+        }, { once: true });
+        
         // Print ticket button
         document.getElementById('btnPrintTicket').addEventListener('click', () => {
             // Abrir ventana del ticket (se auto-imprime y auto-cierra sola)
@@ -1824,7 +1885,60 @@
     }
 
     // Keyboard Shortcuts
+    // ─── Keyboard shortcuts (dynamic, from server) ───────────────────────────
+
+    // Build a lookup map:  key → action  (e.g. 'F8' → 'checkout')
+    let shortcutMap = {};
+
+    function buildShortcutMap(shortcuts) {
+        shortcutMap = {};
+        (shortcuts || []).forEach(sc => {
+            if (sc.is_enabled && sc.key && sc.key !== 'none') {
+                shortcutMap[sc.key] = sc.action;
+            }
+        });
+    }
+
+    // Expose so pos-sidebar.js can refresh after admin changes
+    window.POS_rebuildShortcuts = buildShortcutMap;
+
+    function dispatchAction(action) {
+        switch (action) {
+            case 'help':                showShortcutsHelp(); break;
+            case 'search_focus':
+                if (productSearch) { productSearch.focus(); productSearch.select(); }
+                break;
+            case 'clear_cart':          clearCart(); break;
+            case 'hold':                document.getElementById('btn-hold')?.click(); break;
+            case 'suspended':           document.getElementById('btn-suspended')?.click(); break;
+            case 'discount':            document.getElementById('btn-discount')?.click(); break;
+            case 'cancel':              document.getElementById('btn-cancel')?.click(); break;
+            case 'checkout':
+                if (btnCheckout && !btnCheckout.disabled) btnCheckout.click();
+                break;
+            case 'reprint':             document.getElementById('btn-reprint')?.click(); break;
+            case 'cost_sale':           document.getElementById('btn-cost-sale')?.click(); break;
+            case 'internal_consumption':document.getElementById('btn-internal-consumption')?.click(); break;
+            case 'sales_history':
+                // Open sidebar → history tab
+                if (window.POS_sidebar) window.POS_sidebar.openTab('history');
+                break;
+            case 'dashboard':
+                if (confirm('¿Salir del POS?')) window.location.href = '/accounts/dashboard/';
+                break;
+            // pay_* actions → quick checkout
+            default:
+                if (action.startsWith('pay_')) {
+                    const methodCode = action.replace('pay_', '');
+                    window.POS_sidebar?.triggerQuickPay(methodCode);
+                }
+        }
+    }
+
     function initKeyboardShortcuts() {
+        // Build map from pre-loaded shortcuts
+        buildShortcutMap(typeof INITIAL_SHORTCUTS !== 'undefined' ? INITIAL_SHORTCUTS : []);
+
         document.addEventListener('keydown', function(e) {
             // Get active modal
             const activeModal = document.querySelector('.modal.show');
@@ -1892,6 +2006,26 @@
                     }
                 }
                 
+                // Discount modal shortcuts
+                if (modalId === 'discountModal') {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('confirm-discount')?.click();
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        bootstrap.Modal.getInstance(activeModal)?.hide();
+                    }
+                }
+                
+                // Sale success modal shortcuts (→ P para imprimir, Enter/Esp continuar)
+                if (modalId === 'saleSuccessModal') {
+                    if (e.key === 'p' || e.key === 'P') {
+                        e.preventDefault();
+                        document.getElementById('btnPrintTicket')?.click();
+                    }
+                }
+                
                 return; // Don't process other shortcuts while modal is open
             }
             
@@ -1914,144 +2048,63 @@
                         firstResult.click();
                     }
                 }
+                // Permite F-keys (F1-F12) desde inputs que NO sean el buscador
+                // Ej: desde qty-input del carrito, F8 dispara COBRAR, F4 apartar, etc.
+                if (/^F\d+$/.test(e.key) && e.target !== productSearch) {
+                    // Continuar hasta el switch de atajos globales
+                } else {
+                    return;
+                }
+            }
+            
+            // Global shortcuts (when not in an input) — dynamic from shortcutMap
+            // Handle always-on non-configurable keys first
+            if (e.key === 'Escape') {
+                hideSearchResults();
+                if (productSearch) { productSearch.value = ''; productSearch.focus(); }
                 return;
             }
-            
-            // Global shortcuts (when not in an input)
-            switch(e.key) {
-                case 'F1':
-                    // F1 - Help / Show shortcuts
-                    e.preventDefault();
-                    showShortcutsHelp();
-                    break;
-                    
-                case 'F2':
-                    // F2 - Focus search
-                    e.preventDefault();
-                    if (productSearch) {
-                        productSearch.focus();
-                        productSearch.select();
-                    }
-                    break;
-                    
-                case 'F3':
-                    // F3 - Clear cart
-                    e.preventDefault();
-                    clearCart();
-                    break;
-                    
-                case 'F4':
-                    // F4 - Hold/Suspend transaction
-                    e.preventDefault();
-                    document.getElementById('btn-hold')?.click();
-                    break;
-                    
-                case 'F5':
-                    // F5 - View suspended transactions
-                    e.preventDefault();
-                    document.getElementById('btn-suspended')?.click();
-                    break;
-                    
-                case 'F6':
-                    // F6 - Apply discount
-                    e.preventDefault();
-                    document.getElementById('btn-discount')?.click();
-                    break;
-                    
-                case 'F7':
-                    // F7 - Cancel transaction
-                    e.preventDefault();
-                    document.getElementById('btn-cancel')?.click();
-                    break;
-                    
-                case 'F8':
-                    // F8 - Checkout / Pay
-                    e.preventDefault();
-                    if (btnCheckout && !btnCheckout.disabled) {
-                        btnCheckout.click();
-                    }
-                    break;
-                    
-                case 'F9':
-                    // F9 - Reprint last ticket
-                    e.preventDefault();
-                    document.getElementById('btn-reprint')?.click();
-                    break;
-                
-                case 'F10':
-                    // F10 - Cost sale
-                    e.preventDefault();
-                    document.getElementById('btn-cost-sale')?.click();
-                    break;
-                
-                case 'F11':
-                    // F11 - Internal consumption
-                    e.preventDefault();
-                    document.getElementById('btn-internal-consumption')?.click();
-                    break;
-                    
-                case 'F12':
-                    // F12 - Quick exit (go to dashboard)
-                    e.preventDefault();
-                    if (confirm('¿Salir del POS?')) {
-                        window.location.href = '/accounts/dashboard/';
-                    }
-                    break;
-                    
-                case 'Escape':
-                    // Escape - Clear search / focus search
-                    hideSearchResults();
-                    if (productSearch) {
-                        productSearch.value = '';
-                        productSearch.focus();
-                    }
-                    break;
-                    
-                case '+':
-                case '=':
-                    // + key - Quick add last product again
-                    e.preventDefault();
-                    if (cart.items && cart.items.length > 0) {
-                        const lastItem = cart.items[cart.items.length - 1];
-                        if (lastItem && lastItem.product_id) {
-                            addToCart(lastItem.product_id, 1);
-                        }
-                    }
-                    break;
-                    
-                case '-':
-                    // - key - Remove one of last product
-                    e.preventDefault();
-                    if (cart.items && cart.items.length > 0) {
-                        const lastItem = cart.items[cart.items.length - 1];
-                        if (lastItem && lastItem.quantity > 1) {
-                            updateCartItem(lastItem.id, lastItem.quantity - 1);
-                        } else if (lastItem) {
-                            removeCartItem(lastItem.id);
-                        }
-                    }
-                    break;
-                    
-                case 'Delete':
-                    // Delete key - Remove last item from cart
-                    e.preventDefault();
-                    if (cart.items && cart.items.length > 0) {
-                        const lastItem = cart.items[cart.items.length - 1];
-                        if (lastItem) {
-                            removeCartItem(lastItem.id);
-                        }
-                    }
-                    break;
+            if (e.key === '+' || e.key === '=') {
+                e.preventDefault();
+                if (cart.items && cart.items.length > 0) {
+                    const lastItem = cart.items[cart.items.length - 1];
+                    if (lastItem?.product_id) addToCart(lastItem.product_id, 1);
+                }
+                return;
             }
-            
-            // Number keys 1-9 for quick access buttons (only if not in input)
+            if (e.key === '-') {
+                e.preventDefault();
+                if (cart.items && cart.items.length > 0) {
+                    const lastItem = cart.items[cart.items.length - 1];
+                    if (lastItem && lastItem.quantity > 1) updateCartItem(lastItem.id, lastItem.quantity - 1);
+                    else if (lastItem) removeCartItem(lastItem.id);
+                }
+                return;
+            }
+            if (e.key === 'Delete') {
+                e.preventDefault();
+                if (cart.items && cart.items.length > 0) {
+                    const lastItem = cart.items[cart.items.length - 1];
+                    if (lastItem) removeCartItem(lastItem.id);
+                }
+                return;
+            }
+
+            // Alt+1-9 for quick access buttons
             if (e.key >= '1' && e.key <= '9' && e.altKey) {
                 e.preventDefault();
                 const buttonIndex = parseInt(e.key) - 1;
                 const quickBtns = quickAccessGrid?.querySelectorAll('.quick-btn');
-                if (quickBtns && quickBtns[buttonIndex]) {
-                    quickBtns[buttonIndex].click();
-                }
+                if (quickBtns?.[buttonIndex]) quickBtns[buttonIndex].click();
+                return;
+            }
+
+            // Configurable shortcut lookup
+            const keyStr = e.altKey ? `Alt+${e.key}` : e.key;
+            const action = shortcutMap[keyStr];
+            if (action) {
+                e.preventDefault();
+                dispatchAction(action);
             }
         });
         
@@ -2068,60 +2121,76 @@
     }
     
     function showShortcutsHelp() {
+        // Build dynamic rows from shortcutMap
+        const shortcuts = typeof INITIAL_SHORTCUTS !== 'undefined' ? INITIAL_SHORTCUTS : [];
+        const configRows = shortcuts.map(sc => {
+            const keyHtml = sc.key === 'none'
+                ? '<span style="color:#555">—</span>'
+                : `<kbd style="background:#222;color:#00d2d3;padding:2px 6px;border-radius:3px;font-family:monospace">${sc.key}</kbd>`;
+            return `<tr><td>${keyHtml}</td><td>${sc.label}</td></tr>`;
+        }).join('');
+
         const helpHtml = `
             <div class="modal fade" id="shortcutsModal" tabindex="-1">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-lg">
                     <div class="modal-content bg-dark text-white">
                         <div class="modal-header border-secondary">
                             <h5 class="modal-title"><i class="fas fa-keyboard me-2"></i>Atajos de Teclado</h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <table class="table table-dark table-sm">
-                                <tbody>
-                                    <tr><td><kbd>F1</kbd></td><td>Mostrar esta ayuda</td></tr>
-                                    <tr><td><kbd>F2</kbd></td><td>Buscar producto</td></tr>
-                                    <tr><td><kbd>F3</kbd></td><td>Vaciar carrito</td></tr>
-                                    <tr><td><kbd>F4</kbd></td><td>Apartar venta</td></tr>
-                                    <tr><td><kbd>F5</kbd></td><td>Ver apartados</td></tr>
-                                    <tr><td><kbd>F6</kbd></td><td>Aplicar descuento</td></tr>
-                                    <tr><td><kbd>F7</kbd></td><td>Cancelar venta</td></tr>
-                                    <tr><td><kbd>F8</kbd></td><td>Cobrar / Pagar</td></tr>
-                                    <tr><td><kbd>F9</kbd></td><td>Reimprimir ticket</td></tr>
-                                    <tr><td><kbd>F10</kbd></td><td>Venta al costo</td></tr>
-                                    <tr><td><kbd>F11</kbd></td><td>Consumo interno</td></tr>
-                                    <tr><td><kbd>F12</kbd></td><td>Salir del POS</td></tr>
-                                    <tr><td><kbd>Esc</kbd></td><td>Limpiar búsqueda</td></tr>
-                                    <tr><td><kbd>Tab</kbd></td><td>Navegar entre items del carrito</td></tr>
-                                    <tr><td><kbd>↑</kbd> <kbd>↓</kbd> en carrito</td><td>Aumentar / disminuir cantidad</td></tr>
-                                    <tr><td><kbd>Delete</kbd> en carrito</td><td>Eliminar ese item</td></tr>
-                                    <tr><td><kbd>Esc</kbd> en carrito</td><td>Volver a la búsqueda</td></tr>
-                                    <tr><td><kbd>Enter</kbd></td><td>Agregar producto buscado</td></tr>
-                                    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Navegar resultados búsqueda</td></tr>
-                                    <tr><td><kbd>+</kbd></td><td>Agregar 1 más del último producto</td></tr>
-                                    <tr><td><kbd>-</kbd></td><td>Quitar 1 del último producto</td></tr>
-                                    <tr><td><kbd>Delete</kbd></td><td>Eliminar último producto</td></tr>
-                                    <tr><td><kbd>Alt+1-9</kbd></td><td>Botones de acceso rápido</td></tr>
-                                </tbody>
-                            </table>
-                            <p class="text-muted small mb-0">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Tip: El foco siempre vuelve al lector de código de barras automáticamente.
-                            </p>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-2">Atajos configurados</h6>
+                                    <table class="table table-dark table-sm">
+                                        <tbody>${configRows}</tbody>
+                                    </table>
+                                    <p class="text-muted small mb-0">
+                                        <i class="fas fa-cog me-1"></i>
+                                        Configurables desde
+                                        <a href="/admin/pos/poskeyboardshortcut/" target="_blank" class="text-info">Admin → Atajos</a>
+                                    </p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-2">Teclas fijas</h6>
+                                    <table class="table table-dark table-sm">
+                                        <tbody>
+                                            <tr class="table-active"><td colspan="2"><strong>Navegación por Tab</strong></td></tr>
+                                            <tr><td><kbd>Tab</kbd></td><td>Búsqueda → Carrito → Botones → COBRAR → (vuelve)</td></tr>
+                                            <tr><td><kbd>Shift+Tab</kbd></td><td>Navegar hacia atrás</td></tr>
+                                            <tr><td><kbd>Tab</kbd> en búsqueda</td><td>Selecciona primer resultado</td></tr>
+                                            <tr class="table-active"><td colspan="2"><strong>En el carrito</strong></td></tr>
+                                            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Aumentar / disminuir cantidad</td></tr>
+                                            <tr><td><kbd>Delete</kbd></td><td>Eliminar ítem / último ítem</td></tr>
+                                            <tr><td><kbd>Esc</kbd></td><td>Volver al buscador</td></tr>
+                                            <tr class="table-active"><td colspan="2"><strong>General</strong></td></tr>
+                                            <tr><td><kbd>Enter</kbd></td><td>Agregar producto / confirmar</td></tr>
+                                            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Navegar resultados búsqueda</td></tr>
+                                            <tr><td><kbd>+</kbd></td><td>Agregar 1 más del último producto</td></tr>
+                                            <tr><td><kbd>-</kbd></td><td>Quitar 1 del último producto</td></tr>
+                                            <tr><td><kbd>Alt+1-9</kbd></td><td>Botones de acceso rápido</td></tr>
+                                            <tr><td><kbd>P</kbd> (modal éxito)</td><td>Imprimir ticket</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         `;
         
-        // Remove existing modal if any
         document.getElementById('shortcutsModal')?.remove();
-        
-        // Add and show modal
         document.body.insertAdjacentHTML('beforeend', helpHtml);
         const modal = new bootstrap.Modal(document.getElementById('shortcutsModal'));
         modal.show();
     }
+
+    // Expose formatCurrency and showToast for pos-sidebar.js
+    window.POS_formatCurrency = (v) => formatCurrency(v);
+    window.POS_showToast = (msg, type) => showToast(msg, type);
+    window.POS_cart = () => cart;
+    window.POS_loadCart = loadCart;
 
     // Utility functions
     function debounce(func, wait) {

@@ -37,4 +37,8 @@ urlpatterns = [
     path('api/last-transaction/', views.api_last_transaction, name='api_last_transaction'),
     path('api/suspended-transactions/', views.api_suspended_transactions, name='api_suspended_transactions'),
     path('api/quick-add-product/', views.api_quick_add_product, name='api_quick_add_product'),
+    # Nuevas APIs
+    path('api/keyboard-shortcuts/', views.api_keyboard_shortcuts, name='api_keyboard_shortcuts'),
+    path('api/sales-history/', views.api_sales_history, name='api_sales_history'),
+    path('api/quick-checkout/', views.api_quick_checkout, name='api_quick_checkout'),
 ]

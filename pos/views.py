@@ -11,7 +11,7 @@ from decimal import Decimal
 import json
 import unicodedata
 
-from .models import POSSession, POSTransaction, POSTransactionItem, POSPayment, QuickAccessButton
+from .models import POSSession, POSTransaction, POSTransactionItem, POSPayment, QuickAccessButton, POSKeyboardShortcut
 
 
 def normalize_text(text):
@@ -92,6 +92,10 @@ def pos_main(request):
     # Get categories for quick product add
     categories = ProductCategory.objects.filter(is_active=True).order_by('name')
     
+    # Ensure shortcuts exist and pass them to template
+    POSKeyboardShortcut.ensure_defaults()
+    keyboard_shortcuts = POSKeyboardShortcut.objects.filter(is_enabled=True).order_by('order')
+
     context = {
         'shift': shift,
         'cash_register': shift.cash_register,
@@ -103,8 +107,8 @@ def pos_main(request):
         'payment_methods': payment_methods,
         'suspended_count': suspended_count,
         'categories': categories,
+        'keyboard_shortcuts': keyboard_shortcuts,
     }
-    
     return render(request, 'pos/pos_main.html', context)
 
 
@@ -784,6 +788,113 @@ def api_quick_add_product(request):
             'message': f'Producto "{product.name}" creado exitosamente'
         })
         
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Datos inválidos'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# ─────────────────────────────────────────────────────────────
+#  API: Atajos de teclado configurables
+# ─────────────────────────────────────────────────────────────
+
+@login_required
+@require_GET
+def api_keyboard_shortcuts(request):
+    """Return the current keyboard shortcut configuration."""
+    POSKeyboardShortcut.ensure_defaults()
+    shortcuts = POSKeyboardShortcut.objects.filter(is_enabled=True)
+    return JsonResponse({
+        'shortcuts': [s.to_dict() for s in shortcuts],
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+#  API: Historial de ventas del turno actual
+# ─────────────────────────────────────────────────────────────
+
+@login_required
+@require_GET
+def api_sales_history(request):
+    """Return completed transactions for the current shift (last 50)."""
+    shift = CashShift.objects.filter(cashier=request.user, status='open').first()
+    if not shift:
+        return JsonResponse({'success': False, 'error': 'Sin turno activo'}, status=400)
+
+    transactions = (
+        POSTransaction.objects
+        .filter(session__cash_shift=shift, status='completed')
+        .prefetch_related('payments__payment_method', 'items__product')
+        .order_by('-completed_at')[:50]
+    )
+
+    data = []
+    for tx in transactions:
+        payment_labels = [
+            f'{p.payment_method.name} ${p.amount:.2f}'.replace('.', ',')
+            for p in tx.payments.all()
+        ]
+        items_preview = ', '.join(
+            f'{it.product.name} x{it.quantity:g}'
+            for it in tx.items.all()[:4]
+        )
+        if tx.items.count() > 4:
+            items_preview += f' y {tx.items.count() - 4} más…'
+        data.append({
+            'id': tx.id,
+            'ticket_number': tx.ticket_number,
+            'total': float(tx.total),
+            'completed_at': tx.completed_at.strftime('%H:%M:%S') if tx.completed_at else '',
+            'items_count': tx.items_count,
+            'items_preview': items_preview,
+            'payments': payment_labels,
+            'transaction_type': tx.get_transaction_type_display(),
+        })
+
+    return JsonResponse({'success': True, 'transactions': data})
+
+
+# ─────────────────────────────────────────────────────────────
+#  API: Pago rápido directo (sin abrir modal de cobro)
+# ─────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def api_quick_checkout(request):
+    """Process a checkout directly with a single payment method (no modal)."""
+    try:
+        data = json.loads(request.body)
+        transaction_id = data.get('transaction_id')
+        method_code = data.get('method_code')  # 'cash', 'mercadopago', etc.
+
+        if not transaction_id or not method_code:
+            return JsonResponse({'success': False, 'error': 'Faltan datos'}, status=400)
+
+        transaction = get_object_or_404(POSTransaction, id=transaction_id, status='pending')
+        method = PaymentMethod.objects.filter(code=method_code, is_active=True).first()
+        if not method:
+            return JsonResponse({'success': False, 'error': f'Método "{method_code}" no disponible'}, status=400)
+
+        if transaction.total <= 0:
+            return JsonResponse({'success': False, 'error': 'El carrito está vacío'}, status=400)
+
+        # Delegate to the existing checkout service
+        success, result = CheckoutService.process_payment(
+            transaction_id=transaction.id,
+            payments=[{'method_id': method.id, 'amount': float(transaction.total)}],
+        )
+
+        if success:
+            return JsonResponse({
+                'success': True,
+                'ticket_number': result['ticket_number'],
+                'total': float(result['total']),
+                'change': float(result.get('change', 0)),
+                'transaction_id': result['transaction_id'],
+                'method_name': method.name,
+            })
+        return JsonResponse({'success': False, 'error': result.get('error', 'Error al cobrar')}, status=400)
+
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Datos inválidos'}, status=400)
     except Exception as e:

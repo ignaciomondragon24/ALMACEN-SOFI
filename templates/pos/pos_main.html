@@ -84,10 +84,258 @@
         background-color: #9b59b6;
         border-color: #9b59b6;
     }
+
+    /* ===== NAVEGACIÓN POR TECLADO - INDICADORES DE FOCO VISIBLES ===== */
+    /* Indicador principal para todos los elementos interactivos */
+    *:focus-visible {
+        outline: 2px solid #00d2d3 !important;
+        outline-offset: 2px;
+    }
+    /* Botones de acción */
+    .action-btn:focus-visible {
+        border-color: #00d2d3 !important;
+        box-shadow: 0 0 0 3px rgba(0, 210, 211, 0.35) !important;
+        background-color: rgba(0, 210, 211, 0.08) !important;
+    }
+    /* Botón cobrar */
+    #btn-checkout:focus-visible {
+        box-shadow: 0 0 0 4px rgba(0, 210, 211, 0.5) !important;
+        outline: 3px solid #00d2d3 !important;
+    }
+    /* Inputs del carrito */
+    .qty-input:focus {
+        outline: 2px solid #00d2d3 !important;
+        outline-offset: 1px;
+        background-color: rgba(0, 210, 211, 0.06) !important;
+    }
+    /* Checkboxes de pago en modal cobrar */
+    .payment-method-check:focus-visible {
+        box-shadow: 0 0 0 3px rgba(0, 210, 211, 0.4) !important;
+    }
+    /* Links del header */
+    .pos-actions a:focus-visible {
+        box-shadow: 0 0 0 3px rgba(0, 210, 211, 0.4) !important;
+        border-radius: 4px;
+    }
+    /* Hint visual: elemento activo en Tab */
+    .btn:focus-visible {
+        outline: 2px solid #00d2d3 !important;
+        outline-offset: 2px;
+    }
+</style>
+
+<style>
+    /* ===== PANEL LATERAL POS ===== */
+    .pos-wrapper {
+        display: flex;
+        gap: 0;
+        height: 100%;
+    }
+    .pos-container {
+        flex: 1;
+        min-width: 0;
+    }
+    /* Sidebar toggle button */
+    .pos-sidebar-toggle {
+        position: fixed;
+        top: 50%;
+        right: 0;
+        transform: translateY(-50%);
+        z-index: 1050;
+        background: #1a1a2e;
+        border: 1px solid #2d2d44;
+        border-right: none;
+        border-radius: 6px 0 0 6px;
+        padding: 8px 6px;
+        cursor: pointer;
+        color: #00d2d3;
+        font-size: 0.8rem;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        transition: background 0.2s;
+    }
+    .pos-sidebar-toggle:hover { background: #2d2d44; }
+    .pos-sidebar-toggle .toggle-icon { writing-mode: initial; }
+
+    /* Sidebar */
+    .pos-sidebar {
+        width: 300px;
+        min-width: 300px;
+        background: #12122a;
+        border-left: 1px solid #2d2d44;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: width 0.25s ease, min-width 0.25s ease;
+    }
+    .pos-sidebar.collapsed {
+        width: 0;
+        min-width: 0;
+    }
+    .pos-sidebar-inner {
+        width: 300px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        padding: 0;
+    }
+    /* Sidebar tabs */
+    .sidebar-tabs {
+        display: flex;
+        border-bottom: 1px solid #2d2d44;
+        background: #1a1a2e;
+    }
+    .sidebar-tab-btn {
+        flex: 1;
+        padding: 8px 4px;
+        background: none;
+        border: none;
+        color: #888;
+        font-size: 0.72rem;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: color 0.2s, border-color 0.2s;
+        text-align: center;
+    }
+    .sidebar-tab-btn.active {
+        color: #00d2d3;
+        border-bottom-color: #00d2d3;
+    }
+    .sidebar-tab-btn:hover { color: #ccc; }
+    .sidebar-tab-btn i { display: block; font-size: 1rem; margin-bottom: 2px; }
+
+    /* Sidebar tab panes */
+    .sidebar-pane { display: none; padding: 10px; }
+    .sidebar-pane.active { display: block; }
+
+    /* Shortcuts table */
+    .shortcut-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 4px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 0.78rem;
+        gap: 6px;
+    }
+    .shortcut-row:last-child { border-bottom: none; }
+    .shortcut-label { color: #ccc; flex: 1; }
+    .shortcut-key-badge {
+        font-family: monospace;
+        font-size: 0.72rem;
+        background: #222;
+        color: #00d2d3;
+        padding: 2px 7px;
+        border-radius: 3px;
+        border: 1px solid #333;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .shortcut-key-badge.none { color: #555; background: #1a1a1a; border-color: #222; }
+
+    /* Quick payment buttons */
+    .quick-pay-btn {
+        width: 100%;
+        margin-bottom: 7px;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.04);
+        color: #eee;
+        text-align: left;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background 0.15s, border-color 0.15s;
+        font-size: 0.85rem;
+    }
+    .quick-pay-btn:hover, .quick-pay-btn:focus-visible {
+        background: rgba(0,210,211,0.1);
+        border-color: #00d2d3;
+        outline: none;
+    }
+    .quick-pay-btn .pay-icon { font-size: 1.2rem; width: 22px; text-align: center; flex-shrink: 0; }
+    .quick-pay-btn .pay-key {
+        margin-left: auto;
+        font-size: 0.68rem;
+        background: #222;
+        color: #00d2d3;
+        border: 1px solid #333;
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-family: monospace;
+        flex-shrink: 0;
+    }
+    .quick-pay-btn .pay-key.none { display: none; }
+    .quick-pay-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Sales history */
+    .history-item {
+        padding: 8px 6px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        cursor: pointer;
+        transition: background 0.15s;
+        border-radius: 4px;
+    }
+    .history-item:hover, .history-item:focus-visible { background: rgba(255,255,255,0.05); outline: none; }
+    .history-ticket { font-size: 0.72rem; color: #00d2d3; font-family: monospace; }
+    .history-total { font-size: 0.9rem; font-weight: bold; color: #eee; }
+    .history-time { font-size: 0.7rem; color: #888; }
+    .history-preview { font-size: 0.7rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-payments { font-size: 0.7rem; color: #6ec; margin-top: 2px; }
+    #history-empty { color: #888; font-size: 0.82rem; text-align: center; padding: 20px 0; }
+    .btn-reprint-history {
+        font-size: 0.7rem;
+        padding: 2px 7px;
+        margin-top: 4px;
+    }
+
+    /* Products list (códigos rápidos) */
+    .quick-product-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 4px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        cursor: pointer;
+        gap: 8px;
+        transition: background 0.15s;
+        border-radius: 3px;
+    }
+    .quick-product-item:hover, .quick-product-item:focus-visible {
+        background: rgba(0,210,211,0.07);
+        outline: 2px solid #00d2d3;
+        outline-offset: 1px;
+    }
+    .quick-product-code {
+        font-family: monospace;
+        font-size: 0.7rem;
+        color: #888;
+        min-width: 55px;
+        flex-shrink: 0;
+    }
+    .quick-product-name { color: #ddd; font-size: 0.8rem; flex: 1; }
+    .quick-product-price { color: #00d2d3; font-size: 0.78rem; flex-shrink: 0; white-space: nowrap; }
+    #quick-products-search {
+        background: #1a1a2e;
+        border: 1px solid #333;
+        color: #eee;
+        font-size: 0.8rem;
+        border-radius: 4px;
+        padding: 5px 8px;
+        width: 100%;
+        margin-bottom: 8px;
+    }
+    #quick-products-search:focus { outline: 2px solid #00d2d3; }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="pos-wrapper">
 <div class="pos-container">
     <!-- Header -->
     <div class="pos-header">
@@ -142,12 +390,12 @@
                            placeholder="Escanear código de barras o buscar... (F2)"
                            autofocus
                            autocomplete="off">
-                    <button type="button" class="btn btn-primary" id="search-btn">
+                    <button type="button" class="btn btn-primary" id="search-btn" tabindex="-1">
                         <i class="fas fa-search"></i>
                     </button>
                 </div>
                 <small class="text-muted mt-1 d-block">
-                    <kbd>Enter</kbd> agregar | <kbd>↑↓</kbd> navegar | <kbd>Esc</kbd> limpiar
+                    <kbd>Enter</kbd> agregar | <kbd>↑↓</kbd> navegar | <kbd>Esc</kbd> limpiar | <kbd>Tab</kbd> ir al carrito
                 </small>
             </div>
             
@@ -162,7 +410,7 @@
             <div class="pos-cart">
                 <div class="cart-header">
                     <h5><i class="fas fa-shopping-cart me-2"></i>Carrito</h5>
-                    <button type="button" class="btn btn-outline-danger btn-sm" id="clear-cart">
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="clear-cart" tabindex="-1">
                         <i class="fas fa-trash me-1"></i>Vaciar
                     </button>
                 </div>
@@ -207,6 +455,7 @@
                     {% for button in quick_buttons %}
                     <button type="button" 
                             class="quick-btn" 
+                            tabindex="-1"
                             data-product-id="{{ button.product.id }}"
                             style="background-color: {{ button.color }};">
                         <span class="quick-btn-name">{{ button.product.name|truncatechars:15 }}</span>
@@ -280,8 +529,113 @@
     </div>
 </div>
 
+<!-- ===== SIDEBAR PANEL ===== -->
+<!-- Toggle button (visible when sidebar is collapsed) -->
+<button class="pos-sidebar-toggle" id="sidebar-toggle-btn" title="Abrir panel lateral"
+        aria-label="Abrir panel lateral">
+    <span class="toggle-icon"><i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i></span>
+    <span>Panel</span>
+</button>
+
+<!-- Sidebar -->
+<div class="pos-sidebar" id="pos-sidebar">
+    <div class="pos-sidebar-inner">
+        <!-- Tabs -->
+        <div class="sidebar-tabs" role="tablist">
+            <button class="sidebar-tab-btn active" data-tab="shortcuts" role="tab" aria-selected="true">
+                <i class="fas fa-keyboard"></i>Atajos
+            </button>
+            <button class="sidebar-tab-btn" data-tab="quickpay" role="tab" aria-selected="false">
+                <i class="fas fa-bolt"></i>Cobros
+            </button>
+            <button class="sidebar-tab-btn" data-tab="products" role="tab" aria-selected="false">
+                <i class="fas fa-list"></i>Productos
+            </button>
+            <button class="sidebar-tab-btn" data-tab="history" role="tab" aria-selected="false">
+                <i class="fas fa-history"></i>Historial
+            </button>
+        </div>
+
+        <!-- Tab 1: Atajos de teclado -->
+        <div class="sidebar-pane active" id="pane-shortcuts">
+            <p class="text-muted" style="font-size:0.72rem;margin-bottom:8px;">
+                <i class="fas fa-info-circle me-1"></i>
+                Configurables desde <a href="/admin/pos/poskeyboardshortcut/" target="_blank" class="text-info">Admin</a>
+            </p>
+            {% for sc in keyboard_shortcuts %}
+            <div class="shortcut-row">
+                <span class="shortcut-label">{{ sc.get_action_display }}</span>
+                {% if sc.key == 'none' %}
+                <span class="shortcut-key-badge none">—</span>
+                {% else %}
+                <span class="shortcut-key-badge">{{ sc.key }}</span>
+                {% endif %}
+            </div>
+            {% empty %}
+            <p class="text-muted" style="font-size:0.8rem">No hay atajos configurados.</p>
+            {% endfor %}
+        </div>
+
+        <!-- Tab 2: Cobros rápidos directos -->
+        <div class="sidebar-pane" id="pane-quickpay">
+            <p class="text-muted" style="font-size:0.72rem;margin-bottom:10px;">
+                Cobrar carrito actual directamente con un solo botón / tecla.
+            </p>
+            <div id="quick-pay-buttons-container">
+                {% for method in payment_methods %}
+                {% with sc=keyboard_shortcuts %}
+                <button type="button"
+                        class="quick-pay-btn"
+                        data-method-code="{{ method.code }}"
+                        data-method-name="{{ method.name }}"
+                        data-method-icon="{{ method.icon }}"
+                        {% for s in keyboard_shortcuts %}{% if s.action == 'pay_'|add:method.code %}data-shortcut-key="{{ s.key }}"{% endif %}{% endfor %}
+                        disabled
+                        title="Cobrar con {{ method.name }}">
+                    <span class="pay-icon"><i class="{{ method.icon }}"></i></span>
+                    <span>{{ method.name }}</span>
+                    {% for s in keyboard_shortcuts %}{% if s.action == 'pay_'|add:method.code and s.key != 'none' %}<span class="pay-key">{{ s.key }}</span>{% endif %}{% endfor %}
+                </button>
+                {% endwith %}
+                {% empty %}
+                <p class="text-muted" style="font-size:0.8rem">Sin métodos de pago activos.</p>
+                {% endfor %}
+            </div>
+            <small class="text-muted d-block mt-2" style="font-size:0.68rem;">
+                Los botones se habilitan cuando hay productos en el carrito.
+                <br>Para asignar teclas: <a href="/admin/pos/poskeyboardshortcut/" target="_blank" class="text-info">Admin → Atajos</a>
+            </small>
+        </div>
+
+        <!-- Tab 3: Productos sin código de barras -->
+        <div class="sidebar-pane" id="pane-products">
+            <input type="text" id="quick-products-search" placeholder="Filtrar productos..." autocomplete="off" tabindex="-1">
+            <div id="quick-products-list">
+                <!-- Populated by JS -->
+                <p class="text-muted" style="font-size:0.8rem;text-align:center;padding:20px 0" id="products-loading">
+                    <i class="fas fa-spinner fa-spin me-1"></i>Cargando...
+                </p>
+            </div>
+        </div>
+
+        <!-- Tab 4: Historial de ventas -->
+        <div class="sidebar-pane" id="pane-history">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted">Últimas 50 ventas del turno</small>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-refresh-history" tabindex="-1" title="Actualizar">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div id="sales-history-list">
+                <p id="history-empty"><i class="fas fa-info-circle me-1"></i>No hay ventas aún.</p>
+            </div>
+        </div>
+    </div>
+</div>
+</div><!-- /pos-wrapper -->
+
 <!-- Help floating button -->
-<button type="button" class="help-float" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {key: 'F1'}))">
+<button type="button" class="help-float" tabindex="-1" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {key: 'F1'}))">
     <i class="fas fa-keyboard"></i>
 </button>
 
@@ -666,10 +1020,21 @@
         costSale: '{% url "pos:api_checkout_cost_sale" %}',
         internalConsumption: '{% url "pos:api_checkout_internal_consumption" %}',
         calculateCost: '/pos/api/transaction/{{ transaction.id }}/cost-total/',
+        keyboardShortcuts: '{% url "pos:api_keyboard_shortcuts" %}',
+        salesHistory: '{% url "pos:api_sales_history" %}',
+        quickCheckout: '{% url "pos:api_quick_checkout" %}',
     };
     
     // CSRF Token
     const CSRF_TOKEN = '{{ csrf_token }}';
+
+    // Keyboard shortcuts pre-loaded from server (Django template → JS)
+    const INITIAL_SHORTCUTS = [
+        {% for sc in keyboard_shortcuts %}
+        { action: "{{ sc.action }}", key: "{{ sc.key }}", label: "{{ sc.get_action_display|escapejs }}", is_enabled: {{ sc.is_enabled|yesno:"true,false" }} },
+        {% endfor %}
+    ];
 </script>
 <script src="{% static 'js/pos-main.js' %}"></script>
+<script src="{% static 'js/pos-sidebar.js' %}"></script>
 {% endblock %}
