@@ -13,7 +13,7 @@ class ProductForm(forms.ModelForm):
         model = Product
         fields = [
             'sku', 'barcode', 'name', 'description', 'category', 'unit_of_measure',
-            'purchase_price', 'sale_price', 'current_stock', 'min_stock', 'max_stock',
+            'cost_price', 'sale_price', 'current_stock', 'min_stock', 'max_stock',
             'location', 'image', 'is_active', 'is_quick_access', 'quick_access_color',
             'quick_access_icon', 'quick_access_position'
         ]
@@ -24,7 +24,7 @@ class ProductForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'unit_of_measure': forms.Select(attrs={'class': 'form-select'}),
-            'purchase_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
             'min_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
@@ -37,6 +37,12 @@ class ProductForm(forms.ModelForm):
             'quick_access_icon': forms.TextInput(attrs={'class': 'form-control'}),
             'quick_access_position': forms.NumberInput(attrs={'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['quick_access_color'].required = False
+        self.fields['quick_access_icon'].required = False
+        self.fields['quick_access_position'].required = False
 
 
 class CategoryForm(forms.ModelForm):

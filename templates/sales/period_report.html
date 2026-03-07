@@ -47,7 +47,7 @@
             <div class="card bg-primary text-white">
                 <div class="card-body text-center">
                     <h6 class="text-uppercase">Total del Período</h6>
-                    <h3>{{ stats.total|currency|default:"$0,00" }}</h3>
+                    <h3>{{ stats.total_sales|currency|default:"$0,00" }}</h3>
                 </div>
             </div>
         </div>
@@ -106,10 +106,16 @@
                         <td class="text-end"><strong>{{ day.total|currency }}</strong></td>
                         <td>
                             <div class="progress" style="height: 25px;">
+                                {% if stats.total_sales %}
                                 <div class="progress-bar bg-success" role="progressbar" 
-                                     style="width: {% widthratio day.total stats.total 100 %}%;">
+                                     style="width: {% widthratio day.total stats.total_sales 100 %}%;">
                                     {{ day.total|currency }}
                                 </div>
+                                {% else %}
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 100%;">
+                                    {{ day.total|currency }}
+                                </div>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -119,7 +125,7 @@
                     <tr>
                         <td><strong>TOTAL</strong></td>
                         <td class="text-end"><strong>{{ stats.count }}</strong></td>
-                        <td class="text-end"><strong>{{ stats.total|currency }}</strong></td>
+                        <td class="text-end"><strong>{{ stats.total_sales|currency }}</strong></td>
                         <td></td>
                     </tr>
                 </tfoot>

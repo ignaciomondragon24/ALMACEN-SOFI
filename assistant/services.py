@@ -294,7 +294,7 @@ class BusinessDataCollector:
             if inv.get('productos_stock_bajo'):
                 context_parts.append("  - Alertas de stock bajo:")
                 for p in inv['productos_stock_bajo'][:5]:
-                    context_parts.append(f"    ⚠️ {p['name']}: {p['stock_quantity']} {p.get('unit__abbreviation', 'u')} (mín: {p['minimum_stock']})")
+                    context_parts.append(f"    ⚠️ {p['name']}: {p['current_stock']} {p.get('unit_of_measure__abbreviation', 'u')} (mín: {p['min_stock']})")
         
         context_parts.extend(["", "🏪 ESTADO DE CAJA:"])
         if 'error' not in data['caja']:

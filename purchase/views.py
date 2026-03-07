@@ -191,15 +191,15 @@ def purchase_receive(request, pk):
         return redirect('purchase:purchase_list')
     
     if request.method == 'POST':
-        stock_service = StockManagementService()
         
         for item in purchase.items.all():
             # Update stock
-            stock_service.add_stock(
+            StockManagementService.add_stock(
                 product=item.product,
                 quantity=item.quantity,
+                cost=item.unit_cost,
                 user=request.user,
-                reason=f'Recepción de compra {purchase.order_number}',
+                notes=f'Recepción de compra {purchase.order_number}',
                 reference=purchase.order_number
             )
             

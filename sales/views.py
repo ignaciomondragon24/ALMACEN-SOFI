@@ -81,6 +81,7 @@ def reports_dashboard(request):
 
 
 @login_required
+@group_required(['Admin', 'Manager'])
 def sale_list(request):
     """List sales/transactions."""
     transactions = POSTransaction.objects.filter(
@@ -125,7 +126,7 @@ def daily_report(request):
     
     # Stats
     stats = transactions.aggregate(
-        total=Sum('total'),
+        total_sales=Sum('total'),
         count=Count('id'),
         avg=Avg('total'),
         discount=Sum('discount_total')
@@ -198,7 +199,7 @@ def period_report(request):
     
     # Stats
     stats = transactions.aggregate(
-        total=Sum('total'),
+        total_sales=Sum('total'),
         count=Count('id'),
         avg=Avg('total'),
         discount=Sum('discount_total')
@@ -344,14 +345,14 @@ def cashiers_report(request):
         'session__cash_shift__cashier__first_name',
         'session__cash_shift__cashier__last_name'
     ).annotate(
-        total_sales=Sum('total'),
+        total=Sum('total'),
         count=Count('id')
-    ).order_by('-total_sales')
+    ).order_by('-total')
     
     # Calculate average per cashier
     for t in transactions:
         if t['count'] > 0:
-            t['avg'] = t['total_sales'] / t['count']
+            t['avg'] = t['total'] / t['count']
         else:
             t['avg'] = Decimal('0')
     

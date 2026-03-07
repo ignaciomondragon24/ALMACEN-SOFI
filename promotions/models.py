@@ -217,8 +217,8 @@ class Promotion(models.Model):
         if not day_checks[weekday]:
             return False
         
-        # Check time
-        now = timezone.now().time()
+        # Check time (use local time to match TimeField values)
+        now = timezone.localtime(timezone.now()).time()
         if self.hour_start and now < self.hour_start:
             return False
         if self.hour_end and now > self.hour_end:

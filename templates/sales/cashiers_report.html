@@ -49,13 +49,13 @@
                     </div>
                     <div>
                         <h5 class="card-title mb-0">
-                            {% if cashier.session__cash_shift__opened_by__first_name %}
-                                {{ cashier.session__cash_shift__opened_by__first_name }} {{ cashier.session__cash_shift__opened_by__last_name }}
+                            {% if cashier.session__cash_shift__cashier__first_name %}
+                                {{ cashier.session__cash_shift__cashier__first_name }} {{ cashier.session__cash_shift__cashier__last_name }}
                             {% else %}
-                                {{ cashier.session__cash_shift__opened_by__username|default:"-" }}
+                                {{ cashier.session__cash_shift__cashier__username|default:"-" }}
                             {% endif %}
                         </h5>
-                        <small class="text-muted">@{{ cashier.session__cash_shift__opened_by__username|default:"-" }}</small>
+                        <small class="text-muted">@{{ cashier.session__cash_shift__cashier__username|default:"-" }}</small>
                     </div>
                 </div>
                 <div class="card-body">
@@ -101,10 +101,10 @@
                         {% for cashier in cashiers %}
                         <tr>
                             <td>
-                                {% if cashier.session__cash_shift__opened_by__first_name %}
-                                    {{ cashier.session__cash_shift__opened_by__first_name }} {{ cashier.session__cash_shift__opened_by__last_name }}
+                                {% if cashier.session__cash_shift__cashier__first_name %}
+                                    {{ cashier.session__cash_shift__cashier__first_name }} {{ cashier.session__cash_shift__cashier__last_name }}
                                 {% else %}
-                                    {{ cashier.session__cash_shift__opened_by__username|default:"-" }}
+                                    {{ cashier.session__cash_shift__cashier__username|default:"-" }}
                                 {% endif %}
                             </td>
                             <td class="text-end">{{ cashier.count }}</td>

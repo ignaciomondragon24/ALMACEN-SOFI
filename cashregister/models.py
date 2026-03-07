@@ -242,9 +242,11 @@ class CashShift(models.Model):
     @property
     def transactions_count(self):
         """Get number of transactions."""
-        return self.pos_sessions.aggregate(
-            total=models.Count('transactions', filter=models.Q(transactions__status='completed'))
-        )['total'] or 0
+        from pos.models import POSTransaction
+        return POSTransaction.objects.filter(
+            session__cash_shift=self,
+            status='completed'
+        ).count()
     
     @property
     def total_income(self):

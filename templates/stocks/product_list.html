@@ -88,16 +88,16 @@
                             <td>{{ product.category.name|default:"-" }}</td>
                             <td class="text-end">{{ product.cost_price|currency_ar }}</td>
                             <td class="text-end">
-                                <strong>{{ product.selling_price|currency_ar }}</strong>
+                                <strong>{{ product.sale_price|currency_ar }}</strong>
                             </td>
                             <td class="text-center">
-                                {% if product.current_stock <= product.minimum_stock %}
+                                {% if product.current_stock <= product.min_stock %}
                                 <span class="badge bg-danger">
-                                    {{ product.current_stock }} {{ product.unit.abbreviation }}
+                                    {{ product.current_stock }} {{ product.unit_of_measure.abbreviation|default:"u" }}
                                 </span>
                                 {% else %}
                                 <span class="badge bg-success">
-                                    {{ product.current_stock }} {{ product.unit.abbreviation }}
+                                    {{ product.current_stock }} {{ product.unit_of_measure.abbreviation|default:"u" }}
                                 </span>
                                 {% endif %}
                             </td>

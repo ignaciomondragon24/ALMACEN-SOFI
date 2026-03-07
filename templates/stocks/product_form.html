@@ -17,6 +17,22 @@
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
                         
+                        {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <strong><i class="fas fa-exclamation-triangle me-1"></i>Por favor corregí los siguientes errores:</strong>
+                            <ul class="mb-0 mt-2">
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                            {% for error in form.non_field_errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -89,9 +105,10 @@
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="cost_price" id="id_cost_price" 
-                                               class="form-control text-end" step="0.01" min="0"
+                                               class="form-control text-end{% if form.cost_price.errors %} is-invalid{% endif %}" step="0.01" min="0"
                                                value="{{ form.cost_price.value|default:'0.00' }}" required>
                                     </div>
+                                    {% if form.cost_price.errors %}<div class="text-danger small">{{ form.cost_price.errors.0 }}</div>{% endif %}
                                 </div>
                             </div>
                             <div class="col-md-4">

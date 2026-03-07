@@ -1,3 +1,6 @@
+# Este archivo es legacy (Nixpacks). Railway ahora usa Railpack.
+# Ver railway.toml para la configuracion de deploy.
+# No borrar - puede ser necesario si se cambia el builder.
 [phases.setup]
 nixPkgs = ["zlib", "libjpeg", "libpng", "freetype", "cairo", "pkg-config"]
 

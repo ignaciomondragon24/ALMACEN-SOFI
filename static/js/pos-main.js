@@ -828,6 +828,47 @@
                     });
                 });
             });
+            
+            // Keyboard navigation inside cart items
+            const allQtyInputs = Array.from(cartItems.querySelectorAll('.qty-input'));
+            allQtyInputs.forEach((input, idx) => {
+                input.addEventListener('focus', () => input.select());
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Tab' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (allQtyInputs[idx + 1]) {
+                            allQtyInputs[idx + 1].focus();
+                        } else {
+                            productSearch?.focus();
+                        }
+                    }
+                    if (e.key === 'Tab' && e.shiftKey) {
+                        e.preventDefault();
+                        if (allQtyInputs[idx - 1]) {
+                            allQtyInputs[idx - 1].focus();
+                        } else {
+                            productSearch?.focus();
+                        }
+                    }
+                    if (e.key === 'Escape') {
+                        productSearch?.focus();
+                    }
+                    if (e.key === 'Delete') {
+                        e.preventDefault();
+                        const itemEl = input.closest('.cart-item');
+                        const id = itemEl?.dataset.itemId;
+                        if (id) removeCartItem(id);
+                    }
+                    if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        input.closest('.cart-item')?.querySelector('.qty-btn[data-action="increase"]')?.click();
+                    }
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        input.closest('.cart-item')?.querySelector('.qty-btn[data-action="decrease"]')?.click();
+                    }
+                });
+            });
         }
         
         // Update totals
@@ -1445,6 +1486,15 @@
         
         if (!btnCheckout || !checkoutModal) return;
         
+        // Auto-select first payment method and focus amount when modal opens
+        checkoutModal.addEventListener('shown.bs.modal', () => {
+            const firstCheckbox = document.querySelector('.payment-method-check');
+            if (firstCheckbox && !firstCheckbox.checked) {
+                firstCheckbox.checked = true;
+                firstCheckbox.dispatchEvent(new Event('change'));
+            }
+        });
+        
         btnCheckout.addEventListener('click', () => {
             if (!checkoutTotal) return;
             
@@ -1752,13 +1802,13 @@
         
         // Print ticket button
         document.getElementById('btnPrintTicket').addEventListener('click', () => {
-            // Open print window
-            window.open(`/pos/ticket/${data.transaction_id}/`, '_blank', 'width=400,height=600');
-            // Continue after short delay
-            setTimeout(() => {
-                modal.hide();
-                window.location.reload();
-            }, 500);
+            // Abrir ventana del ticket (se auto-imprime y auto-cierra sola)
+            const printWin = window.open(`/pos/ticket/${data.transaction_id}/`, '_blank', 'width=320,height=500,menubar=no,toolbar=no,location=no,status=no');
+            if (printWin) {
+                printWin.focus();
+            }
+            modal.hide();
+            window.location.reload();
         });
         
         // Skip print button
@@ -1785,8 +1835,8 @@
                 
                 // Checkout modal shortcuts
                 if (modalId === 'checkoutModal') {
-                    // Enter to confirm payment
-                    if (e.key === 'Enter' && !e.target.classList.contains('payment-amount')) {
+                    // Enter to confirm payment (from anywhere in the modal)
+                    if (e.key === 'Enter') {
                         e.preventDefault();
                         const confirmBtn = document.getElementById('confirm-payment');
                         if (confirmBtn && !confirmBtn.disabled) {
@@ -2042,8 +2092,12 @@
                                     <tr><td><kbd>F11</kbd></td><td>Consumo interno</td></tr>
                                     <tr><td><kbd>F12</kbd></td><td>Salir del POS</td></tr>
                                     <tr><td><kbd>Esc</kbd></td><td>Limpiar búsqueda</td></tr>
+                                    <tr><td><kbd>Tab</kbd></td><td>Navegar entre items del carrito</td></tr>
+                                    <tr><td><kbd>↑</kbd> <kbd>↓</kbd> en carrito</td><td>Aumentar / disminuir cantidad</td></tr>
+                                    <tr><td><kbd>Delete</kbd> en carrito</td><td>Eliminar ese item</td></tr>
+                                    <tr><td><kbd>Esc</kbd> en carrito</td><td>Volver a la búsqueda</td></tr>
                                     <tr><td><kbd>Enter</kbd></td><td>Agregar producto buscado</td></tr>
-                                    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Navegar resultados</td></tr>
+                                    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Navegar resultados búsqueda</td></tr>
                                     <tr><td><kbd>+</kbd></td><td>Agregar 1 más del último producto</td></tr>
                                     <tr><td><kbd>-</kbd></td><td>Quitar 1 del último producto</td></tr>
                                     <tr><td><kbd>Delete</kbd></td><td>Eliminar último producto</td></tr>

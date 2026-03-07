@@ -236,6 +236,7 @@ def category_edit(request, pk):
 
 
 @login_required
+@group_required(['Admin', 'Manager', 'Stock Manager'])
 def low_stock_products(request):
     """List products with low stock."""
     products = StockManagementService.get_low_stock_products()
