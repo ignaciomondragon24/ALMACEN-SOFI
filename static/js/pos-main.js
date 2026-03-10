@@ -837,6 +837,10 @@
                         ${item.discount > 0 ? `<small class="text-success d-block">-${formatCurrency(item.discount)}</small>` : ''}
                         ${formatCurrency(item.subtotal)}
                     </div>
+                    <button class="btn btn-sm btn-outline-warning cart-item-discount-btn" tabindex="-1"
+                            title="Descuento en este ítem" data-item-id="${item.id}">
+                        ${item.discount > 0 ? '<i class="fas fa-percent" style="color:#2ecc71"></i>' : '<i class="fas fa-percent"></i>'}
+                    </button>
                     <div class="cart-item-remove" title="Eliminar">
                         <i class="fas fa-trash"></i>
                     </div>
@@ -853,6 +857,12 @@
                 
                 itemEl.querySelector('.cart-item-remove').addEventListener('click', () => {
                     removeCartItem(itemId);
+                });
+
+                itemEl.querySelector('.cart-item-discount-btn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const itemData = cart.items.find(i => String(i.id) === String(itemId));
+                    if (itemData) showItemDiscountModal(itemData);
                 });
                 
                 const qtyInput = itemEl.querySelector('.qty-input');
@@ -1928,6 +1938,183 @@
         }
     }
     
+    // ─── Descuento sobre ítem específico del carrito ─────────────────────────────
+    function showItemDiscountModal(item) {
+        const itemTotal = item.unit_price * item.quantity;
+        const hasDiscount = item.discount > 0;
+
+        const html = `
+        <div class="modal fade" id="itemDiscountModal" tabindex="-1">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content bg-dark text-white">
+                    <div class="modal-header border-secondary py-2">
+                        <h6 class="modal-title mb-0">
+                            <i class="fas fa-percent me-2 text-warning"></i>Descuento en ítem
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body pb-2">
+                        <p class="mb-1 fw-bold">${item.product_name || item.name}</p>
+                        <p class="text-muted small mb-3">
+                            ${item.quantity} × ${formatCurrency(item.unit_price)} =
+                            <strong class="text-white">${formatCurrency(itemTotal)}</strong>
+                        </p>
+                        ${hasDiscount ? `
+                        <div class="alert alert-success py-1 px-2 mb-3 d-flex justify-content-between align-items-center">
+                            <span class="small">Descuento actual: <strong>-${formatCurrency(item.discount)}</strong></span>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0" id="btn-remove-item-discount">
+                                <i class="fas fa-times me-1"></i>Quitar
+                            </button>
+                        </div>` : ''}
+                        <!-- Tipo -->
+                        <div class="btn-group w-100 mb-3" role="group">
+                            <input type="radio" class="btn-check" name="item-disc-type" id="idt-percent" value="percent" checked>
+                            <label class="btn btn-outline-secondary btn-sm" for="idt-percent">
+                                <i class="fas fa-percent me-1"></i>%
+                            </label>
+                            <input type="radio" class="btn-check" name="item-disc-type" id="idt-fixed" value="fixed">
+                            <label class="btn btn-outline-secondary btn-sm" for="idt-fixed">
+                                <i class="fas fa-dollar-sign me-1"></i>Monto $
+                            </label>
+                        </div>
+                        <!-- Presets rápidos -->
+                        <div class="d-flex gap-1 mb-2 flex-wrap" id="item-disc-presets">
+                            <button class="btn btn-outline-warning btn-sm preset-btn" data-val="5">5%</button>
+                            <button class="btn btn-outline-warning btn-sm preset-btn" data-val="10">10%</button>
+                            <button class="btn btn-outline-warning btn-sm preset-btn" data-val="15">15%</button>
+                            <button class="btn btn-outline-warning btn-sm preset-btn" data-val="20">20%</button>
+                            <button class="btn btn-outline-warning btn-sm preset-btn" data-val="25">25%</button>
+                            <button class="btn btn-outline-warning btn-sm preset-btn" data-val="50">50%</button>
+                        </div>
+                        <!-- Valor -->
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text bg-dark text-warning border-secondary" id="item-disc-symbol">%</span>
+                            <input type="number" id="item-disc-value" class="form-control bg-secondary text-white border-secondary"
+                                   min="0.01" step="0.01" value="10" placeholder="Valor">
+                        </div>
+                        <!-- Preview -->
+                        <div class="text-center small text-muted mb-1" id="item-disc-preview">
+                            Descuento: <strong id="item-disc-preview-amount" class="text-success">—</strong>
+                            &nbsp;→ Subtotal: <strong id="item-disc-preview-sub" class="text-white">—</strong>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-warning btn-sm" id="btn-apply-item-discount">
+                            <i class="fas fa-check me-1"></i>Aplicar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        document.getElementById('itemDiscountModal')?.remove();
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        const modal   = new bootstrap.Modal(document.getElementById('itemDiscountModal'));
+        const valEl   = document.getElementById('item-disc-value');
+        const symEl   = document.getElementById('item-disc-symbol');
+        const prevAmt = document.getElementById('item-disc-preview-amount');
+        const prevSub = document.getElementById('item-disc-preview-sub');
+        const applyBtn= document.getElementById('btn-apply-item-discount');
+
+        function getType() {
+            return document.querySelector('input[name="item-disc-type"]:checked')?.value || 'percent';
+        }
+
+        function updatePreview() {
+            const type = getType();
+            const val = parseFloat(valEl.value) || 0;
+            let disc = 0;
+            if (type === 'percent') disc = itemTotal * val / 100;
+            else disc = val;
+            disc = Math.min(disc, itemTotal);
+            prevAmt.textContent = formatCurrency(disc);
+            prevSub.textContent = formatCurrency(itemTotal - disc);
+            applyBtn.disabled = val <= 0;
+        }
+
+        // Cambio de tipo → actualizar símbolo, presets y preview
+        document.querySelectorAll('input[name="item-disc-type"]').forEach(r => {
+            r.addEventListener('change', () => {
+                const isPercent = getType() === 'percent';
+                symEl.textContent = isPercent ? '%' : '$';
+                // Actualizar presets
+                const presets = document.getElementById('item-disc-presets');
+                if (isPercent) {
+                    presets.innerHTML = `
+                        <button class="btn btn-outline-warning btn-sm preset-btn" data-val="5">5%</button>
+                        <button class="btn btn-outline-warning btn-sm preset-btn" data-val="10">10%</button>
+                        <button class="btn btn-outline-warning btn-sm preset-btn" data-val="15">15%</button>
+                        <button class="btn btn-outline-warning btn-sm preset-btn" data-val="20">20%</button>
+                        <button class="btn btn-outline-warning btn-sm preset-btn" data-val="25">25%</button>
+                        <button class="btn btn-outline-warning btn-sm preset-btn" data-val="50">50%</button>`;
+                } else {
+                    const presetAmts = [100, 200, 500, 1000].filter(v => v < itemTotal);
+                    presets.innerHTML = presetAmts.map(v =>
+                        `<button class="btn btn-outline-warning btn-sm preset-btn" data-val="${v}">${formatCurrency(v)}</button>`
+                    ).join('');
+                }
+                bindPresets();
+                updatePreview();
+            });
+        });
+
+        function bindPresets() {
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    valEl.value = btn.dataset.val;
+                    updatePreview();
+                });
+            });
+        }
+
+        bindPresets();
+        valEl.addEventListener('input', updatePreview);
+        updatePreview();
+
+        // Quitar descuento existente
+        document.getElementById('btn-remove-item-discount')?.addEventListener('click', async () => {
+            modal.hide();
+            await applyItemDiscount(item.id, 'remove', 0);
+        });
+
+        applyBtn.addEventListener('click', async () => {
+            const val = parseFloat(valEl.value) || 0;
+            if (val <= 0) return;
+            modal.hide();
+            await applyItemDiscount(item.id, getType(), val);
+        });
+
+        // Atajos de teclado dentro del modal
+        document.getElementById('itemDiscountModal').addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); applyBtn.click(); }
+        });
+
+        modal.show();
+        setTimeout(() => { valEl.focus(); valEl.select(); }, 300);
+    }
+
+    async function applyItemDiscount(itemId, type, value) {
+        try {
+            const resp = await fetch(`${API_URLS.cartItemDiscount}${itemId}/discount/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                body: JSON.stringify({ type, value }),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                await loadCart();
+            } else {
+                showToast(data.error || 'Error al aplicar descuento', 'error');
+            }
+        } catch (err) {
+            console.error('Item discount error:', err);
+            showToast('Error de conexión', 'error');
+        }
+    }
+
     // Show sale success modal with print option
     function showSaleSuccessModal(data) {
         // Create modal HTML

@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/calculate-by-amount/', views.api_calculate_by_amount, name='api_calculate_by_amount'),
     path('api/cart/item/<int:item_id>/', views.api_cart_update, name='api_cart_update'),
     path('api/cart/item/<int:item_id>/remove/', views.api_cart_remove, name='api_cart_remove'),
+    path('api/cart/item/<int:item_id>/discount/', views.api_cart_item_discount, name='api_cart_item_discount'),
     path('api/cart/<int:transaction_id>/clear/', views.api_cart_clear, name='api_cart_clear'),
     path('api/transaction/<int:transaction_id>/', views.api_transaction_detail, name='api_transaction_detail'),
     path('api/transaction/<int:transaction_id>/cost-total/', views.api_calculate_cost_total, name='api_calculate_cost_total'),

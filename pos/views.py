@@ -551,6 +551,64 @@ def api_transaction_cancel(request, transaction_id):
 
 @login_required
 @require_POST
+def api_cart_item_discount(request, item_id):
+    """Apply or remove a discount on a specific cart item."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+
+    try:
+        item = POSTransactionItem.objects.select_related('transaction').get(
+            id=item_id, transaction__status='pending'
+        )
+    except POSTransactionItem.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Ítem no encontrado'}, status=404)
+
+    discount_type  = data.get('type', 'percent')   # 'percent' | 'fixed' | 'remove'
+    discount_value = Decimal(str(data.get('value', 0)))
+
+    item_total_before_discount = item.unit_price * item.quantity
+
+    if discount_type == 'remove':
+        item.discount = Decimal('0.00')
+    elif discount_type == 'percent':
+        if discount_value <= 0 or discount_value > 100:
+            return JsonResponse({'success': False, 'error': 'Porcentaje inválido (1-100)'}, status=400)
+        item.discount = (item_total_before_discount * discount_value / Decimal('100')).quantize(Decimal('0.01'))
+    elif discount_type == 'fixed':
+        if discount_value <= 0:
+            return JsonResponse({'success': False, 'error': 'Monto inválido'}, status=400)
+        if discount_value > item_total_before_discount:
+            return JsonResponse({'success': False, 'error': 'El descuento supera el subtotal del ítem'}, status=400)
+        item.discount = discount_value.quantize(Decimal('0.01'))
+    else:
+        return JsonResponse({'success': False, 'error': 'Tipo inválido'}, status=400)
+
+    item.save()  # triggers subtotal recalc
+    transaction = item.transaction
+    transaction.calculate_totals()
+    transaction.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Descuento aplicado' if discount_type != 'remove' else 'Descuento eliminado',
+        'item': {
+            'id': item.id,
+            'discount': float(item.discount),
+            'subtotal': float(item.subtotal),
+        },
+        'totals': {
+            'subtotal': float(transaction.subtotal),
+            'discount': float(transaction.discount_total),
+            'total': float(transaction.total),
+            'items_count': transaction.items_count,
+        },
+    })
+
+
+@login_required
+@require_POST
 def api_apply_discount(request, transaction_id):
     """Apply discount to transaction."""
     try:
