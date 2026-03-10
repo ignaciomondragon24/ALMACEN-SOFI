@@ -331,6 +331,63 @@
         margin-bottom: 8px;
     }
     #quick-products-search:focus { outline: 2px solid #00d2d3; }
+
+    /* ===== NAVEGACIÓN CARRITO POR TECLADO ===== */
+    .cart-item {
+        outline: none;
+        border-left: 3px solid transparent !important;
+        transition: background 0.12s, border-left-color 0.12s;
+    }
+    .cart-item:focus { outline: none; }
+    .cart-item.kb-active {
+        background: rgba(0, 210, 211, 0.1) !important;
+        border-left-color: #00d2d3 !important;
+        border-left-width: 3px !important;
+    }
+    .cart-item.kb-active .cart-item-name { color: #00d2d3; }
+    /* Hint de teclado en el header del carrito */
+    .kb-hint {
+        font-size: 0.6rem;
+        font-family: monospace;
+        padding: 1px 6px;
+        border-radius: 3px;
+        background: rgba(0, 210, 211, 0.12);
+        color: #00d2d3;
+        display: inline-block;
+        margin-left: 8px;
+        vertical-align: middle;
+        transition: opacity 0.25s;
+        opacity: 0;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+    .kb-hint.visible { opacity: 1; }
+    /* Botones de navegación del carrito */
+    .cart-nav-btn {
+        width: 28px; height: 28px;
+        padding: 0;
+        border-radius: 5px;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid #333;
+        color: #00d2d3;
+        cursor: pointer;
+        font-size: 0.72rem;
+        transition: background 0.15s, border-color 0.15s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .cart-nav-btn:hover  { background: rgba(0,210,211,0.15); border-color: #00d2d3; }
+    .cart-nav-btn:active { background: rgba(0,210,211,0.3); }
+    .cart-nav-btn:focus-visible { outline: 2px solid #00d2d3; }
+    .cart-nav-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+    /* Input en modo edición */
+    .qty-input.editing {
+        background: rgba(0,210,211,0.12) !important;
+        border-color: #00d2d3 !important;
+        outline: 2px solid rgba(0,210,211,0.5) !important;
+    }
 </style>
 {% endblock %}
 
@@ -395,7 +452,10 @@
                     </button>
                 </div>
                 <small class="text-muted mt-1 d-block">
-                    <kbd>Enter</kbd> agregar | <kbd>↑↓</kbd> navegar | <kbd>Esc</kbd> limpiar | <kbd>Tab</kbd> ir al carrito
+                    <kbd>Enter</kbd> agregar &nbsp;
+                    <kbd>↑↓</kbd> resultados &nbsp;
+                    <kbd>Tab</kbd>→ carrito &nbsp;
+                    <kbd>Esc</kbd> limpiar
                 </small>
             </div>
             
@@ -409,10 +469,23 @@
             <!-- Cart -->
             <div class="pos-cart">
                 <div class="cart-header">
-                    <h5><i class="fas fa-shopping-cart me-2"></i>Carrito</h5>
-                    <button type="button" class="btn btn-outline-danger btn-sm" id="clear-cart" tabindex="-1">
-                        <i class="fas fa-trash me-1"></i>Vaciar
-                    </button>
+                    <h5>
+                        <i class="fas fa-shopping-cart me-2"></i>Carrito
+                        <span class="kb-hint" id="cart-kb-hint">↑↓ nav · +/- cant · Del eliminar · Esc búsq</span>
+                    </h5>
+                    <div class="d-flex align-items-center gap-1">
+                        <button type="button" class="cart-nav-btn" id="cart-nav-up"
+                                tabindex="-1" title="Ítem anterior [↑]">
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                        <button type="button" class="cart-nav-btn" id="cart-nav-down"
+                                tabindex="-1" title="Ítem siguiente [↓]">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" id="clear-cart" tabindex="-1">
+                            <i class="fas fa-trash me-1"></i>Vaciar
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="cart-items" id="cart-items">

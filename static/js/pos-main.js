@@ -14,6 +14,7 @@
 
     let currentProduct = null;
     let searchTimeout = null;
+    let cartFocusIndex = -1; // îndice del cart-item activo por teclado (-1 = ninguno)
 
     // DOM Elements
     const productSearch = document.getElementById('product-search');
@@ -290,6 +291,16 @@
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             navigateSearchResults(e.key === 'ArrowDown' ? 1 : -1);
+        }
+
+        // Tab desde búsqueda → activar navegación del carrito
+        if (e.key === 'Tab' && !e.shiftKey) {
+            if (searchResults?.style.display !== 'none') return; // el handler global selecciona el 1º resultado
+            if (cart.items?.length > 0) {
+                e.preventDefault();
+                hideSearchResults();
+                setCartFocus(cartFocusIndex >= 0 ? cartFocusIndex : cart.items.length - 1);
+            }
         }
     }
 
@@ -627,6 +638,43 @@
         if (btnClearCart) {
             btnClearCart.addEventListener('click', clearCart);
         }
+        document.getElementById('cart-nav-up')?.addEventListener('click', () => {
+            if (!cart.items?.length) return;
+            navigateCart(-1);
+        });
+        document.getElementById('cart-nav-down')?.addEventListener('click', () => {
+            if (!cart.items?.length) return;
+            navigateCart(1);
+        });
+    }
+
+    // ── Helpers de navegación del carrito por teclado ─────────────────────────
+    function setCartFocus(idx) {
+        const items = cartItems ? Array.from(cartItems.querySelectorAll('.cart-item')) : [];
+        if (!items.length) { cartFocusIndex = -1; return; }
+        if (idx < 0) idx = items.length - 1;
+        if (idx >= items.length) idx = 0;
+        items.forEach(i => i.classList.remove('kb-active'));
+        cartFocusIndex = idx;
+        items[idx].classList.add('kb-active');
+        items[idx].focus();
+        items[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        document.getElementById('cart-kb-hint')?.classList.add('visible');
+    }
+
+    function clearCartFocus() {
+        cartFocusIndex = -1;
+        cartItems?.querySelectorAll('.cart-item').forEach(i => i.classList.remove('kb-active'));
+        document.getElementById('cart-kb-hint')?.classList.remove('visible');
+    }
+
+    function navigateCart(dir) {
+        const items = cartItems ? Array.from(cartItems.querySelectorAll('.cart-item')) : [];
+        if (!items.length) return;
+        const newIdx = cartFocusIndex < 0
+            ? (dir > 0 ? 0 : items.length - 1)
+            : cartFocusIndex + dir;
+        setCartFocus(newIdx);
     }
 
     async function loadCart() {
@@ -780,7 +828,7 @@
                         <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="decrease">
                             <i class="fas fa-minus"></i>
                         </button>
-                        <input type="number" class="qty-input" value="${item.quantity}" min="0.001" step="0.001">
+                        <input type="number" class="qty-input" tabindex="-1" value="${item.quantity}" min="0.001" step="0.001">
                         <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="increase">
                             <i class="fas fa-plus"></i>
                         </button>
@@ -829,46 +877,112 @@
                 });
             });
             
-            // Keyboard navigation inside cart items
-            const allQtyInputs = Array.from(cartItems.querySelectorAll('.qty-input'));
-            allQtyInputs.forEach((input, idx) => {
-                input.addEventListener('focus', () => input.select());
-                input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Tab' && !e.shiftKey) {
-                        if (allQtyInputs[idx + 1]) {
+            // ── TECLADO: navegación por ítems del carrito ─────────────────────────────
+            const allItems = Array.from(cartItems.querySelectorAll('.cart-item'));
+            allItems.forEach((itemEl, idx) => {
+                const itemData = cart.items[idx];
+                const qtyInput = itemEl.querySelector('.qty-input');
+
+                itemEl.setAttribute('tabindex', '-1');
+
+                itemEl.addEventListener('focus', () => {
+                    allItems.forEach(i => i.classList.remove('kb-active'));
+                    itemEl.classList.add('kb-active');
+                    cartFocusIndex = idx;
+                    document.getElementById('cart-kb-hint')?.classList.add('visible');
+                });
+
+                itemEl.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        if (cartItems && !cartItems.contains(document.activeElement)) {
+                            clearCartFocus();
+                        }
+                    }, 80);
+                });
+
+                itemEl.addEventListener('keydown', (e) => {
+                    switch (e.key) {
+                        case 'ArrowUp':
+                            e.preventDefault(); e.stopPropagation();
+                            setCartFocus(idx - 1 < 0 ? allItems.length - 1 : idx - 1);
+                            break;
+                        case 'ArrowDown':
+                            e.preventDefault(); e.stopPropagation();
+                            setCartFocus(idx + 1 >= allItems.length ? 0 : idx + 1);
+                            break;
+                        case '+': case '=':
+                            e.preventDefault(); e.stopPropagation();
+                            if (itemData) updateCartItem(itemData.id, (itemData.quantity || 1) + 1);
+                            break;
+                        case '-': case '_':
+                            e.preventDefault(); e.stopPropagation();
+                            if (itemData) {
+                                const nq = Math.max(0, (itemData.quantity || 1) - 1);
+                                if (nq === 0) removeCartItem(itemData.id);
+                                else updateCartItem(itemData.id, nq);
+                            }
+                            break;
+                        case 'Delete': case 'Backspace':
+                            e.preventDefault(); e.stopPropagation();
+                            if (itemData) removeCartItem(itemData.id);
+                            setTimeout(() => {
+                                const rem = cartItems?.querySelectorAll('.cart-item');
+                                if (rem?.length > 0) setCartFocus(Math.min(idx, rem.length - 1));
+                                else { clearCartFocus(); productSearch?.focus(); }
+                            }, 350);
+                            break;
+                        case 'Enter':
                             e.preventDefault();
-                            allQtyInputs[idx + 1].focus();
-                        }
-                        // Último item: Tab natural → btn-discount (primer botón de acción)
-                        // No hacemos preventDefault para que el navegador lo maneje solo
-                    }
-                    if (e.key === 'Tab' && e.shiftKey) {
-                        e.preventDefault();
-                        if (allQtyInputs[idx - 1]) {
-                            allQtyInputs[idx - 1].focus();
-                        } else {
+                            if (qtyInput) {
+                                qtyInput.classList.add('editing');
+                                qtyInput.focus();
+                                qtyInput.select();
+                            }
+                            break;
+                        case 'Escape':
+                            e.preventDefault(); e.stopPropagation();
+                            clearCartFocus();
                             productSearch?.focus();
-                        }
-                    }
-                    if (e.key === 'Escape') {
-                        productSearch?.focus();
-                    }
-                    if (e.key === 'Delete') {
-                        e.preventDefault();
-                        const itemEl = input.closest('.cart-item');
-                        const id = itemEl?.dataset.itemId;
-                        if (id) removeCartItem(id);
-                    }
-                    if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        input.closest('.cart-item')?.querySelector('.qty-btn[data-action="increase"]')?.click();
-                    }
-                    if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        input.closest('.cart-item')?.querySelector('.qty-btn[data-action="decrease"]')?.click();
+                            break;
+                        case 'Tab':
+                            e.preventDefault();
+                            if (!e.shiftKey) {
+                                if (idx === allItems.length - 1) {
+                                    clearCartFocus();
+                                    document.getElementById('btn-checkout')?.focus();
+                                } else {
+                                    setCartFocus(idx + 1);
+                                }
+                            } else {
+                                if (idx === 0) { clearCartFocus(); productSearch?.focus(); }
+                                else setCartFocus(idx - 1);
+                            }
+                            break;
                     }
                 });
             });
+
+            // Qty-input: modo edición (Enter/Esc/Tab devuelven al cart-item)
+            cartItems.querySelectorAll('.qty-input').forEach((input, idx) => {
+                const itemEl = allItems[idx];
+                const itemData = cart.items[idx];
+                input.addEventListener('focus', () => input.select());
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Tab') {
+                        e.preventDefault();
+                        if (e.key === 'Enter' && itemData)
+                            updateCartItem(itemData.id, parseFloat(input.value) || 1);
+                        input.classList.remove('editing');
+                        setTimeout(() => itemEl?.focus(), 50);
+                    }
+                });
+            });
+
+            // Restaurar kb-active si el carrito se re-renderizó mientras estaba enfocado
+            if (cartFocusIndex >= 0 && cartFocusIndex < allItems.length) {
+                allItems[cartFocusIndex].classList.add('kb-active');
+                document.getElementById('cart-kb-hint')?.classList.add('visible');
+            }
         }
         
         // Update totals
@@ -1527,6 +1641,11 @@
                 e.preventDefault();
                 productSearch?.focus();
             }
+            if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault();
+                if (cart.items?.length > 0) setCartFocus(cart.items.length - 1);
+                else productSearch?.focus();
+            }
         });
         
         // Payment method checkboxes
@@ -2067,25 +2186,25 @@
             if (e.key === '+' || e.key === '=') {
                 e.preventDefault();
                 if (cart.items && cart.items.length > 0) {
-                    const lastItem = cart.items[cart.items.length - 1];
-                    if (lastItem?.product_id) addToCart(lastItem.product_id, 1);
+                    const target = cartFocusIndex >= 0 ? cart.items[cartFocusIndex] : cart.items[cart.items.length - 1];
+                    if (target?.product_id) addToCart(target.product_id, 1);
                 }
                 return;
             }
             if (e.key === '-') {
                 e.preventDefault();
                 if (cart.items && cart.items.length > 0) {
-                    const lastItem = cart.items[cart.items.length - 1];
-                    if (lastItem && lastItem.quantity > 1) updateCartItem(lastItem.id, lastItem.quantity - 1);
-                    else if (lastItem) removeCartItem(lastItem.id);
+                    const target = cartFocusIndex >= 0 ? cart.items[cartFocusIndex] : cart.items[cart.items.length - 1];
+                    if (target && target.quantity > 1) updateCartItem(target.id, target.quantity - 1);
+                    else if (target) removeCartItem(target.id);
                 }
                 return;
             }
             if (e.key === 'Delete') {
                 e.preventDefault();
                 if (cart.items && cart.items.length > 0) {
-                    const lastItem = cart.items[cart.items.length - 1];
-                    if (lastItem) removeCartItem(lastItem.id);
+                    const target = cartFocusIndex >= 0 ? cart.items[cartFocusIndex] : cart.items[cart.items.length - 1];
+                    if (target) removeCartItem(target.id);
                 }
                 return;
             }
@@ -2155,19 +2274,21 @@
                                     <h6 class="text-muted mb-2">Teclas fijas</h6>
                                     <table class="table table-dark table-sm">
                                         <tbody>
-                                            <tr class="table-active"><td colspan="2"><strong>Navegación por Tab</strong></td></tr>
-                                            <tr><td><kbd>Tab</kbd></td><td>Búsqueda → Carrito → Botones → COBRAR → (vuelve)</td></tr>
+                                            <tr class="table-active"><td colspan="2"><strong>Ciclo de Tab</strong></td></tr>
+                                            <tr><td><kbd>Tab</kbd></td><td>Búsqueda → Carrito → COBRAR → (vuelve)</td></tr>
                                             <tr><td><kbd>Shift+Tab</kbd></td><td>Navegar hacia atrás</td></tr>
                                             <tr><td><kbd>Tab</kbd> en búsqueda</td><td>Selecciona primer resultado</td></tr>
-                                            <tr class="table-active"><td colspan="2"><strong>En el carrito</strong></td></tr>
-                                            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Aumentar / disminuir cantidad</td></tr>
-                                            <tr><td><kbd>Delete</kbd></td><td>Eliminar ítem / último ítem</td></tr>
+                                            <tr class="table-active"><td colspan="2"><strong>Navegación carrito</strong></td></tr>
+                                            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Mover selección al ítem anterior / siguiente</td></tr>
+                                            <tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Aumentar / disminuir cantidad del ítem seleccionado</td></tr>
+                                            <tr><td><kbd>Enter</kbd></td><td>Editar cantidad exacta del ítem seleccionado</td></tr>
+                                            <tr><td><kbd>Delete</kbd></td><td>Eliminar ítem seleccionado</td></tr>
                                             <tr><td><kbd>Esc</kbd></td><td>Volver al buscador</td></tr>
+                                            <tr><td><kbd>Tab</kbd> (último ítem)</td><td>Ir a COBRAR</td></tr>
                                             <tr class="table-active"><td colspan="2"><strong>General</strong></td></tr>
                                             <tr><td><kbd>Enter</kbd></td><td>Agregar producto / confirmar</td></tr>
-                                            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Navegar resultados búsqueda</td></tr>
-                                            <tr><td><kbd>+</kbd></td><td>Agregar 1 más del último producto</td></tr>
-                                            <tr><td><kbd>-</kbd></td><td>Quitar 1 del último producto</td></tr>
+                                            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Navegar resultados de búsqueda</td></tr>
+                                            <tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Cantidad del ítem enfocado (o último si ninguno)</td></tr>
                                             <tr><td><kbd>Alt+1-9</kbd></td><td>Botones de acceso rápido</td></tr>
                                             <tr><td><kbd>P</kbd> (modal éxito)</td><td>Imprimir ticket</td></tr>
                                         </tbody>
