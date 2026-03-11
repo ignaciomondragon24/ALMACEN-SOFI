@@ -44,7 +44,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Run: migrate + create superuser (if vars set) + gunicorn
 CMD python manage.py migrate --noinput && \
-    python manage.py setup_initial_data && \
+    (python manage.py setup_initial_data || true) && \
     gunicorn superrecord.wsgi \
     --bind 0.0.0.0:${PORT} \
     --workers 2 \
