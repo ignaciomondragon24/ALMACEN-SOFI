@@ -116,16 +116,15 @@
     
     <!-- Instrucciones para obtener API Key -->
     <div class="alert alert-info mb-4" style="background: #0f3460; border: 1px solid #17a2b8; color: #eaeaea;">
-        <h5><i class="fas fa-info-circle me-2"></i>¿Cómo obtener tu API Key de OpenAI?</h5>
+        <h5><i class="fas fa-info-circle me-2"></i>¿Cómo obtener tu API Key de Gemini?</h5>
         <ol class="mb-0">
-            <li>Andá a <a href="https://platform.openai.com/signup" target="_blank" style="color: #17a2b8;">platform.openai.com</a> y creá una cuenta (o iniciá sesión)</li>
-            <li>Una vez dentro, andá a <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #17a2b8;">API Keys</a></li>
-            <li>Hacé clic en <strong>"Create new secret key"</strong></li>
-            <li>Copiá la key que empieza con <code>sk-...</code> y pegala abajo</li>
-            <li><strong>Importante:</strong> OpenAI te da <strong>$5 USD de crédito gratis</strong> para empezar. Después podés cargar saldo en <a href="https://platform.openai.com/account/billing" target="_blank" style="color: #17a2b8;">Billing</a></li>
+            <li>Andá a <a href="https://aistudio.google.com/apikey" target="_blank" style="color: #17a2b8;">Google AI Studio</a> e iniciá sesión con tu cuenta de Google</li>
+            <li>Hacé clic en <strong>"Create API Key"</strong></li>
+            <li>Copiá la key que empieza con <code>AIza...</code> y pegala abajo</li>
+            <li><strong>Importante:</strong> Gemini ofrece un <strong>plan gratuito generoso</strong> con límites de uso diarios suficientes para un negocio</li>
         </ol>
         <hr style="border-color: rgba(255,255,255,0.2);">
-        <small><strong>Costo aproximado:</strong> GPT-4o Mini cuesta ~$0.15 por cada 1 millón de tokens de entrada. Una conversación típica usa 500-2000 tokens, así que los $5 te alcanzan para miles de consultas.</small>
+        <small><strong>Costo:</strong> Gemini 2.0 Flash es gratuito con hasta 15 solicitudes por minuto. Para mayor uso, podés activar facturación en Google Cloud.</small>
     </div>
     
     <div class="settings-card">
@@ -139,17 +138,17 @@
             
             <div class="row g-3 mb-4">
                 <div class="col-md-8">
-                    <label class="form-label">OpenAI API Key <span class="text-danger">*</span></label>
+                    <label class="form-label">Gemini API Key <span class="text-danger">*</span></label>
                     <input 
                         type="text" 
                         class="form-control api-key-input" 
                         name="openai_api_key"
                         value="{{ settings.openai_api_key }}"
-                        placeholder="sk-proj-..."
+                        placeholder="AIza..."
                         required
                     >
                     <div class="form-text">
-                        Tu clave secreta de OpenAI. Empieza con <code>sk-</code> o <code>sk-proj-</code>
+                        Tu clave de API de Google Gemini. Empieza con <code>AIza</code>
                     </div>
                 </div>
                 <div class="col-md-4">

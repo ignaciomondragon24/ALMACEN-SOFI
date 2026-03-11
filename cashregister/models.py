@@ -63,11 +63,11 @@ class PaymentMethod(models.Model):
     def get_default_methods(cls):
         """Create default payment methods."""
         defaults = [
-            {'code': 'cash', 'name': 'Efectivo', 'is_cash': True, 'requires_counting': True, 'icon': 'fa-money-bill-wave', 'color': '#198754', 'position': 1},
-            {'code': 'debit', 'name': 'Débito', 'is_cash': False, 'requires_counting': False, 'icon': 'fa-credit-card', 'color': '#0dcaf0', 'position': 2},
-            {'code': 'credit', 'name': 'Crédito', 'is_cash': False, 'requires_counting': False, 'icon': 'fa-credit-card', 'color': '#6f42c1', 'position': 3},
-            {'code': 'transfer', 'name': 'Transferencia', 'is_cash': False, 'requires_counting': False, 'icon': 'fa-university', 'color': '#0d6efd', 'position': 4},
-            {'code': 'mercadopago', 'name': 'MercadoPago', 'is_cash': False, 'requires_counting': False, 'icon': 'fa-mobile-alt', 'color': '#00b1ea', 'position': 5},
+            {'code': 'cash', 'name': 'Efectivo', 'is_cash': True, 'requires_counting': True, 'icon': 'fas fa-money-bill-wave', 'color': '#198754', 'position': 1},
+            {'code': 'debit', 'name': 'Débito', 'is_cash': False, 'requires_counting': False, 'icon': 'fas fa-credit-card', 'color': '#0dcaf0', 'position': 2},
+            {'code': 'credit', 'name': 'Crédito', 'is_cash': False, 'requires_counting': False, 'icon': 'fas fa-credit-card', 'color': '#6f42c1', 'position': 3},
+            {'code': 'transfer', 'name': 'Transferencia', 'is_cash': False, 'requires_counting': False, 'icon': 'fas fa-university', 'color': '#0d6efd', 'position': 4},
+            {'code': 'mercadopago', 'name': 'MercadoPago', 'is_cash': False, 'requires_counting': False, 'icon': 'fas fa-wallet', 'color': '#00b1ea', 'position': 5},
         ]
         for method_data in defaults:
             cls.objects.get_or_create(code=method_data['code'], defaults=method_data)

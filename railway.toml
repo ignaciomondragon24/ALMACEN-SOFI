@@ -5,7 +5,7 @@ builder = "RAILPACK"
 buildCommand = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
 
 [deploy]
-startCommand = "python manage.py migrate --noinput && python manage.py setup_initial_data && gunicorn superrecord.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --worker-class gthread --timeout 120 --log-file - --access-logfile - --error-logfile -"
+startCommand = "python manage.py migrate --noinput && python manage.py setup_initial_data || true && gunicorn superrecord.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --worker-class gthread --timeout 120 --log-file - --access-logfile - --error-logfile -"
 healthcheckPath = "/accounts/login/"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

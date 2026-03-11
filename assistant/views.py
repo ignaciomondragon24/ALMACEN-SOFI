@@ -48,7 +48,7 @@ def assistant_home(request):
     
     # Check if assistant is configured
     settings_obj = AssistantSettings.get_settings()
-    is_configured = bool(settings_obj.openai_api_key) or bool(getattr(django_settings, 'OPENAI_API_KEY', None)) or bool(os.getenv('OPENAI_API_KEY'))
+    is_configured = bool(settings_obj.openai_api_key) or bool(getattr(django_settings, 'GEMINI_API_KEY', None)) or bool(os.getenv('GEMINI_API_KEY'))
     
     context = {
         'conversation': conversation,
@@ -248,7 +248,7 @@ def assistant_settings(request):
     
     if request.method == 'POST':
         settings_obj.openai_api_key = request.POST.get('openai_api_key', '')
-        settings_obj.model = request.POST.get('model', 'gpt-4o-mini')
+        settings_obj.model = request.POST.get('model', 'gemini-2.0-flash')
         
         # Validate numeric fields
         try:
@@ -289,10 +289,10 @@ def assistant_settings(request):
         'settings': settings_obj,
         'usage_stats': usage_stats,
         'available_models': [
-            ('gpt-4o-mini', 'GPT-4o Mini (Recomendado)'),
-            ('gpt-4o', 'GPT-4o'),
-            ('gpt-4-turbo', 'GPT-4 Turbo'),
-            ('gpt-3.5-turbo', 'GPT-3.5 Turbo'),
+            ('gemini-2.5-flash', 'Gemini 2.5 Flash (Recomendado)'),
+            ('gemini-2.5-pro', 'Gemini 2.5 Pro'),
+            ('gemini-2.0-flash', 'Gemini 2.0 Flash'),
+            ('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite'),
         ]
     }
     

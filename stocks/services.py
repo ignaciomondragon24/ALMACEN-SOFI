@@ -103,6 +103,33 @@ class StockManagementService:
             created_by=user
         )
         
+        # Auto-deduct from parent product (e.g., 20 cigarettes sold = 1 pack deducted)
+        if product.parent_product and product.parent_product.units_per_package > 0:
+            parent = product.parent_product
+            parent_qty = quantity / Decimal(str(parent.units_per_package))
+            parent_stock_before = parent.current_stock
+            parent_stock_after = parent_stock_before - parent_qty
+            
+            parent_notes = f'Auto: venta de {quantity} {product.name}'
+            if parent_stock_after < 0:
+                parent_notes += ' [ALERTA: Stock negativo]'
+            
+            parent.current_stock = parent_stock_after
+            parent.save()
+            
+            StockMovement.objects.create(
+                product=parent,
+                movement_type='sale',
+                quantity=-parent_qty,
+                unit_cost=parent.cost_price,
+                stock_before=parent_stock_before,
+                stock_after=parent_stock_after,
+                reference=reference,
+                reference_id=reference_id,
+                notes=parent_notes,
+                created_by=user
+            )
+        
         return True, 'Stock deducido correctamente', movement
     
     @staticmethod

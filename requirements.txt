@@ -30,8 +30,8 @@ qrcode>=7.4.2
 # Environment Variables
 python-dotenv>=1.0.0
 
-# OpenAI API
-openai>=1.0.0
+# Google Gemini API
+google-genai>=1.0.0
 
 # HTTP Client (Mercado Pago API)
 requests>=2.31.0

@@ -1,6 +1,6 @@
 """
 AI Assistant Service for CHE GOLOSO.
-Integrates with OpenAI GPT-4 mini and provides business context.
+Integrates with Google Gemini API and provides business context.
 """
 import json
 import time
@@ -24,8 +24,13 @@ class BusinessDataCollector:
     
     def __init__(self):
         self.today = timezone.now().date()
+        self.yesterday = self.today - timedelta(days=1)
         self.start_of_month = self.today.replace(day=1)
         self.start_of_week = self.today - timedelta(days=self.today.weekday())
+    
+    def _format_money(self, amount):
+        """Format as Argentine currency."""
+        return f"${amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     
     def get_sales_summary(self, days: int = 30) -> Dict[str, Any]:
         """Get sales summary for the specified period."""
@@ -45,16 +50,16 @@ class BusinessDataCollector:
                 ticket_promedio=Avg('total')
             )
             
-            # Ventas por día
-            daily_sales = transactions.annotate(
+            # Ventas por día (todos los días del período)
+            daily_sales = list(transactions.annotate(
                 fecha=TruncDate('created_at')
             ).values('fecha').annotate(
                 total=Sum('total'),
                 cantidad=Count('id')
-            ).order_by('-fecha')[:7]
+            ).order_by('-fecha'))
             
             # Top productos
-            top_products = POSTransactionItem.objects.filter(
+            top_products = list(POSTransactionItem.objects.filter(
                 transaction__created_at__date__gte=start_date,
                 transaction__status='completed'
             ).values(
@@ -62,77 +67,139 @@ class BusinessDataCollector:
             ).annotate(
                 cantidad_vendida=Sum('quantity'),
                 ingresos=Sum('subtotal')
-            ).order_by('-ingresos')[:10]
+            ).order_by('-ingresos')[:15])
             
             return {
                 'periodo': f'Últimos {days} días',
                 'total_ventas': float(summary['total_ventas'] or 0),
                 'cantidad_transacciones': summary['cantidad_transacciones'] or 0,
                 'ticket_promedio': float(summary['ticket_promedio'] or 0),
-                'ventas_diarias': list(daily_sales),
-                'top_productos': list(top_products)
+                'ventas_diarias': daily_sales,
+                'top_productos': top_products
             }
         except Exception as e:
             logger.error(f"Error getting sales summary: {e}")
             return {'error': str(e)}
     
-    def get_inventory_status(self) -> Dict[str, Any]:
-        """Get current inventory status and alerts."""
+    def get_daily_detail(self, date) -> Dict[str, Any]:
+        """Get detailed sales for a specific date."""
+        try:
+            from pos.models import POSTransaction, POSTransactionItem, POSPayment
+            
+            transactions = POSTransaction.objects.filter(
+                created_at__date=date,
+                status='completed'
+            )
+            
+            summary = transactions.aggregate(
+                total_ventas=Sum('total'),
+                cantidad=Count('id'),
+                ticket_promedio=Avg('total')
+            )
+            
+            # Productos vendidos ese día
+            products_sold = list(POSTransactionItem.objects.filter(
+                transaction__created_at__date=date,
+                transaction__status='completed'
+            ).values(
+                'product__name'
+            ).annotate(
+                cantidad=Sum('quantity'),
+                ingresos=Sum('subtotal')
+            ).order_by('-ingresos'))
+            
+            # Ventas por método de pago
+            by_payment = list(POSPayment.objects.filter(
+                transaction__created_at__date=date,
+                transaction__status='completed'
+            ).values(
+                'payment_method__name'
+            ).annotate(
+                total=Sum('amount'),
+                cantidad=Count('id')
+            ).order_by('-total'))
+            
+            # Ventas por hora
+            by_hour = list(transactions.extra(
+                select={'hora': "strftime('%%H', created_at)"}
+            ).values('hora').annotate(
+                total=Sum('total'),
+                cantidad=Count('id')
+            ).order_by('hora'))
+            
+            return {
+                'fecha': date.strftime('%d/%m/%Y'),
+                'total': float(summary['total_ventas'] or 0),
+                'cantidad_transacciones': summary['cantidad'] or 0,
+                'ticket_promedio': float(summary['ticket_promedio'] or 0),
+                'productos_vendidos': products_sold,
+                'por_metodo_pago': by_payment,
+                'por_hora': by_hour
+            }
+        except Exception as e:
+            logger.error(f"Error getting daily detail: {e}")
+            return {'error': str(e)}
+    
+    def get_inventory_full(self) -> Dict[str, Any]:
+        """Get FULL inventory with all products."""
         try:
             from stocks.models import Product
             
-            products = Product.objects.filter(is_active=True)
+            products = Product.objects.filter(is_active=True).select_related('category', 'unit_of_measure')
             
-            # Stock bajo (menos del mínimo)
-            low_stock = products.filter(
-                current_stock__lt=F('min_stock')
-            ).values('name', 'current_stock', 'min_stock', 'unit_of_measure__abbreviation')[:20]
+            all_products = []
+            for p in products:
+                all_products.append({
+                    'nombre': p.name,
+                    'categoria': p.category.name if p.category else 'Sin categoría',
+                    'precio_venta': float(p.sale_price),
+                    'precio_costo': float(p.cost_price),
+                    'stock_actual': float(p.current_stock),
+                    'stock_minimo': p.min_stock,
+                    'unidad': p.unit_of_measure.abbreviation if p.unit_of_measure else 'u',
+                    'margen': float(p.sale_price - p.cost_price) if p.cost_price > 0 else 0,
+                })
             
-            # Sin stock
-            out_of_stock = products.filter(
-                current_stock__lte=0
-            ).count()
+            # Stats
+            out_of_stock = [p for p in all_products if p['stock_actual'] <= 0]
+            low_stock = [p for p in all_products if 0 < p['stock_actual'] < p['stock_minimo']]
             
-            # Valor del inventario
-            inventory_value = products.aggregate(
-                valor_total=Sum(
-                    Cast('current_stock', DecimalField()) * F('cost_price'),
-                    output_field=DecimalField()
-                )
-            )['valor_total'] or 0
-            
-            # Productos por categoría
-            by_category = products.values(
-                'category__name'
-            ).annotate(
-                cantidad=Count('id'),
-                valor=Sum(
-                    Cast('current_stock', DecimalField()) * F('cost_price'),
-                    output_field=DecimalField()
-                )
-            ).order_by('-valor')
+            total_value = sum(p['stock_actual'] * p['precio_costo'] for p in all_products if p['precio_costo'] > 0)
             
             return {
-                'total_productos': products.count(),
-                'productos_stock_bajo': list(low_stock),
-                'cantidad_stock_bajo': len(low_stock),
-                'sin_stock': out_of_stock,
-                'valor_inventario': float(inventory_value),
-                'por_categoria': list(by_category)
+                'total_productos': len(all_products),
+                'sin_stock': len(out_of_stock),
+                'stock_bajo': len(low_stock),
+                'valor_inventario': total_value,
+                'productos': all_products,
+                'alertas_sin_stock': [p['nombre'] for p in out_of_stock],
+                'alertas_stock_bajo': [f"{p['nombre']}: {p['stock_actual']} {p['unidad']} (mín: {p['stock_minimo']})" for p in low_stock],
             }
         except Exception as e:
-            logger.error(f"Error getting inventory status: {e}")
+            logger.error(f"Error getting inventory: {e}")
             return {'error': str(e)}
+    
+    def get_inventory_status(self) -> Dict[str, Any]:
+        """Get current inventory status and alerts (legacy compat)."""
+        full = self.get_inventory_full()
+        if 'error' in full:
+            return full
+        return {
+            'total_productos': full['total_productos'],
+            'productos_stock_bajo': [],
+            'cantidad_stock_bajo': full['stock_bajo'],
+            'sin_stock': full['sin_stock'],
+            'valor_inventario': full['valor_inventario'],
+            'por_categoria': []
+        }
     
     def get_cash_status(self) -> Dict[str, Any]:
         """Get current cash register status."""
         try:
             from cashregister.models import CashRegister, CashShift
             
-            # Cajas activas
             active_registers = CashRegister.objects.filter(is_active=True)
             
-            # Turnos abiertos
             open_shifts = CashShift.objects.filter(
                 status='open'
             ).select_related('cash_register', 'cashier')
@@ -142,9 +209,8 @@ class BusinessDataCollector:
                 shifts_data.append({
                     'caja': shift.cash_register.name,
                     'cajero': shift.cashier.get_full_name() or shift.cashier.username,
-                    'inicio': shift.start_time.strftime('%H:%M'),
-                    'monto_inicial': float(shift.starting_amount),
-                    'ventas': float(shift.total_sales or 0)
+                    'inicio': shift.opened_at.strftime('%H:%M'),
+                    'monto_inicial': float(shift.initial_amount),
                 })
             
             return {
@@ -163,13 +229,9 @@ class BusinessDataCollector:
             
             active_promos = Promotion.objects.filter(
                 status='active'
-            )
-            
-            # Filter by date if dates are set
-            today = self.today
-            active_promos = active_promos.filter(
-                Q(start_date__isnull=True) | Q(start_date__lte=today),
-                Q(end_date__isnull=True) | Q(end_date__gte=today)
+            ).filter(
+                Q(start_date__isnull=True) | Q(start_date__lte=self.today),
+                Q(end_date__isnull=True) | Q(end_date__gte=self.today)
             )
             
             promos_data = []
@@ -202,16 +264,16 @@ class BusinessDataCollector:
             
             total = expenses.aggregate(total=Sum('amount'))['total'] or 0
             
-            by_category = expenses.values(
+            by_category = list(expenses.values(
                 'category__name'
             ).annotate(
                 total=Sum('amount')
-            ).order_by('-total')
+            ).order_by('-total'))
             
             return {
                 'periodo': f'Últimos {days} días',
                 'total_gastos': float(total),
-                'por_categoria': list(by_category)
+                'por_categoria': by_category
             }
         except Exception as e:
             logger.error(f"Error getting expenses summary: {e}")
@@ -233,17 +295,17 @@ class BusinessDataCollector:
                 cantidad=Count('id')
             )
             
-            by_supplier = purchases.values(
+            by_supplier = list(purchases.values(
                 'supplier__name'
             ).annotate(
                 total=Sum('total')
-            ).order_by('-total')[:10]
+            ).order_by('-total')[:10])
             
             return {
                 'periodo': f'Últimos {days} días',
                 'total_compras': float(summary['total'] or 0),
                 'cantidad_ordenes': summary['cantidad'] or 0,
-                'por_proveedor': list(by_supplier)
+                'por_proveedor': by_supplier
             }
         except Exception as e:
             logger.error(f"Error getting purchases summary: {e}")
@@ -252,114 +314,160 @@ class BusinessDataCollector:
     def get_full_context(self) -> str:
         """
         Get full business context as a formatted string for the AI.
+        Includes daily breakdowns, full inventory, and payment details.
         """
-        data = {
-            'fecha_actual': self.today.strftime('%d/%m/%Y'),
-            'ventas': self.get_sales_summary(),
-            'inventario': self.get_inventory_status(),
-            'caja': self.get_cash_status(),
-            'promociones': self.get_promotions_status(),
-            'gastos': self.get_expenses_summary(),
-            'compras': self.get_purchases_summary()
-        }
+        fm = self._format_money
         
-        # Format as readable text
-        context_parts = [
-            f"📅 DATOS DEL SISTEMA - {data['fecha_actual']}",
-            "",
-            "💰 VENTAS (últimos 30 días):",
-        ]
+        ventas_30d = self.get_sales_summary(30)
+        ventas_7d = self.get_sales_summary(7)
+        detalle_hoy = self.get_daily_detail(self.today)
+        detalle_ayer = self.get_daily_detail(self.yesterday)
+        inventario = self.get_inventory_full()
+        caja = self.get_cash_status()
+        promos = self.get_promotions_status()
+        gastos = self.get_expenses_summary()
+        compras = self.get_purchases_summary()
         
-        if 'error' not in data['ventas']:
-            v = data['ventas']
-            context_parts.extend([
-                f"  - Total: ${v['total_ventas']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                f"  - Transacciones: {v['cantidad_transacciones']}",
-                f"  - Ticket promedio: ${v['ticket_promedio']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            ])
-            if v.get('top_productos'):
-                context_parts.append("  - Top 5 productos más vendidos:")
-                for i, p in enumerate(v['top_productos'][:5], 1):
-                    context_parts.append(f"    {i}. {p['product__name']}: {p['cantidad_vendida']} unidades")
+        parts = [f"📅 DATOS EN TIEMPO REAL - {self.today.strftime('%d/%m/%Y')}"]
         
-        context_parts.extend(["", "📦 INVENTARIO:"])
-        if 'error' not in data['inventario']:
-            inv = data['inventario']
-            context_parts.extend([
-                f"  - Total productos activos: {inv['total_productos']}",
-                f"  - Productos sin stock: {inv['sin_stock']}",
-                f"  - Productos con stock bajo: {inv['cantidad_stock_bajo']}",
-                f"  - Valor del inventario: ${inv['valor_inventario']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            ])
-            if inv.get('productos_stock_bajo'):
-                context_parts.append("  - Alertas de stock bajo:")
-                for p in inv['productos_stock_bajo'][:5]:
-                    context_parts.append(f"    ⚠️ {p['name']}: {p['current_stock']} {p.get('unit_of_measure__abbreviation', 'u')} (mín: {p['min_stock']})")
+        # === VENTAS DE HOY ===
+        parts.append("\n═══ VENTAS DE HOY ═══")
+        if 'error' not in detalle_hoy:
+            d = detalle_hoy
+            parts.append(f"Total: {fm(d['total'])} | Transacciones: {d['cantidad_transacciones']} | Ticket promedio: {fm(d['ticket_promedio'])}")
+            if d['productos_vendidos']:
+                parts.append("Productos vendidos hoy:")
+                for p in d['productos_vendidos']:
+                    parts.append(f"  - {p['product__name']}: {p['cantidad']} u → {fm(float(p['ingresos']))}")
+            if d['por_metodo_pago']:
+                parts.append("Por método de pago:")
+                for m in d['por_metodo_pago']:
+                    parts.append(f"  - {m['payment_method__name']}: {fm(float(m['total']))}")
+            if d['por_hora']:
+                parts.append("Por hora: " + " | ".join(f"{h['hora']}hs: {fm(float(h['total']))}" for h in d['por_hora']))
+        else:
+            parts.append("  Sin datos de hoy")
         
-        context_parts.extend(["", "🏪 ESTADO DE CAJA:"])
-        if 'error' not in data['caja']:
-            c = data['caja']
-            context_parts.extend([
-                f"  - Cajas activas: {c['cajas_activas']}",
-                f"  - Turnos abiertos: {c['turnos_abiertos']}",
-            ])
-            for t in c.get('detalle_turnos', []):
-                context_parts.append(f"    - {t['caja']}: {t['cajero']} desde {t['inicio']}")
+        # === VENTAS DE AYER ===
+        parts.append(f"\n═══ VENTAS DE AYER ({self.yesterday.strftime('%d/%m/%Y')}) ═══")
+        if 'error' not in detalle_ayer:
+            d = detalle_ayer
+            parts.append(f"Total: {fm(d['total'])} | Transacciones: {d['cantidad_transacciones']} | Ticket promedio: {fm(d['ticket_promedio'])}")
+            if d['productos_vendidos']:
+                parts.append("Productos vendidos ayer:")
+                for p in d['productos_vendidos']:
+                    parts.append(f"  - {p['product__name']}: {p['cantidad']} u → {fm(float(p['ingresos']))}")
+            if d['por_metodo_pago']:
+                parts.append("Por método de pago:")
+                for m in d['por_metodo_pago']:
+                    parts.append(f"  - {m['payment_method__name']}: {fm(float(m['total']))}")
+        else:
+            parts.append("  Sin datos de ayer")
         
-        context_parts.extend(["", "🏷️ PROMOCIONES:"])
-        if 'error' not in data['promociones']:
-            p = data['promociones']
-            context_parts.append(f"  - Promociones activas: {p['promociones_activas']}")
-            for promo in p.get('detalle', [])[:5]:
-                context_parts.append(f"    - {promo['nombre']} ({promo['tipo']}) - Vence: {promo['vence']}")
+        # === RESUMEN SEMANAL ===
+        parts.append("\n═══ RESUMEN ÚLTIMOS 7 DÍAS ═══")
+        if 'error' not in ventas_7d:
+            v = ventas_7d
+            parts.append(f"Total: {fm(v['total_ventas'])} | Transacciones: {v['cantidad_transacciones']} | Ticket promedio: {fm(v['ticket_promedio'])}")
+            if v['ventas_diarias']:
+                parts.append("Desglose diario:")
+                for dia in v['ventas_diarias']:
+                    fecha_str = dia['fecha'].strftime('%a %d/%m') if hasattr(dia['fecha'], 'strftime') else str(dia['fecha'])
+                    parts.append(f"  - {fecha_str}: {fm(float(dia['total']))} ({dia['cantidad']} transacciones)")
         
-        context_parts.extend(["", "💸 GASTOS (últimos 30 días):"])
-        if 'error' not in data['gastos']:
-            g = data['gastos']
-            context_parts.append(f"  - Total: ${g['total_gastos']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        # === RESUMEN MENSUAL ===
+        parts.append("\n═══ RESUMEN ÚLTIMOS 30 DÍAS ═══")
+        if 'error' not in ventas_30d:
+            v = ventas_30d
+            parts.append(f"Total: {fm(v['total_ventas'])} | Transacciones: {v['cantidad_transacciones']} | Ticket promedio: {fm(v['ticket_promedio'])}")
+            if v['top_productos']:
+                parts.append("Top 15 productos más vendidos (30 días):")
+                for i, p in enumerate(v['top_productos'], 1):
+                    parts.append(f"  {i}. {p['product__name']}: {p['cantidad_vendida']} u → {fm(float(p['ingresos']))}")
         
-        context_parts.extend(["", "🛒 COMPRAS (últimos 30 días):"])
-        if 'error' not in data['compras']:
-            co = data['compras']
-            context_parts.extend([
-                f"  - Total: ${co['total_compras']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                f"  - Órdenes: {co['cantidad_ordenes']}",
-            ])
+        # === INVENTARIO COMPLETO ===
+        parts.append("\n═══ INVENTARIO COMPLETO ═══")
+        if 'error' not in inventario:
+            inv = inventario
+            parts.append(f"Total productos: {inv['total_productos']} | Sin stock: {inv['sin_stock']} | Stock bajo: {inv['stock_bajo']} | Valor inventario: {fm(inv['valor_inventario'])}")
+            if inv['alertas_sin_stock']:
+                parts.append(f"⚠️ SIN STOCK: {', '.join(inv['alertas_sin_stock'])}")
+            if inv['alertas_stock_bajo']:
+                parts.append("⚠️ STOCK BAJO:")
+                for a in inv['alertas_stock_bajo']:
+                    parts.append(f"  - {a}")
+            parts.append("Lista completa de productos:")
+            # Agrupar por categoría
+            by_cat = {}
+            for p in inv['productos']:
+                cat = p['categoria']
+                if cat not in by_cat:
+                    by_cat[cat] = []
+                by_cat[cat].append(p)
+            for cat, prods in sorted(by_cat.items()):
+                parts.append(f"  [{cat}]")
+                for p in prods:
+                    margen_pct = f" (margen: {p['margen']/p['precio_venta']*100:.0f}%)" if p['precio_venta'] > 0 and p['margen'] > 0 else ""
+                    parts.append(f"    {p['nombre']}: stock={p['stock_actual']}{p['unidad']} | venta={fm(p['precio_venta'])} | costo={fm(p['precio_costo'])}{margen_pct}")
         
-        return "\n".join(context_parts)
+        # === CAJA ===
+        parts.append("\n═══ ESTADO DE CAJA ═══")
+        if 'error' not in caja:
+            parts.append(f"Cajas activas: {caja['cajas_activas']} | Turnos abiertos: {caja['turnos_abiertos']}")
+            for t in caja.get('detalle_turnos', []):
+                parts.append(f"  - {t['caja']}: {t['cajero']} desde {t['inicio']} (inicio: {fm(t['monto_inicial'])})")
+        
+        # === PROMOCIONES ===
+        parts.append("\n═══ PROMOCIONES ACTIVAS ═══")
+        if 'error' not in promos:
+            parts.append(f"Total activas: {promos['promociones_activas']}")
+            for p in promos.get('detalle', []):
+                parts.append(f"  - {p['nombre']} ({p['tipo']}) - Desc: {p['descuento']}% - Vence: {p['vence']}")
+        
+        # === GASTOS ===
+        parts.append("\n═══ GASTOS (30 días) ═══")
+        if 'error' not in gastos:
+            parts.append(f"Total: {fm(gastos['total_gastos'])}")
+            for c in gastos.get('por_categoria', []):
+                parts.append(f"  - {c['category__name'] or 'Sin categoría'}: {fm(float(c['total']))}")
+        
+        # === COMPRAS ===
+        parts.append("\n═══ COMPRAS (30 días) ═══")
+        if 'error' not in compras:
+            parts.append(f"Total: {fm(compras['total_compras'])} | Órdenes: {compras['cantidad_ordenes']}")
+            for s in compras.get('por_proveedor', []):
+                parts.append(f"  - {s['supplier__name'] or 'Sin proveedor'}: {fm(float(s['total']))}")
+        
+        return "\n".join(parts)
 
 
 class AssistantService:
     """
     Main service for the AI Assistant.
-    Handles communication with OpenAI and provides business insights.
+    Handles communication with Google Gemini API and provides business insights.
     """
     
     def __init__(self):
         self.data_collector = BusinessDataCollector()
     
-    def _get_openai_client(self):
-        """Get OpenAI client with API key from settings."""
-        try:
-            import openai
-            from .models import AssistantSettings
-            
-            assistant_settings = AssistantSettings.get_settings()
-            
-            if not assistant_settings.openai_api_key:
-                # Try from environment
-                api_key = getattr(settings, 'OPENAI_API_KEY', None)
-                if not api_key:
-                    import os
-                    api_key = os.getenv('OPENAI_API_KEY')
-                if not api_key:
-                    raise ValueError("No se ha configurado la API key de OpenAI")
-            else:
-                api_key = assistant_settings.openai_api_key
-            
-            return openai.OpenAI(api_key=api_key), assistant_settings
-        except ImportError:
-            raise ImportError("El paquete 'openai' no está instalado. Ejecute: pip install openai")
+    def _get_gemini_client(self):
+        """Get Gemini client and settings."""
+        from google import genai
+        from .models import AssistantSettings
+        
+        assistant_settings = AssistantSettings.get_settings()
+        
+        api_key = assistant_settings.openai_api_key  # Field reused for Gemini key
+        if not api_key:
+            api_key = getattr(settings, 'GEMINI_API_KEY', None)
+            if not api_key:
+                import os
+                api_key = os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                raise ValueError("No se ha configurado la API key de Gemini")
+        
+        client = genai.Client(api_key=api_key)
+        return client, assistant_settings
     
     def chat(
         self,
@@ -369,21 +477,14 @@ class AssistantService:
     ) -> Dict[str, Any]:
         """
         Send a message to the AI assistant and get a response.
-        
-        Args:
-            user_message: The user's message
-            conversation: Optional Conversation object for history
-            include_context: Whether to include business data context
-        
-        Returns:
-            Dict with response and metadata
         """
+        from google.genai import types
         from .models import Message, QueryLog, AssistantSettings
         
         start_time = time.time()
         
         try:
-            client, assistant_settings = self._get_openai_client()
+            client, assistant_settings = self._get_gemini_client()
             
             if not assistant_settings.is_enabled:
                 return {
@@ -392,42 +493,53 @@ class AssistantService:
                     'response': None
                 }
             
-            # Build messages array
-            messages = []
-            
-            # System prompt with business context
+            # Build system instruction
             system_content = assistant_settings.system_prompt or AssistantSettings.get_default_system_prompt()
             
             if include_context:
                 business_context = self.data_collector.get_full_context()
                 system_content += f"\n\n--- DATOS ACTUALES DEL NEGOCIO ---\n{business_context}"
             
-            messages.append({
-                'role': 'system',
-                'content': system_content
-            })
-            
-            # Add conversation history if available
+            # Build conversation history for Gemini SDK format
+            contents = []
             if conversation:
                 history = conversation.get_messages_for_api(limit=10)
-                messages.extend(history)
+                for msg in history:
+                    role = 'user' if msg['role'] == 'user' else 'model'
+                    contents.append(
+                        types.Content(
+                            role=role,
+                            parts=[types.Part(text=msg['content'])]
+                        )
+                    )
             
             # Add current user message
-            messages.append({
-                'role': 'user',
-                'content': user_message
-            })
-            
-            # Call OpenAI API
-            response = client.chat.completions.create(
-                model=assistant_settings.model,
-                messages=messages,
-                max_tokens=assistant_settings.max_tokens,
-                temperature=assistant_settings.temperature
+            contents.append(
+                types.Content(
+                    role='user',
+                    parts=[types.Part(text=user_message)]
+                )
             )
             
-            assistant_response = response.choices[0].message.content
-            tokens_used = response.usage.total_tokens if response.usage else 0
+            # Call Gemini API via SDK
+            model_name = assistant_settings.model or 'gemini-2.5-flash'
+            
+            response = client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_content,
+                    temperature=assistant_settings.temperature,
+                    max_output_tokens=assistant_settings.max_tokens,
+                )
+            )
+            
+            assistant_response = response.text or ''
+            
+            # Extract token usage
+            tokens_used = 0
+            if response.usage_metadata:
+                tokens_used = response.usage_metadata.total_token_count or 0
             
             # Save messages to conversation
             if conversation:
@@ -442,9 +554,8 @@ class AssistantService:
                     content=assistant_response,
                     tokens_used=tokens_used
                 )
-                conversation.save()  # Update updated_at
+                conversation.save()
             
-            # Log the query
             elapsed_ms = int((time.time() - start_time) * 1000)
             
             return {
@@ -458,9 +569,15 @@ class AssistantService:
             logger.error(f"Error in assistant chat: {e}")
             elapsed_ms = int((time.time() - start_time) * 1000)
             
+            error_msg = str(e)
+            if '429' in error_msg or 'quota' in error_msg.lower():
+                error_msg = "Se excedió la cuota de la API de Gemini. Esperá un momento y volvé a intentar."
+            elif '403' in error_msg:
+                error_msg = "API key de Gemini sin permisos. Verificá que la key sea válida."
+            
             return {
                 'success': False,
-                'error': str(e),
+                'error': error_msg,
                 'response': None,
                 'elapsed_ms': elapsed_ms
             }

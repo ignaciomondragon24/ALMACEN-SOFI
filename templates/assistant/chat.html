@@ -389,6 +389,7 @@
 {% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="container-fluid py-4">
     <div class="row g-4">
         <!-- Sidebar -->
@@ -403,7 +404,7 @@
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     <strong>Asistente no configurado</strong>
                     <p class="mb-0 mt-2">
-                        <a href="{% url 'assistant:settings' %}">Configurar API Key de OpenAI</a>
+                        <a href="{% url 'assistant:settings' %}">Configurar API Key de Gemini</a>
                     </p>
                 </div>
                 {% endif %}
@@ -635,11 +636,12 @@
         showTyping();
         
         try {
+            const csrfToken = getCsrfToken() || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
             const response = await fetch('{% url "assistant:send_message" %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
                     message: message,
@@ -647,18 +649,28 @@
                 })
             });
             
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error('Sesión expirada o error del servidor');
+            }
+            
             const data = await response.json();
             
             hideTyping();
             
             if (data.success) {
                 addMessage('assistant', data.response);
+                if (data.conversation_id) conversationId = data.conversation_id;
             } else {
                 addMessage('assistant', '❌ Error: ' + (data.error || 'No se pudo procesar tu consulta'));
             }
         } catch (error) {
             hideTyping();
-            addMessage('assistant', '❌ Error de conexión. Por favor intentá de nuevo.');
+            if (error.message.includes('Sesión expirada')) {
+                addMessage('assistant', '❌ Tu sesión expiró. <a href="/accounts/login/" style="color:#e94560">Volver a iniciar sesión</a>');
+            } else {
+                addMessage('assistant', '❌ Error de conexión. Verificá que el servidor esté corriendo e intentá de nuevo.');
+            }
             console.error('Error:', error);
         }
         
@@ -678,7 +690,7 @@
             const response = await fetch('{% url "assistant:new_conversation" %}', {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': getCsrfToken()
+                    'X-CSRFToken': getCsrfToken() || document.querySelector('[name=csrfmiddlewaretoken]')?.value
                 }
             });
             

@@ -11,6 +11,7 @@
     const sidebar      = document.getElementById('pos-sidebar');
     const toggleBtn    = document.getElementById('sidebar-toggle-btn');
     const toggleIcon   = document.getElementById('sidebar-toggle-icon');
+    const closeBtn     = document.getElementById('sidebar-close-btn');
     const tabBtns      = document.querySelectorAll('.sidebar-tab-btn');
     const panes        = document.querySelectorAll('.sidebar-pane');
     const refreshBtn   = document.getElementById('btn-refresh-history');
@@ -27,14 +28,22 @@
     });
 
     // ─── Toggle sidebar ─────────────────────────────────────────────────────────
+    function setSidebarState(open) {
+        sidebarOpen = open;
+        sidebar?.classList.toggle('collapsed', !open);
+        if (toggleBtn) toggleBtn.classList.toggle('visible', !open);
+        if (toggleIcon) toggleIcon.className = open ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
+        if (toggleBtn) toggleBtn.title = open ? 'Abrir panel' : 'Abrir panel';
+    }
+
     function initToggle() {
-        if (!toggleBtn || !sidebar) return;
-        toggleBtn.addEventListener('click', () => {
-            sidebarOpen = !sidebarOpen;
-            sidebar.classList.toggle('collapsed', !sidebarOpen);
-            toggleIcon.className = sidebarOpen ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
-            toggleBtn.title = sidebarOpen ? 'Cerrar panel' : 'Abrir panel';
-        });
+        if (!sidebar) return;
+        // Botón externo (solo visible cuando está cerrado)
+        toggleBtn?.addEventListener('click', () => setSidebarState(true));
+        // Botón X dentro del sidebar
+        closeBtn?.addEventListener('click', () => setSidebarState(false));
+        // Estado inicial: sidebar abierto, botón externo oculto
+        setSidebarState(true);
     }
 
     // ─── Tabs ───────────────────────────────────────────────────────────────────
@@ -47,9 +56,7 @@
     function openTab(tabId) {
         // Open sidebar if collapsed
         if (!sidebarOpen) {
-            sidebarOpen = true;
-            sidebar?.classList.remove('collapsed');
-            if (toggleIcon) toggleIcon.className = 'fas fa-chevron-right';
+            setSidebarState(true);
         }
         tabBtns.forEach(b => {
             b.classList.toggle('active', b.dataset.tab === tabId);
@@ -90,6 +97,16 @@
     }
 
     async function triggerQuickPay(methodCode) {
+        // Pago Mixto: redirigir al overlay especializado
+        if (methodCode === 'mixed') {
+            if (window.POS_openMixedCheckout) {
+                window.POS_openMixedCheckout();
+            } else {
+                window.POS_showToast?.('Función de pago mixto no disponible', 'error');
+            }
+            return;
+        }
+
         const cart = window.POS_cart?.();
         if (!cart || cart.items.length === 0) {
             window.POS_showToast?.('El carrito está vacío', 'warning');
@@ -191,12 +208,9 @@
         if (qpList) qpList.innerHTML = '<p style="color:#888;text-align:center;padding:20px 0"><i class="fas fa-spinner fa-spin me-1"></i>Cargando...</p>';
 
         try {
-            // Load the full catalogue (batch of 200); for large stores, this is still fast
-            const resp = await fetch(`${API_URLS.search}?q=`);
-            // The search API needs at least 1 char — use a broad search trick or dedicated endpoint
-            // Fallback: search with space or single-letter to get all products
-            const resp2 = await fetch(`${API_URLS.search}?q=%20`);
-            const data = await resp2.json();
+            // Usar endpoint dedicado que devuelve todos los productos activos
+            const resp = await fetch(API_URLS.allProducts);
+            const data = await resp.json();
             quickProductsCache = data.products || [];
             renderProducts('');
         } catch (err) {

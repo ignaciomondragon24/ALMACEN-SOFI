@@ -40,6 +40,8 @@ urlpatterns = [
     path('api/quick-add-product/', views.api_quick_add_product, name='api_quick_add_product'),
     # Nuevas APIs
     path('api/keyboard-shortcuts/', views.api_keyboard_shortcuts, name='api_keyboard_shortcuts'),
+    path('api/keyboard-shortcuts/update/', views.api_update_keyboard_shortcut, name='api_update_keyboard_shortcut'),
     path('api/sales-history/', views.api_sales_history, name='api_sales_history'),
     path('api/quick-checkout/', views.api_quick_checkout, name='api_quick_checkout'),
+    path('api/all-products/', views.api_all_products, name='api_all_products'),
 ]

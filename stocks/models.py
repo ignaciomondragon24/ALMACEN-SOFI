@@ -185,8 +185,10 @@ class Product(models.Model):
     )
     
     # Stock
-    current_stock = models.PositiveIntegerField(
+    current_stock = models.DecimalField(
         'Stock Actual',
+        max_digits=12,
+        decimal_places=3,
         default=0
     )
     min_stock = models.PositiveIntegerField(
@@ -434,8 +436,10 @@ class StockMovement(models.Model):
         max_length=20,
         choices=MOVEMENT_TYPES
     )
-    quantity = models.IntegerField(
-        'Cantidad'
+    quantity = models.DecimalField(
+        'Cantidad',
+        max_digits=12,
+        decimal_places=3
     )
     unit_cost = models.DecimalField(
         'Costo Unitario',
@@ -443,12 +447,16 @@ class StockMovement(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
-    stock_before = models.PositiveIntegerField(
+    stock_before = models.DecimalField(
         'Stock Antes',
+        max_digits=12,
+        decimal_places=3,
         default=0
     )
-    stock_after = models.PositiveIntegerField(
+    stock_after = models.DecimalField(
         'Stock Después',
+        max_digits=12,
+        decimal_places=3,
         default=0
     )
     reference = models.CharField(

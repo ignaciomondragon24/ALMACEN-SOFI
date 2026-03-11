@@ -95,6 +95,7 @@ def pos_main(request):
     # Ensure shortcuts exist and pass them to template
     POSKeyboardShortcut.ensure_defaults()
     keyboard_shortcuts = POSKeyboardShortcut.objects.filter(is_enabled=True).order_by('order')
+    key_choices = POSKeyboardShortcut.KEY_CHOICES
 
     context = {
         'shift': shift,
@@ -108,6 +109,7 @@ def pos_main(request):
         'suspended_count': suspended_count,
         'categories': categories,
         'keyboard_shortcuts': keyboard_shortcuts,
+        'key_choices': key_choices,
     }
     return render(request, 'pos/pos_main.html', context)
 
@@ -174,6 +176,32 @@ def api_search(request):
 
 @login_required
 @require_GET
+def api_all_products(request):
+    """Return all active products for the sidebar products panel."""
+    products = Product.objects.filter(is_active=True).select_related(
+        'unit_of_measure', 'category'
+    ).order_by('name')
+    return JsonResponse({
+        'products': [
+            {
+                'id': p.id,
+                'name': p.name,
+                'barcode': p.barcode or '',
+                'sku': p.sku or '',
+                'unit_price': float(p.sale_price),
+                'stock': float(p.current_stock),
+                'unit': p.get_unit_display(),
+                'is_bulk': p.is_bulk,
+                'bulk_unit': p.bulk_unit if p.is_bulk else None,
+                'allow_sell_by_amount': p.allow_sell_by_amount,
+            }
+            for p in products
+        ]
+    })
+
+
+@login_required
+@require_GET
 def api_calculate_cost_total(request, transaction_id):
     """Calculate total at cost price for a transaction."""
     from decimal import Decimal
@@ -228,7 +256,17 @@ def api_cart_add(request):
     item, message = CartService.add_item(transaction, product_id, Decimal(str(quantity)))
     
     if item:
-        return JsonResponse({
+        # Check stock and add warning if needed
+        warning = None
+        try:
+            from stocks.models import Product
+            prod = Product.objects.get(id=product_id)
+            if prod.current_stock <= 0:
+                warning = f'\u26a0 {prod.name} sin stock disponible'
+        except Product.DoesNotExist:
+            pass
+        
+        resp = {
             'success': True,
             'item_id': item.id,
             'message': message,
@@ -238,7 +276,10 @@ def api_cart_add(request):
                 'total': float(transaction.total),
                 'items_count': transaction.items_count
             }
-        })
+        }
+        if warning:
+            resp['warning'] = warning
+        return JsonResponse(resp)
     
     return JsonResponse({'success': False, 'error': message}, status=400)
 
@@ -865,6 +906,50 @@ def api_keyboard_shortcuts(request):
     return JsonResponse({
         'shortcuts': [s.to_dict() for s in shortcuts],
     })
+
+
+@login_required
+@require_POST
+def api_update_keyboard_shortcut(request):
+    """Update the key assigned to a shortcut action."""
+    try:
+        data = json.loads(request.body)
+        action = data.get('action', '').strip()
+        new_key = data.get('key', '').strip()
+
+        valid_actions = dict(POSKeyboardShortcut.ACTION_CHOICES)
+        if action not in valid_actions:
+            return JsonResponse({'success': False, 'error': 'Acción inválida'}, status=400)
+
+        valid_keys = dict(POSKeyboardShortcut.KEY_CHOICES)
+        if new_key not in valid_keys:
+            return JsonResponse({'success': False, 'error': 'Tecla inválida'}, status=400)
+
+        shortcut = POSKeyboardShortcut.objects.filter(action=action).first()
+        if not shortcut:
+            return JsonResponse({'success': False, 'error': 'Atajo no encontrado'}, status=404)
+
+        # Check for duplicates (another action already uses this key)
+        if new_key != 'none':
+            conflict = POSKeyboardShortcut.objects.filter(key=new_key).exclude(action=action).first()
+            if conflict:
+                conflict_label = dict(POSKeyboardShortcut.ACTION_CHOICES).get(conflict.action, conflict.action)
+                return JsonResponse({
+                    'success': False,
+                    'error': f'La tecla {new_key} ya está asignada a "{conflict_label}"'
+                }, status=409)
+
+        shortcut.key = new_key
+        shortcut.save()
+
+        # Return updated full list
+        all_shortcuts = POSKeyboardShortcut.objects.filter(is_enabled=True)
+        return JsonResponse({
+            'success': True,
+            'shortcuts': [s.to_dict() for s in all_shortcuts],
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
 
 
 # ─────────────────────────────────────────────────────────────

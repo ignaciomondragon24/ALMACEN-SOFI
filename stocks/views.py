@@ -28,11 +28,17 @@ def product_list(request):
     stock_alert = request.GET.get('stock_alert', '')
     
     if search:
-        products = products.filter(
-            Q(name__icontains=search) |
-            Q(sku__icontains=search) |
-            Q(barcode__icontains=search)
-        )
+        if search.isdigit():
+            products = products.filter(
+                Q(sku__istartswith=search) |
+                Q(barcode__istartswith=search)
+            )
+        else:
+            products = products.filter(
+                Q(name__icontains=search) |
+                Q(sku__icontains=search) |
+                Q(barcode__icontains=search)
+            )
     
     if category:
         products = products.filter(category_id=category)
@@ -273,9 +279,14 @@ def api_search_products(request):
     
     products = Product.objects.filter(is_active=True)
     
-    # Check if it's a barcode search (8-13 digits)
+    # Check if it's a barcode search (8-13 digits) - exact match
     if query.isdigit() and 8 <= len(query) <= 13:
         products = products.filter(barcode=query)
+    elif query.isdigit():
+        products = products.filter(
+            Q(sku__istartswith=query) |
+            Q(barcode__istartswith=query)
+        )
     else:
         products = products.filter(
             Q(name__icontains=query) |

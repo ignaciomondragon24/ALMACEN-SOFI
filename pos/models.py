@@ -342,6 +342,7 @@ class POSKeyboardShortcut(models.Model):
         ('pay_debit',             'Cobrar Directo — Débito'),
         ('pay_credit',            'Cobrar Directo — Crédito'),
         ('pay_transfer',          'Cobrar Directo — Transferencia'),
+        ('pay_mixed',             'Cobrar Directo — Mixto (MP + Efectivo)'),
         # Especiales
         ('cost_sale',             'Venta al Costo'),
         ('internal_consumption',  'Consumo Interno'),
@@ -412,7 +413,8 @@ class POSKeyboardShortcut(models.Model):
             {'action': 'pay_debit',             'key': 'none', 'order': 15},
             {'action': 'pay_credit',            'key': 'none', 'order': 16},
             {'action': 'pay_transfer',          'key': 'none', 'order': 17},
-            {'action': 'sales_history',         'key': 'none', 'order': 18},
+            {'action': 'pay_mixed',             'key': 'none', 'order': 18},
+            {'action': 'sales_history',         'key': 'none', 'order': 19},
         ]
 
     @classmethod

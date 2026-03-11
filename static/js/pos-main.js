@@ -279,23 +279,42 @@
             if (/^\d{8,13}$/.test(query)) {
                 addProductByBarcode(query);
             } else {
-                // Select first result if available
-                const firstResult = searchResultsList?.querySelector('.search-result-item');
-                if (firstResult) {
-                    firstResult.click();
+                // Select active (highlighted) result, or first if none highlighted
+                const activeResult = searchResultsList?.querySelector('.search-result-item.active')
+                    || searchResultsList?.querySelector('.search-result-item');
+                if (activeResult) {
+                    activeResult.click();
                 }
             }
         }
         
-        // Arrow keys navigation
+        // Arrow keys navigation in search results
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            navigateSearchResults(e.key === 'ArrowDown' ? 1 : -1);
+            if (searchResults?.style.display !== 'none') {
+                e.preventDefault();
+                navigateSearchResults(e.key === 'ArrowDown' ? 1 : -1);
+            }
+        }
+
+        // Escape → cerrar resultados y limpiar
+        if (e.key === 'Escape') {
+            if (searchResults?.style.display !== 'none') {
+                e.preventDefault();
+                hideSearchResults();
+                productSearch.value = '';
+            }
         }
 
         // Tab desde búsqueda → activar navegación del carrito
         if (e.key === 'Tab' && !e.shiftKey) {
-            if (searchResults?.style.display !== 'none') return; // el handler global selecciona el 1º resultado
+            if (searchResults?.style.display !== 'none') {
+                // Tab con resultados abiertos → seleccionar el activo
+                e.preventDefault();
+                const activeResult = searchResultsList?.querySelector('.search-result-item.active')
+                    || searchResultsList?.querySelector('.search-result-item');
+                if (activeResult) activeResult.click();
+                return;
+            }
             if (cart.items?.length > 0) {
                 e.preventDefault();
                 hideSearchResults();
@@ -316,9 +335,11 @@
             newIndex = currentIndex + direction;
             if (newIndex < 0) newIndex = items.length - 1;
             if (newIndex >= items.length) newIndex = 0;
-            current.classList.remove('active');
+        } else {
+            newIndex = direction > 0 ? 0 : items.length - 1;
         }
         
+        items.forEach(item => item.classList.remove('active'));
         items[newIndex].classList.add('active');
         items[newIndex].scrollIntoView({ block: 'nearest' });
     }
@@ -350,8 +371,18 @@
         
         searchResults.style.display = 'block';
         
+        // Auto-highlight first result
+        const firstItem = searchResultsList.querySelector('.search-result-item');
+        if (firstItem) firstItem.classList.add('active');
+        
         // Add click handlers for regular items
         searchResultsList.querySelectorAll('.search-result-item').forEach(item => {
+            // Mouse hover → highlight this item
+            item.addEventListener('mouseenter', function() {
+                searchResultsList.querySelectorAll('.search-result-item').forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+            });
+
             item.addEventListener('click', function(e) {
                 // Don't trigger if clicking the sell-by-amount button
                 if (e.target.closest('.sell-by-amount-btn')) return;
@@ -717,7 +748,11 @@
             if (data.success) {
                 // Reload cart to get updated items
                 await loadCart();
-                showToast(data.message || 'Producto agregado', 'success');
+                if (data.warning) {
+                    showToast(data.warning, 'warning');
+                } else {
+                    showToast(data.message || 'Producto agregado', 'success');
+                }
             } else {
                 showToast(data.error || 'Error al agregar producto', 'error');
             }
@@ -822,7 +857,14 @@
                             ${item.product_name || item.name}
                             ${item.promotion_name ? `<span class="cart-item-promo badge bg-success ms-1">${item.promotion_name}</span>` : ''}
                         </div>
-                        <div class="cart-item-price">${formatCurrency(item.unit_price)} c/u</div>
+                        <div class="cart-item-price d-flex align-items-center gap-2">
+                            <span>${formatCurrency(item.unit_price)} c/u</span>
+                            <button class="btn btn-xs cart-item-discount-btn ${item.discount > 0 ? 'btn-success active' : 'btn-outline-warning'}" tabindex="-1"
+                                    title="Descuento solo a este producto" data-item-id="${item.id}">
+                                <i class="fas fa-percent"></i>
+                                ${item.discount > 0 ? ` -${formatCurrency(item.discount)}` : ' Dto.'}
+                            </button>
+                        </div>
                     </div>
                     <div class="cart-item-quantity">
                         <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="decrease">
@@ -834,13 +876,8 @@
                         </button>
                     </div>
                     <div class="cart-item-subtotal">
-                        ${item.discount > 0 ? `<small class="text-success d-block">-${formatCurrency(item.discount)}</small>` : ''}
                         ${formatCurrency(item.subtotal)}
                     </div>
-                    <button class="btn btn-sm btn-outline-warning cart-item-discount-btn" tabindex="-1"
-                            title="Descuento en este ítem" data-item-id="${item.id}">
-                        ${item.discount > 0 ? '<i class="fas fa-percent" style="color:#2ecc71"></i>' : '<i class="fas fa-percent"></i>'}
-                    </button>
                     <div class="cart-item-remove" title="Eliminar">
                         <i class="fas fa-trash"></i>
                     </div>
@@ -1599,7 +1636,602 @@
         }
     }
 
-    // Checkout
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FAST CHECKOUT OVERLAY — aparece instantáneo, 100% teclado
+    // Flujo: Enter en COBRAR → overlay → ←/→ método → Tab monto → Enter cobrar
+    // ═══════════════════════════════════════════════════════════════════════════
+    let fcoActive = false;
+
+    function openFastCheckout(preselectedMethodCode) {
+        if (!cart.items?.length) { showToast('El carrito está vacío', 'warning'); return; }
+        if (fcoActive) return;
+
+        const methods = (typeof PAYMENT_METHODS !== 'undefined') ? [...PAYMENT_METHODS] : [];
+        if (methods.length === 0) {
+            showToast('No hay métodos de pago configurados', 'error');
+            return;
+        }
+        // Agregar opción de pago mixto al final
+        const hasMp = methods.some(m => m.code === 'mercadopago');
+        const hasCash = methods.some(m => m.code === 'cash');
+        if (hasMp && hasCash) {
+            methods.push({ id: 'mixed', code: 'mixed', name: 'Mixto (MP + Efectivo)', icon: 'fas fa-exchange-alt' });
+        }
+
+        // Limpiar overlay huérfano si existe
+        const oldOverlay = document.getElementById('fco-overlay');
+        if (oldOverlay) oldOverlay.remove();
+
+        // Cerrar cualquier modal Bootstrap abierto
+        const openModal = document.querySelector('.modal.show');
+        if (openModal) {
+            const bsModal = bootstrap.Modal.getInstance(openModal);
+            if (bsModal) bsModal.hide();
+        }
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        fcoActive = true;
+        const totalAmt = Math.round(parseFloat(cart.total) * 100) / 100;
+        // Pre-seleccionar método si viene por atajo de pago rápido
+        let selIdx = 0;
+        if (preselectedMethodCode) {
+            const foundIdx = methods.findIndex(m => m.code === preselectedMethodCode);
+            if (foundIdx >= 0) selIdx = foundIdx;
+        }
+
+        // ── Crear overlay ─────────────────────────────────────────────────────
+        const overlay = document.createElement('div');
+        overlay.id = 'fco-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+
+        overlay.innerHTML = `
+            <div class="fco-box" id="fco-box">
+                <div class="fco-header">
+                    <span class="fco-header-label"><i class="fas fa-cash-register me-2"></i>COBRAR</span>
+                    <span class="fco-header-total">${formatCurrency(totalAmt)}</span>
+                </div>
+                <div class="fco-methods" id="fco-methods">
+                    ${methods.map((m, i) => `
+                        <button class="fco-method${i === selIdx ? ' selected' : ''}"
+                                data-idx="${i}" data-method-id="${m.id}" data-method-code="${m.code}"
+                                tabindex="-1" type="button">
+                            <i class="${m.icon} fco-method-icon"></i>
+                            <span class="fco-method-name">${m.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="fco-amount-section">
+                    <div class="fco-amount-group">
+                        <label class="fco-amount-label" for="fco-amount">Recibe <span class="fco-currency">$</span></label>
+                        <input type="number" id="fco-amount" class="fco-amount-input"
+                               value="${totalAmt.toFixed(2)}" min="0" step="0.01" autocomplete="off"
+                               inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="fco-change-row">
+                        <span class="fco-change-label">Vuelto</span>
+                        <strong id="fco-change" class="fco-change-val">$0</strong>
+                    </div>
+                </div>
+                <div class="fco-footer">
+                    <span class="fco-hint">
+                        <kbd>←</kbd><kbd>→</kbd> método
+                        <kbd>Tab</kbd> monto
+                        <kbd>Enter</kbd> cobrar
+                        <kbd>Esc</kbd> cancelar
+                    </span>
+                    <button type="button" class="btn btn-success fco-btn-confirm" id="fco-confirm">
+                        <i class="fas fa-check me-2"></i>COBRAR
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const amountInput = document.getElementById('fco-amount');
+        const confirmBtn  = document.getElementById('fco-confirm');
+        const changeEl    = document.getElementById('fco-change');
+
+        function getCards() { return Array.from(document.querySelectorAll('.fco-method')); }
+
+        function setSelected(idx) {
+            const cards = getCards();
+            selIdx = Math.max(0, Math.min(cards.length - 1, idx));
+            cards.forEach((c, i) => c.classList.toggle('selected', i === selIdx));
+        }
+
+        function updateChange() {
+            const paid  = parseFloat(amountInput.value) || 0;
+            const paidR = Math.round(paid * 100);
+            const totR  = Math.round(totalAmt * 100);
+            const change = paid - totalAmt;
+            changeEl.textContent = formatCurrency(Math.max(0, change));
+            changeEl.style.color = change >= -0.005 ? '#2ecc71' : '#e74c3c';
+            const ok = paidR >= totR;
+            confirmBtn.disabled = !ok;
+            confirmBtn.classList.toggle('btn-success', ok);
+            confirmBtn.classList.toggle('btn-secondary', !ok);
+        }
+
+        function closeOverlay(skipFocus) {
+            if (!fcoActive) return;
+            fcoActive = false;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            if (!skipFocus) productSearch?.focus();
+        }
+
+        async function doConfirm() {
+            const card = getCards()[selIdx];
+            if (!card) { showToast('Seleccioná un método de pago', 'warning'); return; }
+
+            // Si seleccionó Mixto, cerrar FCO y abrir overlay mixto
+            if (card.dataset.methodCode === 'mixed') {
+                closeOverlay(true);
+                openMixedCheckout();
+                return;
+            }
+
+            const paid = parseFloat(amountInput.value) || 0;
+            if (Math.round(paid * 100) < Math.round(totalAmt * 100)) {
+                showToast('El monto ingresado es menor al total', 'warning');
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+
+            try {
+                const resp = await fetch(API_URLS.checkout, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify({
+                        transaction_id: TRANSACTION_ID,
+                        payments: [{ method_id: parseInt(card.dataset.methodId), amount: paid }]
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    closeOverlay(true);
+                    showSaleSuccessModal(data);
+                } else {
+                    showToast(data.error || 'Error al procesar la venta', 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
+                }
+            } catch (err) {
+                console.error('Checkout error:', err);
+                if (!navigator.onLine) {
+                    showToast('Sin conexión a internet', 'error');
+                } else {
+                    showToast('Error al conectar con el servidor. ¿Está corriendo?', 'error');
+                }
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
+            }
+        }
+
+        function onKey(e) {
+            if (!fcoActive) return;
+            // Capturar TODAS las teclas mientras el overlay está activo
+            // para evitar que otros handlers (shortcuts globales, Chrome) las procesen
+            if (document.activeElement === amountInput) {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                    if (!confirmBtn.disabled) doConfirm();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                    closeOverlay();
+                } else if (/^F\d+$/.test(e.key)) {
+                    // Bloquear F-keys para que no disparen atajos globales ni acciones de Chrome
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                }
+                // Números y demás pasan normal al input
+                return;
+            }
+            // Fuera del input, capturar todo
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+            switch (e.key) {
+                case 'Escape':
+                    closeOverlay();
+                    break;
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    setSelected(selIdx - 1);
+                    break;
+                case 'ArrowRight':
+                case 'ArrowDown':
+                    setSelected(selIdx + 1);
+                    break;
+                case 'Tab':
+                    amountInput.focus();
+                    amountInput.select();
+                    break;
+                case 'Enter':
+                    if (!confirmBtn.disabled) doConfirm();
+                    break;
+            }
+        }
+
+        document.addEventListener('keydown', onKey, true);
+
+        // Click en tarjeta de método → seleccionarla y saltar al monto
+        getCards().forEach((c, i) => c.addEventListener('click', () => {
+            setSelected(i);
+            amountInput.focus();
+            amountInput.select();
+        }));
+
+        amountInput.addEventListener('input', updateChange);
+        confirmBtn.addEventListener('click', doConfirm);
+
+        // Click fuera del box → cerrar
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+
+        // Inicializar estado
+        updateChange();
+        // Si viene por atajo de pago rápido con efectivo, limpiar el input para que ingrese cuánto recibe
+        if (preselectedMethodCode) {
+            const selectedMethod = methods[selIdx];
+            if (selectedMethod && selectedMethod.code === 'cash') {
+                // Efectivo: vaciar para que ingrese el monto que paga el cliente
+                amountInput.value = '';
+                updateChange();
+            }
+            // Otros métodos: dejar el total pre-cargado (no hay vuelto)
+        }
+        setTimeout(() => { amountInput.focus(); amountInput.select(); }, 50);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MIXED CHECKOUT OVERLAY — Pago Mixto: MercadoPago + Efectivo
+    // Flujo: Ingresa monto MP → se calcula automáticamente el resto en efectivo
+    // ═══════════════════════════════════════════════════════════════════════════
+    let mixedActive = false;
+
+    function openMixedCheckout() {
+        if (!cart.items?.length) { showToast('El carrito está vacío', 'warning'); return; }
+        if (mixedActive || fcoActive) return;
+
+        const methods = (typeof PAYMENT_METHODS !== 'undefined') ? PAYMENT_METHODS : [];
+        const mpMethod = methods.find(m => m.code === 'mercadopago');
+        const cashMethod = methods.find(m => m.code === 'cash');
+
+        if (!mpMethod || !cashMethod) {
+            showToast('Se necesitan los métodos Efectivo y MercadoPago activos', 'error');
+            return;
+        }
+
+        // Limpiar overlay huérfano
+        const old = document.getElementById('mixed-overlay');
+        if (old) old.remove();
+
+        // Cerrar cualquier modal Bootstrap abierto
+        const openModal = document.querySelector('.modal.show');
+        if (openModal) {
+            const bsModal = bootstrap.Modal.getInstance(openModal);
+            if (bsModal) bsModal.hide();
+        }
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        mixedActive = true;
+        const totalAmt = Math.round(parseFloat(cart.total) * 100) / 100;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'mixed-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+
+        overlay.innerHTML = `
+            <div class="fco-box" id="mixed-box" style="max-width:500px;">
+                <div class="fco-header">
+                    <span class="fco-header-label"><i class="fas fa-exchange-alt me-2"></i>PAGO MIXTO</span>
+                    <span class="fco-header-total">${formatCurrency(totalAmt)}</span>
+                </div>
+                <div style="padding:0 1.2rem;">
+                    <p style="color:#888;font-size:0.82rem;margin:0.8rem 0 0.5rem;">
+                        <i class="${mpMethod.icon} me-1" style="color:#00b1ea;"></i><strong>MercadoPago</strong> + 
+                        <i class="${cashMethod.icon} me-1" style="color:#2ecc71;"></i><strong>Efectivo</strong>
+                    </p>
+                </div>
+                <div class="fco-amount-section" style="gap:0.8rem;">
+                    <div class="fco-amount-group">
+                        <label class="fco-amount-label" for="mixed-mp-amount">
+                            <i class="${mpMethod.icon} me-1" style="color:#00b1ea;"></i>MercadoPago <span class="fco-currency">$</span>
+                        </label>
+                        <input type="number" id="mixed-mp-amount" class="fco-amount-input"
+                               value="" min="0" max="${totalAmt.toFixed(2)}" step="0.01" autocomplete="off"
+                               inputmode="decimal" placeholder="Monto con MP...">
+                        <div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.5rem;">
+                            <button type="button" class="btn btn-info btn-sm" id="mixed-mp-send-point"
+                                    style="white-space:nowrap;">
+                                <i class="fas fa-mobile-alt me-1"></i>Enviar a Point
+                            </button>
+                            <span id="mixed-mp-status" class="text-muted small"></span>
+                        </div>
+                    </div>
+                    <div class="fco-amount-group">
+                        <label class="fco-amount-label" for="mixed-cash-amount">
+                            <i class="${cashMethod.icon} me-1" style="color:#2ecc71;"></i>Efectivo <span class="fco-currency">$</span>
+                        </label>
+                        <input type="number" id="mixed-cash-amount" class="fco-amount-input"
+                               value="" min="0" step="0.01" autocomplete="off"
+                               inputmode="decimal" placeholder="Monto en efectivo...">
+                    </div>
+                    <div class="fco-change-row" style="flex-direction:column;gap:0.3rem;">
+                        <div style="display:flex;justify-content:space-between;width:100%;">
+                            <span class="fco-change-label">Total Recibido</span>
+                            <strong id="mixed-total-received" style="color:#ccc;">$0</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;width:100%;">
+                            <span class="fco-change-label">Vuelto</span>
+                            <strong id="mixed-change" class="fco-change-val">$0</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="fco-footer">
+                    <span class="fco-hint">
+                        <kbd>Tab</kbd> cambiar campo
+                        <kbd>Enter</kbd> cobrar
+                        <kbd>Esc</kbd> cancelar
+                    </span>
+                    <button type="button" class="btn btn-success fco-btn-confirm" id="mixed-confirm" disabled>
+                        <i class="fas fa-check me-2"></i>COBRAR MIXTO
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const mpInput    = document.getElementById('mixed-mp-amount');
+        const cashInput  = document.getElementById('mixed-cash-amount');
+        const confirmBtn = document.getElementById('mixed-confirm');
+        const changeEl   = document.getElementById('mixed-change');
+        const totalRecEl = document.getElementById('mixed-total-received');
+        const mpSendBtn  = document.getElementById('mixed-mp-send-point');
+        const mpStatusEl = document.getElementById('mixed-mp-status');
+        let mpApproved = false;
+        let mpPollInterval = null;
+
+        function updateMixed() {
+            const mpAmt   = parseFloat(mpInput.value) || 0;
+            const cashAmt = parseFloat(cashInput.value) || 0;
+            const totalPaid = mpAmt + cashAmt;
+            const change = totalPaid - totalAmt;
+
+            totalRecEl.textContent = formatCurrency(totalPaid);
+            changeEl.textContent = formatCurrency(Math.max(0, change));
+            changeEl.style.color = change >= -0.005 ? '#2ecc71' : '#e74c3c';
+
+            const ok = Math.round(totalPaid * 100) >= Math.round(totalAmt * 100) && mpAmt > 0 && cashAmt > 0;
+            confirmBtn.disabled = !ok;
+            confirmBtn.classList.toggle('btn-success', ok);
+            confirmBtn.classList.toggle('btn-secondary', !ok);
+        }
+
+        // ── MercadoPago Point integration ──────────────────────────────────
+        mpSendBtn.addEventListener('click', async () => {
+            const mpAmt = parseFloat(mpInput.value) || 0;
+            if (mpAmt <= 0) {
+                showToast('Ingresá el monto de MercadoPago primero', 'warning');
+                mpInput.focus();
+                return;
+            }
+
+            try {
+                mpSendBtn.disabled = true;
+                mpSendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
+                mpStatusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con Point...';
+                mpStatusEl.className = 'text-info small';
+
+                const response = await fetch('/mercadopago/api/create-intent/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': CSRF_TOKEN
+                    },
+                    body: JSON.stringify({
+                        amount: mpAmt,
+                        transaction_id: TRANSACTION_ID,
+                        description: `Pago Mixto POS - ${cart.itemCount} items`
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    mpStatusEl.innerHTML = '<i class="fas fa-check text-success"></i> Enviado al Point';
+                    mpStatusEl.className = 'text-success small';
+                    mpSendBtn.innerHTML = '<i class="fas fa-check me-1"></i>Enviado';
+                    mpInput.readOnly = true;
+                    mpInput.style.opacity = '0.7';
+
+                    showToast('Pago enviado al Point. Esperando confirmación...', 'info');
+
+                    // Poll for payment status
+                    if (data.payment_intent && data.payment_intent.id) {
+                        mixedPollMpStatus(data.payment_intent.id);
+                    }
+                } else {
+                    throw new Error(data.error || 'Error al conectar con Mercado Pago');
+                }
+            } catch (error) {
+                console.error('MP Point error (mixed):', error);
+                mpStatusEl.innerHTML = '<i class="fas fa-times text-danger"></i> Error';
+                mpStatusEl.className = 'text-danger small';
+                mpSendBtn.disabled = false;
+                mpSendBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                showToast(error.message || 'Error al conectar con Mercado Pago Point', 'error');
+            }
+        });
+
+        function mixedPollMpStatus(paymentIntentId) {
+            let attempts = 0;
+            const maxAttempts = 60; // 2 min
+
+            mpPollInterval = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(mpPollInterval);
+                    mpPollInterval = null;
+                    mpStatusEl.innerHTML = '<i class="fas fa-clock text-warning"></i> Tiempo agotado';
+                    mpSendBtn.disabled = false;
+                    mpSendBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                    mpInput.readOnly = false;
+                    mpInput.style.opacity = '1';
+                    return;
+                }
+                try {
+                    const resp = await fetch(`/mercadopago/api/status/${paymentIntentId}/`);
+                    const data = await resp.json();
+
+                    if (data.status === 'approved' || data.status === 'FINISHED') {
+                        clearInterval(mpPollInterval);
+                        mpPollInterval = null;
+                        mpApproved = true;
+                        mpStatusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> ¡Pago aprobado!';
+                        mpSendBtn.classList.remove('btn-info');
+                        mpSendBtn.classList.add('btn-success');
+                        mpSendBtn.innerHTML = '<i class="fas fa-check me-1"></i>Aprobado';
+                        showToast('¡Pago con MercadoPago aprobado! Ingresá el efectivo.', 'success');
+                        cashInput.focus();
+                        cashInput.select();
+                    } else if (data.status === 'rejected' || data.status === 'cancelled' || data.status === 'CANCELED') {
+                        clearInterval(mpPollInterval);
+                        mpPollInterval = null;
+                        mpStatusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Rechazado';
+                        mpSendBtn.disabled = false;
+                        mpSendBtn.classList.remove('btn-success');
+                        mpSendBtn.classList.add('btn-info');
+                        mpSendBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                        mpInput.readOnly = false;
+                        mpInput.style.opacity = '1';
+                        showToast('Pago de MercadoPago rechazado o cancelado', 'warning');
+                    } else {
+                        mpStatusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Esperando... (${attempts}s)`;
+                    }
+                } catch (err) {
+                    console.error('Mixed MP poll error:', err);
+                }
+            }, 2000);
+        }
+
+        // Cuando se escribe el monto de MP, auto-completar el de efectivo
+        mpInput.addEventListener('input', () => {
+            const mpAmt = parseFloat(mpInput.value) || 0;
+            const remaining = totalAmt - mpAmt;
+            if (remaining > 0 && mpAmt > 0) {
+                cashInput.value = remaining.toFixed(2);
+            } else if (mpAmt >= totalAmt) {
+                cashInput.value = '';
+            }
+            updateMixed();
+        });
+
+        cashInput.addEventListener('input', updateMixed);
+
+        function closeMixed(skipFocus) {
+            if (!mixedActive) return;
+            mixedActive = false;
+            if (mpPollInterval) { clearInterval(mpPollInterval); mpPollInterval = null; }
+            document.removeEventListener('keydown', onMixedKey, true);
+            overlay.remove();
+            if (!skipFocus) productSearch?.focus();
+        }
+
+        async function doMixedConfirm() {
+            const mpAmt   = parseFloat(mpInput.value) || 0;
+            const cashAmt = parseFloat(cashInput.value) || 0;
+            const totalPaid = mpAmt + cashAmt;
+
+            if (Math.round(totalPaid * 100) < Math.round(totalAmt * 100)) {
+                showToast('El monto total es menor al total a cobrar', 'warning');
+                return;
+            }
+            if (mpAmt <= 0 || cashAmt <= 0) {
+                showToast('Ambos montos deben ser mayores a 0', 'warning');
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+
+            try {
+                const resp = await fetch(API_URLS.checkout, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify({
+                        transaction_id: TRANSACTION_ID,
+                        payments: [
+                            { method_id: mpMethod.id, amount: mpAmt },
+                            { method_id: cashMethod.id, amount: cashAmt }
+                        ]
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    closeMixed(true);
+                    showSaleSuccessModal(data);
+                } else {
+                    showToast(data.error || 'Error al procesar la venta', 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR MIXTO';
+                }
+            } catch (err) {
+                console.error('Mixed checkout error:', err);
+                showToast('Error al conectar con el servidor', 'error');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR MIXTO';
+            }
+        }
+
+        function onMixedKey(e) {
+            if (!mixedActive) return;
+            // Inside inputs, allow normal typing
+            if (document.activeElement === mpInput || document.activeElement === cashInput) {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                    if (!confirmBtn.disabled) doMixedConfirm();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                    closeMixed();
+                } else if (e.key === 'Tab') {
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                    if (document.activeElement === mpInput) { cashInput.focus(); cashInput.select(); }
+                    else { mpInput.focus(); mpInput.select(); }
+                } else if (/^F\d+$/.test(e.key)) {
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                }
+                return;
+            }
+            // Outside inputs
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+            if (e.key === 'Escape') closeMixed();
+            else if (e.key === 'Tab') { mpInput.focus(); mpInput.select(); }
+            else if (e.key === 'Enter' && !confirmBtn.disabled) doMixedConfirm();
+        }
+
+        document.addEventListener('keydown', onMixedKey, true);
+
+        confirmBtn.addEventListener('click', doMixedConfirm);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeMixed(); });
+
+        updateMixed();
+        setTimeout(() => { mpInput.focus(); }, 50);
+    }
+
+    // Expose for sidebar quick-pay button
+    window.POS_openMixedCheckout = openMixedCheckout;
+
+    // Checkout (legacy init — ahora solo conecta el botón COBRAR al overlay rápido)
     function initCheckout() {
         const checkoutModal = document.getElementById('checkoutModal');
         const confirmPayment = document.getElementById('confirm-payment');
@@ -1608,44 +2240,9 @@
         const changeAmount = document.getElementById('change-amount');
         const paymentInputs = document.getElementById('payment-inputs');
         
-        if (!btnCheckout || !checkoutModal) return;
-        
-        // Auto-select first payment method and focus amount when modal opens
-        checkoutModal.addEventListener('shown.bs.modal', () => {
-            const firstCheckbox = document.querySelector('.payment-method-check');
-            if (firstCheckbox && !firstCheckbox.checked) {
-                firstCheckbox.checked = true;
-                firstCheckbox.dispatchEvent(new Event('change'));
-            }
-            // Auto-focus el input de monto después de que se cree
-            setTimeout(() => {
-                const firstAmountInput = paymentInputs?.querySelector('.payment-amount');
-                if (firstAmountInput) {
-                    firstAmountInput.focus();
-                    firstAmountInput.select();
-                }
-            }, 150);
-        });
-        
-        btnCheckout.addEventListener('click', () => {
-            if (!checkoutTotal) return;
-            
-            checkoutTotal.textContent = formatCurrency(cart.total);
-            if (paymentInputs) paymentInputs.innerHTML = '';
-            if (totalReceived) totalReceived.textContent = formatCurrency(0);
-            if (changeAmount) changeAmount.textContent = formatCurrency(0);
-            if (confirmPayment) confirmPayment.disabled = true;
-            
-            // Reset checkboxes
-            document.querySelectorAll('.payment-method-check').forEach(cb => {
-                cb.checked = false;
-            });
-            
-            const modal = new bootstrap.Modal(checkoutModal);
-            modal.show();
-        });
-        
-        // Tab desde el botón COBRAR → vuelve al buscador (completa el ciclo de Tab)
+        if (!btnCheckout) return;
+
+        // Tab cycling para el botón COBRAR
         btnCheckout.addEventListener('keydown', (e) => {
             if (e.key === 'Tab' && !e.shiftKey) {
                 e.preventDefault();
@@ -1657,6 +2254,12 @@
                 else productSearch?.focus();
             }
         });
+
+        // Abrir fast checkout al hacer click
+        btnCheckout.addEventListener('click', openFastCheckout);
+
+        // ── Mantener modal antiguo funcional (backup / ventas al costo etc.) ──
+        if (!checkoutModal) return;
         
         // Payment method checkboxes
         document.querySelectorAll('.payment-method-check').forEach(checkbox => {
@@ -1949,7 +2552,7 @@
                 <div class="modal-content bg-dark text-white">
                     <div class="modal-header border-secondary py-2">
                         <h6 class="modal-title mb-0">
-                            <i class="fas fa-percent me-2 text-warning"></i>Descuento en ítem
+                            <i class="fas fa-percent me-2 text-warning"></i>Descuento solo en este producto
                         </h6>
                         <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
                     </div>
@@ -2117,32 +2720,52 @@
 
     // Show sale success modal with print option
     function showSaleSuccessModal(data) {
+        // Limpiar backdrops huérfanos de Bootstrap
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        const changeHtml = data.change > 0 ? `
+            <div style="background:rgba(241,196,15,0.06);border:1px solid rgba(241,196,15,0.15);border-radius:12px;padding:12px 18px;margin-bottom:1.2rem;display:inline-flex;align-items:center;gap:10px;">
+                <i class="fas fa-coins" style="color:#f1c40f;font-size:1.2rem;"></i>
+                <span style="font-weight:700;color:#f1c40f;font-size:1.15rem;">Vuelto: ${formatCurrency(data.change)}</span>
+            </div>` : '';
+
         // Create modal HTML
         const modalHtml = `
-            <div class="modal fade" id="saleSuccessModal" tabindex="-1" data-bs-backdrop="static">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content bg-dark text-white">
-                        <div class="modal-body text-center py-5">
-                            <div class="mb-4">
-                                <i class="fas fa-check-circle text-success" style="font-size: 5rem;"></i>
-                            </div>
-                            <h3 class="mb-3">¡Venta Completada!</h3>
-                            <p class="mb-2 text-muted">Ticket: <strong class="text-white">${data.ticket_number}</strong></p>
-                            <p class="mb-4 h4">Total: <strong class="text-success">${formatCurrency(data.total)}</strong></p>
-                            ${data.change > 0 ? `
-                                <div class="alert alert-warning mb-4">
-                                    <i class="fas fa-coins me-2"></i>
-                                    <strong>Vuelto: ${formatCurrency(data.change)}</strong>
+            <div class="modal fade" id="saleSuccessModal" tabindex="-1" data-bs-backdrop="static" style="z-index:10050;">
+                <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+                    <div class="modal-content" style="background:linear-gradient(180deg,#1e1e3a 0%,#161628 100%);border:1px solid rgba(46,204,113,0.2);border-radius:20px;color:#eaeaea;overflow:hidden;">
+                        <div class="modal-body text-center" style="padding:2.5rem 2rem 2rem;">
+                            <div style="margin-bottom:1.2rem;">
+                                <div style="width:72px;height:72px;margin:0 auto;border-radius:50%;background:rgba(46,204,113,0.08);border:2px solid rgba(46,204,113,0.25);display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-check" style="font-size:2.2rem;color:#2ecc71;"></i>
                                 </div>
-                            ` : ''}
-                            <div class="d-flex justify-content-center gap-3">
-                                <button type="button" class="btn btn-outline-light btn-lg" id="btnSkipPrint">
+                            </div>
+                            <h3 style="font-weight:700;margin-bottom:0.4rem;color:#fff;font-size:1.3rem;">¡Venta Completada!</h3>
+                            <p style="color:#666;font-size:0.8rem;margin-bottom:1rem;">
+                                Ticket: <strong style="color:#00d2d3;font-family:'Courier New',monospace;letter-spacing:0.02em;">${data.ticket_number}</strong>
+                            </p>
+                            <div style="font-size:2.2rem;font-weight:800;color:#2ecc71;margin-bottom:1rem;text-shadow:0 0 20px rgba(46,204,113,0.2);">
+                                ${formatCurrency(data.total)}
+                            </div>
+                            ${changeHtml}
+                            <div style="display:flex;justify-content:center;gap:10px;margin-top:0.8rem;">
+                                <button type="button" class="btn" id="btnSkipPrint"
+                                    style="background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,255,255,0.12);color:#aaa;border-radius:10px;padding:10px 24px;font-weight:600;font-size:0.95rem;transition:all 0.15s;">
                                     <i class="fas fa-forward me-2"></i>Continuar
                                 </button>
-                                <button type="button" class="btn btn-primary btn-lg" id="btnPrintTicket">
-                                    <i class="fas fa-print me-2"></i>Imprimir Ticket
+                                <button type="button" class="btn" id="btnPrintTicket"
+                                    style="background:rgba(0,210,211,0.08);border:1.5px solid rgba(0,210,211,0.25);color:#00d2d3;border-radius:10px;padding:10px 24px;font-weight:600;font-size:0.95rem;transition:all 0.15s;">
+                                    <i class="fas fa-print me-2"></i>Imprimir
                                 </button>
                             </div>
+                            <p style="color:#444;font-size:0.65rem;margin-top:1rem;margin-bottom:0;">
+                                <kbd style="background:#222240;color:#00d2d3;padding:1px 5px;border-radius:3px;font-size:0.6rem;border:1px solid #3a3a5a;">Enter</kbd> continuar
+                                &ensp;
+                                <kbd style="background:#222240;color:#00d2d3;padding:1px 5px;border-radius:3px;font-size:0.6rem;border:1px solid #3a3a5a;">P</kbd> imprimir
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -2220,7 +2843,7 @@
             case 'discount':            document.getElementById('btn-discount')?.click(); break;
             case 'cancel':              document.getElementById('btn-cancel')?.click(); break;
             case 'checkout':
-                if (btnCheckout && !btnCheckout.disabled) btnCheckout.click();
+                if (btnCheckout && !btnCheckout.disabled) openFastCheckout();
                 break;
             case 'reprint':             document.getElementById('btn-reprint')?.click(); break;
             case 'cost_sale':           document.getElementById('btn-cost-sale')?.click(); break;
@@ -2232,11 +2855,14 @@
             case 'dashboard':
                 if (confirm('¿Salir del POS?')) window.location.href = '/accounts/dashboard/';
                 break;
+            case 'pay_mixed':
+                if (btnCheckout && !btnCheckout.disabled) openMixedCheckout();
+                break;
             // pay_* actions → quick checkout
             default:
                 if (action.startsWith('pay_')) {
                     const methodCode = action.replace('pay_', '');
-                    window.POS_sidebar?.triggerQuickPay(methodCode);
+                    if (btnCheckout && !btnCheckout.disabled) openFastCheckout(methodCode);
                 }
         }
     }
@@ -2335,6 +2961,24 @@
                 return; // Don't process other shortcuts while modal is open
             }
             
+            // ── F-keys & configured shortcuts: SIEMPRE funcionan, sin importar el foco ──
+            // Esto va ANTES de la guarda de INPUT para que F1-F12 y atajos configurados
+            // se disparen inclusive cuando el cursor está en el buscador.
+            const isFKey = /^F\d+$/.test(e.key);
+            const isAltNum = e.altKey && e.key >= '1' && e.key <= '9';
+            if (isFKey || isAltNum) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                // Lookup in configurable shortcut map
+                const keyStr = e.altKey ? `Alt+${e.key}` : e.key;
+                const action = shortcutMap[keyStr];
+                if (action) {
+                    dispatchAction(action);
+                }
+                return;
+            }
+
             // Don't trigger shortcuts when typing in inputs (except specific keys)
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
                 // Escape - blur input and clear search
@@ -2345,6 +2989,7 @@
                         productSearch.value = '';
                         productSearch.focus();
                     }
+                    return;
                 }
                 // Tab in search - select first result
                 if (e.key === 'Tab' && e.target === productSearch && searchResults?.style.display !== 'none') {
@@ -2353,15 +2998,14 @@
                     if (firstResult) {
                         firstResult.click();
                     }
-                }
-                // Permite F-keys (F1-F12) desde inputs que NO sean el buscador
-                // Ej: desde qty-input del carrito, F8 dispara COBRAR, F4 apartar, etc.
-                if (/^F\d+$/.test(e.key) && e.target !== productSearch) {
-                    // Continuar hasta el switch de atajos globales
-                } else {
                     return;
                 }
+                // Block all other keys from triggering shortcuts while in input
+                return;
             }
+            
+            // Don't trigger shortcuts from select dropdowns
+            if (e.target.tagName === 'SELECT') return;
             
             // Global shortcuts (when not in an input) — dynamic from shortcutMap
             // Handle always-on non-configurable keys first
@@ -2396,32 +3040,25 @@
                 return;
             }
 
-            // Alt+1-9 for quick access buttons
-            if (e.key >= '1' && e.key <= '9' && e.altKey) {
-                e.preventDefault();
-                const buttonIndex = parseInt(e.key) - 1;
-                const quickBtns = quickAccessGrid?.querySelectorAll('.quick-btn');
-                if (quickBtns?.[buttonIndex]) quickBtns[buttonIndex].click();
-                return;
-            }
-
-            // Configurable shortcut lookup
-            const keyStr = e.altKey ? `Alt+${e.key}` : e.key;
+            // Configurable shortcut lookup (non-F-key, non-Alt+N — already handled above)
+            const keyStr = e.key;
             const action = shortcutMap[keyStr];
             if (action) {
                 e.preventDefault();
+                e.stopPropagation();
                 dispatchAction(action);
             }
         });
         
-        // Auto-focus search bar after any click outside inputs
+        // Auto-focus search bar after any click outside inputs/selects
         document.addEventListener('click', function(e) {
-            if (!e.target.matches('input, button, a, .btn, .quick-btn, .cart-item *, .search-result-item *')) {
+            if (e.target.closest('.shortcut-key-select, select')) return;
+            if (!e.target.matches('input, select, option, button, a, .btn, .quick-btn, .cart-item *, .search-result-item *')) {
                 setTimeout(() => {
-                    if (productSearch && !document.querySelector('.modal.show')) {
+                    if (productSearch && !document.querySelector('.modal.show') && document.activeElement?.tagName !== 'SELECT') {
                         productSearch.focus();
                     }
-                }, 100);
+                }, 150);
             }
         });
     }
@@ -2453,8 +3090,7 @@
                                     </table>
                                     <p class="text-muted small mb-0">
                                         <i class="fas fa-cog me-1"></i>
-                                        Configurables desde
-                                        <a href="/admin/pos/poskeyboardshortcut/" target="_blank" class="text-info">Admin → Atajos</a>
+                                        Configurables desde el panel lateral → Atajos
                                     </p>
                                 </div>
                                 <div class="col-md-6">
@@ -2514,15 +3150,16 @@
     }
 
     function formatCurrency(value) {
-        if (value === null || value === undefined) return '$0,00';
+        if (value === null || value === undefined) return '$0';
         const number = parseFloat(value);
-        if (isNaN(number)) return '$0,00';
+        if (isNaN(number)) return '$0';
         
-        // Argentine format: $1.234,56
+        // Argentine format: $1.234,56 or $1.234 (sin decimales si es entero)
         const parts = number.toFixed(2).split('.');
         const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
         const decPart = parts[1];
         
+        if (decPart === '00') return '$' + intPart;
         return '$' + intPart + ',' + decPart;
     }
 
