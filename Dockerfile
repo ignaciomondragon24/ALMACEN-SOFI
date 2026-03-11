@@ -39,8 +39,8 @@ RUN SECRET_KEY=build-only-key DATABASE_URL= python manage.py collectstatic --noi
 EXPOSE ${PORT}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/login/')" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health/')" || exit 1
 
 # Run: migrate + create superuser (if vars set) + gunicorn
 CMD python manage.py migrate --noinput && \
