@@ -1,5 +1,4 @@
-#!/bin/bash
-set -e
+﻿#!/bin/bash
 
 echo "=== CHE GOLOSO - Starting ==="
 echo "PORT: ${PORT:-8000}"
