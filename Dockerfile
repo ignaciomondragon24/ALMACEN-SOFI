@@ -35,6 +35,9 @@ RUN mkdir -p /app/media /app/staticfiles /app/logs
 # Collect static files (with dummy SECRET_KEY for build phase)
 RUN SECRET_KEY=build-only-key DATABASE_URL= python manage.py collectstatic --noinput --clear 2>/dev/null || true
 
+# Copy start script and make executable
+RUN chmod +x /app/start.sh
+
 # Expose port
 EXPOSE ${PORT}
 
@@ -42,16 +45,5 @@ EXPOSE ${PORT}
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health/')" || exit 1
 
-# Run: migrate + create superuser (if vars set) + gunicorn
-CMD python manage.py migrate --noinput && \
-    (python manage.py setup_initial_data || true) && \
-    gunicorn superrecord.wsgi \
-    --bind 0.0.0.0:${PORT} \
-    --workers 2 \
-    --threads 2 \
-    --worker-class gthread \
-    --worker-tmp-dir /dev/shm \
-    --timeout 120 \
-    --log-file - \
-    --access-logfile - \
-    --error-logfile -
+# Run
+CMD ["/app/start.sh"]
