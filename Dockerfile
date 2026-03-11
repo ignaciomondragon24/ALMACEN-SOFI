@@ -40,7 +40,7 @@ EXPOSE ${PORT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/accounts/login/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/login/')" || exit 1
 
 # Run: migrate + create superuser (if vars set) + gunicorn
 CMD python manage.py migrate --noinput && \
