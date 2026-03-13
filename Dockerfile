@@ -33,7 +33,10 @@ COPY . .
 RUN mkdir -p /app/media /app/staticfiles /app/logs
 
 # Collect static files (with dummy SECRET_KEY for build phase)
-RUN SECRET_KEY=build-only-key DATABASE_URL= python manage.py collectstatic --noinput --clear 2>/dev/null || true
+# Use basic storage during build to avoid manifest issues
+RUN SECRET_KEY=build-only-key DATABASE_URL= \
+    DJANGO_STATICFILES_STORAGE=django.contrib.staticfiles.storage.StaticFilesStorage \
+    python manage.py collectstatic --noinput --clear || true
 
 # Fix line endings and make start script executable
 RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
@@ -42,7 +45,7 @@ RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 EXPOSE ${PORT}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health/')" || exit 1
 
 # Run

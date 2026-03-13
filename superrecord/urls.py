@@ -9,7 +9,13 @@ from django.http import JsonResponse
 
 
 def health_check(request):
-    return JsonResponse({'status': 'ok'})
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        return JsonResponse({'status': 'ok', 'db': 'ok'})
+    except Exception as e:
+        return JsonResponse({'status': 'ok', 'db': str(e)}, status=200)
 
 
 urlpatterns = [

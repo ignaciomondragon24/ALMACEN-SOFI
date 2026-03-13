@@ -28,6 +28,12 @@ if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
 if os.getenv('RAILWAY_PRIVATE_DOMAIN'):
     ALLOWED_HOSTS.append(os.getenv('RAILWAY_PRIVATE_DOMAIN'))
 
+# Railway environment detection - allow internal healthchecks
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    # Railway healthchecks may use internal IPs
+    if '0.0.0.0' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('0.0.0.0')
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -159,7 +165,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # WhiteNoise for static files
 # En producción usa CompressedManifestStaticFilesStorage para cache busting
-if DEBUG:
+_staticfiles_storage = os.getenv('DJANGO_STATICFILES_STORAGE', '')
+if _staticfiles_storage:
+    STATICFILES_STORAGE = _staticfiles_storage
+elif DEBUG:
     STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 else:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
