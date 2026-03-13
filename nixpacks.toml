@@ -1,9 +1,0 @@
-[phases.setup]
-nixPkgs = ["cairo", "pkg-config", "gobject-introspection", "libpq", "libjpeg", "zlib", "libpng", "freetype"]
-aptPkgs = ["libcairo2-dev", "libpq-dev", "libjpeg-dev", "zlib1g-dev", "libpng-dev", "libfreetype6-dev", "pkg-config"]
-
-[phases.install]
-cmds = ["pip install -r requirements.txt"]
-
-[start]
-cmd = "python manage.py migrate --noinput && python manage.py collectstatic --noinput && (python manage.py setup_initial_data || true) && gunicorn superrecord.wsgi --bind 0.0.0.0:$PORT --workers 2 --threads 2 --worker-class gthread --worker-tmp-dir /dev/shm --timeout 120 --log-file - --access-logfile - --error-logfile -"
