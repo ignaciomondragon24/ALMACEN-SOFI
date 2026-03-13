@@ -230,6 +230,12 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
+# Railway domains - wildcard covers all *.up.railway.app subdomains
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    CSRF_TRUSTED_ORIGINS += [
+        "https://*.up.railway.app",
+        "https://*.railway.app",
+    ]
 if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
     CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
 if os.getenv('ALLOWED_HOSTS'):
