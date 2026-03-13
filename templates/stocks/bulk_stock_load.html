@@ -112,20 +112,98 @@
     .packaging-info .badge {
         font-size: 0.9rem;
     }
+
+    /* ===== RESPONSIVE MOBILE ===== */
+    @media (max-width: 767.98px) {
+        .scan-box {
+            padding: 1.2rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        .scan-box h3 {
+            font-size: 1.1rem;
+        }
+        .scan-box .fa-2x {
+            font-size: 1.3em;
+        }
+        .scan-box input {
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+        }
+        .product-preview {
+            padding: 1rem;
+        }
+        .product-preview .fa-3x {
+            font-size: 2em;
+        }
+        .calc-box {
+            padding: 1rem;
+        }
+        .calc-item {
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        .calc-item:last-child {
+            font-size: 1rem;
+        }
+        .quantity-input-group .btn {
+            width: 44px;
+            height: 44px;
+            font-size: 1.2rem;
+        }
+        .quantity-input-group input {
+            font-size: 1.5rem !important;
+            max-width: 100px !important;
+        }
+        .mobile-hide {
+            display: none !important;
+        }
+        .container-fluid.py-4 {
+            padding-top: 1rem !important;
+            padding-bottom: 1rem !important;
+        }
+        .container-fluid h1 {
+            font-size: 1.3rem;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        #price-breakdown-table {
+            font-size: 0.82rem;
+        }
+        #price-breakdown-table th,
+        #price-breakdown-table td {
+            padding: 0.35rem 0.25rem;
+        }
+        .modal-body .card-header {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+        }
+        .modal-body .card-body {
+            padding: 0.75rem;
+        }
+        .modal-footer {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .modal-footer .btn {
+            width: 100%;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h1><i class="fas fa-boxes-stacked text-primary me-2"></i>Carga de Stock por Bultos</h1>
-            <p class="text-muted mb-0">Escanee el código de barras del bulto para cargar stock automáticamente</p>
+            <h1><i class="fas fa-boxes-stacked text-primary me-2"></i>Carga por Bultos</h1>
+            <p class="text-muted mb-0 d-none d-md-block">Escanee el código de barras del bulto para cargar stock automáticamente</p>
         </div>
         <div>
-            <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Volver a Productos
+            <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i><span class="d-none d-sm-inline">Volver</span>
             </a>
         </div>
     </div>
@@ -156,21 +234,21 @@
 
                         <!-- Product Preview (hidden inicialmente) -->
                         <div id="productPreview" class="product-preview mb-4">
-                            <div class="row align-items-center">
-                                <div class="col-md-2 text-center">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="text-center d-none d-sm-block">
                                     <i class="fas fa-box-open fa-3x text-primary" id="preview-icon"></i>
                                 </div>
-                                <div class="col-md-10">
-                                    <h4 id="productName" class="mb-1">-</h4>
-                                    <p class="text-muted mb-2" id="productSku">SKU: -</p>
+                                <div class="flex-grow-1">
+                                    <h4 id="productName" class="mb-1 fs-5">-</h4>
+                                    <p class="text-muted mb-2 small" id="productSku">SKU: -</p>
                                     <div class="packaging-info">
-                                        <div class="d-flex flex-wrap gap-2">
+                                        <div class="d-flex flex-wrap gap-1">
                                             <span class="badge bg-primary" id="packagingType">-</span>
                                             <span class="badge bg-info" id="packagingUnits">-</span>
                                             <span class="badge bg-secondary" id="packagingDisplays">-</span>
                                         </div>
                                     </div>
-                                    <span class="badge bg-success fs-6" id="currentStock">Stock actual: -</span>
+                                    <span class="badge bg-success" id="currentStock">Stock actual: -</span>
                                 </div>
                             </div>
                         </div>
@@ -184,8 +262,8 @@
                         <!-- Formulario principal (inicialmente oculto) -->
                         <div id="mainForm" style="display: none;">
                             <!-- Cantidad de Bultos -->
-                            <div class="row mb-4">
-                                <div class="col-md-6">
+                            <div class="row mb-3">
+                                <div class="col-sm-6 mb-3 mb-sm-0">
                                     <label class="form-label fw-bold">Cantidad de Bultos</label>
                                     <div class="quantity-input-group">
                                         <button type="button" class="btn btn-outline-secondary" id="qty-minus">
@@ -193,38 +271,36 @@
                                         </button>
                                         <input type="number" name="bulk_quantity" id="bulk-quantity-input" 
                                                class="form-control form-control-lg text-center" 
-                                               value="1" min="1" style="font-size: 2rem; font-weight: bold; max-width: 150px;">
+                                               value="1" min="1" style="font-size: 2rem; font-weight: bold; max-width: 120px;">
                                         <button type="button" class="btn btn-outline-secondary" id="qty-plus">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                     </div>
-                                    <small class="text-muted">Cuántos bultos está cargando</small>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold">Precio de Compra por Bulto</label>
+                                <div class="col-sm-6">
+                                    <label class="form-label fw-bold">Precio Compra x Bulto</label>
                                     <div class="input-group input-group-lg">
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="purchase_price_per_bulk" id="purchase-price-input"
                                                class="form-control" step="0.01" placeholder="0.00">
                                     </div>
-                                    <small class="text-muted">Precio que pagó por cada bulto (dejar vacío para mantener)</small>
+                                    <small class="text-muted d-none d-sm-block">Dejar vacío para mantener</small>
                                 </div>
                             </div>
 
                             <!-- Margen de Ganancia -->
-                            <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold">Porcentaje de Ganancia</label>
+                            <div class="row mb-3">
+                                <div class="col-sm-6 mb-3 mb-sm-0">
+                                    <label class="form-label fw-bold">Ganancia %</label>
                                     <div class="input-group">
                                         <input type="number" name="margin_percent" id="margin-percent-input"
                                                class="form-control" step="0.01" value="30">
                                         <span class="input-group-text">%</span>
                                     </div>
-                                    <small class="text-muted">Se aplica sobre el precio del bulto</small>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold">Notas (opcional)</label>
-                                    <textarea name="notes" class="form-control" rows="2" 
+                                <div class="col-sm-6">
+                                    <label class="form-label fw-bold">Notas <span class="d-none d-sm-inline">(opcional)</span></label>
+                                    <textarea name="notes" class="form-control" rows="1" 
                                               placeholder="Observaciones..."></textarea>
                                 </div>
                             </div>
@@ -233,44 +309,58 @@
                             <div class="calc-box" id="calcBox">
                                 <h5 class="mb-3"><i class="fas fa-calculator text-primary me-2"></i>Resumen de Carga</h5>
                                 
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="calc-item">
-                                            <span class="label"><i class="fas fa-box text-primary me-2"></i>Bultos:</span>
-                                            <strong id="calcBulks">1</strong>
-                                        </div>
-                                        
-                                        <div class="calc-item">
-                                            <span class="label"><i class="fas fa-layer-group text-info me-2"></i>Displays:</span>
-                                            <strong id="calcDisplays">-</strong>
-                                        </div>
-                                        
-                                        <div class="calc-item">
-                                            <span class="label"><i class="fas fa-cubes text-success me-2"></i>Unidades Totales:</span>
-                                            <strong id="calcUnits" class="text-success">-</strong>
-                                        </div>
+                                <!-- Cantidades -->
+                                <div class="d-flex flex-wrap gap-3 mb-3">
+                                    <div class="text-center">
+                                        <small class="text-muted d-block">Bultos</small>
+                                        <strong class="fs-5" id="calcBulks">1</strong>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="calc-item">
-                                            <span class="label"><i class="fas fa-tag text-warning me-2"></i>Costo por Unidad:</span>
-                                            <strong id="calcUnitCost">-</strong>
-                                        </div>
-                                        
-                                        <div class="calc-item">
-                                            <span class="label"><i class="fas fa-dollar-sign text-success me-2"></i>Precio Venta Unit.:</span>
-                                            <strong id="calcUnitPrice" class="text-success">-</strong>
-                                        </div>
-                                        
-                                        <div class="calc-item">
-                                            <span class="label"><i class="fas fa-chart-line text-primary me-2"></i>Ganancia por Unit.:</span>
-                                            <strong id="calcUnitProfit" class="text-primary">-</strong>
-                                        </div>
+                                    <div class="text-center">
+                                        <small class="text-muted d-block">Displays</small>
+                                        <strong class="fs-5 text-info" id="calcDisplays">-</strong>
+                                    </div>
+                                    <div class="text-center">
+                                        <small class="text-muted d-block">Unidades</small>
+                                        <strong class="fs-5 text-success" id="calcUnits">-</strong>
                                     </div>
                                 </div>
-                                
-                                <hr>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold"><i class="fas fa-boxes me-2"></i>Stock Final Estimado:</span>
+
+                                <!-- Desglose de precios -->
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0 text-center" id="main-price-breakdown">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th></th>
+                                                <th><i class="fas fa-cube me-1"></i>Unidad</th>
+                                                <th><i class="fas fa-box-open me-1"></i>Display</th>
+                                                <th><i class="fas fa-boxes-stacked me-1"></i>Bulto</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="text-start fw-bold">Costo</td>
+                                                <td id="calcUnitCost" class="text-danger">-</td>
+                                                <td id="calcDisplayCost" class="text-danger">-</td>
+                                                <td id="calcBulkCost" class="text-danger">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-start fw-bold">Venta</td>
+                                                <td id="calcUnitPrice" class="text-success fw-bold">-</td>
+                                                <td id="calcDisplayPrice" class="text-success fw-bold">-</td>
+                                                <td id="calcBulkPrice" class="text-success fw-bold">-</td>
+                                            </tr>
+                                            <tr class="table-light">
+                                                <td class="text-start fw-bold">Ganancia</td>
+                                                <td id="calcUnitProfit" class="text-primary">-</td>
+                                                <td id="calcDisplayProfit" class="text-primary">-</td>
+                                                <td id="calcBulkProfit" class="text-primary">-</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <span class="fw-bold"><i class="fas fa-boxes me-2"></i>Stock Final:</span>
                                     <span class="badge bg-success fs-5" id="calcFinalStock">-</span>
                                 </div>
                             </div>
@@ -299,7 +389,7 @@
                         <i class="fas fa-history me-2"></i>Cargas Recientes
                     </h5>
                 </div>
-                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
                     {% if recent_loads %}
                         <div class="list-group list-group-flush">
                             {% for load in recent_loads %}
@@ -341,7 +431,7 @@
             </div>
 
             <!-- Ayuda -->
-            <div class="card shadow-sm mt-3">
+            <div class="card shadow-sm mt-3 mobile-hide">
                 <div class="card-header bg-info text-white">
                     <h6 class="mb-0">
                         <i class="fas fa-question-circle me-2"></i>¿Cómo usar?
@@ -364,7 +454,7 @@
             </div>
             
             <!-- Atajos -->
-            <div class="card shadow-sm mt-3">
+            <div class="card shadow-sm mt-3 mobile-hide">
                 <div class="card-header bg-secondary text-white">
                     <h6 class="mb-0">
                         <i class="fas fa-keyboard me-2"></i>Atajos de Teclado
@@ -384,7 +474,7 @@
 
 <!-- Modal: Crear Nuevo Producto con Empaques -->
 <div class="modal fade" id="createPackagingModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">
@@ -423,14 +513,13 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Unidades por Display</label>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">Unidades x Display</label>
                                     <input type="number" class="form-control" id="new-units-per-display" 
                                            value="12" min="1">
-                                    <small class="text-muted">Ej: 12 unidades en un pack</small>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Displays por Bulto</label>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">Displays x Bulto</label>
                                     <input type="number" class="form-control" id="new-displays-per-bulk" 
                                            value="12" min="1">
                                     <small class="text-muted">Ej: 12 displays en un bulto</small>
@@ -446,37 +535,23 @@
                     <!-- Códigos de Display y Unidad -->
                     <div class="card mb-3">
                         <div class="card-header bg-light">
-                            <strong><i class="fas fa-barcode me-2"></i>Códigos de Barras Adicionales (Opcional)</strong>
+                            <strong><i class="fas fa-barcode me-2"></i>Códigos Adicionales <small class="fw-normal">(Opcional)</small></strong>
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-sm-6 mb-3">
                                     <label class="form-label">
-                                        <i class="fas fa-box-open text-info me-1"></i>Código del DISPLAY
+                                        <i class="fas fa-box-open text-info me-1"></i>DISPLAY
                                     </label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="new-display-barcode" 
-                                               placeholder="Escanear código del display">
-                                        <button type="button" class="btn btn-outline-secondary" 
-                                                onclick="document.getElementById('new-display-barcode').focus()">
-                                            <i class="fas fa-barcode"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted">Puede agregarlo después</small>
+                                    <input type="text" class="form-control" id="new-display-barcode" 
+                                           placeholder="Código del display">
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-sm-6 mb-3 mb-sm-0">
                                     <label class="form-label">
-                                        <i class="fas fa-cube text-success me-1"></i>Código de la UNIDAD
+                                        <i class="fas fa-cube text-success me-1"></i>UNIDAD
                                     </label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="new-unit-barcode" 
-                                               placeholder="Escanear código de la unidad">
-                                        <button type="button" class="btn btn-outline-secondary"
-                                                onclick="document.getElementById('new-unit-barcode').focus()">
-                                            <i class="fas fa-barcode"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted">Puede agregarlo después</small>
+                                    <input type="text" class="form-control" id="new-unit-barcode" 
+                                           placeholder="Código de la unidad">
                                 </div>
                             </div>
                         </div>
@@ -489,31 +564,31 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-3 mb-3">
-                                    <label class="form-label">Precio Compra Bulto</label>
+                                <div class="col-6 col-sm-3 mb-3">
+                                    <label class="form-label">Compra Bulto</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" class="form-control" id="new-purchase-price" 
                                                step="0.01" min="0" placeholder="0.00">
                                     </div>
                                 </div>
-                                <div class="col-md-2 mb-3">
-                                    <label class="form-label">Margen %</label>
+                                <div class="col-6 col-sm-2 mb-3">
+                                    <label class="form-label">Margen</label>
                                     <div class="input-group">
                                         <input type="number" class="form-control" id="new-margin-percent" 
-                                               step="0.01" min="0" placeholder="Opcional">
+                                               step="0.01" min="0" placeholder="Opc.">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>
-                                <div class="col-md-3 mb-3">
-                                    <label class="form-label">Precio Venta Bulto</label>
+                                <div class="col-6 col-sm-3 mb-3">
+                                    <label class="form-label">Venta Bulto</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" class="form-control" id="new-sale-price" 
                                                step="0.01" min="0" placeholder="0.00">
                                     </div>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-6 col-sm-4 mb-3">
                                     <label class="form-label">Categoría</label>
                                     <select class="form-select" id="new-category">
                                         <option value="">Sin categoría</option>
@@ -932,27 +1007,48 @@ document.addEventListener('DOMContentLoaded', function() {
         const bulkQty = parseInt(bulkQtyInput.value) || 1;
         const purchasePrice = parseFloat(priceInput.value) || parseFloat(currentPackaging.purchase_price) || 0;
         const marginPercent = parseFloat(marginInput.value) || 30;
+        const unitsPerBulk = currentPackaging.units_quantity;
+        const displaysPerBulk = currentPackaging.displays_per_bulk;
         
-        const totalUnits = bulkQty * currentPackaging.units_quantity;
-        const totalDisplays = bulkQty * currentPackaging.displays_per_bulk;
+        const totalUnits = bulkQty * unitsPerBulk;
+        const totalDisplays = bulkQty * displaysPerBulk;
         
         document.getElementById('calcBulks').textContent = bulkQty;
         document.getElementById('calcDisplays').textContent = totalDisplays;
         document.getElementById('calcUnits').textContent = totalUnits;
         
         if (purchasePrice > 0) {
-            const unitCost = purchasePrice / currentPackaging.units_quantity;
-            const salePrice = purchasePrice * (1 + marginPercent / 100);
-            const unitSale = salePrice / currentPackaging.units_quantity;
-            const unitProfit = unitSale - unitCost;
+            const bulkSale = purchasePrice * (1 + marginPercent / 100);
+            const unitCost = purchasePrice / unitsPerBulk;
+            const displayCost = purchasePrice / displaysPerBulk;
+            const unitSale = bulkSale / unitsPerBulk;
+            const displaySale = bulkSale / displaysPerBulk;
             
-            document.getElementById('calcUnitCost').textContent = `$${unitCost.toFixed(2)}`;
-            document.getElementById('calcUnitPrice').textContent = `$${unitSale.toFixed(2)}`;
-            document.getElementById('calcUnitProfit').textContent = `$${unitProfit.toFixed(2)}`;
+            // Costos
+            document.getElementById('calcUnitCost').textContent = fmtPrice(unitCost);
+            document.getElementById('calcDisplayCost').textContent = fmtPrice(displayCost);
+            document.getElementById('calcBulkCost').textContent = fmtPrice(purchasePrice);
+            // Ventas
+            document.getElementById('calcUnitPrice').textContent = fmtPrice(unitSale);
+            document.getElementById('calcDisplayPrice').textContent = fmtPrice(displaySale);
+            document.getElementById('calcBulkPrice').textContent = fmtPrice(bulkSale);
+            // Ganancias
+            document.getElementById('calcUnitProfit').textContent = fmtPrice(unitSale - unitCost);
+            document.getElementById('calcDisplayProfit').textContent = fmtPrice(displaySale - displayCost);
+            document.getElementById('calcBulkProfit').textContent = fmtPrice(bulkSale - purchasePrice);
         } else {
-            document.getElementById('calcUnitCost').textContent = currentPackaging.unit_purchase_price ? `$${parseFloat(currentPackaging.unit_purchase_price).toFixed(2)}` : '-';
-            document.getElementById('calcUnitPrice').textContent = currentPackaging.unit_sale_price ? `$${parseFloat(currentPackaging.unit_sale_price).toFixed(2)}` : '-';
-            document.getElementById('calcUnitProfit').textContent = '-';
+            // Sin precio, intentar mostrar datos del packaging existente
+            const up = currentPackaging.unit_purchase_price ? parseFloat(currentPackaging.unit_purchase_price) : 0;
+            const us = currentPackaging.unit_sale_price ? parseFloat(currentPackaging.unit_sale_price) : 0;
+            document.getElementById('calcUnitCost').textContent = up > 0 ? fmtPrice(up) : '-';
+            document.getElementById('calcDisplayCost').textContent = up > 0 ? fmtPrice(up * (unitsPerBulk / displaysPerBulk)) : '-';
+            document.getElementById('calcBulkCost').textContent = '-';
+            document.getElementById('calcUnitPrice').textContent = us > 0 ? fmtPrice(us) : '-';
+            document.getElementById('calcDisplayPrice').textContent = us > 0 ? fmtPrice(us * (unitsPerBulk / displaysPerBulk)) : '-';
+            document.getElementById('calcBulkPrice').textContent = '-';
+            document.getElementById('calcUnitProfit').textContent = (up > 0 && us > 0) ? fmtPrice(us - up) : '-';
+            document.getElementById('calcDisplayProfit').textContent = '-';
+            document.getElementById('calcBulkProfit').textContent = '-';
         }
         
         const finalStock = currentPackaging.current_stock + totalUnits;
