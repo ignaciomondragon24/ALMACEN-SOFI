@@ -42,9 +42,7 @@ RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 # Expose port
 EXPOSE ${PORT}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health/')" || exit 1
+# Railway handles healthchecks via railway.toml - no Docker HEALTHCHECK needed
 
 # Run
 CMD ["/app/start.sh"]
