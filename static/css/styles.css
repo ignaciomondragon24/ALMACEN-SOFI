@@ -475,12 +475,12 @@ a:hover {
    ============================================ */
 
 /* Table Styles with Brand Colors */
-.table thead {
+.table thead:not(.table-light):not(.table-dark) {
     background: linear-gradient(135deg, #2D1E5F, #3D2E6F);
     color: white;
 }
 
-.table thead th {
+.table thead:not(.table-light):not(.table-dark) th {
     border: none;
     font-weight: 600;
     text-transform: uppercase;
