@@ -1,6 +1,7 @@
 # Railway deployment config
 
 [deploy]
+startCommand = "bash /app/start.sh"
 healthcheckPath = "/health/"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
