@@ -489,20 +489,28 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Precio de Compra por Bulto</label>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Precio Compra Bulto</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" class="form-control" id="new-purchase-price" 
                                                step="0.01" min="0" placeholder="0.00">
                                     </div>
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Margen de Ganancia</label>
+                                <div class="col-md-2 mb-3">
+                                    <label class="form-label">Margen %</label>
                                     <div class="input-group">
                                         <input type="number" class="form-control" id="new-margin-percent" 
                                                value="30" step="0.01" min="0">
                                         <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Precio Venta Bulto</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="new-sale-price" 
+                                               step="0.01" min="0" placeholder="Auto">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
@@ -701,6 +709,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('new-displays-per-bulk').value = '12';
         document.getElementById('new-purchase-price').value = '';
         document.getElementById('new-margin-percent').value = '30';
+        document.getElementById('new-sale-price').value = '';
         document.getElementById('new-category').value = '';
         
         updateModalCalculations();
@@ -713,7 +722,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500);
     };
     
-    // Actualizar cálculos del modal
+    // Actualizar cálculos del modal (costo + margen → venta)
     function updateModalCalculations() {
         const unitsPerDisplay = parseInt(document.getElementById('new-units-per-display').value) || 1;
         const displaysPerBulk = parseInt(document.getElementById('new-displays-per-bulk').value) || 1;
@@ -725,17 +734,36 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (purchasePrice > 0) {
             const bulkSale = purchasePrice * (1 + marginPercent / 100);
-            const unitPrice = bulkSale / totalUnits;
-            const displayPrice = bulkSale / displaysPerBulk;
-            
-            document.getElementById('calc-unit-price').textContent = `$${unitPrice.toFixed(2)}`;
-            document.getElementById('calc-display-price').textContent = `$${displayPrice.toFixed(2)}`;
-            document.getElementById('calc-bulk-price').textContent = `$${bulkSale.toFixed(2)}`;
+            document.getElementById('new-sale-price').value = bulkSale.toFixed(2);
+            displayModalPrices(bulkSale, totalUnits, displaysPerBulk);
         } else {
             document.getElementById('calc-unit-price').textContent = '$0.00';
             document.getElementById('calc-display-price').textContent = '$0.00';
             document.getElementById('calc-bulk-price').textContent = '$0.00';
         }
+    }
+
+    // Calcular margen desde precio de venta del modal
+    function updateModalMarginFromSale() {
+        const purchasePrice = parseFloat(document.getElementById('new-purchase-price').value) || 0;
+        const bulkSale = parseFloat(document.getElementById('new-sale-price').value) || 0;
+        const unitsPerDisplay = parseInt(document.getElementById('new-units-per-display').value) || 1;
+        const displaysPerBulk = parseInt(document.getElementById('new-displays-per-bulk').value) || 1;
+        const totalUnits = unitsPerDisplay * displaysPerBulk;
+        
+        if (purchasePrice > 0 && bulkSale > 0) {
+            const margin = ((bulkSale - purchasePrice) / purchasePrice) * 100;
+            document.getElementById('new-margin-percent').value = margin.toFixed(2);
+            displayModalPrices(bulkSale, totalUnits, displaysPerBulk);
+        }
+    }
+
+    function displayModalPrices(bulkSale, totalUnits, displaysPerBulk) {
+        const unitPrice = bulkSale / totalUnits;
+        const displayPrice = bulkSale / displaysPerBulk;
+        document.getElementById('calc-unit-price').textContent = `$${unitPrice.toFixed(2)}`;
+        document.getElementById('calc-display-price').textContent = `$${displayPrice.toFixed(2)}`;
+        document.getElementById('calc-bulk-price').textContent = `$${bulkSale.toFixed(2)}`;
     }
     
     // Event listeners para cálculos del modal
@@ -745,6 +773,11 @@ document.addEventListener('DOMContentLoaded', function() {
             el.addEventListener('input', updateModalCalculations);
         }
     });
+    // Listener para precio de venta manual en modal
+    const newSalePriceEl = document.getElementById('new-sale-price');
+    if (newSalePriceEl) {
+        newSalePriceEl.addEventListener('input', updateModalMarginFromSale);
+    }
     
     // Crear producto con empaques
     document.getElementById('confirmCreatePackaging').addEventListener('click', async function() {

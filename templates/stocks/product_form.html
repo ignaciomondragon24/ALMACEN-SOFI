@@ -237,15 +237,31 @@
 
 {% block extra_js %}
 <script>
-    // Auto-calculate sale price from cost and margin
-    document.getElementById('id_cost_price').addEventListener('input', calculateSalePrice);
-    document.getElementById('id_margin').addEventListener('input', calculateSalePrice);
+    // Bidirectional price/margin calculation
+    const costInput = document.getElementById('id_cost_price');
+    const marginInput = document.getElementById('id_margin');
+    const saleInput = document.getElementById('id_sale_price');
+
+    costInput.addEventListener('input', calculateSalePrice);
+    marginInput.addEventListener('input', calculateSalePrice);
+    saleInput.addEventListener('input', calculateMargin);
     
     function calculateSalePrice() {
-        const cost = parseFloat(document.getElementById('id_cost_price').value) || 0;
-        const margin = parseFloat(document.getElementById('id_margin').value) || 0;
-        const salePrice = cost * (1 + margin / 100);
-        document.getElementById('id_sale_price').value = salePrice.toFixed(2);
+        const cost = parseFloat(costInput.value) || 0;
+        const margin = parseFloat(marginInput.value) || 0;
+        if (cost > 0) {
+            const salePrice = cost * (1 + margin / 100);
+            saleInput.value = salePrice.toFixed(2);
+        }
+    }
+
+    function calculateMargin() {
+        const cost = parseFloat(costInput.value) || 0;
+        const sale = parseFloat(saleInput.value) || 0;
+        if (cost > 0 && sale > 0) {
+            const margin = ((sale - cost) / cost) * 100;
+            marginInput.value = margin.toFixed(2);
+        }
     }
     
     // Generate barcode

@@ -424,8 +424,8 @@
                                     <label class="form-label">Precio de Venta (calculado)</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
-                                        <input type="text" id="pkg_sale_preview" class="form-control" 
-                                               readonly disabled>
+                                        <input type="number" id="pkg_sale_preview" class="form-control text-end" 
+                                               step="0.01" min="0" placeholder="Auto o manual">
                                     </div>
                                 </div>
                             </div>
@@ -527,7 +527,7 @@ function generateBarcode() {
         });
 }
 
-// Actualizar cálculos de precio
+// Actualizar cálculos de precio (costo + margen → venta)
 function updatePriceCalculations() {
     const unitsPerDisplay = parseInt(document.getElementById('pkg_units_per_display').value) || 1;
     const displaysPerBulk = parseInt(document.getElementById('pkg_displays_per_bulk').value) || 1;
@@ -540,20 +540,39 @@ function updatePriceCalculations() {
     if (purchasePrice > 0) {
         const salePrice = purchasePrice * (1 + marginPercent / 100);
         document.getElementById('pkg_sale_preview').value = salePrice.toFixed(2);
-        
-        const unitPrice = salePrice / totalUnits;
-        document.getElementById('unitPriceValue').textContent = unitPrice.toFixed(2);
-        document.getElementById('unitPricePreview').style.display = 'block';
+        updateUnitPreview(salePrice, totalUnits);
     } else {
         document.getElementById('pkg_sale_preview').value = '';
         document.getElementById('unitPricePreview').style.display = 'none';
     }
 }
 
+// Calcular margen desde precio de venta (venta + costo → margen)
+function updateMarginFromSale() {
+    const purchasePrice = parseFloat(document.getElementById('pkg_purchase_price').value) || 0;
+    const salePrice = parseFloat(document.getElementById('pkg_sale_preview').value) || 0;
+    const unitsPerDisplay = parseInt(document.getElementById('pkg_units_per_display').value) || 1;
+    const displaysPerBulk = parseInt(document.getElementById('pkg_displays_per_bulk').value) || 1;
+    const totalUnits = unitsPerDisplay * displaysPerBulk;
+    
+    if (purchasePrice > 0 && salePrice > 0) {
+        const margin = ((salePrice - purchasePrice) / purchasePrice) * 100;
+        document.getElementById('pkg_margin_percent').value = margin.toFixed(2);
+        updateUnitPreview(salePrice, totalUnits);
+    }
+}
+
+function updateUnitPreview(salePrice, totalUnits) {
+    const unitPrice = salePrice / totalUnits;
+    document.getElementById('unitPriceValue').textContent = unitPrice.toFixed(2);
+    document.getElementById('unitPricePreview').style.display = 'block';
+}
+
 // Event listeners para actualizar cálculos
 ['pkg_units_per_display', 'pkg_displays_per_bulk', 'pkg_purchase_price', 'pkg_margin_percent'].forEach(id => {
     document.getElementById(id).addEventListener('input', updatePriceCalculations);
 });
+document.getElementById('pkg_sale_preview').addEventListener('input', updateMarginFromSale);
 
 // Auto-focus en código de barras al abrir modal
 document.getElementById('packagingModal').addEventListener('shown.bs.modal', function() {
