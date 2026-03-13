@@ -1,5 +1,6 @@
 [phases.setup]
-aptPkgs = ["libpq-dev", "libjpeg-dev", "zlib1g-dev", "libpng-dev", "libfreetype6-dev", "libcairo2-dev", "pkg-config"]
+nixPkgs = ["cairo", "pkg-config", "gobject-introspection", "libpq", "libjpeg", "zlib", "libpng", "freetype"]
+aptPkgs = ["libcairo2-dev", "libpq-dev", "libjpeg-dev", "zlib1g-dev", "libpng-dev", "libfreetype6-dev", "pkg-config"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
