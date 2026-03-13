@@ -15,6 +15,10 @@ python manage.py migrate --noinput || echo "WARNING: Migration failed, continuin
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."
 
+# Load kiosko products (idempotente - usa get_or_create, seguro de correr siempre)
+echo "Loading kiosko products..."
+python manage.py load_kiosko_products || echo "WARNING: load_kiosko_products failed, continuing..."
+
 # Collect static files
 echo "Collecting static files..."
 python manage.py collectstatic --noinput || echo "WARNING: collectstatic failed, continuing..."
