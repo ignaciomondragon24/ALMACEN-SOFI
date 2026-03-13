@@ -226,7 +226,8 @@
             ? quickProductsCache.filter(p =>
                 p.name.toLowerCase().includes(filter) ||
                 (p.barcode || '').includes(filter) ||
-                (p.sku || '').toLowerCase().includes(filter)
+                (p.sku || '').toLowerCase().includes(filter) ||
+                (p.category || '').toLowerCase().includes(filter)
             )
             : quickProductsCache;
 
@@ -235,21 +236,56 @@
             return;
         }
 
-        qpList.innerHTML = list.slice(0, 80).map(p => `
-            <div class="quick-product-item" tabindex="0"
-                 data-product-id="${p.id}" data-is-bulk="${p.is_bulk}"
-                 role="button" title="${p.name}">
-                <span class="quick-product-code">${p.barcode || p.sku || '—'}</span>
-                <span class="quick-product-name">${p.name}</span>
-                <span class="quick-product-price">${window.POS_formatCurrency?.(p.unit_price) || '$' + p.unit_price}</span>
-            </div>
-        `).join('');
+        // Group by category
+        const grouped = {};
+        list.forEach(p => {
+            const cat = p.category || 'Sin categoría';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(p);
+        });
+
+        let html = '';
+        Object.keys(grouped).sort().forEach(catName => {
+            const products = grouped[catName];
+            html += `
+                <div class="qp-category-header" style="
+                    padding:5px 6px;margin-top:6px;margin-bottom:2px;
+                    background:rgba(0,210,211,0.06);border-radius:4px;
+                    font-size:0.7rem;font-weight:700;color:#00d2d3;
+                    text-transform:uppercase;letter-spacing:0.05em;
+                    display:flex;justify-content:space-between;align-items:center;
+                    cursor:pointer;user-select:none;" data-cat="${catName}">
+                    <span><i class="fas fa-tag me-1" style="font-size:0.6rem;"></i>${catName}</span>
+                    <span style="font-size:0.62rem;color:#666;">${products.length} prod.</span>
+                </div>
+            `;
+            products.slice(0, 50).forEach(p => {
+                const stockColor = p.stock <= 0 ? '#e74c3c' : p.stock <= 5 ? '#f0c040' : '#2ecc71';
+                html += `
+                    <div class="quick-product-item" tabindex="0"
+                         data-product-id="${p.id}" data-is-bulk="${p.is_bulk}"
+                         role="button" title="${p.name}&#10;Venta: $${p.unit_price}&#10;Costo: $${p.cost_price || 0}&#10;Stock: ${p.stock}">
+                        <span class="quick-product-name" style="flex:1;min-width:0;">
+                            ${p.name}
+                            <span style="display:block;font-size:0.62rem;color:#777;margin-top:1px;">
+                                ${p.barcode || p.sku || '—'}
+                            </span>
+                        </span>
+                        <span style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;gap:1px;">
+                            <span class="quick-product-price" style="font-size:0.76rem;">${window.POS_formatCurrency?.(p.unit_price) || '$' + p.unit_price}</span>
+                            <span style="font-size:0.6rem;color:#888;">costo: ${window.POS_formatCurrency?.(p.cost_price || 0) || '$0'}</span>
+                            <span style="font-size:0.58rem;color:${stockColor};font-weight:600;">stk: ${p.stock}</span>
+                        </span>
+                    </div>
+                `;
+            });
+        });
+
+        qpList.innerHTML = html;
 
         qpList.querySelectorAll('.quick-product-item').forEach(item => {
             const addProduct = () => {
                 const id = parseInt(item.dataset.productId);
-                // Trigger via window global exposed by pos-main.js (addToCart is inside IIFE)
-                // We use a custom event to communicate
                 document.dispatchEvent(new CustomEvent('pos:addToCart', { detail: { productId: id, quantity: 1 } }));
             };
             item.addEventListener('click', addProduct);

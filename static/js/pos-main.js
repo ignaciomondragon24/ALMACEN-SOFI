@@ -1392,145 +1392,188 @@
         }
     }
     
-    // Cost Sale Modal Functions
+    // Cost Sale — uses same overlay style as fast checkout
+    let costSaleActive = false;
+
     function openCostSaleModal() {
-        const costSaleModal = document.getElementById('costSaleModal');
-        if (!costSaleModal) return;
-        
-        // Calculate cost total (estimate - real calculation happens on server)
-        // We'll show the current total as estimate
-        const costSaleTotal = document.getElementById('cost-sale-total');
-        if (costSaleTotal) {
-            costSaleTotal.textContent = 'Calculando...';
-        }
-        
-        // Clear items list temporarily
-        const costSaleItems = document.getElementById('cost-sale-items');
-        if (costSaleItems) {
-            costSaleItems.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Calculando costos...</div>';
-        }
-        
-        // Fetch cost total from server
-        fetchCostTotal();
-        
-        const modal = new bootstrap.Modal(costSaleModal);
-        modal.show();
-        
-        // Setup confirm button
-        const confirmBtn = document.getElementById('confirm-cost-sale');
-        if (confirmBtn) {
-            // Remove old listeners
-            const newBtn = confirmBtn.cloneNode(true);
-            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
-            
-            newBtn.addEventListener('click', processCostSale);
-        }
-    }
-    
-    async function fetchCostTotal() {
-        const costSaleTotal = document.getElementById('cost-sale-total');
-        const costSaleItems = document.getElementById('cost-sale-items');
-        
-        try {
-            const response = await fetch(API_URLS.calculateCost);
-            const data = await response.json();
-            
-            if (data.success) {
-                // Store the cost total for later use
-                window.costSaleTotal = data.total_cost;
-                
-                if (costSaleTotal) {
-                    costSaleTotal.textContent = formatCurrency(data.total_cost);
+        if (!cart.items?.length) { showToast('El carrito está vacío', 'warning'); return; }
+        if (costSaleActive || fcoActive) return;
+
+        const methods = (typeof PAYMENT_METHODS !== 'undefined') ? [...PAYMENT_METHODS] : [];
+        if (methods.length === 0) { showToast('No hay métodos de pago configurados', 'error'); return; }
+        // Remove mixed option for cost sale
+        const filteredMethods = methods.filter(m => m.code !== 'mixed');
+
+        // Clean up
+        const oldOverlay = document.getElementById('cost-sale-overlay');
+        if (oldOverlay) oldOverlay.remove();
+        const openModal = document.querySelector('.modal.show');
+        if (openModal) { const bsModal = bootstrap.Modal.getInstance(openModal); if (bsModal) bsModal.hide(); }
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        costSaleActive = true;
+        let selIdx = 0;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'cost-sale-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;animation:fcoFadeIn .18s ease-out;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)';
+
+        overlay.innerHTML = `
+            <div class="fco-box" style="max-width:580px;">
+                <div class="fco-header" style="background:linear-gradient(135deg,rgba(110,168,254,0.08) 0%,rgba(107,33,168,0.06) 100%);">
+                    <span class="fco-header-label"><i class="fas fa-tag me-2"></i>VENTA AL COSTO</span>
+                    <span class="fco-header-total" id="cso-total" style="color:#6ea8fe;">Calculando...</span>
+                </div>
+                <div style="padding:12px 20px;background:rgba(110,168,254,0.04);border-bottom:1px solid rgba(110,168,254,0.08);font-size:0.8rem;color:#888;">
+                    <i class="fas fa-info-circle me-1" style="color:#6ea8fe;"></i>
+                    Productos al <strong style="color:#ddd;">precio de costo</strong>. Ideal para empleados o dueños.
+                </div>
+                <div style="padding:10px 20px;max-height:140px;overflow-y:auto;border-bottom:1px solid rgba(50,50,75,0.4);" id="cso-items">
+                    <div style="text-align:center;color:#666;padding:8px 0;"><i class="fas fa-spinner fa-spin me-1"></i>Calculando costos...</div>
+                </div>
+                <div style="padding:10px 20px;">
+                    <label style="color:#888;font-size:0.78rem;margin-bottom:4px;display:block;">Nota / Quién consume:</label>
+                    <input type="text" id="cso-note" placeholder="Ej: Juan Pérez - Empleado"
+                           style="width:100%;background:#0c0c1c;border:1.5px solid rgba(50,50,75,0.7);border-radius:8px;color:#eee;padding:7px 12px;font-size:0.85rem;outline:none;"
+                           autocomplete="off">
+                </div>
+                <div class="fco-methods" id="cso-methods">
+                    ${filteredMethods.map((m, i) => `
+                        <button class="fco-method${i === selIdx ? ' selected' : ''}"
+                                data-idx="${i}" data-method-id="${m.id}" data-method-code="${m.code}"
+                                tabindex="-1" type="button"
+                                style="${i === selIdx ? 'border-color:#6ea8fe;color:#fff;background:rgba(110,168,254,0.08);box-shadow:0 0 18px rgba(110,168,254,0.18)' : ''}">
+                            <i class="${m.icon} fco-method-icon"></i>
+                            <span class="fco-method-name">${m.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="fco-footer">
+                    <span class="fco-hint">
+                        <kbd>←</kbd><kbd>→</kbd> método
+                        <kbd>Enter</kbd> cobrar
+                        <kbd>Esc</kbd> cancelar
+                    </span>
+                    <button type="button" class="btn fco-btn-confirm" id="cso-confirm" disabled
+                            style="background:rgba(110,168,254,0.15);border:1.5px solid rgba(110,168,254,0.3);color:#6ea8fe;border-radius:10px;font-weight:700;padding:8px 20px;">
+                        <i class="fas fa-check me-2"></i>COBRAR AL COSTO
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const confirmBtn = document.getElementById('cso-confirm');
+        const noteInput = document.getElementById('cso-note');
+        let costTotal = 0;
+
+        // Fetch cost total
+        fetch(API_URLS.calculateCost)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    costTotal = data.total_cost;
+                    document.getElementById('cso-total').textContent = formatCurrency(costTotal);
+                    confirmBtn.disabled = false;
+                    if (data.items) {
+                        document.getElementById('cso-items').innerHTML = data.items.map(item => `
+                            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;">
+                                <span style="color:#bbb;">${item.product_name} x ${item.quantity}</span>
+                                <span style="color:#6ea8fe;font-weight:600;">${formatCurrency(item.total)}</span>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    document.getElementById('cso-total').textContent = 'Error';
                 }
-                
-                if (costSaleItems && data.items) {
-                    costSaleItems.innerHTML = data.items.map(item => `
-                        <div class="d-flex justify-content-between py-1 border-bottom border-secondary">
-                            <span>${item.product_name} x ${item.quantity}</span>
-                            <span>${formatCurrency(item.total)}</span>
-                        </div>
-                    `).join('');
-                }
-            } else {
-                if (costSaleTotal) {
-                    costSaleTotal.textContent = 'Error';
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching cost total:', error);
-            if (costSaleTotal) {
-                costSaleTotal.textContent = 'Error de conexión';
-            }
+            })
+            .catch(() => { document.getElementById('cso-total').textContent = 'Error'; });
+
+        function getCards() { return Array.from(document.querySelectorAll('#cso-methods .fco-method')); }
+
+        function setSelected(idx) {
+            const cards = getCards();
+            selIdx = Math.max(0, Math.min(cards.length - 1, idx));
+            cards.forEach((c, i) => {
+                const isSel = i === selIdx;
+                c.classList.toggle('selected', isSel);
+                c.style.borderColor = isSel ? '#6ea8fe' : '';
+                c.style.color = isSel ? '#fff' : '';
+                c.style.background = isSel ? 'rgba(110,168,254,0.08)' : '';
+                c.style.boxShadow = isSel ? '0 0 18px rgba(110,168,254,0.18)' : '';
+            });
         }
-    }
-    
-    async function processCostSale() {
-        const note = document.getElementById('cost-sale-note')?.value || '';
-        const selectedMethod = document.querySelector('input[name="cost-payment-method"]:checked');
-        
-        if (!selectedMethod) {
-            showToast('Seleccione un método de pago', 'warning');
-            return;
+
+        function closeOverlay(skipFocus) {
+            if (!costSaleActive) return;
+            costSaleActive = false;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            if (!skipFocus) productSearch?.focus();
         }
-        
-        const costTotal = window.costSaleTotal || 0;
-        if (costTotal <= 0) {
-            showToast('Error: No se pudo calcular el costo', 'error');
-            return;
-        }
-        
-        const confirmBtn = document.getElementById('confirm-cost-sale');
-        if (confirmBtn) {
+
+        async function doConfirm() {
+            const card = getCards()[selIdx];
+            if (!card || costTotal <= 0) { showToast('Esperando cálculo de costos...', 'warning'); return; }
+
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
-        }
-        
-        try {
-            const response = await fetch(API_URLS.costSale, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': CSRF_TOKEN
-                },
-                body: JSON.stringify({
-                    transaction_id: TRANSACTION_ID,
-                    payments: [{
-                        method_id: selectedMethod.dataset.methodId,
-                        method_code: selectedMethod.dataset.methodCode,
-                        amount: costTotal
-                    }],
-                    note: note
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                showToast(`Venta al costo completada. Total: ${formatCurrency(data.total)}`, 'success');
-                
-                // Close modal and redirect to ticket
-                bootstrap.Modal.getInstance(document.getElementById('costSaleModal'))?.hide();
-                
-                if (data.transaction_id) {
-                    window.open(`/pos/ticket/${data.transaction_id}/`, '_blank');
-                }
-                
-                window.location.reload();
-            } else {
-                showToast(data.error || 'Error al procesar venta al costo', 'error');
-                if (confirmBtn) {
+
+            try {
+                const resp = await fetch(API_URLS.costSale, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify({
+                        transaction_id: TRANSACTION_ID,
+                        payments: [{ method_id: parseInt(card.dataset.methodId), method_code: card.dataset.methodCode, amount: costTotal }],
+                        note: noteInput?.value || ''
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    closeOverlay(true);
+                    showToast(`Venta al costo completada. Total: ${formatCurrency(data.total)}`, 'success');
+                    if (data.transaction_id) window.open(`/pos/ticket/${data.transaction_id}/`, '_blank');
+                    window.location.reload();
+                } else {
+                    showToast(data.error || 'Error al procesar', 'error');
                     confirmBtn.disabled = false;
-                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Venta al Costo';
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR AL COSTO';
                 }
-            }
-        } catch (error) {
-            console.error('Cost sale error:', error);
-            showToast('Error de conexión', 'error');
-            if (confirmBtn) {
+            } catch (err) {
+                showToast('Error de conexión', 'error');
                 confirmBtn.disabled = false;
-                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Venta al Costo';
+                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR AL COSTO';
             }
         }
+
+        function onKey(e) {
+            if (!costSaleActive) return;
+            if (document.activeElement === noteInput) {
+                if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); if (!confirmBtn.disabled) doConfirm(); }
+                else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); closeOverlay(); }
+                else if (/^F\d+$/.test(e.key)) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+                return;
+            }
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+            switch (e.key) {
+                case 'Escape': closeOverlay(); break;
+                case 'ArrowLeft': case 'ArrowUp': setSelected(selIdx - 1); break;
+                case 'ArrowRight': case 'ArrowDown': setSelected(selIdx + 1); break;
+                case 'Tab': noteInput?.focus(); break;
+                case 'Enter': if (!confirmBtn.disabled) doConfirm(); break;
+            }
+        }
+
+        document.addEventListener('keydown', onKey, true);
+        getCards().forEach((c, i) => c.addEventListener('click', () => { setSelected(i); noteInput?.focus(); }));
+        confirmBtn.addEventListener('click', doConfirm);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+        setTimeout(() => noteInput?.focus(), 50);
     }
     
     // Internal Consumption Modal Functions
@@ -2819,11 +2862,75 @@
     // Build a lookup map:  key → action  (e.g. 'F8' → 'checkout')
     let shortcutMap = {};
 
+    // Map action → button element ID for badge updates
+    const ACTION_BUTTON_MAP = {
+        'help': null,
+        'search_focus': null,
+        'clear_cart': null,
+        'hold': 'btn-hold',
+        'suspended': 'btn-suspended',
+        'discount': 'btn-discount',
+        'cancel': 'btn-cancel',
+        'checkout': 'btn-checkout',
+        'reprint': 'btn-reprint',
+        'cost_sale': 'btn-cost-sale',
+        'internal_consumption': 'btn-internal-consumption',
+        'dashboard': null,
+    };
+
     function buildShortcutMap(shortcuts) {
         shortcutMap = {};
         (shortcuts || []).forEach(sc => {
             if (sc.is_enabled && sc.key && sc.key !== 'none') {
                 shortcutMap[sc.key] = sc.action;
+            }
+        });
+        // Update shortcut badges on buttons
+        updateShortcutBadges(shortcuts || []);
+    }
+
+    function updateShortcutBadges(shortcuts) {
+        // Build action→key map
+        const actionKeyMap = {};
+        shortcuts.forEach(sc => {
+            actionKeyMap[sc.action] = (sc.key && sc.key !== 'none') ? sc.key : null;
+        });
+        // Update each button badge
+        Object.entries(ACTION_BUTTON_MAP).forEach(([action, btnId]) => {
+            if (!btnId) return;
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            let badge = btn.querySelector('.shortcut-badge');
+            const keyLabel = actionKeyMap[action] || null;
+            if (keyLabel) {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'shortcut-badge';
+                    btn.appendChild(badge);
+                }
+                badge.textContent = keyLabel;
+                badge.style.display = '';
+            } else if (badge) {
+                badge.style.display = 'none';
+            }
+        });
+        // Also update quick pay buttons' key badges in sidebar
+        document.querySelectorAll('.quick-pay-btn').forEach(btn => {
+            const methodCode = btn.dataset.methodCode;
+            const payAction = 'pay_' + methodCode;
+            const keyLabel = actionKeyMap[payAction] || null;
+            let keyBadge = btn.querySelector('.pay-key');
+            if (keyLabel) {
+                if (!keyBadge) {
+                    keyBadge = document.createElement('span');
+                    keyBadge.className = 'pay-key';
+                    btn.appendChild(keyBadge);
+                }
+                keyBadge.textContent = keyLabel;
+                keyBadge.style.display = '';
+                keyBadge.classList.remove('none');
+            } else if (keyBadge) {
+                keyBadge.style.display = 'none';
             }
         });
     }

@@ -60,11 +60,11 @@ class Command(BaseCommand):
         self.stdout.write('Creating payment methods...')
         
         methods = [
-            {'code': 'cash', 'name': 'Efectivo', 'is_cash': True, 'icon': 'fa-money-bill-wave', 'position': 1},
-            {'code': 'debit', 'name': 'Débito', 'is_cash': False, 'icon': 'fa-credit-card', 'position': 2},
-            {'code': 'credit', 'name': 'Crédito', 'is_cash': False, 'icon': 'fa-credit-card', 'position': 3},
-            {'code': 'transfer', 'name': 'Transferencia', 'is_cash': False, 'icon': 'fa-university', 'position': 4},
-            {'code': 'mercadopago', 'name': 'MercadoPago', 'is_cash': False, 'icon': 'fa-mobile-alt', 'position': 5},
+            {'code': 'cash', 'name': 'Efectivo', 'is_cash': True, 'icon': 'fas fa-money-bill-wave', 'position': 1},
+            {'code': 'debit', 'name': 'Débito', 'is_cash': False, 'icon': 'fas fa-credit-card', 'position': 2},
+            {'code': 'credit', 'name': 'Crédito', 'is_cash': False, 'icon': 'fas fa-credit-card', 'position': 3},
+            {'code': 'transfer', 'name': 'Transferencia', 'is_cash': False, 'icon': 'fas fa-building-columns', 'position': 4},
+            {'code': 'mercadopago', 'name': 'MercadoPago', 'is_cash': False, 'icon': 'fas fa-wallet', 'position': 5},
         ]
         
         for method_data in methods:
@@ -75,7 +75,13 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'  ✓ Created payment method: {method.name}')
             else:
-                self.stdout.write(f'  - Payment method exists: {method.name}')
+                # Fix icons on existing methods if they're wrong/missing prefix
+                if method.icon != method_data['icon']:
+                    method.icon = method_data['icon']
+                    method.save(update_fields=['icon'])
+                    self.stdout.write(f'  ↻ Updated icon for: {method.name}')
+                else:
+                    self.stdout.write(f'  - Payment method exists: {method.name}')
 
     def create_cash_registers(self):
         """Create default cash registers."""

@@ -350,10 +350,10 @@
     .quick-product-item {
         display: flex;
         align-items: center;
-        padding: 6px 4px;
+        padding: 6px 6px;
         border-bottom: 1px solid rgba(255,255,255,0.05);
         cursor: pointer;
-        gap: 8px;
+        gap: 6px;
         transition: background 0.15s;
         border-radius: 3px;
     }
@@ -369,8 +369,8 @@
         min-width: 55px;
         flex-shrink: 0;
     }
-    .quick-product-name { color: #ddd; font-size: 0.8rem; flex: 1; }
-    .quick-product-price { color: #00d2d3; font-size: 0.78rem; flex-shrink: 0; white-space: nowrap; }
+    .quick-product-name { color: #ddd; font-size: 0.78rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .quick-product-price { color: #00d2d3; font-size: 0.78rem; flex-shrink: 0; white-space: nowrap; font-weight: 600; }
     #quick-products-search {
         background: #1a1a2e;
         border: 1px solid #333;

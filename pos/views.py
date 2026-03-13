@@ -180,7 +180,7 @@ def api_all_products(request):
     """Return all active products for the sidebar products panel."""
     products = Product.objects.filter(is_active=True).select_related(
         'unit_of_measure', 'category'
-    ).order_by('name')
+    ).order_by('category__name', 'name')
     return JsonResponse({
         'products': [
             {
@@ -189,11 +189,14 @@ def api_all_products(request):
                 'barcode': p.barcode or '',
                 'sku': p.sku or '',
                 'unit_price': float(p.sale_price),
+                'cost_price': float(p.cost_price or p.purchase_price or 0),
                 'stock': float(p.current_stock),
                 'unit': p.get_unit_display(),
                 'is_bulk': p.is_bulk,
                 'bulk_unit': p.bulk_unit if p.is_bulk else None,
                 'allow_sell_by_amount': p.allow_sell_by_amount,
+                'category': p.category.name if p.category else 'Sin categoría',
+                'category_id': p.category_id or 0,
             }
             for p in products
         ]
