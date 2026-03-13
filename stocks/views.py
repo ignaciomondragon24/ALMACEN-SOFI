@@ -703,7 +703,8 @@ def api_create_product_with_packaging(request):
         units_per_display = int(data.get('units_per_display', 1))
         displays_per_bulk = int(data.get('displays_per_bulk', 1))
         purchase_price = Decimal(str(data.get('purchase_price', 0)))
-        margin_percent = Decimal(str(data.get('margin_percent', 30)))
+        margin_percent = Decimal(str(data.get('margin_percent', 0)))
+        sale_price_input = data.get('sale_price')
         category_id = data.get('category_id')
         
         # Códigos opcionales
@@ -732,8 +733,17 @@ def api_create_product_with_packaging(request):
         
         # Calcular totales
         total_units = units_per_display * displays_per_bulk
-        margin_multiplier = 1 + (margin_percent / 100)
-        bulk_sale = purchase_price * margin_multiplier if purchase_price > 0 else Decimal('0')
+        
+        # Determinar precio de venta: prioridad sale_price directo > margen
+        if sale_price_input and Decimal(str(sale_price_input)) > 0:
+            bulk_sale = Decimal(str(sale_price_input))
+            if purchase_price > 0:
+                margin_percent = ((bulk_sale - purchase_price) / purchase_price) * 100
+        elif purchase_price > 0 and margin_percent > 0:
+            margin_multiplier = 1 + (margin_percent / 100)
+            bulk_sale = purchase_price * margin_multiplier
+        else:
+            bulk_sale = Decimal('0')
         
         unit_purchase = purchase_price / total_units if total_units > 0 and purchase_price > 0 else Decimal('0')
         unit_sale = bulk_sale / total_units if total_units > 0 and bulk_sale > 0 else Decimal('0')

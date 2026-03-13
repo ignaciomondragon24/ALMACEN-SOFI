@@ -501,7 +501,7 @@
                                     <label class="form-label">Margen %</label>
                                     <div class="input-group">
                                         <input type="number" class="form-control" id="new-margin-percent" 
-                                               value="30" step="0.01" min="0">
+                                               step="0.01" min="0" placeholder="Opcional">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>
@@ -510,7 +510,7 @@
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" class="form-control" id="new-sale-price" 
-                                               step="0.01" min="0" placeholder="Auto">
+                                               step="0.01" min="0" placeholder="0.00">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
@@ -523,21 +523,38 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="alert alert-success mb-0">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <small class="text-muted">Precio x Unidad:</small><br>
-                                        <strong id="calc-unit-price">$0.00</strong>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <small class="text-muted">Precio x Display:</small><br>
-                                        <strong id="calc-display-price">$0.00</strong>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <small class="text-muted">Precio Venta Bulto:</small><br>
-                                        <strong id="calc-bulk-price">$0.00</strong>
-                                    </div>
-                                </div>
+                            <!-- Desglose completo de precios -->
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered mb-0 text-center" id="price-breakdown-table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th></th>
+                                            <th><i class="fas fa-cube me-1"></i>Unidad</th>
+                                            <th><i class="fas fa-box-open me-1"></i>Display</th>
+                                            <th><i class="fas fa-boxes-stacked me-1"></i>Bulto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-start fw-bold">Costo</td>
+                                            <td id="calc-unit-cost" class="text-danger">-</td>
+                                            <td id="calc-display-cost" class="text-danger">-</td>
+                                            <td id="calc-bulk-cost" class="text-danger">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-start fw-bold">Venta</td>
+                                            <td id="calc-unit-price" class="text-success fw-bold">-</td>
+                                            <td id="calc-display-price" class="text-success fw-bold">-</td>
+                                            <td id="calc-bulk-price" class="text-success fw-bold">-</td>
+                                        </tr>
+                                        <tr class="table-light">
+                                            <td class="text-start fw-bold">Ganancia</td>
+                                            <td id="calc-unit-profit" class="text-primary">-</td>
+                                            <td id="calc-display-profit" class="text-primary">-</td>
+                                            <td id="calc-bulk-profit" class="text-primary">-</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -708,10 +725,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('new-units-per-display').value = '12';
         document.getElementById('new-displays-per-bulk').value = '12';
         document.getElementById('new-purchase-price').value = '';
-        document.getElementById('new-margin-percent').value = '30';
+        document.getElementById('new-margin-percent').value = '';
         document.getElementById('new-sale-price').value = '';
         document.getElementById('new-category').value = '';
         
+        clearBreakdown();
         updateModalCalculations();
         
         const modal = new bootstrap.Modal(document.getElementById('createPackagingModal'));
@@ -727,19 +745,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const unitsPerDisplay = parseInt(document.getElementById('new-units-per-display').value) || 1;
         const displaysPerBulk = parseInt(document.getElementById('new-displays-per-bulk').value) || 1;
         const purchasePrice = parseFloat(document.getElementById('new-purchase-price').value) || 0;
-        const marginPercent = parseFloat(document.getElementById('new-margin-percent').value) || 30;
+        const marginPercent = parseFloat(document.getElementById('new-margin-percent').value);
         
         const totalUnits = unitsPerDisplay * displaysPerBulk;
         document.getElementById('calc-total-units').textContent = totalUnits;
         
-        if (purchasePrice > 0) {
+        if (purchasePrice > 0 && !isNaN(marginPercent) && marginPercent >= 0) {
             const bulkSale = purchasePrice * (1 + marginPercent / 100);
             document.getElementById('new-sale-price').value = bulkSale.toFixed(2);
-            displayModalPrices(bulkSale, totalUnits, displaysPerBulk);
+            displayModalPrices(purchasePrice, bulkSale, totalUnits, displaysPerBulk);
+        } else if (purchasePrice > 0) {
+            displayModalCostOnly(purchasePrice, totalUnits, displaysPerBulk);
         } else {
-            document.getElementById('calc-unit-price').textContent = '$0.00';
-            document.getElementById('calc-display-price').textContent = '$0.00';
-            document.getElementById('calc-bulk-price').textContent = '$0.00';
+            clearBreakdown();
         }
     }
 
@@ -754,16 +772,68 @@ document.addEventListener('DOMContentLoaded', function() {
         if (purchasePrice > 0 && bulkSale > 0) {
             const margin = ((bulkSale - purchasePrice) / purchasePrice) * 100;
             document.getElementById('new-margin-percent').value = margin.toFixed(2);
-            displayModalPrices(bulkSale, totalUnits, displaysPerBulk);
+            displayModalPrices(purchasePrice, bulkSale, totalUnits, displaysPerBulk);
+        } else if (bulkSale > 0) {
+            displayModalSaleOnly(bulkSale, totalUnits, displaysPerBulk);
         }
     }
 
-    function displayModalPrices(bulkSale, totalUnits, displaysPerBulk) {
-        const unitPrice = bulkSale / totalUnits;
-        const displayPrice = bulkSale / displaysPerBulk;
-        document.getElementById('calc-unit-price').textContent = `$${unitPrice.toFixed(2)}`;
-        document.getElementById('calc-display-price').textContent = `$${displayPrice.toFixed(2)}`;
-        document.getElementById('calc-bulk-price').textContent = `$${bulkSale.toFixed(2)}`;
+    function fmtPrice(v) { return `$${v.toFixed(2)}`; }
+
+    function displayModalPrices(purchasePrice, bulkSale, totalUnits, displaysPerBulk) {
+        const unitsPerDisplay = parseInt(document.getElementById('new-units-per-display').value) || 1;
+        // Costos
+        const unitCost = purchasePrice / totalUnits;
+        const displayCost = purchasePrice / displaysPerBulk;
+        document.getElementById('calc-unit-cost').textContent = fmtPrice(unitCost);
+        document.getElementById('calc-display-cost').textContent = fmtPrice(displayCost);
+        document.getElementById('calc-bulk-cost').textContent = fmtPrice(purchasePrice);
+        // Ventas
+        const unitSale = bulkSale / totalUnits;
+        const displaySale = bulkSale / displaysPerBulk;
+        document.getElementById('calc-unit-price').textContent = fmtPrice(unitSale);
+        document.getElementById('calc-display-price').textContent = fmtPrice(displaySale);
+        document.getElementById('calc-bulk-price').textContent = fmtPrice(bulkSale);
+        // Ganancias
+        document.getElementById('calc-unit-profit').textContent = fmtPrice(unitSale - unitCost);
+        document.getElementById('calc-display-profit').textContent = fmtPrice(displaySale - displayCost);
+        document.getElementById('calc-bulk-profit').textContent = fmtPrice(bulkSale - purchasePrice);
+    }
+
+    function displayModalCostOnly(purchasePrice, totalUnits, displaysPerBulk) {
+        const unitCost = purchasePrice / totalUnits;
+        const displayCost = purchasePrice / displaysPerBulk;
+        document.getElementById('calc-unit-cost').textContent = fmtPrice(unitCost);
+        document.getElementById('calc-display-cost').textContent = fmtPrice(displayCost);
+        document.getElementById('calc-bulk-cost').textContent = fmtPrice(purchasePrice);
+        document.getElementById('calc-unit-price').textContent = '-';
+        document.getElementById('calc-display-price').textContent = '-';
+        document.getElementById('calc-bulk-price').textContent = '-';
+        document.getElementById('calc-unit-profit').textContent = '-';
+        document.getElementById('calc-display-profit').textContent = '-';
+        document.getElementById('calc-bulk-profit').textContent = '-';
+    }
+
+    function displayModalSaleOnly(bulkSale, totalUnits, displaysPerBulk) {
+        document.getElementById('calc-unit-cost').textContent = '-';
+        document.getElementById('calc-display-cost').textContent = '-';
+        document.getElementById('calc-bulk-cost').textContent = '-';
+        const unitSale = bulkSale / totalUnits;
+        const displaySale = bulkSale / displaysPerBulk;
+        document.getElementById('calc-unit-price').textContent = fmtPrice(unitSale);
+        document.getElementById('calc-display-price').textContent = fmtPrice(displaySale);
+        document.getElementById('calc-bulk-price').textContent = fmtPrice(bulkSale);
+        document.getElementById('calc-unit-profit').textContent = '-';
+        document.getElementById('calc-display-profit').textContent = '-';
+        document.getElementById('calc-bulk-profit').textContent = '-';
+    }
+
+    function clearBreakdown() {
+        ['calc-unit-cost','calc-display-cost','calc-bulk-cost',
+         'calc-unit-price','calc-display-price','calc-bulk-price',
+         'calc-unit-profit','calc-display-profit','calc-bulk-profit'].forEach(id => {
+            document.getElementById(id).textContent = '-';
+        });
     }
     
     // Event listeners para cálculos del modal
@@ -788,7 +858,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const unitsPerDisplay = parseInt(document.getElementById('new-units-per-display').value) || 12;
         const displaysPerBulk = parseInt(document.getElementById('new-displays-per-bulk').value) || 12;
         const purchasePrice = parseFloat(document.getElementById('new-purchase-price').value) || 0;
-        const marginPercent = parseFloat(document.getElementById('new-margin-percent').value) || 30;
+        const marginPercent = parseFloat(document.getElementById('new-margin-percent').value) || 0;
+        const salePrice = parseFloat(document.getElementById('new-sale-price').value) || 0;
         const categoryId = document.getElementById('new-category').value;
         
         if (!productName) {
@@ -821,6 +892,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     displays_per_bulk: displaysPerBulk,
                     purchase_price: purchasePrice,
                     margin_percent: marginPercent,
+                    sale_price: salePrice || null,
                     category_id: categoryId || null
                 })
             });
