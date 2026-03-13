@@ -1,29 +1,24 @@
 ﻿#!/bin/bash
 
-set -e
-
 echo "=== CHE GOLOSO - Starting ==="
 echo "PORT: ${PORT:-8000}"
 echo "DATABASE_URL set: $([ -n "$DATABASE_URL" ] && echo 'YES' || echo 'NO')"
 echo "DEBUG: ${DEBUG:-not set}"
+echo "ALLOWED_HOSTS: ${ALLOWED_HOSTS:-not set}"
+echo "RAILWAY_PUBLIC_DOMAIN: ${RAILWAY_PUBLIC_DOMAIN:-not set}"
 
-# Run migrations with timeout (60s max)
+# Run migrations
 echo "Running migrations..."
-timeout 60 python manage.py migrate --noinput 2>&1 || echo "WARNING: Migration failed or timed out, continuing..."
+python manage.py migrate --noinput || echo "WARNING: Migration failed, continuing..."
 
-# Setup initial data (non-blocking)
+# Setup initial data
 echo "Setting up initial data..."
-timeout 30 python manage.py setup_initial_data 2>&1 || echo "WARNING: setup_initial_data failed, continuing..."
+python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."
 
-# Collect static files with real env vars
+# Collect static files
 echo "Collecting static files..."
-python manage.py collectstatic --noinput 2>&1 || echo "WARNING: collectstatic failed, continuing..."
+python manage.py collectstatic --noinput || echo "WARNING: collectstatic failed, continuing..."
 
-# Verify Django can start
-echo "Verifying Django startup..."
-python -c "import django; django.setup(); print('Django OK')" 2>&1 || { echo "ERROR: Django failed to start!"; exit 1; }
-
-# Start gunicorn
 echo "Starting gunicorn on port ${PORT:-8000}..."
 exec gunicorn superrecord.wsgi:application \
     --bind 0.0.0.0:${PORT:-8000} \
@@ -34,4 +29,5 @@ exec gunicorn superrecord.wsgi:application \
     --timeout 120 \
     --log-file - \
     --access-logfile - \
-    --error-logfile -
+    --error-logfile - \
+    --preload

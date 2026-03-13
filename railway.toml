@@ -1,10 +1,6 @@
 # Railway deployment config
 
-[build]
-buildCommand = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
-
 [deploy]
-startCommand = "chmod +x /app/start.sh && /app/start.sh"
 healthcheckPath = "/health/"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

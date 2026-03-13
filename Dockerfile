@@ -32,11 +32,9 @@ COPY . .
 # Create media directory
 RUN mkdir -p /app/media /app/staticfiles /app/logs
 
-# Collect static files (with dummy SECRET_KEY for build phase)
-# Use basic storage during build to avoid manifest issues
+# Collect static files during build (no DB needed, basic storage)
 RUN SECRET_KEY=build-only-key DATABASE_URL= \
-    DJANGO_STATICFILES_STORAGE=django.contrib.staticfiles.storage.StaticFilesStorage \
-    python manage.py collectstatic --noinput --clear || true
+    python manage.py collectstatic --noinput --clear 2>&1 || echo 'collectstatic skipped during build'
 
 # Fix line endings and make start script executable
 RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh

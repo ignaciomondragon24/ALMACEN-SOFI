@@ -28,11 +28,9 @@ if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
 if os.getenv('RAILWAY_PRIVATE_DOMAIN'):
     ALLOWED_HOSTS.append(os.getenv('RAILWAY_PRIVATE_DOMAIN'))
 
-# Railway environment detection - allow internal healthchecks
+# Railway: permitir todas las conexiones internas (proxy seguro de Railway)
 if os.getenv('RAILWAY_ENVIRONMENT'):
-    # Railway healthchecks may use internal IPs
-    if '0.0.0.0' not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append('0.0.0.0')
+    ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -164,18 +162,12 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # WhiteNoise for static files
-# En producción usa CompressedManifestStaticFilesStorage para cache busting
-_staticfiles_storage = os.getenv('DJANGO_STATICFILES_STORAGE', '')
-if _staticfiles_storage:
-    STATICFILES_STORAGE = _staticfiles_storage
-elif DEBUG:
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
-else:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# CompressedStaticFilesStorage comprime pero NO usa manifest (evita crashes)
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # WhiteNoise - servir archivos estáticos con headers de cache
-WHITENOISE_MAX_AGE = 31536000  # 1 año para archivos con hash
-WHITENOISE_SKIP_COMPRESS_EXTENSIONS = []  # Comprimir todos los tipos
+WHITENOISE_MAX_AGE = 31536000  # 1 año
+WHITENOISE_SKIP_COMPRESS_EXTENSIONS = []
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
