@@ -30,6 +30,32 @@
     const btnClearCart = document.getElementById('clear-cart');
     const quickAccessGrid = document.getElementById('quick-access-grid');
 
+    // ── Custom confirm modal (reemplaza confirm() nativo de Chrome) ──────────
+    function posConfirm(message, onYes) {
+        const id = 'pos-confirm-modal';
+        document.getElementById(id)?.remove();
+        const html = `
+            <div id="${id}" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fcoFadeIn .15s ease-out;">
+                <div style="background:linear-gradient(180deg,#1e1e3a,#161628);border:1px solid rgba(0,210,211,0.18);border-radius:16px;padding:2rem 2.2rem 1.5rem;max-width:380px;width:90vw;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+                    <i class="fas fa-question-circle" style="font-size:2.4rem;color:#00d2d3;margin-bottom:1rem;"></i>
+                    <p style="color:#eaeaea;font-size:1.05rem;font-weight:600;margin-bottom:1.5rem;">${message}</p>
+                    <div style="display:flex;gap:10px;justify-content:center;">
+                        <button type="button" id="${id}-no" style="background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);color:#aaa;border-radius:10px;padding:9px 28px;font-weight:600;font-size:0.95rem;cursor:pointer;">Cancelar</button>
+                        <button type="button" id="${id}-yes" style="background:rgba(231,76,60,0.12);border:1.5px solid rgba(231,76,60,0.35);color:#e74c3c;border-radius:10px;padding:9px 28px;font-weight:700;font-size:0.95rem;cursor:pointer;">Confirmar</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const overlay = document.getElementById(id);
+        const close = () => { overlay.remove(); productSearch?.focus(); };
+        document.getElementById(`${id}-no`).addEventListener('click', close);
+        document.getElementById(`${id}-yes`).addEventListener('click', () => { overlay.remove(); onYes(); });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        const onEsc = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); document.removeEventListener('keydown', onEsc, true); } if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); overlay.remove(); onYes(); document.removeEventListener('keydown', onEsc, true); } };
+        document.addEventListener('keydown', onEsc, true);
+        document.getElementById(`${id}-no`).focus();
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         initClock();
@@ -809,8 +835,10 @@
     }
 
     async function clearCart() {
-        if (!confirm('¿Está seguro de vaciar el carrito?')) return;
-        
+        posConfirm('¿Está seguro de vaciar el carrito?', doClearCart);
+    }
+
+    async function doClearCart() {
         try {
             const response = await fetch(API_URLS.clearCart, {
                 method: 'POST',
@@ -1156,29 +1184,29 @@
                     return;
                 }
                 
-                if (!confirm('¿Está seguro de cancelar esta venta?')) return;
-                
-                try {
-                    const response = await fetch(`/pos/api/transaction/${TRANSACTION_ID}/cancel/`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': CSRF_TOKEN
-                        },
-                        body: JSON.stringify({ reason: 'Cancelada por cajero' })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        showToast('Venta cancelada', 'info');
-                        window.location.reload();
-                    } else {
-                        showToast(data.message || 'Error al cancelar', 'error');
+                posConfirm('¿Está seguro de cancelar esta venta?', async () => {
+                    try {
+                        const response = await fetch(`/pos/api/transaction/${TRANSACTION_ID}/cancel/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': CSRF_TOKEN
+                            },
+                            body: JSON.stringify({ reason: 'Cancelada por cajero' })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            showToast('Venta cancelada', 'info');
+                            window.location.reload();
+                        } else {
+                            showToast(data.message || 'Error al cancelar', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Cancel error:', error);
                     }
-                } catch (error) {
-                    console.error('Cancel error:', error);
-                }
+                });
             });
         }
         
@@ -2977,7 +3005,7 @@
                 if (window.POS_sidebar) window.POS_sidebar.openTab('history');
                 break;
             case 'dashboard':
-                if (confirm('¿Salir del POS?')) window.location.href = '/accounts/dashboard/';
+                posConfirm('¿Salir del POS?', () => { window.location.href = '/accounts/dashboard/'; });
                 break;
             case 'pay_mixed':
                 if (btnCheckout && !btnCheckout.disabled) openMixedCheckout();
