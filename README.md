@@ -1,189 +1,174 @@
-# CHE GOLOSO - Sistema de Gestión de Supermercado
+# CHE GOLOSO — Sistema de Gestión de Supermercado
 
-Sistema integral de gestión para supermercados pequeños y medianos desarrollado con Django.
+Sistema integral de gestión para supermercados pequeños y medianos desarrollado con Django.  
+Desplegado en **Railway** con PostgreSQL en producción.
 
-## 🚀 Características
+---
 
-- **Punto de Venta (POS)** moderno con dark mode
-- **Control de Inventario** en tiempo real
-- **Gestión de Caja y Turnos** completa
-- **Sistema de Promociones** avanzado (2x1, combos, descuentos)
-- **Reportes y Estadísticas** detalladas
-- **Control de Gastos y Compras**
-- **Gestión de Cartelería** para precios
-- **Múltiples Roles de Usuario** (Admin, Manager, Cajero, Stock Manager)
+## Características
 
-## 📋 Requisitos Previos
+- **Punto de Venta (POS)** — dark mode, atajos de teclado, búsqueda por código de barras o nombre
+- **Pago Mixto Genérico** — cualquier combinación de métodos (efectivo, MercadoPago, etc.)
+- **Integración MercadoPago Point** — envío de cobro al lector y polling de estado
+- **Control de Inventario** — stock en tiempo real, carga por bultos, movimientos
+- **Escaneo de Facturas con IA** — Gemini Vision extrae productos de fotos de facturas
+- **Gestión de Caja y Turnos** — apertura, cierre, movimientos, arqueo
+- **Sistema de Promociones** — 2x1, combos, descuentos porcentuales y fijos
+- **Reportes y Estadísticas** — ventas diarias, por período, por método de pago, exportación a Excel
+- **Control de Gastos y Compras** — registro de gastos operativos y compras a proveedores
+- **Gestión de Cartelería** — generación de carteles de precios en PDF
+- **Roles de Usuario** — Admin, Manager, Cajero, Stock Manager
 
-- Python 3.8 o superior
-- pip (gestor de paquetes de Python)
-- Git (opcional)
+## Stack Tecnológico
 
-## 🛠️ Instalación
+| Capa | Tecnología |
+|------|-----------|
+| Backend | Python 3.11, Django 4.2, Django REST Framework |
+| Base de Datos | SQLite (desarrollo) / PostgreSQL (producción) |
+| Frontend | HTML5, CSS3, Bootstrap 5, JavaScript ES6+ |
+| Iconos | Font Awesome 6.0 |
+| PDFs | ReportLab, xhtml2pdf |
+| Excel | openpyxl |
+| IA | Google Gemini (gemini-2.5-flash) |
+| Pagos | MercadoPago Point API |
+| Deploy | Railway, Gunicorn, WhiteNoise |
 
-### 1. Clonar o descargar el proyecto
+## Requisitos Previos
+
+- Python 3.11+
+- pip
+- Git
+
+## Instalación
 
 ```bash
-cd "ruta/a/tu/carpeta"
-```
+# Clonar el repositorio
+git clone https://github.com/ignaciomondragon24/golo2.git
+cd golo2
 
-### 2. Crear entorno virtual
-
-```bash
+# Crear y activar entorno virtual
 python -m venv venv
-```
+.\venv\Scripts\activate        # Windows
+source venv/bin/activate       # Linux/Mac
 
-### 3. Activar entorno virtual
-
-**Windows:**
-```bash
-.\venv\Scripts\activate
-```
-
-**Linux/Mac:**
-```bash
-source venv/bin/activate
-```
-
-### 4. Instalar dependencias
-
-```bash
+# Instalar dependencias
 pip install -r requirements.txt
-```
 
-### 5. Configurar variables de entorno
+# Configurar variables de entorno
+copy .env.example .env         # Windows
+cp .env.example .env           # Linux/Mac
+# Editar .env con tus datos
 
-Copiar el archivo de ejemplo y editar:
-```bash
-copy .env.example .env
-```
-
-Editar `.env` con tus configuraciones:
-```
-DEBUG=True
-SECRET_KEY=tu-clave-secreta-aqui
-DATABASE_URL=sqlite:///db.sqlite3
-```
-
-### 6. Aplicar migraciones
-
-```bash
-python manage.py makemigrations
+# Migraciones y superusuario
 python manage.py migrate
-```
-
-### 7. Crear superusuario
-
-```bash
 python manage.py createsuperuser
-```
 
-### 8. Cargar datos iniciales (opcional)
+# Datos iniciales (roles, métodos de pago)
+python manage.py setup_initial_data
 
-```bash
-python manage.py loaddata initial_data.json
-```
-
-### 9. Ejecutar servidor de desarrollo
-
-```bash
+# Iniciar servidor
 python manage.py runserver
 ```
 
-El sistema estará disponible en: http://localhost:8000
+El sistema estará disponible en `http://localhost:8000`
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 che-goloso/
-├── accounts/           # Usuarios, roles, permisos, login
-├── cashregister/       # Cajas registradoras, turnos, movimientos
-├── company/            # Datos de la empresa
-├── decorators/         # Decoradores personalizados
-├── expenses/           # Gastos operativos
-├── helpers/            # Utilidades y generación de PDFs
-├── pos/                # Punto de venta, transacciones
-├── promotions/         # Motor de promociones
-├── purchase/           # Compras y proveedores
-├── sales/              # Ventas (legacy)
-├── signage/            # Cartelería y PDFs
-├── stocks/             # Productos, categorías, inventario
-├── superrecord/        # Configuración del proyecto Django
-├── templates/          # Plantillas HTML
-├── static/             # Archivos estáticos (CSS, JS, imágenes)
-├── manage.py           # Script de gestión de Django
-└── requirements.txt    # Dependencias del proyecto
+├── accounts/          # Usuarios, roles, permisos, login, dashboard
+├── assistant/         # Escaneo de facturas con IA (Gemini Vision)
+├── cashregister/      # Cajas registradoras, turnos, movimientos
+├── company/           # Datos de la empresa
+├── decorators/        # Decoradores de permisos personalizados
+├── expenses/          # Gastos operativos
+├── helpers/           # Utilidades, generación de PDFs
+├── mercadopago/       # Integración MercadoPago Point
+├── pos/               # Punto de venta, transacciones, checkout
+├── promotions/        # Motor de promociones (2x1, combos, descuentos)
+├── purchase/          # Compras y proveedores
+├── sales/             # Reportes de ventas y exportación
+├── signage/           # Cartelería y generación de PDFs
+├── stocks/            # Productos, categorías, inventario, carga por bultos
+├── superrecord/       # Configuración del proyecto (settings, urls)
+├── static/            # CSS, JS, imágenes
+├── templates/         # Plantillas HTML (Bootstrap 5, dark mode POS)
+├── tests/             # Tests del proyecto
+├── Dockerfile         # Imagen Docker para deploy
+├── Procfile           # Comando de inicio para Railway
+├── railway.toml       # Configuración de Railway
+├── main.py            # Entry point alternativo (Railpack)
+├── start.sh           # Script de inicio producción
+├── manage.py          # CLI de Django
+└── requirements.txt   # Dependencias Python
 ```
 
-## 👥 Roles de Usuario
+## Roles de Usuario
 
-| Rol | Descripción |
-|-----|-------------|
+| Rol | Acceso |
+|-----|--------|
 | **Admin** | Acceso total al sistema |
-| **Manager** | Gestión operativa completa |
-| **Cashier** | Solo POS y caja |
-| **Stock Manager** | Solo inventario |
+| **Manager** | Gestión operativa, reportes, stock, caja |
+| **Cashier** | POS y caja únicamente |
+| **Stock Manager** | Inventario y productos |
 
-## 🔧 Comandos Útiles
+## Comandos Útiles
 
 ```bash
-# Ejecutar tests
-python manage.py test
+# Migraciones
+python manage.py makemigrations
+python manage.py migrate
 
-# Crear migraciones para una app específica
-python manage.py makemigrations nombre_app
+# Tests
+python manage.py test tests
 
-# Ejecutar shell de Django
+# Shell interactivo
 python manage.py shell
 
-# Recolectar archivos estáticos (producción)
+# Recolectar estáticos (producción)
 python manage.py collectstatic
 
-# Crear datos de prueba
-python manage.py seed_data
+# Datos iniciales
+python manage.py setup_initial_data
 ```
 
-## 🖥️ Atajos de Teclado (POS)
+## Atajos de Teclado (POS)
 
 | Tecla | Acción |
 |-------|--------|
-| F2 | Enfocar búsqueda |
-| F3 | Vaciar carrito |
-| F8 | Ir a cobrar |
-| Escape | Cancelar/Cerrar |
-| Enter | Agregar producto (en búsqueda) |
+| `F2` | Enfocar búsqueda |
+| `F3` | Vaciar carrito |
+| `F8` | Ir a cobrar |
+| `Enter` | Agregar producto / Confirmar pago |
+| `Tab` | Cambiar campo (en pago mixto) |
+| `Esc` | Cancelar / Cerrar overlay |
 
-## 💰 Formato de Moneda
+## Formato de Moneda
 
-El sistema usa formato argentino:
-- Separador de miles: `.`
-- Separador decimal: `,`
-- Ejemplo: `$1.234,56`
+Formato argentino: `$1.234,56` (punto = miles, coma = decimales).
 
-## 📊 Formato de Ticket
+## Formato de Ticket
 
 ```
 CAJA-XX-YYYYMMDD-NNNN
 ```
-Ejemplo: `CAJA-01-20241215-0001`
 
-## 🚀 Despliegue en Producción
+Ejemplo: `CAJA-01-20260314-0001`
 
-1. Configurar `DEBUG=False` en `.env`
-2. Configurar una base de datos PostgreSQL
-3. Configurar servidor web (Nginx/Apache)
-4. Usar Gunicorn o uWSGI como servidor WSGI
-5. Configurar HTTPS con certificado SSL
+## Deploy en Railway
 
-## 📝 Licencia
+El proyecto está configurado para Railway con:
 
-Este proyecto es propietario. Todos los derechos reservados.
+- `Dockerfile` + `start.sh` para el build y arranque
+- `Procfile` como fallback
+- `railway.toml` con healthcheck en `/health/`
+- Variables de entorno: `DATABASE_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, `GEMINI_API_KEY`, `MP_ACCESS_TOKEN`
 
-## 👨‍💻 Soporte
+## Licencia
 
-Para soporte técnico, contactar al equipo de desarrollo.
+Proyecto propietario. Todos los derechos reservados.
 
 ---
 
-**CHE GOLOSO** - Sistema de Gestión de Supermercado
-© 2024 - Todos los derechos reservados
+**CHE GOLOSO** — Sistema de Gestión de Supermercado  
+© 2024–2026

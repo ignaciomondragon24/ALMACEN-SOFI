@@ -726,7 +726,17 @@
                 <p class="text-muted" style="font-size:0.8rem">Sin métodos de pago activos.</p>
                 {% endfor %}
 
-
+                <!-- Botón Pago Mixto (MP + Efectivo) -->
+                <button type="button"
+                        class="quick-pay-btn"
+                        id="btn-mixed-pay"
+                        onclick="if(window.POS_openMixedCheckout) window.POS_openMixedCheckout();"
+                        disabled
+                        title="Pago Mixto: MercadoPago + Efectivo"
+                        style="border-color:#00b1ea;">
+                    <span class="pay-icon"><i class="fas fa-exchange-alt" style="color:#00b1ea;"></i></span>
+                    <span>Mixto (MP + Efectivo)</span>
+                </button>
             </div>
             <small class="text-muted d-block mt-2" style="font-size:0.68rem;">
                 Los botones se habilitan cuando hay productos en el carrito.
