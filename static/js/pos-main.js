@@ -1063,6 +1063,25 @@
         });
     }
 
+    function refreshQuickAccessGrid(buttons) {
+        if (!quickAccessGrid) return;
+        if (!buttons || buttons.length === 0) {
+            quickAccessGrid.innerHTML = '<p class="text-muted text-center w-100">No hay botones configurados</p>';
+            return;
+        }
+        let html = '';
+        buttons.forEach(b => {
+            html += `<button type="button" class="quick-btn" tabindex="-1"
+                data-product-id="${b.product_id}"
+                style="background-color: ${b.color};">
+                <span class="quick-btn-name">${b.name}</span>
+                <span class="quick-btn-price">${formatCurrency(b.price)}</span>
+            </button>`;
+        });
+        quickAccessGrid.innerHTML = html;
+        initQuickAccess();
+    }
+
     // Action Buttons
     function initActionButtons() {
         const btnHold = document.getElementById('btn-hold');
@@ -3240,6 +3259,7 @@
     window.POS_showToast = (msg, type) => showToast(msg, type);
     window.POS_cart = () => cart;
     window.POS_loadCart = loadCart;
+    window.POS_refreshQuickAccessGrid = refreshQuickAccessGrid;
 
     // Utility functions
     function debounce(func, wait) {

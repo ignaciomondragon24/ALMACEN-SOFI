@@ -44,4 +44,5 @@ urlpatterns = [
     path('api/sales-history/', views.api_sales_history, name='api_sales_history'),
     path('api/quick-checkout/', views.api_quick_checkout, name='api_quick_checkout'),
     path('api/all-products/', views.api_all_products, name='api_all_products'),
+    path('api/toggle-quick-access/', views.api_toggle_quick_access, name='api_toggle_quick_access'),
 ]

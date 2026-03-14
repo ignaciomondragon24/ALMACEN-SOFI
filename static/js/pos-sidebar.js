@@ -261,6 +261,8 @@
             `;
             products.slice(0, 50).forEach(p => {
                 const stockColor = p.stock <= 0 ? '#e74c3c' : p.stock <= 5 ? '#f0c040' : '#2ecc71';
+                const starClass = p.is_quick ? 'fas' : 'far';
+                const starColor = p.is_quick ? '#F5D000' : '#555';
                 html += `
                     <div class="quick-product-item" tabindex="0"
                          data-product-id="${p.id}" data-is-bulk="${p.is_bulk}"
@@ -272,7 +274,11 @@
                             </span>
                         </span>
                         <span style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;gap:1px;">
-                            <span class="quick-product-price" style="font-size:0.76rem;">${window.POS_formatCurrency?.(p.unit_price) || '$' + p.unit_price}</span>
+                            <span style="display:flex;align-items:center;gap:4px;">
+                                <span class="quick-product-price" style="font-size:0.76rem;">${window.POS_formatCurrency?.(p.unit_price) || '$' + p.unit_price}</span>
+                                <i class="${starClass} fa-star btn-toggle-quick" data-pid="${p.id}"
+                                   style="color:${starColor};cursor:pointer;font-size:0.78rem;" title="Acceso rápido"></i>
+                            </span>
                             <span style="font-size:0.6rem;color:#888;">costo: ${window.POS_formatCurrency?.(p.cost_price || 0) || '$0'}</span>
                             <span style="font-size:0.58rem;color:${stockColor};font-weight:600;">stk: ${p.stock}</span>
                         </span>
@@ -288,9 +294,51 @@
                 const id = parseInt(item.dataset.productId);
                 document.dispatchEvent(new CustomEvent('pos:addToCart', { detail: { productId: id, quantity: 1 } }));
             };
-            item.addEventListener('click', addProduct);
+            item.addEventListener('click', e => {
+                if (e.target.closest('.btn-toggle-quick')) return;
+                addProduct();
+            });
             item.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addProduct(); } });
         });
+
+        qpList.querySelectorAll('.btn-toggle-quick').forEach(star => {
+            star.addEventListener('click', e => {
+                e.stopPropagation();
+                const pid = parseInt(star.dataset.pid);
+                toggleQuickAccess(pid);
+            });
+        });
+    }
+
+    async function toggleQuickAccess(productId) {
+        try {
+            const resp = await fetch(API_URLS.toggleQuickAccess, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                body: JSON.stringify({ product_id: productId })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                window.POS_showToast?.(data.error || 'Error', 'danger');
+                return;
+            }
+            // Update cache
+            if (quickProductsCache) {
+                const p = quickProductsCache.find(x => x.id === productId);
+                if (p) p.is_quick = data.is_quick;
+            }
+            // Re-render product list
+            const filterVal = document.getElementById('quick-product-filter')?.value?.toLowerCase()?.trim() || '';
+            renderProducts(filterVal || null);
+            // Refresh the quick access grid in the main panel
+            if (window.POS_refreshQuickAccessGrid) {
+                window.POS_refreshQuickAccessGrid(data.buttons);
+            }
+            window.POS_showToast?.(data.is_quick ? 'Agregado a acceso rápido' : 'Quitado de acceso rápido', 'success');
+        } catch (err) {
+            console.error('toggleQuickAccess error:', err);
+            window.POS_showToast?.('Error al cambiar acceso rápido', 'danger');
+        }
     }
 
     // ─── Sales History ──────────────────────────────────────────────────────────

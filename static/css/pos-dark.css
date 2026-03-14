@@ -648,7 +648,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    FAST CHECKOUT OVERLAY — aparece instantáneo, navegación 100% teclado
    ═══════════════════════════════════════════════════════════════════════════ */
-#fco-overlay {
+#fco-overlay,
+#mixed-overlay {
     position: fixed;
     inset: 0;
     z-index: 9999;

@@ -181,6 +181,7 @@ def api_all_products(request):
     products = Product.objects.filter(is_active=True).select_related(
         'unit_of_measure', 'category'
     ).order_by('category__name', 'name')
+    quick_ids = set(QuickAccessButton.objects.filter(is_active=True).values_list('product_id', flat=True))
     return JsonResponse({
         'products': [
             {
@@ -197,10 +198,62 @@ def api_all_products(request):
                 'allow_sell_by_amount': p.allow_sell_by_amount,
                 'category': p.category.name if p.category else 'Sin categoría',
                 'category_id': p.category_id or 0,
+                'is_quick': p.id in quick_ids,
             }
             for p in products
         ]
     })
+
+
+@login_required
+@require_POST
+def api_toggle_quick_access(request):
+    """Toggle quick access button for a product from the POS sidebar."""
+    try:
+        data = json.loads(request.body)
+        product_id = data.get('product_id')
+        if not product_id:
+            return JsonResponse({'success': False, 'error': 'product_id requerido'}, status=400)
+
+        product = Product.objects.get(id=product_id, is_active=True)
+        btn = QuickAccessButton.objects.filter(product=product).first()
+
+        if btn:
+            btn.delete()
+            is_quick = False
+        else:
+            max_pos = QuickAccessButton.objects.order_by('-position').values_list('position', flat=True).first() or 0
+            QuickAccessButton.objects.create(
+                product=product,
+                position=max_pos + 1,
+                is_active=True
+            )
+            is_quick = True
+
+        # Return updated quick buttons for grid refresh
+        buttons = QuickAccessButton.objects.filter(
+            is_active=True, product__is_active=True
+        ).select_related('product').order_by('position')
+        buttons_data = [
+            {
+                'product_id': b.product.id,
+                'name': b.product.name[:15],
+                'price': float(b.product.sale_price),
+                'color': b.color,
+            }
+            for b in buttons
+        ]
+
+        return JsonResponse({
+            'success': True,
+            'is_quick': is_quick,
+            'product_id': product_id,
+            'buttons': buttons_data
+        })
+    except Product.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Producto no encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required
