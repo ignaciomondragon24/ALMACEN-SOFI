@@ -10,6 +10,11 @@ urlpatterns = [
     # Main chat interface
     path('', views.assistant_home, name='home'),
     
+    # Invoice scanning
+    path('scan/', views.scan_invoice_page, name='scan_invoice'),
+    path('api/scan-invoice/', views.api_scan_invoice, name='api_scan_invoice'),
+    path('api/confirm-invoice/', views.api_confirm_invoice, name='api_confirm_invoice'),
+    
     # API endpoints
     path('api/send/', views.send_message, name='send_message'),
     path('api/new/', views.new_conversation, name='new_conversation'),

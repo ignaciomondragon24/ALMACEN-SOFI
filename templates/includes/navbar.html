@@ -134,10 +134,18 @@
                 
                 <!-- AI Assistant - Manager, Admin -->
                 {% if is_manager or is_admin %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'assistant:home' %}" style="color: #ff6b6b;">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="assistantDropdown" role="button" data-bs-toggle="dropdown" style="color: #ff6b6b;">
                         <i class="fas fa-robot me-1"></i>Asistente IA
                     </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'assistant:home' %}">
+                            <i class="fas fa-comments me-2"></i>Chat
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'assistant:scan_invoice' %}">
+                            <i class="fas fa-camera me-2"></i>Escanear Remito
+                        </a></li>
+                    </ul>
                 </li>
                 {% endif %}
                 

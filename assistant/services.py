@@ -441,6 +441,151 @@ class BusinessDataCollector:
         return "\n".join(parts)
 
 
+class InvoiceScanService:
+    """
+    Service for scanning invoices/receipts using Gemini Vision.
+    Extracts product data from photos of invoices.
+    """
+
+    SCAN_PROMPT = """Analizá esta imagen de un remito/factura/comprobante de compra de un supermercado/kiosco en Argentina.
+
+Extraé TODOS los productos que aparezcan con la siguiente información:
+- nombre del producto (como aparece en el remito)
+- cantidad (unidades, bultos, cajas, etc.)
+- tipo_cantidad: "bulto", "display", "unidad" (interpretá del contexto)
+- precio_unitario (precio por unidad/bulto como aparece)
+- precio_total (precio total de esa línea si aparece)
+- codigo_barras (si aparece EAN/código)
+
+También extraé:
+- proveedor: nombre del proveedor/empresa emisora
+- numero_comprobante: número de factura/remito
+- fecha: fecha del comprobante (formato DD/MM/YYYY)
+- subtotal: subtotal si aparece
+- iva: IVA si aparece
+- total: total del comprobante
+- metodo_pago: si se indica (efectivo, tarjeta, transferencia, etc.)
+- notas: cualquier observación relevante
+
+Respondé ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones. Formato exacto:
+{
+    "proveedor": "Nombre del Proveedor",
+    "numero_comprobante": "0001-00001234",
+    "fecha": "14/03/2026",
+    "productos": [
+        {
+            "nombre": "Coca Cola 500ml",
+            "cantidad": 24,
+            "tipo_cantidad": "unidad",
+            "precio_unitario": 850.00,
+            "precio_total": 20400.00,
+            "codigo_barras": "7790895000126"
+        }
+    ],
+    "subtotal": 20400.00,
+    "iva": 4284.00,
+    "total": 24684.00,
+    "metodo_pago": "efectivo",
+    "notas": ""
+}
+
+Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer el máximo de información posible."""
+
+    def scan_invoice(self, image_data: bytes, mime_type: str = 'image/jpeg') -> Dict[str, Any]:
+        """
+        Send an invoice image to Gemini Vision and extract structured data.
+
+        Args:
+            image_data: Raw image bytes
+            mime_type: MIME type of the image
+
+        Returns:
+            Dict with extracted invoice data
+        """
+        from google import genai
+        from google.genai import types
+        from .models import AssistantSettings
+
+        start_time = time.time()
+
+        try:
+            # Get Gemini client
+            assistant_settings = AssistantSettings.get_settings()
+            api_key = assistant_settings.openai_api_key
+            if not api_key:
+                api_key = getattr(settings, 'GEMINI_API_KEY', None)
+                if not api_key:
+                    import os
+                    api_key = os.getenv('GEMINI_API_KEY')
+                if not api_key:
+                    raise ValueError("No se ha configurado la API key de Gemini")
+
+            client = genai.Client(api_key=api_key)
+
+            # Build multimodal content with image
+            image_part = types.Part.from_bytes(data=image_data, mime_type=mime_type)
+            text_part = types.Part(text=self.SCAN_PROMPT)
+
+            contents = [
+                types.Content(
+                    role='user',
+                    parts=[image_part, text_part]
+                )
+            ]
+
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=4096,
+                )
+            )
+
+            raw_text = response.text or ''
+
+            # Clean response - remove markdown code blocks if present
+            cleaned = raw_text.strip()
+            if cleaned.startswith('```'):
+                cleaned = cleaned.split('\n', 1)[1] if '\n' in cleaned else cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            if cleaned.startswith('json'):
+                cleaned = cleaned[4:].strip()
+
+            invoice_data = json.loads(cleaned)
+
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            return {
+                'success': True,
+                'data': invoice_data,
+                'elapsed_ms': elapsed_ms,
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing Gemini response as JSON: {e}\nRaw: {raw_text[:500]}")
+            return {
+                'success': False,
+                'error': f'No se pudo interpretar la respuesta de Gemini como datos estructurados. Intentá con una foto más clara.',
+                'raw_response': raw_text[:1000],
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except Exception as e:
+            logger.error(f"Error scanning invoice: {e}")
+            error_msg = str(e)
+            if '429' in error_msg or 'quota' in error_msg.lower():
+                error_msg = "Se excedió la cuota de la API. Esperá un momento y volvé a intentar."
+            elif '403' in error_msg:
+                error_msg = "API key sin permisos. Verificá que la key sea válida."
+            return {
+                'success': False,
+                'error': error_msg,
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+
+
 class AssistantService:
     """
     Main service for the AI Assistant.

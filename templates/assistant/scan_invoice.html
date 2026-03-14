@@ -1,0 +1,828 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Escanear Remito - CHE GOLOSO{% endblock %}
+
+{% block extra_css %}
+<style>
+    .scan-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* Camera / Upload area */
+    .upload-zone {
+        border: 3px dashed var(--che-purple, #2D1E5F);
+        border-radius: 16px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: rgba(45, 30, 95, 0.05);
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+        background: rgba(45, 30, 95, 0.12);
+        border-color: var(--che-pink, #E91E8C);
+    }
+    .upload-zone i {
+        font-size: 3rem;
+        color: var(--che-purple, #2D1E5F);
+    }
+    .upload-zone .btn-camera {
+        font-size: 1.1rem;
+    }
+
+    /* Preview image */
+    .preview-container {
+        position: relative;
+        display: none;
+    }
+    .preview-container img {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 12px;
+        border: 2px solid #ddd;
+        object-fit: contain;
+    }
+    .preview-container .btn-remove {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+    }
+
+    /* Processing overlay */
+    .processing-overlay {
+        display: none;
+        text-align: center;
+        padding: 3rem;
+    }
+    .processing-overlay .spinner-border {
+        width: 4rem;
+        height: 4rem;
+        color: var(--che-pink, #E91E8C);
+    }
+
+    /* Results */
+    .results-section {
+        display: none;
+    }
+
+    /* Editable cells */
+    .edit-cell input {
+        border: 1px solid transparent;
+        background: transparent;
+        text-align: inherit;
+        width: 100%;
+        padding: 2px 4px;
+        border-radius: 4px;
+    }
+    .edit-cell input:focus {
+        border-color: var(--che-pink, #E91E8C);
+        background: #fff;
+        outline: none;
+    }
+    .edit-cell input[type="number"] {
+        text-align: right;
+    }
+
+    /* Product match indicators */
+    .match-found { color: #198754; }
+    .match-not-found { color: #dc3545; }
+
+    /* Summary card */
+    .summary-card {
+        border-left: 4px solid var(--che-pink, #E91E8C);
+    }
+
+    /* Step indicators */
+    .step-indicator {
+        display: flex;
+        gap: 0;
+        margin-bottom: 1.5rem;
+    }
+    .step {
+        flex: 1;
+        text-align: center;
+        padding: 0.75rem;
+        background: #e9ecef;
+        position: relative;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    .step:first-child { border-radius: 8px 0 0 8px; }
+    .step:last-child { border-radius: 0 8px 8px 0; }
+    .step.active {
+        background: var(--che-purple, #2D1E5F);
+        color: white;
+    }
+    .step.completed {
+        background: #198754;
+        color: white;
+    }
+    .step .step-num {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.3);
+        margin-right: 6px;
+        font-size: 0.8rem;
+    }
+
+    /* Mobile */
+    @media (max-width: 767.98px) {
+        .upload-zone { padding: 1.5rem; }
+        .upload-zone i { font-size: 2rem; }
+        .step span.step-text { display: none; }
+        .step .step-num { margin: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid scan-container">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0">
+                <i class="fas fa-camera me-2"></i>Escanear Remito
+            </h1>
+            <p class="text-muted mb-0">Sacá una foto del remito y el asistente extrae los datos automáticamente</p>
+        </div>
+        <a href="{% url 'stocks:bulk_stock_load' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Carga Manual
+        </a>
+    </div>
+
+    <!-- Steps -->
+    <div class="step-indicator">
+        <div class="step active" id="step1">
+            <span class="step-num">1</span>
+            <span class="step-text">Foto</span>
+        </div>
+        <div class="step" id="step2">
+            <span class="step-num">2</span>
+            <span class="step-text">Revisar</span>
+        </div>
+        <div class="step" id="step3">
+            <span class="step-num">3</span>
+            <span class="step-text">Confirmar</span>
+        </div>
+    </div>
+
+    <!-- STEP 1: Upload / Camera -->
+    <div id="uploadSection">
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Upload zone -->
+                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-cloud-arrow-up mb-3 d-block"></i>
+                            <h5>Arrastrá o tocá para subir la foto del remito</h5>
+                            <p class="text-muted mb-3">JPG, PNG o WebP - Máx. 10MB</p>
+                            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                <button type="button" class="btn btn-primary btn-camera" onclick="event.stopPropagation(); document.getElementById('cameraInput').click()">
+                                    <i class="fas fa-camera me-1"></i>Cámara
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">
+                                    <i class="fas fa-image me-1"></i>Galería
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Hidden inputs -->
+                        <input type="file" id="cameraInput" accept="image/*" capture="environment" class="d-none" onchange="handleImageSelect(event)">
+                        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" class="d-none" onchange="handleImageSelect(event)">
+
+                        <!-- Preview -->
+                        <div class="preview-container mt-3" id="previewContainer">
+                            <img id="previewImage" alt="Preview del remito">
+                            <button type="button" class="btn btn-danger btn-sm btn-remove" onclick="clearImage()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <div class="text-center mt-3">
+                                <button type="button" class="btn btn-lg btn-primary" id="btnScan" onclick="scanInvoice()">
+                                    <i class="fas fa-wand-magic-sparkles me-2"></i>Analizar con IA
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Processing -->
+                        <div class="processing-overlay" id="processingOverlay">
+                            <div class="spinner-border mb-3" role="status"></div>
+                            <h5>Analizando remito con Gemini...</h5>
+                            <p class="text-muted">Esto puede tardar unos segundos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-lightbulb me-2 text-warning"></i>Tips</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Foto con buena iluminación</li>
+                            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Que se vean todos los productos y precios</li>
+                            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Evitar sombras y reflejos</li>
+                            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Si el remito es largo, hacé varias fotos</li>
+                            <li><i class="fas fa-info-circle text-info me-2"></i>Siempre podés editar los datos antes de confirmar</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 2: Review & Edit -->
+    <div class="results-section" id="resultsSection">
+        <div class="row g-3">
+            <!-- Invoice header data -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-file-invoice me-2"></i>Datos del Remito</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Proveedor</label>
+                            <select class="form-select" id="supplierSelect" onchange="toggleNewSupplier()">
+                                <option value="">-- Nuevo proveedor --</option>
+                                {% for s in suppliers %}
+                                <option value="{{ s.id }}">{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="text" class="form-control mt-2" id="supplierName" placeholder="Nombre del proveedor">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nº Comprobante</label>
+                            <input type="text" class="form-control" id="invoiceNumber" placeholder="0001-00001234">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Fecha</label>
+                            <input type="date" class="form-control" id="invoiceDate">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Método de Pago</label>
+                            <select class="form-select" id="paymentMethod">
+                                <option value="cash">Efectivo</option>
+                                <option value="card">Tarjeta</option>
+                                <option value="transfer">Transferencia</option>
+                                <option value="check">Cheque</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Notas</label>
+                            <textarea class="form-control" id="invoiceNotes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="card mt-3 summary-card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-calculator me-2"></i>Totales</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Subtotal</span>
+                            <strong id="summarySubtotal">$0,00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>IVA</span>
+                            <input type="number" class="form-control form-control-sm" id="invoiceIva" 
+                                   style="width: 100px; text-align: right;" step="0.01" value="0" onchange="updateTotals()">
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <strong class="fs-5">Total</strong>
+                            <strong class="fs-5 text-primary" id="summaryTotal">$0,00</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="chkUpdateStock" checked>
+                            <label class="form-check-label" for="chkUpdateStock">
+                                <i class="fas fa-boxes-stacked me-1"></i>Actualizar stock
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="chkRegisterExpense" checked>
+                            <label class="form-check-label" for="chkRegisterExpense">
+                                <i class="fas fa-money-bill-trend-up me-1"></i>Registrar como gasto
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products table -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-list me-2"></i>Productos Detectados</h6>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addProductRow()">
+                                <i class="fas fa-plus me-1"></i>Agregar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm mb-0" id="productsTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30px;"></th>
+                                        <th>Producto</th>
+                                        <th style="width: 80px;" class="text-center">Cant.</th>
+                                        <th style="width: 110px;" class="text-end">P. Unit.</th>
+                                        <th style="width: 110px;" class="text-end">Total</th>
+                                        <th style="width: 40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productsBody">
+                                    <!-- Filled by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="d-flex gap-2 mt-3 justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary" onclick="resetAll()">
+                        <i class="fas fa-arrow-left me-1"></i>Volver a escanear
+                    </button>
+                    <button type="button" class="btn btn-lg btn-success" id="btnConfirm" onclick="confirmInvoice()">
+                        <i class="fas fa-check me-2"></i>Confirmar y Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 3: Success -->
+    <div class="results-section" id="successSection">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-check-circle text-success fa-4x mb-3"></i>
+                <h3 class="mb-3">¡Remito procesado exitosamente!</h3>
+                <div id="successDetails" class="mb-4"></div>
+                <div id="notFoundWarning" class="alert alert-warning d-none mb-4" style="max-width: 500px; margin: 0 auto;">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Productos no encontrados</h6>
+                    <ul id="notFoundList" class="mb-0 text-start"></ul>
+                    <small class="text-muted">Podés crearlos manualmente y volver a escanear</small>
+                </div>
+                <div class="d-flex gap-2 justify-content-center flex-wrap">
+                    <button type="button" class="btn btn-primary" onclick="resetAll()">
+                        <i class="fas fa-camera me-1"></i>Escanear otro
+                    </button>
+                    <a href="{% url 'purchase:purchase_list' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-file-invoice me-1"></i>Ver Compras
+                    </a>
+                    <a href="{% url 'stocks:bulk_stock_load' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-boxes-stacked me-1"></i>Carga Manual
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// State
+let selectedImage = null;
+let scannedData = null;
+
+// ========== IMAGE HANDLING ==========
+
+function handleImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+        alert('La imagen es demasiado grande. Máximo 10MB.');
+        return;
+    }
+
+    selectedImage = file;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('previewImage').src = e.target.result;
+        document.getElementById('previewContainer').style.display = 'block';
+        document.getElementById('uploadZone').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearImage() {
+    selectedImage = null;
+    document.getElementById('previewImage').src = '';
+    document.getElementById('previewContainer').style.display = 'none';
+    document.getElementById('uploadZone').style.display = 'block';
+    document.getElementById('cameraInput').value = '';
+    document.getElementById('fileInput').value = '';
+}
+
+// Drag & drop
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.type.startsWith('image/')) {
+            // Copy the file to the camera input for processing
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById('fileInput').files = dt.files;
+            handleImageSelect({ target: { files: [file] } });
+        }
+    }
+});
+
+// ========== SCAN ==========
+
+async function scanInvoice() {
+    if (!selectedImage) {
+        alert('Primero seleccioná o sacá una foto.');
+        return;
+    }
+
+    // Show processing
+    document.getElementById('previewContainer').style.display = 'none';
+    document.getElementById('processingOverlay').style.display = 'block';
+    document.getElementById('btnScan').disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+
+        const response = await fetch('{% url "assistant:api_scan_invoice" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            scannedData = result.data;
+            populateResults(scannedData);
+            showStep(2);
+        } else {
+            alert('Error: ' + (result.error || 'No se pudo analizar la imagen'));
+            document.getElementById('previewContainer').style.display = 'block';
+        }
+    } catch (err) {
+        alert('Error de conexión: ' + err.message);
+        document.getElementById('previewContainer').style.display = 'block';
+    } finally {
+        document.getElementById('processingOverlay').style.display = 'none';
+        document.getElementById('btnScan').disabled = false;
+    }
+}
+
+// ========== POPULATE RESULTS ==========
+
+function populateResults(data) {
+    // Header fields
+    document.getElementById('supplierName').value = data.proveedor || '';
+    document.getElementById('invoiceNumber').value = data.numero_comprobante || '';
+    document.getElementById('invoiceNotes').value = data.notas || '';
+
+    // Try to match supplier
+    const supplierSelect = document.getElementById('supplierSelect');
+    if (data.proveedor) {
+        const match = Array.from(supplierSelect.options).find(
+            o => o.text.toLowerCase().includes(data.proveedor.toLowerCase()) ||
+                 data.proveedor.toLowerCase().includes(o.text.toLowerCase())
+        );
+        if (match) {
+            supplierSelect.value = match.value;
+            document.getElementById('supplierName').style.display = 'none';
+        } else {
+            supplierSelect.value = '';
+            document.getElementById('supplierName').style.display = 'block';
+        }
+    }
+
+    // Date
+    if (data.fecha) {
+        // Convert DD/MM/YYYY to YYYY-MM-DD for input
+        const parts = data.fecha.split('/');
+        if (parts.length === 3) {
+            document.getElementById('invoiceDate').value = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+        }
+    } else {
+        document.getElementById('invoiceDate').value = new Date().toISOString().split('T')[0];
+    }
+
+    // Payment method
+    if (data.metodo_pago) {
+        const paymentMap = {
+            'efectivo': 'cash', 'cash': 'cash',
+            'tarjeta': 'card', 'card': 'card',
+            'transferencia': 'transfer', 'transfer': 'transfer',
+            'cheque': 'check', 'check': 'check',
+        };
+        const pm = paymentMap[data.metodo_pago.toLowerCase()];
+        if (pm) document.getElementById('paymentMethod').value = pm;
+    }
+
+    // IVA
+    document.getElementById('invoiceIva').value = data.iva || 0;
+
+    // Products
+    const tbody = document.getElementById('productsBody');
+    tbody.innerHTML = '';
+
+    if (data.productos && data.productos.length > 0) {
+        data.productos.forEach((p, idx) => {
+            addProductRowData(p, idx);
+        });
+    }
+
+    updateTotals();
+}
+
+function addProductRowData(p, idx) {
+    const tbody = document.getElementById('productsBody');
+    const tr = document.createElement('tr');
+    tr.dataset.index = idx;
+
+    const qty = p.cantidad || 0;
+    const price = p.precio_unitario || 0;
+    const total = p.precio_total || (qty * price);
+    const barcode = p.codigo_barras || '';
+
+    tr.innerHTML = `
+        <td class="text-center">
+            <i class="fas fa-spinner fa-spin text-muted match-icon" title="Buscando..."></i>
+        </td>
+        <td class="edit-cell">
+            <input type="text" class="fw-bold" value="${escapeHtml(p.nombre || '')}" 
+                   data-field="nombre" title="Nombre del producto">
+            ${barcode ? `<br><small class="text-muted"><i class="fas fa-barcode me-1"></i>${escapeHtml(barcode)}</small>` : ''}
+        </td>
+        <td class="edit-cell text-center">
+            <input type="number" value="${qty}" min="0" data-field="cantidad" 
+                   onchange="recalcRow(this)">
+        </td>
+        <td class="edit-cell text-end">
+            <input type="number" value="${price}" min="0" step="0.01" data-field="precio_unitario" 
+                   onchange="recalcRow(this)">
+        </td>
+        <td class="edit-cell text-end">
+            <input type="number" value="${total.toFixed(2)}" min="0" step="0.01" data-field="precio_total"
+                   onchange="updateTotals()">
+        </td>
+        <td>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); updateTotals();">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+
+    // Check if product exists in DB
+    checkProductMatch(tr, p.nombre, barcode);
+}
+
+function addProductRow() {
+    const tbody = document.getElementById('productsBody');
+    const idx = tbody.children.length;
+    addProductRowData({
+        nombre: '',
+        cantidad: 1,
+        precio_unitario: 0,
+        precio_total: 0,
+        codigo_barras: '',
+    }, idx);
+}
+
+async function checkProductMatch(tr, nombre, barcode) {
+    const icon = tr.querySelector('.match-icon');
+    try {
+        const q = barcode || nombre;
+        const response = await fetch(`{% url 'purchase:api_search_products' %}?q=${encodeURIComponent(q)}`);
+        const result = await response.json();
+
+        if (result.results && result.results.length > 0) {
+            icon.className = 'fas fa-check-circle match-found match-icon';
+            icon.title = `Encontrado: ${result.results[0].name}`;
+        } else {
+            icon.className = 'fas fa-exclamation-circle match-not-found match-icon';
+            icon.title = 'Producto no encontrado en el sistema';
+        }
+    } catch {
+        icon.className = 'fas fa-question-circle text-muted match-icon';
+        icon.title = 'No se pudo verificar';
+    }
+}
+
+function recalcRow(input) {
+    const tr = input.closest('tr');
+    const qty = parseFloat(tr.querySelector('[data-field="cantidad"]').value) || 0;
+    const price = parseFloat(tr.querySelector('[data-field="precio_unitario"]').value) || 0;
+    tr.querySelector('[data-field="precio_total"]').value = (qty * price).toFixed(2);
+    updateTotals();
+}
+
+function updateTotals() {
+    const rows = document.querySelectorAll('#productsBody tr');
+    let subtotal = 0;
+
+    rows.forEach(tr => {
+        const total = parseFloat(tr.querySelector('[data-field="precio_total"]').value) || 0;
+        subtotal += total;
+    });
+
+    const iva = parseFloat(document.getElementById('invoiceIva').value) || 0;
+    const total = subtotal + iva;
+
+    document.getElementById('summarySubtotal').textContent = fmtMoney(subtotal);
+    document.getElementById('summaryTotal').textContent = fmtMoney(total);
+}
+
+// ========== CONFIRM ==========
+
+async function confirmInvoice() {
+    const rows = document.querySelectorAll('#productsBody tr');
+    if (rows.length === 0) {
+        alert('No hay productos para confirmar.');
+        return;
+    }
+
+    const productos = [];
+    rows.forEach(tr => {
+        const nombre = tr.querySelector('[data-field="nombre"]').value.trim();
+        const cantidad = parseInt(tr.querySelector('[data-field="cantidad"]').value) || 0;
+        const precio_unitario = parseFloat(tr.querySelector('[data-field="precio_unitario"]').value) || 0;
+        const precio_total = parseFloat(tr.querySelector('[data-field="precio_total"]').value) || 0;
+
+        if (nombre && cantidad > 0) {
+            productos.push({ nombre, cantidad, precio_unitario, precio_total });
+        }
+    });
+
+    if (productos.length === 0) {
+        alert('No hay productos válidos. Completá nombre y cantidad.');
+        return;
+    }
+
+    const iva = parseFloat(document.getElementById('invoiceIva').value) || 0;
+    let subtotal = 0;
+    productos.forEach(p => subtotal += p.precio_total);
+
+    const supplierSelect = document.getElementById('supplierSelect');
+    const dateInput = document.getElementById('invoiceDate');
+
+    const payload = {
+        supplier_id: supplierSelect.value || null,
+        supplier_name: document.getElementById('supplierName').value.trim(),
+        numero_comprobante: document.getElementById('invoiceNumber').value.trim(),
+        fecha: dateInput.value,
+        productos: productos,
+        subtotal: subtotal,
+        iva: iva,
+        total: subtotal + iva,
+        metodo_pago: document.getElementById('paymentMethod').value,
+        notas: document.getElementById('invoiceNotes').value.trim(),
+        registrar_gasto: document.getElementById('chkRegisterExpense').checked,
+        actualizar_stock: document.getElementById('chkUpdateStock').checked,
+    };
+
+    document.getElementById('btnConfirm').disabled = true;
+    document.getElementById('btnConfirm').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+
+    try {
+        const response = await fetch('{% url "assistant:api_confirm_invoice" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess(result);
+        } else {
+            alert('Error: ' + (result.error || 'No se pudo guardar'));
+        }
+    } catch (err) {
+        alert('Error de conexión: ' + err.message);
+    } finally {
+        document.getElementById('btnConfirm').disabled = false;
+        document.getElementById('btnConfirm').innerHTML = '<i class="fas fa-check me-2"></i>Confirmar y Guardar';
+    }
+}
+
+function showSuccess(result) {
+    showStep(3);
+
+    let html = `
+        <p class="lead">
+            Compra <strong>${escapeHtml(result.order_number)}</strong> registrada
+        </p>
+        <div class="row justify-content-center g-3 mb-3" style="max-width: 600px; margin: 0 auto;">
+            <div class="col-4">
+                <div class="p-3 bg-light rounded">
+                    <div class="fs-3 fw-bold text-primary">${result.items_created}</div>
+                    <small class="text-muted">Productos</small>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="p-3 bg-light rounded">
+                    <div class="fs-3 fw-bold text-success">${result.stock_updated}</div>
+                    <small class="text-muted">Stock actualizado</small>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="p-3 bg-light rounded">
+                    <div class="fs-3 fw-bold">${result.expense_id ? '✓' : '—'}</div>
+                    <small class="text-muted">Gasto registrado</small>
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('successDetails').innerHTML = html;
+
+    // Show not found products
+    if (result.products_not_found && result.products_not_found.length > 0) {
+        const warn = document.getElementById('notFoundWarning');
+        warn.classList.remove('d-none');
+        const list = document.getElementById('notFoundList');
+        list.innerHTML = result.products_not_found.map(p =>
+            `<li><strong>${escapeHtml(p.nombre)}</strong> (${p.cantidad} u. × $${p.precio.toFixed(2)})</li>`
+        ).join('');
+    }
+}
+
+// ========== NAVIGATION ==========
+
+function showStep(step) {
+    // Update step indicators
+    for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById('step' + i);
+        el.classList.remove('active', 'completed');
+        if (i < step) el.classList.add('completed');
+        if (i === step) el.classList.add('active');
+    }
+
+    // Show/hide sections
+    document.getElementById('uploadSection').style.display = step === 1 ? 'block' : 'none';
+    document.getElementById('resultsSection').style.display = step === 2 ? 'block' : 'none';
+    document.getElementById('successSection').style.display = step === 3 ? 'block' : 'none';
+}
+
+function resetAll() {
+    clearImage();
+    scannedData = null;
+    document.getElementById('productsBody').innerHTML = '';
+    document.getElementById('notFoundWarning').classList.add('d-none');
+    document.getElementById('notFoundList').innerHTML = '';
+    showStep(1);
+}
+
+function toggleNewSupplier() {
+    const sel = document.getElementById('supplierSelect');
+    document.getElementById('supplierName').style.display = sel.value ? 'none' : 'block';
+}
+
+// ========== HELPERS ==========
+
+function fmtMoney(v) {
+    const parts = v.toFixed(2).split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return '$' + intPart + ',' + parts[1];
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Init
+showStep(1);
+</script>
+{% endblock %}

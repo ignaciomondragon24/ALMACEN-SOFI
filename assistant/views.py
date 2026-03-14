@@ -4,6 +4,7 @@ Views for the AI Assistant module.
 import json
 import logging
 import os
+import base64
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -13,9 +14,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.conf import settings as django_settings
+from django.db import transaction
+from django.utils import timezone
+from decimal import Decimal
 
 from .models import Conversation, Message, AssistantSettings, QueryLog
-from .services import AssistantService
+from .services import AssistantService, InvoiceScanService
 from decorators.decorators import group_required
 
 logger = logging.getLogger(__name__)
@@ -320,3 +324,302 @@ def query_logs(request):
 
 # Import Count and Avg for the settings view
 from django.db.models import Count, Avg
+
+
+@login_required
+@group_required(['Admin', 'Manager', 'Stock Manager'])
+def scan_invoice_page(request):
+    """Render the invoice scanning page."""
+    from purchase.models import Supplier
+
+    suppliers = Supplier.objects.filter(is_active=True).order_by('name')
+    context = {
+        'suppliers': suppliers,
+    }
+    return render(request, 'assistant/scan_invoice.html', context)
+
+
+@login_required
+@require_POST
+@group_required(['Admin', 'Manager', 'Stock Manager'])
+def api_scan_invoice(request):
+    """
+    API endpoint: receive an invoice image and return extracted data.
+    Accepts multipart form with 'image' file, or JSON with 'image_base64'.
+    """
+    try:
+        if request.FILES.get('image'):
+            image_file = request.FILES['image']
+            # Validate file size (max 10MB)
+            if image_file.size > 10 * 1024 * 1024:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'La imagen es demasiado grande. Máximo 10MB.'
+                }, status=400)
+
+            image_data = image_file.read()
+            mime_type = image_file.content_type or 'image/jpeg'
+        else:
+            data = json.loads(request.body)
+            image_b64 = data.get('image_base64', '')
+            if not image_b64:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No se recibió ninguna imagen.'
+                }, status=400)
+
+            # Handle data URI format
+            if ',' in image_b64:
+                header, image_b64 = image_b64.split(',', 1)
+                if 'png' in header:
+                    mime_type = 'image/png'
+                elif 'webp' in header:
+                    mime_type = 'image/webp'
+                else:
+                    mime_type = 'image/jpeg'
+            else:
+                mime_type = 'image/jpeg'
+
+            image_data = base64.b64decode(image_b64)
+
+        # Call Gemini Vision
+        scanner = InvoiceScanService()
+        result = scanner.scan_invoice(image_data, mime_type)
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'data': result['data'],
+                'elapsed_ms': result.get('elapsed_ms', 0),
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Error desconocido'),
+                'raw_response': result.get('raw_response', ''),
+            }, status=500)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Formato de datos inválido.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_scan_invoice: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+@group_required(['Admin', 'Manager', 'Stock Manager'])
+def api_confirm_invoice(request):
+    """
+    API endpoint: confirm scanned invoice data.
+    Creates Purchase + PurchaseItems, updates stock, optionally creates Expense.
+    """
+    try:
+        data = json.loads(request.body)
+
+        supplier_id = data.get('supplier_id')
+        supplier_name = data.get('supplier_name', '').strip()
+        numero_comprobante = data.get('numero_comprobante', '').strip()
+        fecha_str = data.get('fecha', '')
+        productos = data.get('productos', [])
+        total = Decimal(str(data.get('total', 0)))
+        subtotal = Decimal(str(data.get('subtotal', 0)))
+        iva = Decimal(str(data.get('iva', 0)))
+        metodo_pago = data.get('metodo_pago', 'cash')
+        notas = data.get('notas', '')
+        registrar_gasto = data.get('registrar_gasto', False)
+        actualizar_stock = data.get('actualizar_stock', True)
+
+        if not productos:
+            return JsonResponse({
+                'success': False,
+                'error': 'No hay productos para registrar.'
+            }, status=400)
+
+        # Parse date
+        from datetime import datetime
+        try:
+            if fecha_str:
+                for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
+                    try:
+                        fecha = datetime.strptime(fecha_str, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    fecha = timezone.now().date()
+            else:
+                fecha = timezone.now().date()
+        except Exception:
+            fecha = timezone.now().date()
+
+        with transaction.atomic():
+            from purchase.models import Supplier, Purchase, PurchaseItem
+            from stocks.models import Product
+            from stocks.services import StockManagementService
+
+            # Get or create supplier
+            supplier = None
+            if supplier_id:
+                try:
+                    supplier = Supplier.objects.get(pk=supplier_id)
+                except Supplier.DoesNotExist:
+                    pass
+
+            if not supplier and supplier_name:
+                supplier, _ = Supplier.objects.get_or_create(
+                    name=supplier_name,
+                    defaults={'is_active': True}
+                )
+
+            if not supplier:
+                supplier, _ = Supplier.objects.get_or_create(
+                    name='Proveedor General',
+                    defaults={'is_active': True}
+                )
+
+            # Create purchase order
+            today = timezone.now().strftime('%Y%m%d')
+            count = Purchase.objects.filter(
+                order_number__startswith=f'OC-{today}'
+            ).count() + 1
+            order_number = f'OC-{today}-{count:04d}'
+
+            purchase = Purchase.objects.create(
+                supplier=supplier,
+                order_number=order_number,
+                status='received',
+                order_date=fecha,
+                received_date=fecha,
+                subtotal=subtotal or total,
+                tax=iva,
+                total=total,
+                notes=f"Cargado por escaneo de remito. {notas}".strip(),
+                created_by=request.user,
+            )
+
+            # Process each product
+            items_created = 0
+            stock_updated = 0
+            products_not_found = []
+
+            for prod_data in productos:
+                nombre = prod_data.get('nombre', '').strip()
+                cantidad = int(prod_data.get('cantidad', 0))
+                precio_unitario = Decimal(str(prod_data.get('precio_unitario', 0)))
+                codigo_barras = prod_data.get('codigo_barras', '').strip() or None
+
+                if not nombre or cantidad <= 0:
+                    continue
+
+                # Try to find matching product
+                product = None
+                if codigo_barras:
+                    product = Product.objects.filter(
+                        barcode=codigo_barras, is_active=True
+                    ).first()
+
+                if not product:
+                    # Search by name (fuzzy)
+                    product = Product.objects.filter(
+                        name__iexact=nombre, is_active=True
+                    ).first()
+
+                if not product:
+                    # Partial match
+                    product = Product.objects.filter(
+                        name__icontains=nombre, is_active=True
+                    ).first()
+
+                if product:
+                    # Create purchase item
+                    PurchaseItem.objects.create(
+                        purchase=purchase,
+                        product=product,
+                        quantity=cantidad,
+                        unit_cost=precio_unitario,
+                        received_quantity=cantidad,
+                    )
+                    items_created += 1
+
+                    # Update stock
+                    if actualizar_stock and precio_unitario > 0:
+                        StockManagementService.add_stock(
+                            product=product,
+                            quantity=cantidad,
+                            cost=precio_unitario,
+                            reference=order_number,
+                            reference_id=purchase.pk,
+                            notes=f'Remito {numero_comprobante}' if numero_comprobante else f'Escaneo remito',
+                            user=request.user,
+                        )
+                        stock_updated += 1
+                else:
+                    products_not_found.append({
+                        'nombre': nombre,
+                        'cantidad': cantidad,
+                        'precio': float(precio_unitario),
+                    })
+
+            # Optionally register as expense
+            expense_id = None
+            if registrar_gasto and total > 0:
+                from expenses.models import Expense, ExpenseCategory
+                cat, _ = ExpenseCategory.objects.get_or_create(
+                    name='Compras Mercadería',
+                    defaults={'color': '#198754', 'is_active': True}
+                )
+
+                # Map payment method
+                payment_map = {
+                    'efectivo': 'cash',
+                    'cash': 'cash',
+                    'tarjeta': 'card',
+                    'card': 'card',
+                    'transferencia': 'transfer',
+                    'transfer': 'transfer',
+                    'cheque': 'check',
+                }
+                pago = payment_map.get(metodo_pago.lower(), 'cash') if metodo_pago else 'cash'
+
+                expense = Expense.objects.create(
+                    category=cat,
+                    description=f'Compra {supplier.name} - {numero_comprobante or order_number}',
+                    amount=total,
+                    expense_date=fecha,
+                    payment_method=pago,
+                    receipt_number=numero_comprobante or order_number,
+                    supplier=supplier,
+                    notes=notas,
+                    created_by=request.user,
+                )
+                expense_id = expense.pk
+
+            return JsonResponse({
+                'success': True,
+                'purchase_id': purchase.pk,
+                'order_number': order_number,
+                'items_created': items_created,
+                'stock_updated': stock_updated,
+                'products_not_found': products_not_found,
+                'expense_id': expense_id,
+                'message': f'Compra {order_number} registrada: {items_created} productos, {stock_updated} stocks actualizados.'
+            })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Formato de datos inválido.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_confirm_invoice: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
