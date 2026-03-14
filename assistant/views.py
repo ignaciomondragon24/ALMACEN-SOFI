@@ -331,10 +331,13 @@ from django.db.models import Count, Avg
 def scan_invoice_page(request):
     """Render the invoice scanning page."""
     from purchase.models import Supplier
+    from stocks.models import ProductCategory
 
     suppliers = Supplier.objects.filter(is_active=True).order_by('name')
+    categories = ProductCategory.objects.filter(is_active=True).order_by('name')
     context = {
         'suppliers': suppliers,
+        'categories': categories,
     }
     return render(request, 'assistant/scan_invoice.html', context)
 
@@ -514,25 +517,35 @@ def api_confirm_invoice(request):
                 cantidad = int(prod_data.get('cantidad', 0))
                 precio_unitario = Decimal(str(prod_data.get('precio_unitario', 0)))
                 codigo_barras = prod_data.get('codigo_barras', '').strip() or None
+                product_id = prod_data.get('product_id') or None
 
                 if not nombre or cantidad <= 0:
                     continue
 
                 # Try to find matching product
                 product = None
-                if codigo_barras:
+
+                # 1) Direct ID from frontend match
+                if product_id:
+                    try:
+                        product = Product.objects.get(pk=int(product_id), is_active=True)
+                    except (Product.DoesNotExist, ValueError, TypeError):
+                        pass
+
+                # 2) Barcode
+                if not product and codigo_barras:
                     product = Product.objects.filter(
                         barcode=codigo_barras, is_active=True
                     ).first()
 
+                # 3) Exact name
                 if not product:
-                    # Search by name (fuzzy)
                     product = Product.objects.filter(
                         name__iexact=nombre, is_active=True
                     ).first()
 
+                # 4) Partial name
                 if not product:
-                    # Partial match
                     product = Product.objects.filter(
                         name__icontains=nombre, is_active=True
                     ).first()
@@ -549,7 +562,7 @@ def api_confirm_invoice(request):
                     items_created += 1
 
                     # Update stock
-                    if actualizar_stock and precio_unitario > 0:
+                    if actualizar_stock:
                         StockManagementService.add_stock(
                             product=product,
                             quantity=cantidad,
@@ -619,6 +632,93 @@ def api_confirm_invoice(request):
         }, status=400)
     except Exception as e:
         logger.error(f"Error in api_confirm_invoice: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+@group_required(['Admin', 'Manager', 'Stock Manager'])
+def api_create_product_from_scan(request):
+    """
+    API endpoint: create a new product from the invoice scan review.
+    Receives name, category_id, purchase_price, sale_price, barcode.
+    Returns the created product id and name.
+    """
+    try:
+        data = json.loads(request.body)
+        name = data.get('name', '').strip()
+        category_id = data.get('category_id') or None
+        purchase_price = Decimal(str(data.get('purchase_price', 0)))
+        sale_price = Decimal(str(data.get('sale_price', 0)))
+        barcode = data.get('barcode', '').strip() or None
+
+        if not name:
+            return JsonResponse({
+                'success': False,
+                'error': 'El nombre del producto es obligatorio.'
+            }, status=400)
+
+        if sale_price <= 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'El precio de venta debe ser mayor a 0.'
+            }, status=400)
+
+        from stocks.models import Product, ProductCategory
+
+        # Check if a product with the same name already exists
+        if Product.objects.filter(name__iexact=name, is_active=True).exists():
+            existing = Product.objects.filter(name__iexact=name, is_active=True).first()
+            return JsonResponse({
+                'success': True,
+                'product_id': existing.pk,
+                'product_name': existing.name,
+                'message': 'Ya existe un producto con ese nombre, se vinculó automáticamente.',
+                'already_existed': True,
+            })
+
+        # Check barcode uniqueness
+        if barcode and Product.objects.filter(barcode=barcode).exists():
+            return JsonResponse({
+                'success': False,
+                'error': f'Ya existe un producto con el código de barras {barcode}.'
+            }, status=400)
+
+        category = None
+        if category_id:
+            try:
+                category = ProductCategory.objects.get(pk=int(category_id))
+            except (ProductCategory.DoesNotExist, ValueError):
+                pass
+
+        product = Product.objects.create(
+            name=name,
+            category=category,
+            purchase_price=purchase_price,
+            cost_price=purchase_price,
+            sale_price=sale_price,
+            barcode=barcode,
+            is_active=True,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'product_id': product.pk,
+            'product_name': product.name,
+            'message': f'Producto "{product.name}" creado exitosamente.',
+            'already_existed': False,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Formato de datos inválido.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_create_product_from_scan: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)
