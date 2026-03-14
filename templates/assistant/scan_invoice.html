@@ -438,22 +438,23 @@ function clearImage() {
 
 // Drag & drop
 const uploadZone = document.getElementById('uploadZone');
-uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
-uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
-uploadZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    uploadZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-        const file = e.dataTransfer.files[0];
-        if (file.type.startsWith('image/')) {
-            // Copy the file to the camera input for processing
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            document.getElementById('fileInput').files = dt.files;
-            handleImageSelect({ target: { files: [file] } });
+if (uploadZone) {
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.type.startsWith('image/')) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                document.getElementById('fileInput').files = dt.files;
+                handleImageSelect({ target: { files: [file] } });
+            }
         }
-    }
-});
+    });
+}
 
 // ========== SCAN ==========
 
@@ -468,6 +469,7 @@ async function scanInvoice() {
     document.getElementById('processingOverlay').style.display = 'block';
     document.getElementById('btnScan').disabled = true;
 
+    let result;
     try {
         const formData = new FormData();
         formData.append('image', selectedImage);
@@ -478,22 +480,31 @@ async function scanInvoice() {
             body: formData,
         });
 
-        const result = await response.json();
+        result = await response.json();
+    } catch (err) {
+        alert('Error de conexión al servidor: ' + err.message);
+        document.getElementById('previewContainer').style.display = 'block';
+        document.getElementById('processingOverlay').style.display = 'none';
+        document.getElementById('btnScan').disabled = false;
+        return;
+    }
 
-        if (result.success) {
+    document.getElementById('processingOverlay').style.display = 'none';
+    document.getElementById('btnScan').disabled = false;
+
+    if (result.success) {
+        try {
             scannedData = result.data;
             populateResults(scannedData);
             showStep(2);
-        } else {
-            alert('Error: ' + (result.error || 'No se pudo analizar la imagen'));
+        } catch (err) {
+            console.error('Error procesando resultados:', err);
+            alert('Error procesando los datos del remito: ' + err.message);
             document.getElementById('previewContainer').style.display = 'block';
         }
-    } catch (err) {
-        alert('Error de conexión: ' + err.message);
+    } else {
+        alert('Error: ' + (result.error || 'No se pudo analizar la imagen'));
         document.getElementById('previewContainer').style.display = 'block';
-    } finally {
-        document.getElementById('processingOverlay').style.display = 'none';
-        document.getElementById('btnScan').disabled = false;
     }
 }
 
@@ -783,23 +794,34 @@ function showStep(step) {
     // Update step indicators
     for (let i = 1; i <= 3; i++) {
         const el = document.getElementById('step' + i);
-        el.classList.remove('active', 'completed');
-        if (i < step) el.classList.add('completed');
-        if (i === step) el.classList.add('active');
+        if (el) {
+            el.classList.remove('active', 'completed');
+            if (i < step) el.classList.add('completed');
+            if (i === step) el.classList.add('active');
+        }
     }
 
     // Show/hide sections
-    document.getElementById('uploadSection').style.display = step === 1 ? 'block' : 'none';
-    document.getElementById('resultsSection').style.display = step === 2 ? 'block' : 'none';
-    document.getElementById('successSection').style.display = step === 3 ? 'block' : 'none';
+    const sections = {
+        'uploadSection': step === 1,
+        'resultsSection': step === 2,
+        'successSection': step === 3,
+    };
+    for (const [id, show] of Object.entries(sections)) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = show ? 'block' : 'none';
+    }
 }
 
 function resetAll() {
     clearImage();
     scannedData = null;
-    document.getElementById('productsBody').innerHTML = '';
-    document.getElementById('notFoundWarning').classList.add('d-none');
-    document.getElementById('notFoundList').innerHTML = '';
+    const body = document.getElementById('productsBody');
+    if (body) body.innerHTML = '';
+    const warn = document.getElementById('notFoundWarning');
+    if (warn) warn.classList.add('d-none');
+    const list = document.getElementById('notFoundList');
+    if (list) list.innerHTML = '';
     showStep(1);
 }
 
