@@ -1694,11 +1694,9 @@
             showToast('No hay métodos de pago configurados', 'error');
             return;
         }
-        // Agregar opción de pago mixto al final
-        const hasMp = methods.some(m => m.code === 'mercadopago');
-        const hasCash = methods.some(m => m.code === 'cash');
-        if (hasMp && hasCash) {
-            methods.push({ id: 'mixed', code: 'mixed', name: 'Mixto (MP + Efectivo)', icon: 'fas fa-exchange-alt' });
+        // Agregar opción de pago mixto al final (disponible si hay al menos 2 métodos)
+        if (methods.length >= 2) {
+            methods.push({ id: 'mixed', code: 'mixed', name: 'Pago Mixto', icon: 'fas fa-layer-group' });
         }
 
         // Limpiar overlay huérfano si existe
@@ -1931,8 +1929,8 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // MIXED CHECKOUT OVERLAY — Pago Mixto: MercadoPago + Efectivo
-    // Flujo: Ingresa monto MP → se calcula automáticamente el resto en efectivo
+    // MIXED CHECKOUT OVERLAY — Pago Mixto Genérico: Cualquier combinación
+    // Flujo: Elegir métodos → Ingresar montos → Confirmar
     // ═══════════════════════════════════════════════════════════════════════════
     let mixedActive = false;
 
@@ -1941,11 +1939,8 @@
         if (mixedActive || fcoActive) return;
 
         const methods = (typeof PAYMENT_METHODS !== 'undefined') ? PAYMENT_METHODS : [];
-        const mpMethod = methods.find(m => m.code === 'mercadopago');
-        const cashMethod = methods.find(m => m.code === 'cash');
-
-        if (!mpMethod || !cashMethod) {
-            showToast('Se necesitan los métodos Efectivo y MercadoPago activos', 'error');
+        if (methods.length < 2) {
+            showToast('Se necesitan al menos 2 métodos de pago activos', 'error');
             return;
         }
 
@@ -1967,48 +1962,45 @@
         mixedActive = true;
         const totalAmt = Math.round(parseFloat(cart.total) * 100) / 100;
 
+        // Build method selector chips HTML
+        let methodChipsHtml = methods.map(m =>
+            `<button type="button" class="btn btn-sm btn-outline-light mixed-method-chip" 
+                     data-method-id="${m.id}" data-method-code="${m.code}" data-method-name="${m.name}" data-method-icon="${m.icon}"
+                     style="border-color:#555;color:#ccc;font-size:0.82rem;padding:4px 12px;border-radius:20px;">
+                <i class="${m.icon} me-1"></i>${m.name}
+            </button>`
+        ).join('');
+
         const overlay = document.createElement('div');
         overlay.id = 'mixed-overlay';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
 
         overlay.innerHTML = `
-            <div class="fco-box" id="mixed-box" style="max-width:500px;">
+            <div class="fco-box" id="mixed-box" style="max-width:540px;">
                 <div class="fco-header">
-                    <span class="fco-header-label"><i class="fas fa-exchange-alt me-2"></i>PAGO MIXTO</span>
+                    <span class="fco-header-label"><i class="fas fa-layer-group me-2"></i>PAGO MIXTO</span>
                     <span class="fco-header-total">${formatCurrency(totalAmt)}</span>
                 </div>
-                <div style="padding:0 1.2rem;">
-                    <p style="color:#888;font-size:0.82rem;margin:0.8rem 0 0.5rem;">
-                        <i class="${mpMethod.icon} me-1" style="color:#00b1ea;"></i><strong>MercadoPago</strong> + 
-                        <i class="${cashMethod.icon} me-1" style="color:#2ecc71;"></i><strong>Efectivo</strong>
+                <div style="padding:0.8rem 1.2rem 0;">
+                    <p style="color:#999;font-size:0.78rem;margin:0 0 0.5rem;">
+                        Seleccioná los métodos de pago (mínimo 2):
+                    </p>
+                    <div id="mixed-method-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:0.8rem;">
+                        ${methodChipsHtml}
+                    </div>
+                </div>
+                <div class="fco-amount-section" style="gap:0.6rem;" id="mixed-inputs-container">
+                    <p style="color:#666;font-size:0.82rem;text-align:center;padding:1rem 0;" id="mixed-placeholder">
+                        <i class="fas fa-hand-pointer me-2"></i>Seleccioná al menos 2 métodos arriba
                     </p>
                 </div>
-                <div class="fco-amount-section" style="gap:0.8rem;">
-                    <div class="fco-amount-group">
-                        <label class="fco-amount-label" for="mixed-mp-amount">
-                            <i class="${mpMethod.icon} me-1" style="color:#00b1ea;"></i>MercadoPago <span class="fco-currency">$</span>
-                        </label>
-                        <input type="number" id="mixed-mp-amount" class="fco-amount-input"
-                               value="" min="0" max="${totalAmt.toFixed(2)}" step="0.01" autocomplete="off"
-                               inputmode="decimal" placeholder="Monto con MP...">
-                        <div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-                            <button type="button" class="btn btn-info btn-sm" id="mixed-mp-send-point"
-                                    style="white-space:nowrap;">
-                                <i class="fas fa-mobile-alt me-1"></i>Enviar a Point
-                            </button>
-                            <span id="mixed-mp-status" class="text-muted small"></span>
-                        </div>
-                    </div>
-                    <div class="fco-amount-group">
-                        <label class="fco-amount-label" for="mixed-cash-amount">
-                            <i class="${cashMethod.icon} me-1" style="color:#2ecc71;"></i>Efectivo <span class="fco-currency">$</span>
-                        </label>
-                        <input type="number" id="mixed-cash-amount" class="fco-amount-input"
-                               value="" min="0" step="0.01" autocomplete="off"
-                               inputmode="decimal" placeholder="Monto en efectivo...">
-                    </div>
+                <div class="fco-amount-section" style="border-top:1px solid #333;margin-top:0.5rem;padding-top:0.5rem;">
                     <div class="fco-change-row" style="flex-direction:column;gap:0.3rem;">
+                        <div style="display:flex;justify-content:space-between;width:100%;">
+                            <span class="fco-change-label">Falta cubrir</span>
+                            <strong id="mixed-remaining" style="color:#e74c3c;">${formatCurrency(totalAmt)}</strong>
+                        </div>
                         <div style="display:flex;justify-content:space-between;width:100%;">
                             <span class="fco-change-label">Total Recibido</span>
                             <strong id="mixed-total-received" style="color:#ccc;">$0</strong>
@@ -2025,7 +2017,7 @@
                         <kbd>Enter</kbd> cobrar
                         <kbd>Esc</kbd> cancelar
                     </span>
-                    <button type="button" class="btn btn-success fco-btn-confirm" id="mixed-confirm" disabled>
+                    <button type="button" class="btn btn-secondary fco-btn-confirm" id="mixed-confirm" disabled>
                         <i class="fas fa-check me-2"></i>COBRAR MIXTO
                     </button>
                 </div>
@@ -2034,46 +2026,148 @@
 
         document.body.appendChild(overlay);
 
-        const mpInput    = document.getElementById('mixed-mp-amount');
-        const cashInput  = document.getElementById('mixed-cash-amount');
-        const confirmBtn = document.getElementById('mixed-confirm');
-        const changeEl   = document.getElementById('mixed-change');
-        const totalRecEl = document.getElementById('mixed-total-received');
-        const mpSendBtn  = document.getElementById('mixed-mp-send-point');
-        const mpStatusEl = document.getElementById('mixed-mp-status');
-        let mpApproved = false;
-        let mpPollInterval = null;
+        const confirmBtn    = document.getElementById('mixed-confirm');
+        const changeEl      = document.getElementById('mixed-change');
+        const totalRecEl    = document.getElementById('mixed-total-received');
+        const remainingEl   = document.getElementById('mixed-remaining');
+        const inputsContainer = document.getElementById('mixed-inputs-container');
+        const placeholder   = document.getElementById('mixed-placeholder');
+        const chipContainer = document.getElementById('mixed-method-chips');
+
+        let selectedMethods = []; // [{id, code, name, icon}]
+        let mpPollIntervals = {};
+
+        function getMethodInputs() {
+            return inputsContainer.querySelectorAll('.mixed-amount-input');
+        }
 
         function updateMixed() {
-            const mpAmt   = parseFloat(mpInput.value) || 0;
-            const cashAmt = parseFloat(cashInput.value) || 0;
-            const totalPaid = mpAmt + cashAmt;
+            const inputs = getMethodInputs();
+            let totalPaid = 0;
+            inputs.forEach(inp => { totalPaid += parseFloat(inp.value) || 0; });
+
             const change = totalPaid - totalAmt;
+            const remaining = Math.max(0, totalAmt - totalPaid);
 
             totalRecEl.textContent = formatCurrency(totalPaid);
             changeEl.textContent = formatCurrency(Math.max(0, change));
             changeEl.style.color = change >= -0.005 ? '#2ecc71' : '#e74c3c';
+            remainingEl.textContent = formatCurrency(remaining);
+            remainingEl.style.color = remaining <= 0.005 ? '#2ecc71' : '#e74c3c';
 
-            const ok = Math.round(totalPaid * 100) >= Math.round(totalAmt * 100) && mpAmt > 0 && cashAmt > 0;
-            confirmBtn.disabled = !ok;
-            confirmBtn.classList.toggle('btn-success', ok);
-            confirmBtn.classList.toggle('btn-secondary', !ok);
+            const ok = Math.round(totalPaid * 100) >= Math.round(totalAmt * 100) && selectedMethods.length >= 2;
+            // Verify at least 2 methods have amount > 0
+            let methodsWithAmount = 0;
+            inputs.forEach(inp => { if ((parseFloat(inp.value) || 0) > 0) methodsWithAmount++; });
+            const valid = ok && methodsWithAmount >= 2;
+            
+            confirmBtn.disabled = !valid;
+            confirmBtn.classList.toggle('btn-success', valid);
+            confirmBtn.classList.toggle('btn-secondary', !valid);
         }
 
-        // ── MercadoPago Point integration ──────────────────────────────────
-        mpSendBtn.addEventListener('click', async () => {
-            const mpAmt = parseFloat(mpInput.value) || 0;
+        function buildInputsForSelected() {
+            // Clear existing inputs but keep placeholder for reference
+            inputsContainer.innerHTML = '';
+
+            if (selectedMethods.length < 2) {
+                inputsContainer.innerHTML = `
+                    <p style="color:#666;font-size:0.82rem;text-align:center;padding:1rem 0;" id="mixed-placeholder">
+                        <i class="fas fa-hand-pointer me-2"></i>Seleccioná al menos 2 métodos arriba
+                    </p>`;
+                updateMixed();
+                return;
+            }
+
+            selectedMethods.forEach((m, idx) => {
+                const isMp = m.code === 'mercadopago';
+                const isCash = m.code === 'cash';
+                const isLast = idx === selectedMethods.length - 1;
+
+                let extraHtml = '';
+                if (isMp) {
+                    extraHtml = `
+                        <div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.5rem;">
+                            <button type="button" class="btn btn-info btn-sm mixed-mp-send"
+                                    data-method-code="${m.code}" style="white-space:nowrap;">
+                                <i class="fas fa-mobile-alt me-1"></i>Enviar a Point
+                            </button>
+                            <span class="text-muted small mixed-mp-status" data-method-code="${m.code}"></span>
+                        </div>`;
+                }
+
+                const group = document.createElement('div');
+                group.className = 'fco-amount-group';
+                group.innerHTML = `
+                    <label class="fco-amount-label" for="mixed-input-${m.code}">
+                        <i class="${m.icon} me-1" style="color:${isMp ? '#00b1ea' : isCash ? '#2ecc71' : '#ccc'};"></i>
+                        ${m.name} <span class="fco-currency">$</span>
+                    </label>
+                    <input type="number" id="mixed-input-${m.code}" class="fco-amount-input mixed-amount-input"
+                           data-method-id="${m.id}" data-method-code="${m.code}" data-method-idx="${idx}"
+                           value="" min="0" step="0.01" autocomplete="off"
+                           inputmode="decimal" placeholder="Monto...">
+                    ${extraHtml}
+                `;
+                inputsContainer.appendChild(group);
+            });
+
+            // Auto-fill: when first input changes, fill the last with remaining
+            const allInputs = getMethodInputs();
+            allInputs.forEach((inp, idx) => {
+                inp.addEventListener('input', () => {
+                    // Auto-fill last input with remaining
+                    if (idx < allInputs.length - 1) {
+                        let otherTotal = 0;
+                        allInputs.forEach((other, oi) => {
+                            if (oi !== allInputs.length - 1) otherTotal += parseFloat(other.value) || 0;
+                        });
+                        const lastInput = allInputs[allInputs.length - 1];
+                        const rem = totalAmt - otherTotal;
+                        if (rem > 0) {
+                            lastInput.value = rem.toFixed(2);
+                        } else {
+                            lastInput.value = '';
+                        }
+                    }
+                    updateMixed();
+                });
+                inp.addEventListener('change', updateMixed);
+            });
+
+            // Bind MP Point buttons
+            inputsContainer.querySelectorAll('.mixed-mp-send').forEach(btn => {
+                btn.addEventListener('click', () => handleMpPointSend(btn));
+            });
+
+            updateMixed();
+            // Focus first input
+            if (allInputs.length > 0) {
+                setTimeout(() => { allInputs[0].focus(); }, 50);
+            }
+        }
+
+        // Handle MP Point send
+        async function handleMpPointSend(btn) {
+            const methodCode = btn.dataset.methodCode;
+            const inp = document.getElementById(`mixed-input-${methodCode}`);
+            const statusEl = inputsContainer.querySelector(`.mixed-mp-status[data-method-code="${methodCode}"]`);
+            const mpAmt = parseFloat(inp?.value) || 0;
+
             if (mpAmt <= 0) {
                 showToast('Ingresá el monto de MercadoPago primero', 'warning');
-                mpInput.focus();
+                inp?.focus();
                 return;
             }
 
             try {
-                mpSendBtn.disabled = true;
-                mpSendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
-                mpStatusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con Point...';
-                mpStatusEl.className = 'text-info small';
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
+                if (statusEl) {
+                    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con Point...';
+                    statusEl.className = 'text-info small mixed-mp-status';
+                    statusEl.dataset.methodCode = methodCode;
+                }
 
                 const response = await fetch('/mercadopago/api/create-intent/', {
                     method: 'POST',
@@ -2091,45 +2185,45 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    mpStatusEl.innerHTML = '<i class="fas fa-check text-success"></i> Enviado al Point';
-                    mpStatusEl.className = 'text-success small';
-                    mpSendBtn.innerHTML = '<i class="fas fa-check me-1"></i>Enviado';
-                    mpInput.readOnly = true;
-                    mpInput.style.opacity = '0.7';
-
+                    if (statusEl) {
+                        statusEl.innerHTML = '<i class="fas fa-check text-success"></i> Enviado al Point';
+                        statusEl.className = 'text-success small mixed-mp-status';
+                    }
+                    btn.innerHTML = '<i class="fas fa-check me-1"></i>Enviado';
+                    if (inp) { inp.readOnly = true; inp.style.opacity = '0.7'; }
                     showToast('Pago enviado al Point. Esperando confirmación...', 'info');
 
-                    // Poll for payment status
                     if (data.payment_intent && data.payment_intent.id) {
-                        mixedPollMpStatus(data.payment_intent.id);
+                        mixedPollMpStatus(data.payment_intent.id, methodCode, btn, inp, statusEl);
                     }
                 } else {
                     throw new Error(data.error || 'Error al conectar con Mercado Pago');
                 }
             } catch (error) {
                 console.error('MP Point error (mixed):', error);
-                mpStatusEl.innerHTML = '<i class="fas fa-times text-danger"></i> Error';
-                mpStatusEl.className = 'text-danger small';
-                mpSendBtn.disabled = false;
-                mpSendBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                if (statusEl) {
+                    statusEl.innerHTML = '<i class="fas fa-times text-danger"></i> Error';
+                    statusEl.className = 'text-danger small mixed-mp-status';
+                }
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
                 showToast(error.message || 'Error al conectar con Mercado Pago Point', 'error');
             }
-        });
+        }
 
-        function mixedPollMpStatus(paymentIntentId) {
+        function mixedPollMpStatus(paymentIntentId, methodCode, btn, inp, statusEl) {
             let attempts = 0;
-            const maxAttempts = 60; // 2 min
+            const maxAttempts = 60;
 
-            mpPollInterval = setInterval(async () => {
+            mpPollIntervals[methodCode] = setInterval(async () => {
                 attempts++;
                 if (attempts > maxAttempts) {
-                    clearInterval(mpPollInterval);
-                    mpPollInterval = null;
-                    mpStatusEl.innerHTML = '<i class="fas fa-clock text-warning"></i> Tiempo agotado';
-                    mpSendBtn.disabled = false;
-                    mpSendBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
-                    mpInput.readOnly = false;
-                    mpInput.style.opacity = '1';
+                    clearInterval(mpPollIntervals[methodCode]);
+                    delete mpPollIntervals[methodCode];
+                    if (statusEl) statusEl.innerHTML = '<i class="fas fa-clock text-warning"></i> Tiempo agotado';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                    if (inp) { inp.readOnly = false; inp.style.opacity = '1'; }
                     return;
                 }
                 try {
@@ -2137,29 +2231,30 @@
                     const data = await resp.json();
 
                     if (data.status === 'approved' || data.status === 'FINISHED') {
-                        clearInterval(mpPollInterval);
-                        mpPollInterval = null;
-                        mpApproved = true;
-                        mpStatusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> ¡Pago aprobado!';
-                        mpSendBtn.classList.remove('btn-info');
-                        mpSendBtn.classList.add('btn-success');
-                        mpSendBtn.innerHTML = '<i class="fas fa-check me-1"></i>Aprobado';
-                        showToast('¡Pago con MercadoPago aprobado! Ingresá el efectivo.', 'success');
-                        cashInput.focus();
-                        cashInput.select();
+                        clearInterval(mpPollIntervals[methodCode]);
+                        delete mpPollIntervals[methodCode];
+                        if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> ¡Pago aprobado!';
+                        btn.classList.remove('btn-info');
+                        btn.classList.add('btn-success');
+                        btn.innerHTML = '<i class="fas fa-check me-1"></i>Aprobado';
+                        showToast('¡Pago con MercadoPago aprobado!', 'success');
+                        // Focus next empty input
+                        const allInputs = getMethodInputs();
+                        for (const nextInp of allInputs) {
+                            if (!nextInp.readOnly && nextInp !== inp) { nextInp.focus(); nextInp.select(); break; }
+                        }
                     } else if (data.status === 'rejected' || data.status === 'cancelled' || data.status === 'CANCELED') {
-                        clearInterval(mpPollInterval);
-                        mpPollInterval = null;
-                        mpStatusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Rechazado';
-                        mpSendBtn.disabled = false;
-                        mpSendBtn.classList.remove('btn-success');
-                        mpSendBtn.classList.add('btn-info');
-                        mpSendBtn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
-                        mpInput.readOnly = false;
-                        mpInput.style.opacity = '1';
+                        clearInterval(mpPollIntervals[methodCode]);
+                        delete mpPollIntervals[methodCode];
+                        if (statusEl) statusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Rechazado';
+                        btn.disabled = false;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-info');
+                        btn.innerHTML = '<i class="fas fa-mobile-alt me-1"></i>Reintentar';
+                        if (inp) { inp.readOnly = false; inp.style.opacity = '1'; }
                         showToast('Pago de MercadoPago rechazado o cancelado', 'warning');
                     } else {
-                        mpStatusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Esperando... (${attempts}s)`;
+                        if (statusEl) statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Esperando... (${attempts}s)`;
                     }
                 } catch (err) {
                     console.error('Mixed MP poll error:', err);
@@ -2167,40 +2262,80 @@
             }, 2000);
         }
 
-        // Cuando se escribe el monto de MP, auto-completar el de efectivo
-        mpInput.addEventListener('input', () => {
-            const mpAmt = parseFloat(mpInput.value) || 0;
-            const remaining = totalAmt - mpAmt;
-            if (remaining > 0 && mpAmt > 0) {
-                cashInput.value = remaining.toFixed(2);
-            } else if (mpAmt >= totalAmt) {
-                cashInput.value = '';
-            }
-            updateMixed();
+        // Chip selection
+        chipContainer.querySelectorAll('.mixed-method-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const mId = parseInt(chip.dataset.methodId);
+                const mCode = chip.dataset.methodCode;
+                const mName = chip.dataset.methodName;
+                const mIcon = chip.dataset.methodIcon;
+
+                const idx = selectedMethods.findIndex(m => m.code === mCode);
+                if (idx >= 0) {
+                    // Deselect
+                    selectedMethods.splice(idx, 1);
+                    chip.classList.remove('btn-light');
+                    chip.classList.add('btn-outline-light');
+                    chip.style.borderColor = '#555';
+                    chip.style.color = '#ccc';
+                    chip.style.background = '';
+                } else {
+                    // Select
+                    selectedMethods.push({ id: mId, code: mCode, name: mName, icon: mIcon });
+                    chip.classList.remove('btn-outline-light');
+                    chip.classList.add('btn-light');
+                    chip.style.borderColor = '#00d2d3';
+                    chip.style.color = '#1a1a2e';
+                    chip.style.background = '#e0f7fa';
+                }
+                buildInputsForSelected();
+            });
         });
 
-        cashInput.addEventListener('input', updateMixed);
+        // Pre-select common combo if available
+        const mpChip = chipContainer.querySelector('[data-method-code="mercadopago"]');
+        const cashChip = chipContainer.querySelector('[data-method-code="cash"]');
+        if (mpChip && cashChip) {
+            mpChip.click();
+            cashChip.click();
+        }
 
         function closeMixed(skipFocus) {
             if (!mixedActive) return;
             mixedActive = false;
-            if (mpPollInterval) { clearInterval(mpPollInterval); mpPollInterval = null; }
+            for (const key in mpPollIntervals) {
+                clearInterval(mpPollIntervals[key]);
+            }
+            mpPollIntervals = {};
             document.removeEventListener('keydown', onMixedKey, true);
             overlay.remove();
             if (!skipFocus) productSearch?.focus();
         }
 
         async function doMixedConfirm() {
-            const mpAmt   = parseFloat(mpInput.value) || 0;
-            const cashAmt = parseFloat(cashInput.value) || 0;
-            const totalPaid = mpAmt + cashAmt;
+            const inputs = getMethodInputs();
+            const payments = [];
+            let totalPaid = 0;
+            let methodsWithAmount = 0;
+
+            inputs.forEach(inp => {
+                const amt = parseFloat(inp.value) || 0;
+                if (amt > 0) {
+                    payments.push({
+                        method_id: parseInt(inp.dataset.methodId),
+                        amount: amt
+                    });
+                    totalPaid += amt;
+                    methodsWithAmount++;
+                }
+            });
 
             if (Math.round(totalPaid * 100) < Math.round(totalAmt * 100)) {
                 showToast('El monto total es menor al total a cobrar', 'warning');
                 return;
             }
-            if (mpAmt <= 0 || cashAmt <= 0) {
-                showToast('Ambos montos deben ser mayores a 0', 'warning');
+            if (methodsWithAmount < 2) {
+                showToast('Ingresá monto en al menos 2 métodos de pago', 'warning');
                 return;
             }
 
@@ -2213,10 +2348,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
                     body: JSON.stringify({
                         transaction_id: TRANSACTION_ID,
-                        payments: [
-                            { method_id: mpMethod.id, amount: mpAmt },
-                            { method_id: cashMethod.id, amount: cashAmt }
-                        ]
+                        payments: payments
                     })
                 });
                 const data = await resp.json();
@@ -2238,8 +2370,10 @@
 
         function onMixedKey(e) {
             if (!mixedActive) return;
-            // Inside inputs, allow normal typing
-            if (document.activeElement === mpInput || document.activeElement === cashInput) {
+            const inputs = getMethodInputs();
+            const activeInput = Array.from(inputs).find(inp => document.activeElement === inp);
+
+            if (activeInput) {
                 if (e.key === 'Enter') {
                     e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
                     if (!confirmBtn.disabled) doMixedConfirm();
@@ -2248,8 +2382,10 @@
                     closeMixed();
                 } else if (e.key === 'Tab') {
                     e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                    if (document.activeElement === mpInput) { cashInput.focus(); cashInput.select(); }
-                    else { mpInput.focus(); mpInput.select(); }
+                    const curIdx = Array.from(inputs).indexOf(activeInput);
+                    const nextIdx = (curIdx + 1) % inputs.length;
+                    inputs[nextIdx].focus();
+                    inputs[nextIdx].select();
                 } else if (/^F\d+$/.test(e.key)) {
                     e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
                 }
@@ -2258,7 +2394,7 @@
             // Outside inputs
             e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
             if (e.key === 'Escape') closeMixed();
-            else if (e.key === 'Tab') { mpInput.focus(); mpInput.select(); }
+            else if (e.key === 'Tab' && inputs.length > 0) { inputs[0].focus(); inputs[0].select(); }
             else if (e.key === 'Enter' && !confirmBtn.disabled) doMixedConfirm();
         }
 
@@ -2266,9 +2402,6 @@
 
         confirmBtn.addEventListener('click', doMixedConfirm);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeMixed(); });
-
-        updateMixed();
-        setTimeout(() => { mpInput.focus(); }, 50);
     }
 
     // Expose for sidebar quick-pay button
