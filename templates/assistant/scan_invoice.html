@@ -802,8 +802,11 @@ async function confirmInvoice() {
         actualizar_stock: document.getElementById('chkUpdateStock').checked,
     };
 
-    document.getElementById('btnConfirm').disabled = true;
-    document.getElementById('btnConfirm').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+    const btnConfirm = document.getElementById('btnConfirm');
+    if (btnConfirm) {
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+    }
 
     try {
         const response = await fetch('{% url "assistant:api_confirm_invoice" %}', {
@@ -825,8 +828,11 @@ async function confirmInvoice() {
     } catch (err) {
         alert('Error de conexión: ' + err.message);
     } finally {
-        document.getElementById('btnConfirm').disabled = false;
-        document.getElementById('btnConfirm').innerHTML = '<i class="fas fa-check me-2"></i>Confirmar y Guardar';
+        const btnC = document.getElementById('btnConfirm');
+        if (btnC) {
+            btnC.disabled = false;
+            btnC.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar y Guardar';
+        }
     }
 }
 
@@ -858,16 +864,19 @@ function showSuccess(result) {
             </div>
         </div>
     `;
-    document.getElementById('successDetails').innerHTML = html;
+    const successEl = document.getElementById('successDetails');
+    if (successEl) successEl.innerHTML = html;
 
     // Show not found products
     if (result.products_not_found && result.products_not_found.length > 0) {
         const warn = document.getElementById('notFoundWarning');
-        warn.classList.remove('d-none');
+        if (warn) warn.classList.remove('d-none');
         const list = document.getElementById('notFoundList');
-        list.innerHTML = result.products_not_found.map(p =>
-            `<li><strong>${escapeHtml(p.nombre)}</strong> (${p.cantidad} u. × $${p.precio.toFixed(2)})</li>`
-        ).join('');
+        if (list) {
+            list.innerHTML = result.products_not_found.map(p =>
+                `<li><strong>${escapeHtml(p.nombre)}</strong> (${p.cantidad} u. × $${p.precio.toFixed(2)})</li>`
+            ).join('');
+        }
     }
 }
 
@@ -926,7 +935,8 @@ function openCreateProductModal(tr) {
     document.getElementById('cpName').value = nombre;
     document.getElementById('cpBarcode').value = barcode;
     document.getElementById('cpPurchasePrice').value = precio;
-    document.getElementById('cpError').classList.add('d-none');
+    const cpErr = document.getElementById('cpError');
+    if (cpErr) cpErr.classList.add('d-none');
 
     // Set margin from category if selected, else default 30
     const margin = parseFloat(document.getElementById('cpMargin').value) || 30;
