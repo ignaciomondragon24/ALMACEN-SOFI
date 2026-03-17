@@ -409,20 +409,15 @@
                 </div>
                 {% endif %}
                 
-                <!-- Quick Insights -->
-                {% if insights %}
+                <!-- Suggested Questions -->
                 <div class="sidebar-section">
-                    <h6><i class="fas fa-lightbulb me-2"></i>Alertas Rápidas</h6>
-                    {% for insight in insights %}
-                    <div class="insight-card {{ insight.type }}">
-                        <h6><i class="fas {{ insight.icon }} me-2"></i>{{ insight.title }}</h6>
-                        <p>{{ insight.message }}</p>
+                    <h6><i class="fas fa-question-circle me-2"></i>Preguntas Sugeridas</h6>
+                    {% for question in suggested_questions %}
+                    <div class="suggested-question" onclick="askQuestion('{{ question }}')">
+                        {{ question }}
                     </div>
                     {% endfor %}
                 </div>
-                {% endif %}
-                
-
                 
                 <!-- Conversation History -->
                 <div class="sidebar-section">
