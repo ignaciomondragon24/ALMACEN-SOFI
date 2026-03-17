@@ -48,7 +48,7 @@
                             <select name="payment_method" id="id_payment_method" class="form-select" required>
                                 <option value="">Seleccione...</option>
                                 {% for method in form.payment_method.field.queryset %}
-                                <option value="{{ method.pk }}" {% if form.payment_method.value == method.pk %}selected{% endif %}>
+                                <option value="{{ method.pk }}" {% if form.payment_method.value|stringformat:'d' == method.pk|stringformat:'d' %}selected{% endif %}>
                                     {{ method.name }}
                                 </option>
                                 {% endfor %}

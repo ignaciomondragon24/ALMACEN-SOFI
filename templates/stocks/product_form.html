@@ -50,7 +50,7 @@
                                     <select name="category" id="id_category" class="form-select">
                                         <option value="">Sin categoría</option>
                                         {% for cat in form.category.field.queryset %}
-                                        <option value="{{ cat.pk }}" {% if form.category.value == cat.pk %}selected{% endif %}>
+                                        <option value="{{ cat.pk }}" {% if form.category.value|stringformat:'d' == cat.pk|stringformat:'d' %}selected{% endif %}>
                                             {{ cat.name }}
                                         </option>
                                         {% endfor %}
@@ -86,7 +86,7 @@
                                     <label for="id_unit_of_measure" class="form-label">Unidad de Medida</label>
                                     <select name="unit_of_measure" id="id_unit_of_measure" class="form-select">
                                         {% for unit in form.unit_of_measure.field.queryset %}
-                                        <option value="{{ unit.pk }}" {% if form.unit_of_measure.value == unit.pk %}selected{% endif %}>
+                                        <option value="{{ unit.pk }}" {% if form.unit_of_measure.value|stringformat:'d' == unit.pk|stringformat:'d' %}selected{% endif %}>
                                             {{ unit.name }} ({{ unit.abbreviation }})
                                         </option>
                                         {% endfor %}
