@@ -24,6 +24,7 @@ urlpatterns = [
     path('low-stock/', views.low_stock_products, name='low_stock'),
     path('price-list/', views.price_list, name='price_list'),
     path('export/excel/', views.export_products_excel, name='export_excel'),
+    path('import/excel/', views.import_excel, name='import_excel'),
     
     # Bulk Stock Load (Carga por Bultos)
     path('bulk-load/', views.bulk_stock_load, name='bulk_stock_load'),
