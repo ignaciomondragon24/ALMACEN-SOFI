@@ -336,6 +336,99 @@ def import_excel(request):
     from django.db import transaction
 
     if request.method == 'POST':
+
+        # ── Paso 2: Confirmar importación (no necesita archivo) ──
+        if 'confirm' in request.POST:
+            data = request.session.pop('_import_excel_data', None)
+            if not data:
+                messages.error(request, 'Sesión expirada. Volvé a subir el archivo.')
+                return redirect('stocks:import_excel')
+
+            created = 0
+            updated = 0
+            cat_created = 0
+            errors = []
+
+            with transaction.atomic():
+                for sheet_data in data:
+                    cat_name = sheet_data['category_name'].strip()
+
+                    # Buscar categoría existente (case-insensitive)
+                    category = ProductCategory.objects.filter(name__iexact=cat_name).first()
+                    if not category:
+                        category = ProductCategory.objects.create(name=cat_name)
+                        cat_created += 1
+
+                    for item in sheet_data['items']:
+                        try:
+                            barcode_val = _clean_barcode(item.get('barcode'))
+                            sku_val = str(item.get('sku', '')).strip() if item.get('sku') else ''
+
+                            product = None
+                            # Buscar por barcode primero, luego por SKU
+                            if barcode_val:
+                                product = Product.objects.filter(barcode=barcode_val).first()
+                            if not product and sku_val:
+                                product = Product.objects.filter(sku=sku_val).first()
+
+                            purchase_price = Decimal(str(item['purchase_price'])) if item.get('purchase_price') else Decimal('0.00')
+                            sale_price = Decimal(str(item['sale_price'])) if item.get('sale_price') else Decimal('0.01')
+
+                            uom = None
+                            if item.get('unit'):
+                                uom = _get_or_create_unit(item['unit'])
+
+                            if product:
+                                # Actualizar existente
+                                product.category = category
+                                product.purchase_price = purchase_price
+                                product.sale_price = sale_price
+                                product.cost_price = purchase_price
+                                if uom:
+                                    product.unit_of_measure = uom
+                                if barcode_val and not product.barcode:
+                                    product.barcode = barcode_val
+                                product.save()
+                                updated += 1
+                            else:
+                                # Crear nuevo - generar SKU si no tiene
+                                sku = sku_val or f"IMP-{Product.objects.count() + 1:06d}"
+                                base_sku = sku
+                                counter = 1
+                                while Product.objects.filter(sku=sku).exists():
+                                    sku = f"{base_sku}-{counter}"
+                                    counter += 1
+
+                                # Evitar barcode duplicado
+                                if barcode_val and Product.objects.filter(barcode=barcode_val).exists():
+                                    barcode_val = None
+
+                                Product.objects.create(
+                                    sku=sku,
+                                    barcode=barcode_val if barcode_val else None,
+                                    name=item['nombre'],
+                                    category=category,
+                                    unit_of_measure=uom,
+                                    purchase_price=purchase_price,
+                                    sale_price=sale_price,
+                                    cost_price=purchase_price,
+                                    is_active=True,
+                                )
+                                created += 1
+                        except Exception as e:
+                            errors.append(f"{item.get('nombre', '???')}: {e}")
+
+            msg = f'Importación completada: {created} creados, {updated} actualizados'
+            if cat_created:
+                msg += f', {cat_created} categorías nuevas'
+            if errors:
+                msg += f'. {len(errors)} errores.'
+                for err in errors[:10]:
+                    messages.warning(request, err)
+            messages.success(request, msg)
+            return redirect('stocks:product_list')
+
+        # ── Paso 1: Preview (necesita archivo) ──
         excel_file = request.FILES.get('excel_file')
         if not excel_file:
             messages.error(request, 'Seleccioná un archivo Excel.')
@@ -351,156 +444,69 @@ def import_excel(request):
             messages.error(request, f'No se pudo leer el archivo: {e}')
             return redirect('stocks:import_excel')
 
-        # Paso 1: Preview
-        if 'preview' in request.POST:
-            preview_data = []
-            _debug_headers = []
-            for sheet_name in wb.sheetnames:
-                ws = wb[sheet_name]
-                rows = list(ws.iter_rows(values_only=True))
-                if len(rows) < 2:
+        preview_data = []
+        _debug_headers = []
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = list(ws.iter_rows(values_only=True))
+            if len(rows) < 2:
+                continue
+
+            header = [str(c).strip().lower() if c else '' for c in rows[0]]
+            col_map = _map_columns(header)
+
+            # Si no detectó 'nombre', intentar con la primera columna de texto
+            if 'nombre' not in col_map:
+                for test_idx, h in enumerate(header):
+                    if test_idx not in col_map.values() and h:
+                        col_map['nombre'] = test_idx
+                        break
+
+            if 'nombre' not in col_map:
+                _debug_headers.append(f"Hoja '{sheet_name}': columnas={header}, no se pudo detectar 'nombre'")
+                continue
+
+            items = []
+            for row in rows[1:]:
+                if not any(row):
                     continue
+                item = _extract_row(row, col_map)
+                if item['nombre']:
+                    exists = False
+                    bc = _clean_barcode(item.get('barcode'))
+                    if bc:
+                        exists = Product.objects.filter(barcode=bc).exists()
+                        item['barcode'] = bc
+                    if not exists and item.get('sku'):
+                        exists = Product.objects.filter(sku=str(item['sku']).strip()).exists()
+                    item['exists'] = exists
+                    items.append(item)
 
-                header = [str(c).strip().lower() if c else '' for c in rows[0]]
-                col_map = _map_columns(header)
+            if items:
+                preview_data.append({
+                    'category_name': sheet_name.strip(),
+                    'items': items,
+                    'count': len(items),
+                })
 
-                # Si no detectó 'nombre', intentar con la primera columna de texto
-                if 'nombre' not in col_map:
-                    # Buscar la primera columna que tenga texto en las filas de datos
-                    for test_idx, h in enumerate(header):
-                        if test_idx not in col_map.values() and h:
-                            col_map['nombre'] = test_idx
-                            break
+        if not preview_data:
+            msg = 'No se encontraron datos válidos en el archivo.'
+            if _debug_headers:
+                for dbg in _debug_headers:
+                    messages.info(request, dbg)
+            else:
+                sheet_info = [sn for sn in wb.sheetnames]
+                messages.info(request, f'Hojas encontradas: {", ".join(sheet_info)}')
+            messages.warning(request, msg)
+            return redirect('stocks:import_excel')
 
-                if 'nombre' not in col_map:
-                    _debug_headers.append(f"Hoja '{sheet_name}': columnas={header}, no se pudo detectar 'nombre'")
-                    continue
-
-                items = []
-                for row in rows[1:]:
-                    if not any(row):
-                        continue
-                    item = _extract_row(row, col_map)
-                    if item['nombre']:
-                        # Check si ya existe por barcode o SKU
-                        exists = False
-                        if item['barcode']:
-                            exists = Product.objects.filter(barcode=item['barcode']).exists()
-                        if not exists and item['sku']:
-                            exists = Product.objects.filter(sku=item['sku']).exists()
-                        item['exists'] = exists
-                        items.append(item)
-
-                if items:
-                    preview_data.append({
-                        'category_name': sheet_name.strip(),
-                        'items': items,
-                        'count': len(items),
-                    })
-
-            if not preview_data:
-                msg = 'No se encontraron datos válidos en el archivo.'
-                if _debug_headers:
-                    for dbg in _debug_headers:
-                        messages.info(request, dbg)
-                else:
-                    sheet_info = [sn for sn in wb.sheetnames]
-                    messages.info(request, f'Hojas encontradas: {", ".join(sheet_info)}')
-                messages.warning(request, msg)
-                return redirect('stocks:import_excel')
-
-            # Guardar archivo en sesión para el paso de confirmación
-            request.session['_import_excel_data'] = _serialize_preview(preview_data)
-            return render(request, 'stocks/import_excel.html', {
-                'preview': preview_data,
-                'total_products': sum(s['count'] for s in preview_data),
-                'total_categories': len(preview_data),
-            })
-
-        # Paso 2: Confirmar importación
-        if 'confirm' in request.POST:
-            data = request.session.pop('_import_excel_data', None)
-            if not data:
-                messages.error(request, 'Sesión expirada. Volvé a subir el archivo.')
-                return redirect('stocks:import_excel')
-
-            created = 0
-            updated = 0
-            cat_created = 0
-            errors = []
-
-            with transaction.atomic():
-                for sheet_data in data:
-                    cat_name = sheet_data['category_name']
-                    category, cat_is_new = ProductCategory.objects.get_or_create(
-                        name__iexact=cat_name,
-                        defaults={'name': cat_name}
-                    )
-                    if cat_is_new:
-                        cat_created += 1
-
-                    for item in sheet_data['items']:
-                        try:
-                            product = None
-                            # Buscar por barcode primero, luego por SKU
-                            if item.get('barcode'):
-                                product = Product.objects.filter(barcode=item['barcode']).first()
-                            if not product and item.get('sku'):
-                                product = Product.objects.filter(sku=item['sku']).first()
-
-                            if product:
-                                # Actualizar existente
-                                product.category = category
-                                if item.get('purchase_price'):
-                                    product.purchase_price = Decimal(str(item['purchase_price']))
-                                if item.get('sale_price'):
-                                    product.sale_price = Decimal(str(item['sale_price']))
-                                if item.get('unit'):
-                                    uom = _get_or_create_unit(item['unit'])
-                                    if uom:
-                                        product.unit_of_measure = uom
-                                product.save()
-                                updated += 1
-                            else:
-                                # Crear nuevo
-                                sku = item.get('sku') or f"IMP-{Product.objects.count() + 1:06d}"
-                                # Asegurar SKU único
-                                base_sku = sku
-                                counter = 1
-                                while Product.objects.filter(sku=sku).exists():
-                                    sku = f"{base_sku}-{counter}"
-                                    counter += 1
-                                barcode = item.get('barcode') or None
-                                sale_price = Decimal(str(item['sale_price'])) if item.get('sale_price') else Decimal('0.01')
-                                purchase_price = Decimal(str(item['purchase_price'])) if item.get('purchase_price') else Decimal('0.00')
-
-                                uom = None
-                                if item.get('unit'):
-                                    uom = _get_or_create_unit(item['unit'])
-
-                                Product.objects.create(
-                                    sku=sku,
-                                    barcode=barcode,
-                                    name=item['nombre'],
-                                    category=category,
-                                    unit_of_measure=uom,
-                                    purchase_price=purchase_price,
-                                    sale_price=sale_price,
-                                    cost_price=purchase_price,
-                                )
-                                created += 1
-                        except Exception as e:
-                            errors.append(f"{item.get('nombre', '???')}: {e}")
-
-            msg = f'Importación completada: {created} creados, {updated} actualizados'
-            if cat_created:
-                msg += f', {cat_created} categorías nuevas'
-            if errors:
-                msg += f'. {len(errors)} errores.'
-                for err in errors[:5]:
-                    messages.warning(request, err)
-            messages.success(request, msg)
-            return redirect('stocks:product_list')
+        # Guardar datos en sesión para el paso de confirmación
+        request.session['_import_excel_data'] = _serialize_preview(preview_data)
+        return render(request, 'stocks/import_excel.html', {
+            'preview': preview_data,
+            'total_products': sum(s['count'] for s in preview_data),
+            'total_categories': len(preview_data),
+        })
 
     return render(request, 'stocks/import_excel.html')
 
@@ -558,8 +564,15 @@ def _extract_row(row, col_map):
             return None
 
     nombre = to_str(get_val('nombre'))
-    barcode = to_str(get_val('barcode'))
-    sku = to_str(get_val('sku'))
+    barcode = _clean_barcode(get_val('barcode'))
+    sku_raw = get_val('sku')
+    # SKU puede venir como número float en Excel
+    sku = ''
+    if sku_raw is not None:
+        s = str(sku_raw).strip()
+        if s.endswith('.0'):
+            s = s[:-2]
+        sku = s
     unit = to_str(get_val('unit'))
     margin = to_decimal(get_val('margin'))
     purchase_price = to_decimal(get_val('purchase_price'))
@@ -606,6 +619,25 @@ def _serialize_preview(preview_data):
             'items': sheet['items'],
         })
     return result
+
+
+def _clean_barcode(val):
+    """Limpiar código de barras: quitar .0 de floats, espacios, etc."""
+    if not val:
+        return ''
+    s = str(val).strip()
+    # Excel guarda números como float: 7790001234567.0 → 7790001234567
+    if s.endswith('.0'):
+        s = s[:-2]
+    # Quitar cualquier punto o espacio
+    s = s.replace('.', '').replace(' ', '')
+    # Solo dejar dígitos
+    if s and not s.isdigit():
+        # Intentar extraer solo dígitos
+        import re
+        digits = re.sub(r'[^\d]', '', s)
+        return digits if digits else ''
+    return s
 
 
 @login_required
