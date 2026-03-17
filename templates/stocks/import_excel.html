@@ -123,17 +123,55 @@
     </div>
     {% endfor %}
 
-    <div class="d-flex gap-2 mb-4">
-        <form method="post">
+    <div class="d-flex flex-column gap-3 mb-4">
+        <form method="post" id="importForm">
             {% csrf_token %}
-            <button type="submit" name="confirm" value="1" class="btn btn-success btn-lg">
-                <i class="fas fa-check me-1"></i> Confirmar Importación ({{ total_products }} productos)
-            </button>
+            <div class="card border-danger mb-3">
+                <div class="card-body">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="flushCheck" name="flush" value="1">
+                        <label class="form-check-label fw-bold text-danger" for="flushCheck">
+                            <i class="fas fa-trash-alt me-1"></i> Borrar TODO el inventario antes de importar
+                        </label>
+                        <div class="form-text text-muted">
+                            Elimina todos los productos, categorías, unidades de medida, promociones, items de venta y compra existentes. 
+                            <strong class="text-danger">Esta acción no se puede deshacer.</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" name="confirm" value="1" class="btn btn-success btn-lg" id="btnConfirm">
+                    <i class="fas fa-check me-1"></i> Confirmar Importación ({{ total_products }} productos)
+                </button>
+                <a href="{% url 'stocks:import_excel' %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </a>
+            </div>
         </form>
-        <a href="{% url 'stocks:import_excel' %}" class="btn btn-outline-secondary btn-lg">
-            <i class="fas fa-times me-1"></i> Cancelar
-        </a>
     </div>
+
+    <script>
+    document.getElementById('flushCheck').addEventListener('change', function() {
+        const btn = document.getElementById('btnConfirm');
+        if (this.checked) {
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-danger');
+            btn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> BORRAR TODO e Importar ({{ total_products }} productos)';
+        } else {
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-success');
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Confirmar Importación ({{ total_products }} productos)';
+        }
+    });
+    document.getElementById('importForm').addEventListener('submit', function(e) {
+        if (document.getElementById('flushCheck').checked) {
+            if (!confirm('⚠️ ATENCIÓN: Esto va a BORRAR TODOS los productos, categorías, promociones e items de venta/compra existentes. ¿Estás seguro?')) {
+                e.preventDefault();
+            }
+        }
+    });
+    </script>
 
     {% endif %}
 </div>

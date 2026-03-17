@@ -344,12 +344,32 @@ def import_excel(request):
                 messages.error(request, 'Sesión expirada. Volvé a subir el archivo.')
                 return redirect('stocks:import_excel')
 
+            flush = request.POST.get('flush') == '1'
             created = 0
             updated = 0
             cat_created = 0
             errors = []
 
             with transaction.atomic():
+                # Si flush, borrar todo el inventario, promociones y categorías
+                if flush:
+                    from promotions.models import Promotion
+                    from pos.models import QuickAccessButton, POSTransactionItem
+                    from purchase.models import PurchaseItem
+                    from sales.models import SaleItem
+                    # Borrar items que referencian productos (PROTECT)
+                    POSTransactionItem.objects.all().delete()
+                    PurchaseItem.objects.all().delete()
+                    SaleItem.objects.all().delete()
+                    # Borrar en cascada
+                    QuickAccessButton.objects.all().delete()
+                    Promotion.objects.all().delete()
+                    StockMovement.objects.all().delete()
+                    ProductPackaging.objects.all().delete()
+                    Product.objects.all().delete()
+                    ProductCategory.objects.all().delete()
+                    UnitOfMeasure.objects.all().delete()
+
                 for sheet_data in data:
                     cat_name = sheet_data['category_name'].strip()
 
@@ -418,6 +438,8 @@ def import_excel(request):
                         except Exception as e:
                             errors.append(f"{item.get('nombre', '???')}: {e}")
 
+            if flush:
+                messages.info(request, 'Se borró todo el inventario anterior.')
             msg = f'Importación completada: {created} creados, {updated} actualizados'
             if cat_created:
                 msg += f', {cat_created} categorías nuevas'
