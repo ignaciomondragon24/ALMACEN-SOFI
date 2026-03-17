@@ -538,7 +538,7 @@
 
 {% block extra_js %}
 <script>
-    const conversationId = {{ conversation.id }};
+    let conversationId = {{ conversation.id }};
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
