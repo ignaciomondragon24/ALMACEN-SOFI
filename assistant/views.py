@@ -42,13 +42,30 @@ def assistant_home(request):
             title='Nueva conversación'
         )
     
-    # Get conversation history
-    messages_list = conversation.messages.order_by('created_at')
-    
-    # Get service for insights and suggestions
+    # Get service for insights, suggestions and business metrics
     service = AssistantService()
-    insights = service.get_quick_insights()
     suggested_questions = service.get_suggested_questions()
+    
+    # Business metrics for the sidebar panel
+    collector = service.data_collector
+    sales_7d = collector.get_sales_summary(days=7)
+    sales_30d = collector.get_sales_summary(days=30)
+    inv = collector.get_inventory_status()
+    
+    business_metrics = {
+        'ventas_7d': sales_7d.get('total_ventas', 0) if 'error' not in sales_7d else 0,
+        'transacciones_7d': sales_7d.get('cantidad_transacciones', 0) if 'error' not in sales_7d else 0,
+        'ticket_promedio_7d': sales_7d.get('ticket_promedio', 0) if 'error' not in sales_7d else 0,
+        'ventas_30d': sales_30d.get('total_ventas', 0) if 'error' not in sales_30d else 0,
+        'transacciones_30d': sales_30d.get('cantidad_transacciones', 0) if 'error' not in sales_30d else 0,
+        'total_productos': inv.get('total_productos', 0) if 'error' not in inv else 0,
+        'stock_bajo': inv.get('cantidad_stock_bajo', 0) if 'error' not in inv else 0,
+        'sin_stock': inv.get('sin_stock', 0) if 'error' not in inv else 0,
+        'valor_inventario': inv.get('valor_inventario', 0) if 'error' not in inv else 0,
+    }
+    
+    # Top productos de la semana
+    top_products = sales_7d.get('top_productos', [])[:5] if 'error' not in sales_7d else []
     
     # Check if assistant is configured
     settings_obj = AssistantSettings.get_settings()
@@ -56,9 +73,9 @@ def assistant_home(request):
     
     context = {
         'conversation': conversation,
-        'messages': messages_list,
-        'insights': insights,
         'suggested_questions': suggested_questions,
+        'business_metrics': business_metrics,
+        'top_products': top_products,
         'is_configured': is_configured,
         'settings': settings_obj,
     }

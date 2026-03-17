@@ -419,15 +419,56 @@
                     {% endfor %}
                 </div>
                 
-                <!-- Conversation History -->
+                <!-- Business Metrics Panel -->
                 <div class="sidebar-section">
-                    <h6><i class="fas fa-history me-2"></i>Historial</h6>
-                    <div id="conversationHistory">
-                        <div class="history-item active">
-                            <i class="fas fa-comment-dots"></i>
-                            <span>{{ conversation.title }}</span>
+                    <h6><i class="fas fa-chart-line me-2"></i>Análisis del Negocio</h6>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;">
+                        <div class="insight-card success" style="padding:0.6rem 0.75rem;">
+                            <div style="font-size:0.7rem;color:var(--chat-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Ventas 7d</div>
+                            <div style="font-size:1.05rem;font-weight:700;color:#28a745;">
+                                ${{ business_metrics.ventas_7d|floatformat:0 }}
+                            </div>
+                            <div style="font-size:0.72rem;color:var(--chat-text-muted);">{{ business_metrics.transacciones_7d }} transac.</div>
+                        </div>
+                        <div class="insight-card info" style="padding:0.6rem 0.75rem;">
+                            <div style="font-size:0.7rem;color:var(--chat-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Ventas 30d</div>
+                            <div style="font-size:1.05rem;font-weight:700;color:#17a2b8;">
+                                ${{ business_metrics.ventas_30d|floatformat:0 }}
+                            </div>
+                            <div style="font-size:0.72rem;color:var(--chat-text-muted);">{{ business_metrics.transacciones_30d }} transac.</div>
+                        </div>
+                        <div class="insight-card" style="padding:0.6rem 0.75rem;">
+                            <div style="font-size:0.7rem;color:var(--chat-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Ticket prom.</div>
+                            <div style="font-size:1.05rem;font-weight:700;color:var(--chat-primary);">
+                                ${{ business_metrics.ticket_promedio_7d|floatformat:0 }}
+                            </div>
+                            <div style="font-size:0.72rem;color:var(--chat-text-muted);">últimos 7d</div>
+                        </div>
+                        <div class="insight-card {% if business_metrics.sin_stock > 0 or business_metrics.stock_bajo > 0 %}warning{% else %}success{% endif %}" style="padding:0.6rem 0.75rem;">
+                            <div style="font-size:0.7rem;color:var(--chat-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Stock</div>
+                            <div style="font-size:1.05rem;font-weight:700;{% if business_metrics.sin_stock > 0 %}color:#ffc107;{% else %}color:#28a745;{% endif %}">
+                                {{ business_metrics.total_productos }} prods.
+                            </div>
+                            <div style="font-size:0.72rem;color:{% if business_metrics.sin_stock > 0 or business_metrics.stock_bajo > 0 %}#ffc107{% else %}var(--chat-text-muted){% endif %};">
+                                {% if business_metrics.sin_stock > 0 %}{{ business_metrics.sin_stock }} sin stock
+                                {% elif business_metrics.stock_bajo > 0 %}{{ business_metrics.stock_bajo }} bajo mín.
+                                {% else %}Todo en orden{% endif %}
+                            </div>
                         </div>
                     </div>
+
+                    {% if top_products %}
+                    <div>
+                        <div style="font-size:0.72rem;color:var(--chat-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">Top productos (7d)</div>
+                        {% for prod in top_products %}
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <span style="font-size:0.8rem;color:var(--chat-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:65%;">{{ prod.product__name }}</span>
+                            <span style="font-size:0.78rem;color:#28a745;font-weight:600;white-space:nowrap;">x{{ prod.cantidad_vendida|floatformat:0 }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -453,44 +494,26 @@
                 </div>
                 
                 <div class="chat-messages" id="chatMessages">
-                    {% if messages %}
-                        {% for message in messages %}
-                        <div class="message {{ message.role }}">
-                            <div class="message-avatar">
-                                {% if message.role == 'user' %}
-                                <i class="fas fa-user"></i>
-                                {% else %}
-                                <i class="fas fa-robot"></i>
-                                {% endif %}
-                            </div>
-                            <div>
-                                <div class="message-content">{{ message.content|linebreaks }}</div>
-                                <div class="message-time">{{ message.created_at|time:"H:i" }}</div>
+                    <!-- Welcome message -->
+                    <div class="message assistant">
+                        <div class="message-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div>
+                            <div class="message-content">
+                                ¡Hola! 👋 Soy el asistente virtual de <strong>CHE GOLOSO</strong>.<br><br>
+                                Puedo ayudarte con:
+                                <ul>
+                                    <li>📊 Análisis de ventas y tendencias</li>
+                                    <li>📦 Estado del inventario y alertas</li>
+                                    <li>💡 Recomendaciones de negocio</li>
+                                    <li>🏷️ Sugerencias de promociones</li>
+                                    <li>📈 Reportes y estadísticas</li>
+                                </ul>
+                                ¿En qué puedo ayudarte hoy?
                             </div>
                         </div>
-                        {% endfor %}
-                    {% else %}
-                        <!-- Welcome message -->
-                        <div class="message assistant">
-                            <div class="message-avatar">
-                                <i class="fas fa-robot"></i>
-                            </div>
-                            <div>
-                                <div class="message-content">
-                                    ¡Hola! 👋 Soy el asistente virtual de <strong>CHE GOLOSO</strong>.<br><br>
-                                    Puedo ayudarte con:
-                                    <ul>
-                                        <li>📊 Análisis de ventas y tendencias</li>
-                                        <li>📦 Estado del inventario y alertas</li>
-                                        <li>💡 Recomendaciones de negocio</li>
-                                        <li>🏷️ Sugerencias de promociones</li>
-                                        <li>📈 Reportes y estadísticas</li>
-                                    </ul>
-                                    ¿En qué puedo ayudarte hoy?
-                                </div>
-                            </div>
-                        </div>
-                    {% endif %}
+                    </div>
                 </div>
                 
                 <div class="chat-input-container">

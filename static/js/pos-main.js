@@ -1950,10 +1950,17 @@
                 case 'ArrowDown':
                     setSelected(selIdx + 1);
                     break;
-                case 'Tab':
-                    amountInput.focus();
-                    amountInput.select();
+                case 'Tab': {
+                    const selectedCard = getCards()[selIdx];
+                    if (selectedCard?.dataset.methodCode === 'mixed') {
+                        closeOverlay(true);
+                        openMixedCheckout();
+                    } else {
+                        amountInput.focus();
+                        amountInput.select();
+                    }
                     break;
+                }
                 case 'Enter':
                     if (!confirmBtn.disabled) doConfirm();
                     break;
@@ -1963,7 +1970,13 @@
         document.addEventListener('keydown', onKey, true);
 
         // Click en tarjeta de método → seleccionarla y saltar al monto
+        // Si es Mixto, abrir directamente el overlay de pago mixto
         getCards().forEach((c, i) => c.addEventListener('click', () => {
+            if (c.dataset.methodCode === 'mixed') {
+                closeOverlay(true);
+                openMixedCheckout();
+                return;
+            }
             setSelected(i);
             amountInput.focus();
             amountInput.select();
