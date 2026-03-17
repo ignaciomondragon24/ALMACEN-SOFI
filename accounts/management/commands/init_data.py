@@ -131,32 +131,7 @@ class Command(BaseCommand):
 
     def create_categories(self):
         """Create default product categories."""
-        self.stdout.write('Creating product categories...')
-        
-        categories = [
-            {'name': 'Almacén', 'color': '#e74c3c'},
-            {'name': 'Bebidas', 'color': '#3498db'},
-            {'name': 'Lácteos', 'color': '#f1c40f'},
-            {'name': 'Carnes', 'color': '#c0392b'},
-            {'name': 'Frutas y Verduras', 'color': '#27ae60'},
-            {'name': 'Panadería', 'color': '#d35400'},
-            {'name': 'Fiambres', 'color': '#e91e63'},
-            {'name': 'Congelados', 'color': '#00bcd4'},
-            {'name': 'Limpieza', 'color': '#9c27b0'},
-            {'name': 'Perfumería', 'color': '#ff9800'},
-            {'name': 'Golosinas', 'color': '#ff5722'},
-            {'name': 'Cigarrillos', 'color': '#795548'},
-        ]
-        
-        for cat_data in categories:
-            category, created = ProductCategory.objects.get_or_create(
-                name=cat_data['name'],
-                defaults=cat_data
-            )
-            if created:
-                self.stdout.write(f'  ✓ Created category: {category.name}')
-            else:
-                self.stdout.write(f'  - Category exists: {category.name}')
+        self.stdout.write('  - Categorías: se crean desde el sistema, no por defecto.')
 
     def create_sign_templates(self):
         """Create default sign templates."""
