@@ -579,7 +579,14 @@ def _extract_row(row, col_map):
             return None
         if isinstance(val, (int, float)):
             return round(val, 2)
-        s = str(val).strip().replace('$', '').replace('.', '').replace(',', '.').strip()
+        s = str(val).strip().replace('$', '').strip()
+        # Si tiene punto y coma, asumir formato argentino (1.234,56)
+        if ',' in s and '.' in s:
+            s = s.replace('.', '').replace(',', '.')
+        elif ',' in s:
+            # Solo coma: puede ser decimal (1234,56)
+            s = s.replace(',', '.')
+        # Si solo tiene punto, dejarlo como está (1234.56)
         try:
             return round(float(s), 2)
         except (ValueError, TypeError):
@@ -603,6 +610,10 @@ def _extract_row(row, col_map):
     # Si hay margen y precio de costo pero no de venta, calcular
     if purchase_price and margin and not sale_price:
         sale_price = round(purchase_price * (1 + margin / 100), 2)
+
+    # Si hay margen y precio de venta pero no de costo, calcular inverso
+    if sale_price and margin and not purchase_price:
+        purchase_price = round(sale_price / (1 + margin / 100), 2)
 
     return {
         'nombre': nombre,
@@ -726,10 +737,21 @@ def bulk_stock_load(request):
             
             # Buscar el empaque por código de barras
             try:
-                packaging = ProductPackaging.objects.select_related('product').get(
+                packaging = ProductPackaging.objects.select_related('product').filter(
                     barcode=barcode,
                     is_active=True
-                )
+                ).first()
+                
+                # Si no se encontró por barcode de empaque, buscar por barcode de producto
+                if not packaging:
+                    product = Product.objects.filter(barcode=barcode, is_active=True).first()
+                    if product:
+                        packaging = product.packagings.filter(
+                            packaging_type='bulk', is_active=True
+                        ).first() or product.packagings.filter(is_active=True).first()
+                
+                if not packaging:
+                    raise ProductPackaging.DoesNotExist()
                 
                 # Actualizar precios si se proporcionaron
                 if purchase_price and purchase_price > 0:
@@ -780,7 +802,7 @@ def bulk_stock_load(request):
                 return redirect('stocks:bulk_stock_load')
                 
             except ProductPackaging.DoesNotExist:
-                # Intentar buscar en el producto directamente
+                # No se encontró ni en empaques ni en productos
                 try:
                     product = Product.objects.get(barcode=barcode, is_active=True)
                     messages.warning(
@@ -796,6 +818,10 @@ def bulk_stock_load(request):
                     )
             except Exception as e:
                 messages.error(request, f'Error al cargar stock: {str(e)}')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{form.fields[field].label}: {error}')
     else:
         form = BulkStockLoadForm()
     

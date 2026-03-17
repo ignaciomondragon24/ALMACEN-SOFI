@@ -181,10 +181,20 @@
     }
 
     // Search
+    let _scannerTimer = null;
     function initSearch() {
         if (!productSearch) return;
         
-        productSearch.addEventListener('input', debounce(handleSearch, 150));
+        productSearch.addEventListener('input', function(e) {
+            const val = e.target.value.trim();
+            // Si parece un barcode en progreso (solo dígitos), dar más tiempo al scanner
+            clearTimeout(_scannerTimer);
+            if (/^\d+$/.test(val) && val.length < 13) {
+                _scannerTimer = setTimeout(() => handleSearch(e), 400);
+            } else {
+                _scannerTimer = setTimeout(() => handleSearch(e), 150);
+            }
+        });
         productSearch.addEventListener('keydown', handleSearchKeydown);
         
         document.addEventListener('click', function(e) {
@@ -3033,8 +3043,8 @@
                 
                 // Checkout modal shortcuts
                 if (modalId === 'checkoutModal') {
-                    // Enter to confirm payment (from anywhere in the modal)
-                    if (e.key === 'Enter') {
+                    // Enter to confirm payment (only if not typing in an input field)
+                    if (e.key === 'Enter' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
                         e.preventDefault();
                         const confirmBtn = document.getElementById('confirm-payment');
                         if (confirmBtn && !confirmBtn.disabled) {
@@ -3288,6 +3298,7 @@
     window.POS_cart = () => cart;
     window.POS_loadCart = loadCart;
     window.POS_refreshQuickAccessGrid = refreshQuickAccessGrid;
+    window.POS_dispatchAction = dispatchAction;
 
     // Utility functions
     function debounce(func, wait) {

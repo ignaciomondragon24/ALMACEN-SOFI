@@ -472,7 +472,7 @@
                     </span>
                 </button>
                 {% endif %}
-                <a href="{% url 'accounts:dashboard' %}" class="btn btn-outline-light btn-sm">
+                <a href="#" id="btn-dashboard" class="btn btn-outline-light btn-sm" onclick="event.preventDefault(); if(typeof dispatchAction==='function') dispatchAction('dashboard'); else if(window.POS_dispatchAction) window.POS_dispatchAction('dashboard');">
                     <i class="fas fa-home me-1"></i>Dashboard
                     <span class="shortcut-badge">F12</span>
                 </a>
