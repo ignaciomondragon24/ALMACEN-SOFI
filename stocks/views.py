@@ -354,6 +354,7 @@ def import_excel(request):
         # Paso 1: Preview
         if 'preview' in request.POST:
             preview_data = []
+            _debug_headers = []
             for sheet_name in wb.sheetnames:
                 ws = wb[sheet_name]
                 rows = list(ws.iter_rows(values_only=True))
@@ -363,7 +364,16 @@ def import_excel(request):
                 header = [str(c).strip().lower() if c else '' for c in rows[0]]
                 col_map = _map_columns(header)
 
-                if not col_map.get('nombre'):
+                # Si no detectó 'nombre', intentar con la primera columna de texto
+                if 'nombre' not in col_map:
+                    # Buscar la primera columna que tenga texto en las filas de datos
+                    for test_idx, h in enumerate(header):
+                        if test_idx not in col_map.values() and h:
+                            col_map['nombre'] = test_idx
+                            break
+
+                if 'nombre' not in col_map:
+                    _debug_headers.append(f"Hoja '{sheet_name}': columnas={header}, no se pudo detectar 'nombre'")
                     continue
 
                 items = []
@@ -389,7 +399,14 @@ def import_excel(request):
                     })
 
             if not preview_data:
-                messages.warning(request, 'No se encontraron datos válidos en el archivo.')
+                msg = 'No se encontraron datos válidos en el archivo.'
+                if _debug_headers:
+                    for dbg in _debug_headers:
+                        messages.info(request, dbg)
+                else:
+                    sheet_info = [sn for sn in wb.sheetnames]
+                    messages.info(request, f'Hojas encontradas: {", ".join(sheet_info)}')
+                messages.warning(request, msg)
                 return redirect('stocks:import_excel')
 
             # Guardar archivo en sesión para el paso de confirmación
@@ -490,25 +507,26 @@ def import_excel(request):
 
 def _map_columns(header):
     """Mapear nombres de columnas flexibles a campos internos."""
+    import re
     col_map = {}
-    mappings = {
-        'nombre': ['nombre', 'producto', 'descripcion', 'descripción', 'articulo', 'artículo', 'detalle'],
-        'barcode': ['codigo de barra', 'código de barra', 'codigo de barras', 'código de barras',
-                    'cod barra', 'barcode', 'ean', 'ean13', 'cod. barra', 'cod.barra'],
-        'sku': ['codigo interno', 'código interno', 'cod interno', 'cod. interno', 'cod.interno',
-                'sku', 'codigo', 'código', 'cod', 'cod.', 'id'],
-        'unit': ['unidad', 'unidad de medida', 'u.m.', 'um', 'u.m', 'medida', 'uni', 'und'],
-        'margin': ['margen', 'margen %', 'margen%', '%', 'markup', 'ganancia', 'rentabilidad'],
-        'purchase_price': ['precio de costo', 'costo', 'precio costo', 'p. costo', 'p.costo',
-                           'precio compra', 'p. compra', 'p.compra', 'costo unitario'],
-        'sale_price': ['precio de venta', 'venta', 'precio venta', 'p. venta', 'p.venta',
-                       'precio', 'pvp', 'precio unitario', 'precio publico', 'precio público'],
-    }
+
+    # Patrones regex para cada campo - orden importa (más específico primero)
+    patterns = [
+        ('barcode', r'c[oó]d.*barra|barcode|ean|cod\.?\s*barra'),
+        ('sku', r'c[oó]d.*interno|cod\.?\s*interno|sku|c[oó]digo(?!.*barra)|cod(?!.*barra)\b|interno'),
+        ('nombre', r'nombre|producto|descripci[oó]n|art[ií]culo|detalle'),
+        ('unit', r'unidad|u\.?m\.?|medida|uni\b|und\b'),
+        ('margin', r'marg|markup|ganancia|rentab|%'),
+        ('purchase_price', r'costo|compra|p\.?\s*costo|p\.?\s*compra'),
+        ('sale_price', r'venta|p\.?\s*venta|pvp|precio(?!.*cost|.*compr)|publico|p[uú]blico'),
+    ]
 
     for idx, col_name in enumerate(header):
-        normalized = col_name.strip().lower()
-        for field, aliases in mappings.items():
-            if normalized in aliases and field not in col_map:
+        if not col_name:
+            continue
+        normalized = re.sub(r'[\s]+', ' ', col_name.strip().lower())
+        for field, pattern in patterns:
+            if field not in col_map and re.search(pattern, normalized):
                 col_map[field] = idx
                 break
 
