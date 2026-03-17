@@ -780,6 +780,7 @@
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
     width: 100%;
+    appearance: textfield;
     -moz-appearance: textfield;
 }
 .fco-amount-input:focus {
