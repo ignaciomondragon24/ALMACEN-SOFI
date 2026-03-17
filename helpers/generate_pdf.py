@@ -17,16 +17,16 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 def format_currency(value):
     """Format value as Argentine peso."""
     if value is None:
-        return '$0,00'
+        return '$0'
     
     # Convert to Decimal if needed
     if not isinstance(value, Decimal):
         value = Decimal(str(value))
     
-    # Format with thousands separator and decimal comma
-    formatted = '{:,.2f}'.format(value)
-    # Replace for Argentine format
-    formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+    # Format with thousands separator only (no decimals)
+    formatted = '{:,.0f}'.format(value)
+    # Replace for Argentine format (. for thousands)
+    formatted = formatted.replace(',', '.')
     return f'${formatted}'
 
 

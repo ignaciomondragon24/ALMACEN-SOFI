@@ -115,8 +115,6 @@
         const btn = document.querySelector(`.quick-pay-btn[data-method-code="${methodCode}"]`);
         const methodName = btn?.dataset.methodName || methodCode;
 
-        if (!confirm(`¿Cobrar $${window.POS_formatCurrency?.(cart.total) || cart.total} con ${methodName}?`)) return;
-
         try {
             btn?.classList.add('disabled');
             window.POS_showToast?.(`Procesando con ${methodName}...`, 'info');

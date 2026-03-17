@@ -51,9 +51,9 @@ class ExpenseForm(forms.ModelForm):
             }),
             'amount': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'step': '0.01',
-                'min': '0.01',
-                'placeholder': '0.00'
+                'step': '1',
+                'min': '1',
+                'placeholder': '0'
             }),
             'expense_date': forms.DateInput(attrs={
                 'class': 'form-control',
@@ -104,8 +104,8 @@ class RecurringExpenseForm(forms.ModelForm):
             }),
             'amount': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'step': '0.01',
-                'min': '0.01'
+                'step': '1',
+                'min': '1'
             }),
             'frequency': forms.Select(attrs={
                 'class': 'form-select'

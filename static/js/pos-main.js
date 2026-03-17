@@ -3318,13 +3318,9 @@
         const number = parseFloat(value);
         if (isNaN(number)) return '$0';
         
-        // Argentine format: $1.234,56 or $1.234 (sin decimales si es entero)
-        const parts = number.toFixed(2).split('.');
-        const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-        const decPart = parts[1];
-        
-        if (decPart === '00') return '$' + intPart;
-        return '$' + intPart + ',' + decPart;
+        // Argentine format: $1.234 (sin decimales)
+        const intPart = Math.round(number).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return '$' + intPart;
     }
 
     function showToast(message, type = 'info') {
@@ -3333,9 +3329,15 @@
         if (!toastContainer) {
             toastContainer = document.createElement('div');
             toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
             toastContainer.style.zIndex = '9999';
             document.body.appendChild(toastContainer);
+        }
+
+        // Limit to max 3 visible toasts — remove oldest
+        const existing = toastContainer.querySelectorAll('.toast');
+        if (existing.length >= 3) {
+            existing[0].remove();
         }
         
         const bgClass = {
@@ -3347,10 +3349,10 @@
         
         const toastId = 'toast-' + Date.now();
         const toastHtml = `
-            <div id="${toastId}" class="toast ${bgClass} text-white" role="alert">
-                <div class="toast-body d-flex justify-content-between align-items-center">
+            <div id="${toastId}" class="toast ${bgClass} text-white" role="alert" style="font-size:.85rem;min-width:auto;">
+                <div class="toast-body d-flex justify-content-between align-items-center py-1 px-2">
                     <span>${message}</span>
-                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast"></button>
+                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast" style="font-size:.6rem;"></button>
                 </div>
             </div>
         `;
@@ -3358,7 +3360,7 @@
         toastContainer.insertAdjacentHTML('beforeend', toastHtml);
         
         const toastElement = document.getElementById(toastId);
-        const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+        const toast = new bootstrap.Toast(toastElement, { delay: 1500 });
         toast.show();
         
         toastElement.addEventListener('hidden.bs.toast', () => {

@@ -175,14 +175,14 @@
 
     // Format numbers as Argentine currency
     window.formatCurrency = function(value) {
-        if (value === null || value === undefined) return '$0,00';
+        if (value === null || value === undefined) return '$0';
         
         const number = parseFloat(value);
-        if (isNaN(number)) return '$0,00';
+        if (isNaN(number)) return '$0';
 
         const formatted = number.toLocaleString('es-AR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
         });
 
         return '$' + formatted;

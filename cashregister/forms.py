@@ -21,8 +21,8 @@ class OpenShiftForm(forms.Form):
         initial=0,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'step': '0.01',
-            'placeholder': '0.00'
+            'step': '1',
+            'placeholder': '0'
         })
     )
     
@@ -46,8 +46,8 @@ class CloseShiftForm(forms.Form):
         min_value=0,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'step': '0.01',
-            'placeholder': '0.00'
+            'step': '1',
+            'placeholder': '0'
         })
     )
     notes = forms.CharField(
@@ -71,8 +71,8 @@ class MovementForm(forms.ModelForm):
             'movement_type': forms.Select(attrs={'class': 'form-select'}),
             'amount': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'step': '0.01',
-                'placeholder': '0.00'
+                'step': '1',
+                'placeholder': '0'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-select'}),
             'description': forms.TextInput(attrs={

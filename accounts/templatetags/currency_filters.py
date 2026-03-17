@@ -11,38 +11,38 @@ register = template.Library()
 def currency_ar(value):
     """
     Format a number as Argentine Peso currency.
-    Example: 1234.56 -> $1.234,56
+    Example: 1234.56 -> $1.234
     """
     if value is None:
-        return '$0,00'
+        return '$0'
     
     try:
         value = Decimal(str(value))
-        # Format with thousand separator (.) and decimal separator (,)
-        formatted = '{:,.2f}'.format(value)
-        # Replace comma with temporary, then period with comma, then temporary with period
-        formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+        # Format with thousand separator only (no decimals)
+        formatted = '{:,.0f}'.format(value)
+        # Replace comma with period for Argentine thousands separator
+        formatted = formatted.replace(',', '.')
         return f'${formatted}'
     except (ValueError, TypeError, InvalidOperation):
-        return '$0,00'
+        return '$0'
 
 
 @register.filter(name='format_ar')
 def format_ar(value):
     """
-    Format a number with Argentine separators (no currency symbol).
-    Example: 1234.56 -> 1.234,56
+    Format a number with Argentine thousands separator (no decimals, no currency symbol).
+    Example: 1234.56 -> 1.234
     """
     if value is None:
-        return '0,00'
+        return '0'
     
     try:
         value = Decimal(str(value))
-        formatted = '{:,.2f}'.format(value)
-        formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+        formatted = '{:,.0f}'.format(value)
+        formatted = formatted.replace(',', '.')
         return formatted
     except (ValueError, TypeError, InvalidOperation):
-        return '0,00'
+        return '0'
 
 
 @register.filter(name='format_quantity')

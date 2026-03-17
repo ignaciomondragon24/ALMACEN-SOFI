@@ -17,18 +17,15 @@ def format_currency_ar(value):
         Formatted string like '$1.234,56'
     """
     if value is None:
-        return '$0,00'
+        return '$0'
     
     if not isinstance(value, Decimal):
         value = Decimal(str(value))
     
-    # Round to 2 decimal places
-    value = value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    
-    # Format with thousands separator and decimal comma
-    formatted = '{:,.2f}'.format(value)
-    # Replace for Argentine format (. for thousands, , for decimals)
-    formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+    # Format with thousands separator only (no decimals)
+    formatted = '{:,.0f}'.format(value)
+    # Replace for Argentine format (. for thousands)
+    formatted = formatted.replace(',', '.')
     
     return f'${formatted}'
 

@@ -422,15 +422,7 @@
                 </div>
                 {% endif %}
                 
-                <!-- Suggested Questions -->
-                <div class="sidebar-section">
-                    <h6><i class="fas fa-question-circle me-2"></i>Preguntas Sugeridas</h6>
-                    {% for question in suggested_questions %}
-                    <div class="suggested-question" onclick="askQuestion('{{ question }}')">
-                        {{ question }}
-                    </div>
-                    {% endfor %}
-                </div>
+
                 
                 <!-- Conversation History -->
                 <div class="sidebar-section">

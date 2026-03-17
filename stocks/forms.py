@@ -24,8 +24,8 @@ class ProductForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'unit_of_measure': forms.Select(attrs={'class': 'form-select'}),
-            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '1'}),
+            'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '1'}),
             'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
             'min_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
             'max_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
@@ -55,7 +55,7 @@ class CategoryForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'parent': forms.Select(attrs={'class': 'form-select'}),
-            'default_margin_percent': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'default_margin_percent': forms.NumberInput(attrs={'class': 'form-control', 'step': '1'}),
             'color': forms.TextInput(attrs={'class': 'form-control', 'type': 'color'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
@@ -127,8 +127,8 @@ class BulkStockLoadForm(forms.Form):
         required=False,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'step': '0.01',
-            'placeholder': '0.00',
+            'step': '1',
+            'placeholder': '0',
             'id': 'purchase-price-input'
         })
     )
@@ -141,7 +141,7 @@ class BulkStockLoadForm(forms.Form):
         min_value=Decimal('0'),
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'step': '0.01',
+            'step': '1',
             'id': 'margin-percent-input'
         })
     )
@@ -188,11 +188,11 @@ class ProductPackagingForm(forms.ModelForm):
             }),
             'purchase_price': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'step': '0.01'
+                'step': '1'
             }),
             'margin_percent': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'step': '0.01'
+                'step': '1'
             }),
             'is_default': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
