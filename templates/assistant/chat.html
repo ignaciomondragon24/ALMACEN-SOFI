@@ -667,7 +667,7 @@
         } catch (error) {
             hideTyping();
             if (error.message.includes('Sesión expirada')) {
-                addMessage('assistant', '❌ Tu sesión expiró. <a href="/accounts/login/" style="color:#e94560">Volver a iniciar sesión</a>');
+                addMessage('assistant', '❌ Tu sesión expiró. <a href="/login/" style="color:#e94560">Volver a iniciar sesión</a>');
             } else {
                 addMessage('assistant', '❌ Error de conexión. Verificá que el servidor esté corriendo e intentá de nuevo.');
             }

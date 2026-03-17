@@ -3015,7 +3015,7 @@
                 if (window.POS_sidebar) window.POS_sidebar.openTab('history');
                 break;
             case 'dashboard':
-                posConfirm('¿Salir del POS?', () => { window.location.href = '/accounts/dashboard/'; });
+                posConfirm('¿Salir del POS?', () => { window.location.href = '/dashboard/'; });
                 break;
             case 'pay_mixed':
                 if (btnCheckout && !btnCheckout.disabled) openMixedCheckout();

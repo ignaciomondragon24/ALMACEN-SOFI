@@ -254,7 +254,7 @@ def run_tests():
             results['failed'] += 1
     
     # Probar lista de productos
-    response = client.get('/stocks/')
+    response = client.get('/stocks/products/')
     if response.status_code == 200:
         ok("Lista de productos carga correctamente")
         results['passed'] += 1
