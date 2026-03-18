@@ -15,6 +15,22 @@ from promotions.models import Promotion
 from decorators.decorators import group_required
 
 
+def _parse_id(value):
+    """Parsea IDs tolerando separadores (ej: '1.194' -> 1194)."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    digits = ''.join(ch for ch in s if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return int(digits)
+    except (TypeError, ValueError):
+        return None
+
+
 @login_required
 @group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
 def signage_home(request):
@@ -44,10 +60,29 @@ def generate_sign(request):
     
     if request.method == 'POST':
         sign_type = request.POST.get('sign_type', 'price')
-        product_ids = request.POST.getlist('products')
-        promotion_id = request.POST.get('promotion')
+        product_ids_raw = request.POST.getlist('products')
+        promotion_id_raw = request.POST.get('promotion')
         custom_text = request.POST.get('custom_text', '')
         sign_size = request.POST.get('sign_size', 'A4')
+
+        # Normalizar IDs recibidos para evitar ValueError por formatos locales.
+        product_ids = []
+        for raw_id in product_ids_raw:
+            parsed_id = _parse_id(raw_id)
+            if parsed_id:
+                product_ids.append(parsed_id)
+
+        product_ids = list(dict.fromkeys(product_ids))
+        promotion_id = _parse_id(promotion_id_raw)
+
+        selected_products = Product.objects.filter(pk__in=product_ids, is_active=True)
+        if not selected_products.exists():
+            messages.error(request, 'Seleccioná al menos un producto válido para generar el cartel.')
+            return render(request, 'signage/generate.html', {
+                'categories': categories,
+                'products': products,
+                'promotions': promotions
+            })
         
         # Crear registro de generación
         generation = SignGeneration.objects.create(
@@ -56,13 +91,14 @@ def generate_sign(request):
             sign_size=sign_size,
             custom_text=custom_text
         )
-        
-        if product_ids:
-            generation.products.set(product_ids)
-        
+
+        generation.products.set(selected_products)
+
         if promotion_id:
-            generation.promotion_id = promotion_id
-            generation.save()
+            promo = Promotion.objects.filter(pk=promotion_id, status='active').first()
+            if promo:
+                generation.promotion = promo
+                generation.save(update_fields=['promotion'])
         
         return redirect('signage:preview', pk=generation.pk)
     
