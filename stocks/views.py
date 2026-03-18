@@ -675,47 +675,301 @@ def _clean_barcode(val):
 
 @login_required
 def export_products_excel(request):
-    """Export products to Excel."""
+    """Export products to Excel — 4 sheets: Inventario, Stock Bajo, Márgenes, Valor."""
     import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    from django.http import HttpResponse
-    
-    products = Product.objects.filter(is_active=True).select_related('category')
-    
+    from django.utils import timezone as dj_tz
+
+    products = (
+        Product.objects.filter(is_active=True)
+        .select_related('category', 'unit_of_measure')
+        .order_by('category__name', 'name')
+    )
+
+    # --- style helpers ---
+    C_PURPLE = '2D1E5F'
+    C_PINK   = 'E91E8C'
+    C_LGRAY  = 'F2F2F2'
+    C_WHITE  = 'FFFFFF'
+    C_RED    = 'FFCCCC'
+    C_ORANGE = 'FFE5CC'
+    C_GREEN  = 'CCFFDD'
+
+    def fill(c):
+        return PatternFill(start_color=c, end_color=c, fill_type='solid')
+
+    def border():
+        s = Side(style='thin', color='CCCCCC')
+        return Border(left=s, right=s, top=s, bottom=s)
+
+    def header_row(ws, row_num, headers, color=C_PURPLE):
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=row_num, column=col, value=h)
+            cell.font = Font(bold=True, color=C_WHITE, size=9)
+            cell.fill = fill(color)
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.border = border()
+        ws.row_dimensions[row_num].height = 22
+
+    def auto_width(ws, minimum=12):
+        for col in ws.columns:
+            max_len = max(
+                (len(str(cell.value)) for cell in col if cell.value is not None),
+                default=0,
+            )
+            ws.column_dimensions[get_column_letter(col[0].column)].width = max(max_len + 2, minimum)
+
+    today_str = dj_tz.localdate().strftime('%d/%m/%Y')
+    product_list = list(products)
+    total_products = len(product_list)
+
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = 'Productos'
-    
-    # Headers
-    headers = ['SKU', 'Código de Barras', 'Nombre', 'Categoría', 'Precio Compra', 
-               'Precio Venta', 'Stock Actual', 'Stock Mínimo', 'Ubicación']
-    
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = openpyxl.styles.Font(bold=True)
-    
-    # Data
-    for row, product in enumerate(products, 2):
-        ws.cell(row=row, column=1, value=product.sku)
-        ws.cell(row=row, column=2, value=product.barcode or '')
-        ws.cell(row=row, column=3, value=product.name)
-        ws.cell(row=row, column=4, value=product.category.name if product.category else '')
-        ws.cell(row=row, column=5, value=float(product.purchase_price))
-        ws.cell(row=row, column=6, value=float(product.sale_price))
-        ws.cell(row=row, column=7, value=float(product.current_stock))
-        ws.cell(row=row, column=8, value=float(product.min_stock))
-        ws.cell(row=row, column=9, value=product.location)
-    
-    # Auto-width columns
-    for col in range(1, len(headers) + 1):
-        ws.column_dimensions[get_column_letter(col)].width = 15
-    
+
+    # ============================================================
+    # HOJA 1 — INVENTARIO COMPLETO
+    # ============================================================
+    ws1 = wb.active
+    ws1.title = 'Inventario'
+
+    ws1.merge_cells('A1:N1')
+    c = ws1['A1']
+    c.value = 'INVENTARIO DE PRODUCTOS — CHE GOLOSO'
+    c.font = Font(bold=True, size=14, color=C_WHITE)
+    c.fill = fill(C_PURPLE)
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws1.row_dimensions[1].height = 28
+
+    ws1.merge_cells('A2:N2')
+    c = ws1['A2']
+    c.value = f'Generado: {today_str}  |  Total productos activos: {total_products}'
+    c.font = Font(size=9, color='555555')
+    c.alignment = Alignment(horizontal='center')
+
+    header_row(ws1, 3, [
+        'SKU', 'Cód. Barras', 'Nombre', 'Categoría', 'Unidad',
+        'P. Compra', 'P. Venta', 'Costo Prom.', 'Margen %',
+        'Stock Actual', 'Stock Mín.', 'Stock Máx.',
+        'Valor Stock (Costo)', 'Estado',
+    ])
+
+    for ri, p in enumerate(product_list, 4):
+        margin = float(p.margin_percent)
+        if p.current_stock <= 0:
+            status, status_fill = 'SIN STOCK', C_RED
+        elif p.current_stock <= p.min_stock:
+            status, status_fill = 'STOCK BAJO', C_ORANGE
+        else:
+            status, status_fill = 'Normal', C_GREEN
+
+        bg = C_LGRAY if ri % 2 == 0 else C_WHITE
+
+        row_vals = [
+            p.sku,
+            p.barcode or '',
+            p.name,
+            p.category.name if p.category else 'Sin categoría',
+            p.unit_of_measure.abbreviation if p.unit_of_measure else 'u',
+            float(p.purchase_price),
+            float(p.sale_price),
+            float(p.cost_price),
+            round(margin, 2),
+            float(p.current_stock),
+            p.min_stock,
+            p.max_stock or '',
+            float(p.stock_value),
+            status,
+        ]
+
+        for col, val in enumerate(row_vals, 1):
+            cell = ws1.cell(row=ri, column=col, value=val)
+            cell.fill = fill(status_fill if col == 14 else bg)
+            cell.font = Font(bold=(col == 14), size=9)
+            cell.border = border()
+            cell.alignment = Alignment(vertical='center')
+            if col in (6, 7, 8, 13):
+                cell.number_format = '#,##0.00'
+            elif col == 9:
+                cell.number_format = '0.00'
+            elif col == 10:
+                cell.number_format = '0.000'
+
+    auto_width(ws1)
+
+    # ============================================================
+    # HOJA 2 — STOCK BAJO Y SIN STOCK
+    # ============================================================
+    ws2 = wb.create_sheet('Stock Bajo y Sin Stock')
+
+    ws2.merge_cells('A1:G1')
+    c = ws2['A1']
+    c.value = 'ALERTAS DE STOCK — PRODUCTOS CON STOCK BAJO O SIN STOCK'
+    c.font = Font(bold=True, size=13, color=C_WHITE)
+    c.fill = fill(C_PINK)
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws2.row_dimensions[1].height = 26
+
+    header_row(ws2, 2, [
+        'SKU', 'Nombre', 'Categoría', 'Unidad',
+        'Stock Actual', 'Stock Mínimo', 'Estado',
+    ])
+
+    alert_products = [p for p in product_list if p.current_stock <= p.min_stock]
+    if alert_products:
+        for ri, p in enumerate(alert_products, 3):
+            if p.current_stock <= 0:
+                status, bg = 'SIN STOCK', C_RED
+            else:
+                status, bg = 'STOCK BAJO', C_ORANGE
+            for col, val in enumerate([
+                p.sku,
+                p.name,
+                p.category.name if p.category else 'Sin categoría',
+                p.unit_of_measure.abbreviation if p.unit_of_measure else 'u',
+                float(p.current_stock),
+                p.min_stock,
+                status,
+            ], 1):
+                cell = ws2.cell(row=ri, column=col, value=val)
+                cell.fill = fill(bg if col == 7 else C_LGRAY)
+                cell.font = Font(bold=(col == 7), size=9)
+                cell.border = border()
+                cell.alignment = Alignment(vertical='center')
+    else:
+        ws2.cell(row=3, column=1, value='✓ No hay productos con stock bajo').font = Font(
+            color='006600', bold=True, size=10
+        )
+
+    auto_width(ws2)
+
+    # ============================================================
+    # HOJA 3 — ANÁLISIS DE MÁRGENES Y PRECIOS
+    # ============================================================
+    ws3 = wb.create_sheet('Análisis de Márgenes')
+
+    ws3.merge_cells('A1:G1')
+    c = ws3['A1']
+    c.value = 'ANÁLISIS DE MÁRGENES Y RENTABILIDAD'
+    c.font = Font(bold=True, size=13, color=C_WHITE)
+    c.fill = fill(C_PURPLE)
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws3.row_dimensions[1].height = 26
+
+    header_row(ws3, 2, [
+        'SKU', 'Nombre', 'Categoría',
+        'P. Compra', 'P. Venta', 'Ganancia Unit.', 'Margen %',
+    ])
+
+    for ri, p in enumerate(sorted(product_list, key=lambda x: -float(x.margin_percent)), 3):
+        margin = float(p.margin_percent)
+        if margin < 10:
+            bg = C_RED
+        elif margin < 20:
+            bg = C_ORANGE
+        else:
+            bg = C_LGRAY if ri % 2 == 0 else C_WHITE
+
+        for col, val in enumerate([
+            p.sku,
+            p.name,
+            p.category.name if p.category else 'Sin categoría',
+            float(p.purchase_price),
+            float(p.sale_price),
+            float(p.profit),
+            round(margin, 2),
+        ], 1):
+            cell = ws3.cell(row=ri, column=col, value=val)
+            cell.fill = fill(bg)
+            cell.font = Font(size=9)
+            cell.border = border()
+            cell.alignment = Alignment(vertical='center')
+            if col in (4, 5, 6):
+                cell.number_format = '#,##0.00'
+            elif col == 7:
+                cell.number_format = '0.00'
+
+    # Leyenda colores
+    legend_row = total_products + 4
+    for col, (text, color) in enumerate([
+        ('Margen < 10% — Revisar precio', C_RED),
+        ('Margen 10-20% — Margen bajo',   C_ORANGE),
+        ('Margen > 20% — Normal',         C_LGRAY),
+    ], 1):
+        cell = ws3.cell(row=legend_row, column=col * 2 - 1, value=text)
+        cell.fill = fill(color)
+        cell.font = Font(size=8, italic=True)
+        cell.border = border()
+
+    auto_width(ws3)
+
+    # ============================================================
+    # HOJA 4 — VALOR DEL INVENTARIO POR CATEGORÍA
+    # ============================================================
+    ws4 = wb.create_sheet('Valor de Inventario')
+
+    ws4.merge_cells('A1:F1')
+    c = ws4['A1']
+    c.value = 'VALOR TOTAL DEL INVENTARIO POR CATEGORÍA'
+    c.font = Font(bold=True, size=13, color=C_WHITE)
+    c.fill = fill(C_PURPLE)
+    c.alignment = Alignment(horizontal='center', vertical='center')
+    ws4.row_dimensions[1].height = 26
+
+    header_row(ws4, 2, [
+        'Categoría', 'N° Productos', 'Valor a Costo', 'Valor a P. Venta', 'Ganancia Potencial', '% del Total',
+    ])
+
+    by_cat = {}
+    for p in product_list:
+        cat = p.category.name if p.category else 'Sin categoría'
+        if cat not in by_cat:
+            by_cat[cat] = {'cost': 0.0, 'sale': 0.0, 'count': 0}
+        by_cat[cat]['cost']  += float(p.stock_value)
+        by_cat[cat]['sale']  += float(p.stock_value_sale)
+        by_cat[cat]['count'] += 1
+
+    total_cost = sum(d['cost'] for d in by_cat.values())
+    total_sale = sum(d['sale'] for d in by_cat.values())
+
+    for ri, (cat_name, d) in enumerate(sorted(by_cat.items()), 3):
+        bg = C_LGRAY if ri % 2 == 0 else C_WHITE
+        pct = (d['cost'] / total_cost * 100) if total_cost else 0.0
+        for col, val in enumerate([
+            cat_name, d['count'], d['cost'], d['sale'], d['sale'] - d['cost'], round(pct, 2),
+        ], 1):
+            cell = ws4.cell(row=ri, column=col, value=val)
+            cell.fill = fill(bg)
+            cell.font = Font(size=9)
+            cell.border = border()
+            if col in (3, 4, 5):
+                cell.number_format = '#,##0.00'
+            elif col == 6:
+                cell.number_format = '0.00'
+
+    # Total row
+    tr = len(by_cat) + 3
+    for col, val in enumerate([
+        'TOTAL', total_products, total_cost, total_sale, total_sale - total_cost, 100.0,
+    ], 1):
+        cell = ws4.cell(row=tr, column=col, value=val)
+        cell.font = Font(bold=True, color=C_WHITE)
+        cell.fill = fill(C_PINK)
+        cell.border = border()
+        if col in (3, 4, 5):
+            cell.number_format = '#,##0.00'
+        elif col == 6:
+            cell.number_format = '0.00'
+
+    auto_width(ws4)
+
+    # --- output ---
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = 'attachment; filename=productos.xlsx'
+    response['Content-Disposition'] = (
+        f'attachment; filename="inventario_{dj_tz.localdate().strftime("%Y%m%d")}.xlsx"'
+    )
     wb.save(response)
-    
     return response
 
 
