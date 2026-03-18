@@ -5,7 +5,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 from decimal import Decimal
 
@@ -98,23 +98,42 @@ def supplier_delete(request, pk):
 def purchase_list(request):
     """List all purchases."""
     purchases = Purchase.objects.select_related('supplier', 'created_by').all()
-    
+
     status = request.GET.get('status', '')
     if status:
         purchases = purchases.filter(status=status)
-    
+
+    supplier_id = request.GET.get('supplier', '')
+    if supplier_id:
+        purchases = purchases.filter(supplier_id=supplier_id)
+
+    date_from = request.GET.get('date_from', '')
+    if date_from:
+        purchases = purchases.filter(order_date__gte=date_from)
+
+    date_to = request.GET.get('date_to', '')
+    if date_to:
+        purchases = purchases.filter(order_date__lte=date_to)
+
     search = request.GET.get('search', '')
     if search:
         purchases = purchases.filter(
             Q(order_number__icontains=search) |
             Q(supplier__name__icontains=search)
         )
-    
+
+    total = purchases.aggregate(total=Sum('total'))['total'] or 0
+
     context = {
         'purchases': purchases,
         'status': status,
         'search': search,
         'status_choices': Purchase.STATUS_CHOICES,
+        'suppliers': Supplier.objects.filter(is_active=True).order_by('name'),
+        'supplier': supplier_id,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total': total,
     }
     return render(request, 'purchase/purchase_list.html', context)
 

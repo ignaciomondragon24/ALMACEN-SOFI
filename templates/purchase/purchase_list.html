@@ -46,7 +46,7 @@
     
     <!-- Total -->
     <div class="alert alert-success mb-4">
-        <strong>Total de compras:</strong> {{ total|currency_ar }}
+        <strong>Total de compras:</strong> {{ total|currency }}
     </div>
     
     <!-- Lista de compras -->
@@ -68,15 +68,23 @@
                     <tbody>
                         {% for purchase in purchases %}
                         <tr>
-                            <td>{{ purchase.purchase_date|date:"d/m/Y" }}</td>
-                            <td>{{ purchase.invoice_number|default:"-" }}</td>
+                            <td>{{ purchase.order_date|date:"d/m/Y"|default:"-" }}</td>
+                            <td>{{ purchase.order_number }}</td>
                             <td>{{ purchase.supplier.name }}</td>
                             <td>{{ purchase.items.count }} productos</td>
-                            <td class="text-end fw-bold text-success">{{ purchase.total|currency_ar }}</td>
+                            <td class="text-end fw-bold text-success">{{ purchase.total|currency }}</td>
                             <td>
-                                <span class="badge bg-{{ purchase.status_color|default:'secondary' }}">
-                                    {{ purchase.get_status_display }}
-                                </span>
+                                {% if purchase.status == 'draft' %}
+                                    <span class="badge bg-secondary">{{ purchase.get_status_display }}</span>
+                                {% elif purchase.status == 'ordered' %}
+                                    <span class="badge bg-info">{{ purchase.get_status_display }}</span>
+                                {% elif purchase.status == 'received' %}
+                                    <span class="badge bg-success">{{ purchase.get_status_display }}</span>
+                                {% elif purchase.status == 'cancelled' %}
+                                    <span class="badge bg-danger">{{ purchase.get_status_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ purchase.get_status_display }}</span>
+                                {% endif %}
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
