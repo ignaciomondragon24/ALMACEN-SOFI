@@ -1029,30 +1029,50 @@ document.getElementById('cpPurchasePrice').addEventListener('input', function() 
     }
 });
 
+function showModalError(msg) {
+    const errorDiv = document.getElementById('cpError');
+    if (errorDiv) {
+        errorDiv.textContent = msg;
+        errorDiv.classList.remove('d-none');
+        errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    // También toast visible para que no pase desapercibido
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-danger position-fixed bottom-0 end-0 m-3 shadow';
+    toast.style.zIndex = '99999';
+    toast.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>${escapeHtml(msg)}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+
 async function createProductFromScan() {
     const name = document.getElementById('cpName').value.trim();
     const category_id = document.getElementById('cpCategory').value || null;
     const purchase_price = parseFloat(document.getElementById('cpPurchasePrice').value) || 0;
-    const sale_price = parseFloat(document.getElementById('cpSalePrice').value) || 0;
+    let sale_price = parseFloat(document.getElementById('cpSalePrice').value) || 0;
     const barcode = document.getElementById('cpBarcode').value.trim() || null;
     const errorDiv = document.getElementById('cpError');
-
-    errorDiv.classList.add('d-none');
+    if (errorDiv) errorDiv.classList.add('d-none');
 
     if (!name) {
-        errorDiv.textContent = 'El nombre es obligatorio.';
-        errorDiv.classList.remove('d-none');
+        showModalError('El nombre del producto es obligatorio.');
         return;
     }
+
+    // Si sale_price es 0 pero hay precio de compra, calcular automáticamente
+    if (sale_price <= 0 && purchase_price > 0) {
+        const margin = parseFloat(document.getElementById('cpMargin').value) || 30;
+        sale_price = parseFloat((purchase_price * (1 + margin / 100)).toFixed(2));
+        document.getElementById('cpSalePrice').value = sale_price.toFixed(2);
+    }
+
     if (sale_price <= 0) {
-        errorDiv.textContent = 'El precio de venta debe ser mayor a 0.';
-        errorDiv.classList.remove('d-none');
+        showModalError('Ingresá el precio de venta (debe ser mayor a 0).');
         return;
     }
 
     if (!activeCreateRow) {
-        errorDiv.textContent = 'No se pudo identificar la fila del producto a vincular. Cerrá y abrí el modal nuevamente.';
-        errorDiv.classList.remove('d-none');
+        showModalError('No se pudo identificar la fila. Cerrá y abrí el modal nuevamente.');
         return;
     }
 
@@ -1163,7 +1183,8 @@ function searchExistingProducts(query) {
     .catch(() => { resultsEl.style.display = 'none'; });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+// El script corre al final del body, el DOM ya está cargado — no necesita DOMContentLoaded
+(function attachSearchListener() {
     const searchInput = document.getElementById('cpSearchExisting');
     if (searchInput) {
         searchInput.addEventListener('input', function() {
@@ -1172,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', function() {
             _searchDebounceTimer = setTimeout(() => searchExistingProducts(q), 300);
         });
     }
-});
+})();
 
 function linkProductToRow(productId, productName) {
     if (!activeCreateRow) return;
