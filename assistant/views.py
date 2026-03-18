@@ -565,6 +565,7 @@ def api_confirm_invoice(request):
             items_created = 0
             stock_updated = 0
             products_not_found = []
+            auto_created_products = []
 
             for prod_data in productos:
                 nombre = prod_data.get('nombre', '').strip()
@@ -604,43 +605,54 @@ def api_confirm_invoice(request):
                         name__icontains=nombre, is_active=True
                     ).first()
 
-                if product:
-                    # PurchaseItem exige unit_cost >= 0.01
-                    unit_cost_for_item = precio_unitario if precio_unitario > 0 else (product.purchase_price if product.purchase_price > 0 else Decimal('0.01'))
+                if not product:
+                    # Producto no encontrado → auto-crear con los datos del remito
+                    p_cost = precio_unitario if precio_unitario > 0 else Decimal('0.01')
+                    p_sale = (p_cost * Decimal('1.30')).quantize(Decimal('0.01'))
+                    # Solo asignar el código de barras si no está ya en uso
+                    safe_barcode = None
+                    if codigo_barras and not Product.objects.filter(barcode=codigo_barras).exists():
+                        safe_barcode = codigo_barras
+                    product = Product.objects.create(
+                        name=nombre,
+                        barcode=safe_barcode,
+                        purchase_price=p_cost,
+                        cost_price=p_cost,
+                        sale_price=p_sale,
+                        is_active=True,
+                    )
+                    auto_created_products.append(nombre)
 
-                    # Create purchase item
-                    PurchaseItem.objects.create(
-                        purchase=purchase,
+                # PurchaseItem exige unit_cost >= 0.01
+                unit_cost_for_item = precio_unitario if precio_unitario > 0 else (product.purchase_price if product.purchase_price > 0 else Decimal('0.01'))
+
+                # Create purchase item
+                PurchaseItem.objects.create(
+                    purchase=purchase,
+                    product=product,
+                    quantity=cantidad,
+                    unit_cost=unit_cost_for_item,
+                    received_quantity=cantidad,
+                )
+                items_created += 1
+
+                # Mantener actualizado el último precio de compra del producto
+                if precio_unitario > 0:
+                    product.purchase_price = precio_unitario
+                    product.save(update_fields=['purchase_price'])
+
+                # Update stock
+                if actualizar_stock:
+                    StockManagementService.add_stock(
                         product=product,
                         quantity=cantidad,
-                        unit_cost=unit_cost_for_item,
-                        received_quantity=cantidad,
+                        cost=unit_cost_for_item,
+                        reference=order_number,
+                        reference_id=purchase.pk,
+                        notes=f'Remito {numero_comprobante}' if numero_comprobante else f'Escaneo remito',
+                        user=request.user,
                     )
-                    items_created += 1
-
-                    # Mantener actualizado el último precio de compra del producto
-                    if precio_unitario > 0:
-                        product.purchase_price = precio_unitario
-                        product.save(update_fields=['purchase_price'])
-
-                    # Update stock
-                    if actualizar_stock:
-                        StockManagementService.add_stock(
-                            product=product,
-                            quantity=cantidad,
-                            cost=unit_cost_for_item,
-                            reference=order_number,
-                            reference_id=purchase.pk,
-                            notes=f'Remito {numero_comprobante}' if numero_comprobante else f'Escaneo remito',
-                            user=request.user,
-                        )
-                        stock_updated += 1
-                else:
-                    products_not_found.append({
-                        'nombre': nombre,
-                        'cantidad': cantidad,
-                        'precio': float(precio_unitario),
-                    })
+                    stock_updated += 1
 
             # Optionally register as expense
             expense_id = None
@@ -684,6 +696,7 @@ def api_confirm_invoice(request):
                 'items_created': items_created,
                 'stock_updated': stock_updated,
                 'products_not_found': products_not_found,
+                'auto_created_products': auto_created_products,
                 'expense_id': expense_id,
                 'message': f'Compra {order_number} registrada: {items_created} productos, {stock_updated} stocks actualizados.'
             })

@@ -248,7 +248,10 @@ def purchase_cancel(request, pk):
 def purchase_detail(request, pk):
     """View purchase order details."""
     purchase = get_object_or_404(Purchase, pk=pk)
-    context = {'purchase': purchase}
+    context = {
+        'purchase': purchase,
+        'items': purchase.items.select_related('product').all(),
+    }
     return render(request, 'purchase/purchase_detail.html', context)
 
 

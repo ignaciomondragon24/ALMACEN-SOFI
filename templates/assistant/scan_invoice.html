@@ -382,6 +382,11 @@
                     <ul id="notFoundList" class="mb-0 text-start"></ul>
                     <small class="text-muted">Podés crearlos manualmente y volver a escanear</small>
                 </div>
+                <div id="autoCreatedWarning" class="alert alert-info d-none mb-4" style="max-width: 500px; margin: 0 auto;">
+                    <h6><i class="fas fa-magic me-2"></i>Productos creados automáticamente</h6>
+                    <p class="mb-1 small">Los siguientes productos no existían en el sistema y fueron creados con precio de venta estimado (30% margen). Revisá sus precios en el catálogo:</p>
+                    <ul id="autoCreatedList" class="mb-0 text-start"></ul>
+                </div>
                 <div class="d-flex gap-2 justify-content-center flex-wrap">
                     <button type="button" class="btn btn-primary" onclick="resetAll()">
                         <i class="fas fa-camera me-1"></i>Escanear otro
@@ -896,6 +901,18 @@ function showSuccess(result) {
         if (list) {
             list.innerHTML = result.products_not_found.map(p =>
                 `<li><strong>${escapeHtml(p.nombre)}</strong> (${p.cantidad} u. × $${p.precio.toFixed(2)})</li>`
+            ).join('');
+        }
+    }
+
+    // Show auto-created products
+    if (result.auto_created_products && result.auto_created_products.length > 0) {
+        const warn = document.getElementById('autoCreatedWarning');
+        if (warn) warn.classList.remove('d-none');
+        const list = document.getElementById('autoCreatedList');
+        if (list) {
+            list.innerHTML = result.auto_created_products.map(name =>
+                `<li><i class="fas fa-plus-circle me-1 text-info"></i>${escapeHtml(name)}</li>`
             ).join('');
         }
     }
