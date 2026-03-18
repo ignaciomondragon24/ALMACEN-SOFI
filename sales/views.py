@@ -404,7 +404,7 @@ def export_excel(request):
     daily_list = list(
         transactions.annotate(date=TruncDate('created_at'))
         .values('date')
-        .annotate(total=Sum('total'), count=Count('id'), avg=Avg('total'))
+        .annotate(total=Sum('total'), count=Count('id'))
         .order_by('date')
     )
 
@@ -440,7 +440,7 @@ def export_excel(request):
             'session__cash_shift__cashier__last_name',
             'session__cash_shift__cashier__username',
         )
-        .annotate(total=Sum('total'), count=Count('id'), avg=Avg('total'))
+        .annotate(total=Sum('total'), count=Count('id'))
         .order_by('-total')
     )
 
@@ -669,7 +669,8 @@ def export_excel(request):
         fn = c['session__cash_shift__cashier__first_name'] or ''
         ln = c['session__cash_shift__cashier__last_name'] or ''
         name = f'{fn} {ln}'.strip() or c['session__cash_shift__cashier__username'] or '-'
-        for col, val in enumerate([name, c['count'], fmt(c['total']), fmt(c['avg'])], 1):
+        avg_cashier = fmt(c['total']) / c['count'] if c['count'] else 0.0
+        for col, val in enumerate([name, c['count'], fmt(c['total']), avg_cashier], 1):
             cell = ws6.cell(row=ri, column=col, value=val)
             cell.fill = fill(bg)
             cell.border = border()
