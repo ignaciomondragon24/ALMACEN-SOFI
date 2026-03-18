@@ -1046,106 +1046,110 @@ function showModalError(msg) {
 }
 
 async function createProductFromScan() {
-    const name = document.getElementById('cpName').value.trim();
-    const category_id = document.getElementById('cpCategory').value || null;
-    const purchase_price = parseFloat(document.getElementById('cpPurchasePrice').value) || 0;
-    let sale_price = parseFloat(document.getElementById('cpSalePrice').value) || 0;
-    const barcode = document.getElementById('cpBarcode').value.trim() || null;
-    const errorDiv = document.getElementById('cpError');
-    if (errorDiv) errorDiv.classList.add('d-none');
-
-    if (!name) {
-        showModalError('El nombre del producto es obligatorio.');
-        return;
-    }
-
-    // Si sale_price es 0 pero hay precio de compra, calcular automáticamente
-    if (sale_price <= 0 && purchase_price > 0) {
-        const margin = parseFloat(document.getElementById('cpMargin').value) || 30;
-        sale_price = parseFloat((purchase_price * (1 + margin / 100)).toFixed(2));
-        document.getElementById('cpSalePrice').value = sale_price.toFixed(2);
-    }
-
-    if (sale_price <= 0) {
-        showModalError('Ingresá el precio de venta (debe ser mayor a 0).');
-        return;
-    }
-
-    if (!activeCreateRow) {
-        showModalError('No se pudo identificar la fila. Cerrá y abrí el modal nuevamente.');
-        return;
-    }
-
-    const btn = document.getElementById('btnCreateProduct');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creando...';
-
+    // Outer try/catch: captura cualquier error inesperado y lo muestra siempre
     try {
-        const csrfToken = getCsrfToken();
-        const response = await fetch('{% url "assistant:api_create_product" %}', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken,
-            },
-            body: JSON.stringify({ name, category_id, purchase_price, sale_price, barcode }),
-        });
+        const errorDiv = document.getElementById('cpError');
+        if (errorDiv) errorDiv.classList.add('d-none');
 
-        const rawText = await response.text();
-        let result;
-        try {
-            result = JSON.parse(rawText);
-        } catch {
-            result = {
-                success: false,
-                error: response.ok
-                    ? 'Respuesta inválida del servidor al crear producto.'
-                    : `Error HTTP ${response.status} al crear producto.`,
-            };
-        }
+        const name = document.getElementById('cpName').value.trim();
+        const category_id = document.getElementById('cpCategory').value || null;
+        const purchase_price = parseFloat(document.getElementById('cpPurchasePrice').value) || 0;
+        let sale_price = parseFloat(document.getElementById('cpSalePrice').value) || 0;
+        const barcode = document.getElementById('cpBarcode').value.trim() || null;
 
-        if (!response.ok && !result.success) {
-            errorDiv.textContent = result.error || `No se pudo crear el producto (HTTP ${response.status}).`;
-            errorDiv.classList.remove('d-none');
+        if (!name) {
+            showModalError('El nombre del producto es obligatorio.');
             return;
         }
 
-        if (result.success) {
-            // Update the row with the new product
-            if (activeCreateRow) {
-                activeCreateRow.dataset.productId = String(result.product_id);
-                const icon = activeCreateRow.querySelector('.match-icon');
-                if (icon) {
-                    icon.className = 'fas fa-check-circle match-found match-icon';
-                    icon.title = `${result.already_existed ? 'Vinculado' : 'Creado'}: ${result.product_name}`;
-                }
-                const createBtn = activeCreateRow.querySelector('.btn-create-product');
-                if (createBtn) createBtn.style.display = 'none';
-                if (barcode) activeCreateRow.dataset.barcode = barcode;
+        // Si sale_price es 0 pero hay precio de compra, calcular automáticamente
+        if (sale_price <= 0 && purchase_price > 0) {
+            const margin = parseFloat(document.getElementById('cpMargin').value) || 30;
+            sale_price = parseFloat((purchase_price * (1 + margin / 100)).toFixed(2));
+            document.getElementById('cpSalePrice').value = sale_price.toFixed(2);
+        }
+
+        if (sale_price <= 0) {
+            showModalError('Ingresá el precio de venta o el precio de costo para calcularla automáticamente.');
+            return;
+        }
+
+        if (!activeCreateRow) {
+            showModalError('No se pudo identificar la fila. Cerrá y abrí el modal nuevamente.');
+            return;
+        }
+
+        const btn = document.getElementById('btnCreateProduct');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creando...';
+        }
+
+        let result;
+        try {
+            const csrfToken = getCsrfToken();
+            const response = await fetch('{% url "assistant:api_create_product" %}', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ name, category_id, purchase_price, sale_price, barcode }),
+            });
+
+            const rawText = await response.text();
+            try {
+                result = JSON.parse(rawText);
+            } catch {
+                showModalError(response.ok
+                    ? 'Respuesta inválida del servidor. Puede que la sesión haya expirado.'
+                    : `Error HTTP ${response.status} del servidor.`);
+                return;
             }
 
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('createProductModal'));
-            if (modal) modal.hide();
+            if (!result.success) {
+                showModalError(result.error || 'No se pudo crear el producto.');
+                return;
+            }
 
-            // Brief success feedback
-            const toast = document.createElement('div');
-            toast.className = 'alert alert-success position-fixed bottom-0 end-0 m-3 shadow';
-            toast.style.zIndex = '9999';
-            toast.innerHTML = `<i class="fas fa-check me-2"></i>${escapeHtml(result.message)}`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        } else {
-            errorDiv.textContent = result.error || 'Error al crear el producto.';
-            errorDiv.classList.remove('d-none');
+        } catch (fetchErr) {
+            showModalError('Error de red: ' + fetchErr.message);
+            return;
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Crear y Vincular';
+            }
         }
-    } catch (err) {
-        errorDiv.textContent = 'Error de conexión: ' + err.message;
-        errorDiv.classList.remove('d-none');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-check me-1"></i>Crear y Vincular';
+
+        // Éxito: actualizar fila y cerrar modal
+        if (activeCreateRow) {
+            activeCreateRow.dataset.productId = String(result.product_id);
+            const icon = activeCreateRow.querySelector('.match-icon');
+            if (icon) {
+                icon.className = 'fas fa-check-circle match-found match-icon';
+                icon.title = `${result.already_existed ? 'Vinculado' : 'Creado'}: ${result.product_name}`;
+            }
+            const createBtn = activeCreateRow.querySelector('.btn-create-product');
+            if (createBtn) createBtn.style.display = 'none';
+            if (barcode) activeCreateRow.dataset.barcode = barcode;
+        }
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('createProductModal'));
+        if (modal) modal.hide();
+
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-success position-fixed bottom-0 end-0 m-3 shadow';
+        toast.style.zIndex = '9999';
+        toast.innerHTML = `<i class="fas fa-check me-2"></i>${escapeHtml(result.message)}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+
+    } catch (outerErr) {
+        // Red de seguridad: cualquier error que no fue capturado arriba
+        console.error('createProductFromScan error:', outerErr);
+        alert('Error al crear el producto:\n' + outerErr.message);
     }
 }
 
