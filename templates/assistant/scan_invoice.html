@@ -410,6 +410,18 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="cpRowIndex">
+
+                <!-- BUSCAR EXISTENTE -->
+                <div class="mb-3 p-3 rounded" style="background:#f0f4ff; border:1px solid #c5d0f5;">
+                    <label class="form-label fw-bold text-primary mb-1">
+                        <i class="fas fa-search me-1"></i>Vincular a un producto ya existente
+                    </label>
+                    <input type="text" class="form-control" id="cpSearchExisting"
+                           placeholder="Buscar por nombre o código de barras..." autocomplete="off">
+                    <div id="cpSearchResults" class="list-group mt-1" style="max-height:160px; overflow-y:auto; display:none;"></div>
+                </div>
+                <div class="text-center text-muted small mb-3" style="letter-spacing:.5px;">── o bien crear uno nuevo ──</div>
+
                 <div class="mb-3">
                     <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="cpName" placeholder="Nombre del producto">
@@ -939,9 +951,15 @@ let lastEditedPriceField = 'margin'; // 'margin' o 'sale'
 function openCreateProductModal(tr) {
     activeCreateRow = tr;
     const nombre = tr.querySelector('[data-field="nombre"]').value.trim();
-    lastEditedPriceField = 'margin'; // Reset dirección al abrir el modal
+    lastEditedPriceField = 'margin';
     const precio = parseFloat(tr.querySelector('[data-field="precio_unitario"]').value) || 0;
     const barcode = tr.dataset.barcode || '';
+
+    // Reset búsqueda existente
+    const searchInp = document.getElementById('cpSearchExisting');
+    const searchRes = document.getElementById('cpSearchResults');
+    if (searchInp) { searchInp.value = nombre; }  // precarga con el nombre detectado
+    if (searchRes) { searchRes.style.display = 'none'; searchRes.innerHTML = ''; }
 
     document.getElementById('cpName').value = nombre;
     document.getElementById('cpBarcode').value = barcode;
@@ -956,6 +974,9 @@ function openCreateProductModal(tr) {
 
     const modal = new bootstrap.Modal(document.getElementById('createProductModal'));
     modal.show();
+
+    // Auto-buscar con el nombre pre-cargado
+    if (nombre.length >= 2) searchExistingProducts(nombre);
 }
 
 function calcSaleFromMargin() {
@@ -1106,6 +1127,73 @@ async function createProductFromScan() {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-check me-1"></i>Crear y Vincular';
     }
+}
+
+// ========== BUSCAR PRODUCTO EXISTENTE ==========
+
+let _searchDebounceTimer = null;
+
+function searchExistingProducts(query) {
+    const resultsEl = document.getElementById('cpSearchResults');
+    if (!resultsEl) return;
+    if (!query || query.length < 2) {
+        resultsEl.style.display = 'none';
+        resultsEl.innerHTML = '';
+        return;
+    }
+    fetch(`{% url 'purchase:api_search_products' %}?q=${encodeURIComponent(query)}`, {
+        credentials: 'same-origin',
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.results && data.results.length > 0) {
+            resultsEl.innerHTML = data.results.map(p =>
+                `<a href="#" class="list-group-item list-group-item-action py-2 px-3"
+                    onclick="event.preventDefault(); linkProductToRow(${p.id}, ${JSON.stringify(p.name)})">
+                    <i class="fas fa-box me-2 text-muted"></i><strong>${escapeHtml(p.name)}</strong>
+                    ${p.barcode ? `<small class="text-muted ms-2"><i class="fas fa-barcode me-1"></i>${escapeHtml(p.barcode)}</small>` : ''}
+                </a>`
+            ).join('');
+            resultsEl.style.display = 'block';
+        } else {
+            resultsEl.innerHTML = '<div class="list-group-item text-muted small py-2"><i class="fas fa-info-circle me-1"></i>No se encontraron productos</div>';
+            resultsEl.style.display = 'block';
+        }
+    })
+    .catch(() => { resultsEl.style.display = 'none'; });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('cpSearchExisting');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(_searchDebounceTimer);
+            const q = this.value.trim();
+            _searchDebounceTimer = setTimeout(() => searchExistingProducts(q), 300);
+        });
+    }
+});
+
+function linkProductToRow(productId, productName) {
+    if (!activeCreateRow) return;
+    activeCreateRow.dataset.productId = String(productId);
+    const icon = activeCreateRow.querySelector('.match-icon');
+    if (icon) {
+        icon.className = 'fas fa-check-circle match-found match-icon';
+        icon.title = `Vinculado: ${productName}`;
+    }
+    const createBtn = activeCreateRow.querySelector('.btn-create-product');
+    if (createBtn) createBtn.style.display = 'none';
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('createProductModal'));
+    if (modal) modal.hide();
+
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-success position-fixed bottom-0 end-0 m-3 shadow';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `<i class="fas fa-link me-2"></i>Vinculado a: <strong>${escapeHtml(productName)}</strong>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 // ========== HELPERS ==========
