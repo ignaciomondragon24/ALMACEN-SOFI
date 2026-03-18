@@ -16,7 +16,7 @@ from django.core.paginator import Paginator
 from django.conf import settings as django_settings
 from django.db import transaction
 from django.utils import timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from .models import Conversation, Message, AssistantSettings, QueryLog
 from .services import AssistantService, InvoiceScanService
@@ -444,6 +444,40 @@ def api_confirm_invoice(request):
     Creates Purchase + PurchaseItems, updates stock, optionally creates Expense.
     """
     try:
+        def _to_decimal(value, default=Decimal('0')):
+            """Parsea números tolerando coma decimal y separadores de miles."""
+            if value is None:
+                return default
+            if isinstance(value, Decimal):
+                return value
+            if isinstance(value, (int, float)):
+                try:
+                    return Decimal(str(value))
+                except (InvalidOperation, ValueError, TypeError):
+                    return default
+
+            s = str(value).strip()
+            if not s:
+                return default
+
+            # Soporta: 1.234,56 | 1234.56 | 1234,56
+            if ',' in s and '.' in s:
+                s = s.replace('.', '').replace(',', '.')
+            elif ',' in s:
+                s = s.replace(',', '.')
+
+            try:
+                return Decimal(s)
+            except (InvalidOperation, ValueError, TypeError):
+                return default
+
+        def _to_int(value, default=0):
+            dec = _to_decimal(value, Decimal(default))
+            try:
+                return int(dec)
+            except (ValueError, TypeError):
+                return default
+
         data = json.loads(request.body)
 
         supplier_id = data.get('supplier_id')
@@ -451,9 +485,9 @@ def api_confirm_invoice(request):
         numero_comprobante = data.get('numero_comprobante', '').strip()
         fecha_str = data.get('fecha', '')
         productos = data.get('productos', [])
-        total = Decimal(str(data.get('total', 0)))
-        subtotal = Decimal(str(data.get('subtotal', 0)))
-        iva = Decimal(str(data.get('iva', 0)))
+        total = _to_decimal(data.get('total', 0), Decimal('0'))
+        subtotal = _to_decimal(data.get('subtotal', 0), Decimal('0'))
+        iva = _to_decimal(data.get('iva', 0), Decimal('0'))
         metodo_pago = data.get('metodo_pago', 'cash')
         notas = data.get('notas', '')
         registrar_gasto = data.get('registrar_gasto', False)
@@ -534,8 +568,8 @@ def api_confirm_invoice(request):
 
             for prod_data in productos:
                 nombre = prod_data.get('nombre', '').strip()
-                cantidad = int(prod_data.get('cantidad', 0))
-                precio_unitario = Decimal(str(prod_data.get('precio_unitario', 0)))
+                cantidad = _to_int(prod_data.get('cantidad', 0), 0)
+                precio_unitario = _to_decimal(prod_data.get('precio_unitario', 0), Decimal('0'))
                 codigo_barras = prod_data.get('codigo_barras', '').strip() or None
                 product_id = prod_data.get('product_id') or None
 
@@ -571,22 +605,30 @@ def api_confirm_invoice(request):
                     ).first()
 
                 if product:
+                    # PurchaseItem exige unit_cost >= 0.01
+                    unit_cost_for_item = precio_unitario if precio_unitario > 0 else (product.purchase_price if product.purchase_price > 0 else Decimal('0.01'))
+
                     # Create purchase item
                     PurchaseItem.objects.create(
                         purchase=purchase,
                         product=product,
                         quantity=cantidad,
-                        unit_cost=precio_unitario,
+                        unit_cost=unit_cost_for_item,
                         received_quantity=cantidad,
                     )
                     items_created += 1
+
+                    # Mantener actualizado el último precio de compra del producto
+                    if precio_unitario > 0:
+                        product.purchase_price = precio_unitario
+                        product.save(update_fields=['purchase_price'])
 
                     # Update stock
                     if actualizar_stock:
                         StockManagementService.add_stock(
                             product=product,
                             quantity=cantidad,
-                            cost=precio_unitario,
+                            cost=unit_cost_for_item,
                             reference=order_number,
                             reference_id=purchase.pk,
                             notes=f'Remito {numero_comprobante}' if numero_comprobante else f'Escaneo remito',
@@ -618,6 +660,7 @@ def api_confirm_invoice(request):
                     'transferencia': 'transfer',
                     'transfer': 'transfer',
                     'cheque': 'check',
+                        'check': 'check',
                 }
                 pago = payment_map.get(metodo_pago.lower(), 'cash') if metodo_pago else 'cash'
 
@@ -668,11 +711,35 @@ def api_create_product_from_scan(request):
     Returns the created product id and name.
     """
     try:
+        def _to_decimal(value, default=Decimal('0')):
+            if value is None:
+                return default
+            if isinstance(value, Decimal):
+                return value
+            if isinstance(value, (int, float)):
+                try:
+                    return Decimal(str(value))
+                except (InvalidOperation, ValueError, TypeError):
+                    return default
+
+            s = str(value).strip()
+            if not s:
+                return default
+            if ',' in s and '.' in s:
+                s = s.replace('.', '').replace(',', '.')
+            elif ',' in s:
+                s = s.replace(',', '.')
+
+            try:
+                return Decimal(s)
+            except (InvalidOperation, ValueError, TypeError):
+                return default
+
         data = json.loads(request.body)
         name = data.get('name', '').strip()
         category_id = data.get('category_id') or None
-        purchase_price = Decimal(str(data.get('purchase_price', 0)))
-        sale_price = Decimal(str(data.get('sale_price', 0)))
+        purchase_price = _to_decimal(data.get('purchase_price', 0), Decimal('0'))
+        sale_price = _to_decimal(data.get('sale_price', 0), Decimal('0'))
         barcode = data.get('barcode', '').strip() or None
 
         if not name:
