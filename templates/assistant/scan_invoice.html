@@ -1029,24 +1029,51 @@ async function createProductFromScan() {
         return;
     }
 
+    if (!activeCreateRow) {
+        errorDiv.textContent = 'No se pudo identificar la fila del producto a vincular. Cerrá y abrí el modal nuevamente.';
+        errorDiv.classList.remove('d-none');
+        return;
+    }
+
     const btn = document.getElementById('btnCreateProduct');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creando...';
 
     try {
+        const csrfToken = getCsrfToken();
         const response = await fetch('{% url "assistant:api_create_product" %}', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}',
+                'X-CSRFToken': csrfToken,
             },
             body: JSON.stringify({ name, category_id, purchase_price, sale_price, barcode }),
         });
-        const result = await response.json();
+
+        const rawText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(rawText);
+        } catch {
+            result = {
+                success: false,
+                error: response.ok
+                    ? 'Respuesta inválida del servidor al crear producto.'
+                    : `Error HTTP ${response.status} al crear producto.`,
+            };
+        }
+
+        if (!response.ok && !result.success) {
+            errorDiv.textContent = result.error || `No se pudo crear el producto (HTTP ${response.status}).`;
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+
         if (result.success) {
             // Update the row with the new product
             if (activeCreateRow) {
-                activeCreateRow.dataset.productId = result.product_id;
+                activeCreateRow.dataset.productId = String(result.product_id);
                 const icon = activeCreateRow.querySelector('.match-icon');
                 if (icon) {
                     icon.className = 'fas fa-check-circle match-found match-icon';
@@ -1082,6 +1109,20 @@ async function createProductFromScan() {
 }
 
 // ========== HELPERS ==========
+
+function getCsrfToken() {
+    const tokenFromTemplate = '{{ csrf_token }}';
+    if (tokenFromTemplate && tokenFromTemplate !== 'NOTPROVIDED') {
+        return tokenFromTemplate;
+    }
+
+    const cookie = document.cookie
+        .split(';')
+        .map(c => c.trim())
+        .find(c => c.startsWith('csrftoken='));
+
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
+}
 
 function fmtMoney(v) {
     const parts = v.toFixed(2).split('.');
