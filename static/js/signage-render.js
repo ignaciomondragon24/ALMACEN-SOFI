@@ -1,11 +1,19 @@
 /**
- * SIGNAGE RENDERER v4 — Renders sign cards in preview, print and designer.
- * Usage: SignageRenderer.renderSign(element, layoutObj, typeString)
+ * SIGNAGE RENDERER v5 — Complete rewrite.
+ *
+ * Renders sign cards for preview, print AND the designer canvas.
+ * Every sign element gets font sizes in mm so they scale proportionally
+ * when the card is sized in mm (print) or px (designer zoom).
+ *
+ * Public API:
+ *   SignageRenderer.renderSign(el, layout, type, opts)
+ *   SignageRenderer.autoFitAll(root)
+ *   SignageRenderer.formatPrice(val)
  */
 var SignageRenderer = (function () {
     'use strict';
 
-    /* ── Price formatter (Argentine $1.234,56) ───────────────── */
+    // ─── Helpers ─────────────────────────────────────────────
     function formatPrice(val) {
         if (val === '' || val === null || val === undefined) return '';
         var n = parseFloat(String(val).replace(',', '.'));
@@ -16,287 +24,300 @@ var SignageRenderer = (function () {
         return '$' + parts[0] + (cents !== '00' ? ',' + cents : '');
     }
 
-    function mk(tag, cls, text) {
+    function el(tag, cls, txt) {
         var e = document.createElement(tag);
         if (cls) e.className = cls;
-        if (text !== undefined && text !== null) e.textContent = text;
+        if (txt != null) e.textContent = txt;
         return e;
     }
 
-    /* ── Main entry ──────────────────────────────────────────── */
-    function renderSign(el, layout, type) {
-        var d = el.dataset;
-        var L = (layout && typeof layout === 'object') ? layout : {};
-
-        // Clear previous content
-        el.innerHTML = '';
-
-        // Outer card styles
-        el.style.background = L.background_color || '#fff';
-        el.style.border = (L.border_width || 2) + 'px solid ' + (L.border_color || '#000');
-        el.style.borderRadius = (L.border_radius || 0) + 'px';
-        el.style.fontFamily = L.font_family || 'Arial, sans-serif';
-        el.style.overflow = 'hidden';
-        el.style.display = 'flex';
-        el.style.flexDirection = 'column';
-        el.style.position = 'relative';
-        el.style.boxSizing = 'border-box';
-
-        // Inner container
-        var inner = mk('div', 'sign-inner');
-        inner.style.cssText =
-            'flex:1;min-height:0;width:100%;box-sizing:border-box;' +
-            'padding:' + (L.padding || 3) + 'mm;' +
-            'display:flex;flex-direction:column;justify-content:center;align-items:center;' +
-            'text-align:center;overflow:hidden;position:relative;z-index:1;';
-
-        // Dispatch to type renderer
-        if (type === 'simple') _simple(inner, d, L);
-        else if (type === 'promotional') _promo(inner, d, L);
-        else if (type === 'bulk') _bulk(inner, d, L);
-        else if (type === 'weight') _weight(inner, d, L);
-        else _simple(inner, d, L);
-
-        el.appendChild(inner);
-
-        // Theme decorations
-        _decorate(el, L);
+    /** Read a dataset value from camelCase or kebab-case key */
+    function ds(d, key, alt) {
+        return d[key] || d[alt] || '';
     }
 
-    /* ── SIMPLE ──────────────────────────────────────────────── */
-    function _simple(inner, d, L) {
+    // ─── Main Entry ─────────────────────────────────────────
+    /**
+     * @param {HTMLElement} card   - Container element (must already have width/height set)
+     * @param {Object}      layout - Layout config object
+     * @param {string}      type   - simple|promotional|bulk|weight
+     * @param {Object}      opts   - { unit:'mm'|'px' } — mm for print, px for designer
+     */
+    function renderSign(card, layout, type, opts) {
+        var L = (layout && typeof layout === 'object') ? layout : {};
+        var d = card.dataset;
+        var u = (opts && opts.unit) || 'mm'; // default mm for print/preview
+
+        card.innerHTML = '';
+
+        // Outer styles
+        card.style.background  = L.background_color || '#fff';
+        card.style.border      = (L.border_width || 2) + 'px solid ' + (L.border_color || '#000');
+        card.style.borderRadius = (L.border_radius || 0) + 'px';
+        card.style.fontFamily  = L.font_family || 'Arial, sans-serif';
+        card.style.overflow    = 'hidden';
+        card.style.display     = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.position    = 'relative';
+        card.style.boxSizing   = 'border-box';
+
+        if (L.text_align) card.style.textAlign = L.text_align;
+
+        // Inner container
+        var inner = el('div', 'sign-inner');
+        var pad = (L.padding || 3);
+        inner.style.cssText =
+            'flex:1;min-height:0;width:100%;box-sizing:border-box;' +
+            'padding:' + pad + u + ';' +
+            'display:flex;flex-direction:column;justify-content:center;align-items:center;' +
+            'text-align:' + (L.text_align || 'center') + ';overflow:hidden;position:relative;z-index:1;';
+
+        // Dispatch
+        var fn = { simple: _simple, promotional: _promo, bulk: _bulk, weight: _weight }[type] || _simple;
+        fn(inner, d, L, u);
+
+        card.appendChild(inner);
+        _decorate(card, L, u);
+    }
+
+    // ─── SIMPLE ─────────────────────────────────────────────
+    function _simple(inner, d, L, u) {
         if (L.show_store_name) {
-            var sh = mk('div', 'store-header', L.store_name || 'CHE GOLOSO');
+            var sh = el('div', 'store-header', L.store_name || 'CHE GOLOSO');
             sh.style.cssText =
-                'width:100%;padding:1mm 2mm;text-align:center;font-weight:700;' +
-                'letter-spacing:1px;text-transform:uppercase;margin-bottom:1mm;' +
-                'font-size:' + (L.store_name_size || 8) + 'px;' +
+                'width:100%;padding:0.5' + u + ' 1' + u + ';text-align:center;font-weight:700;' +
+                'letter-spacing:0.5px;text-transform:uppercase;margin-bottom:0.5' + u + ';' +
+                'font-size:' + sz(L.store_name_size, 8, u) + ';' +
                 'background:' + (L.store_name_bg || '#333') + ';' +
-                'color:' + (L.store_name_color || '#fff') + ';border-radius:2px;';
+                'color:' + (L.store_name_color || '#fff') + ';border-radius:1px;';
             inner.appendChild(sh);
         }
 
-        var name = mk('div', 'product-name fit-text-multi', d.name || 'PRODUCTO');
+        var name = el('div', 'product-name sign-fit', d.name || 'PRODUCTO');
         name.style.cssText =
-            'width:100%;padding:0 1mm;text-transform:uppercase;line-height:1.15;' +
-            'font-size:' + (L.product_name_size || 14) + 'px;' +
+            'width:100%;padding:0 0.5' + u + ';text-transform:uppercase;line-height:1.15;' +
+            'font-size:' + sz(L.product_name_size, 14, u) + ';' +
             'font-weight:' + (L.product_name_weight || 'bold') + ';' +
-            'color:' + (L.product_name_color || '#000') + ';';
+            'color:' + (L.product_name_color || '#000') + ';' +
+            'overflow:hidden;word-break:break-word;';
         inner.appendChild(name);
 
         if (L.gramaje_show !== false && d.gramaje) {
-            var gr = mk('div', 'gramaje', d.gramaje);
+            var gr = el('div', 'gramaje', d.gramaje);
             gr.style.cssText =
-                'width:100%;font-size:' + (L.gramaje_size || 9) + 'px;' +
-                'color:' + (L.gramaje_color || '#666') + ';margin:0.5mm 0;';
+                'width:100%;font-size:' + sz(L.gramaje_size, 9, u) + ';' +
+                'color:' + (L.gramaje_color || '#666') + ';margin:0.3' + u + ' 0;';
             inner.appendChild(gr);
         }
 
-        var price = mk('div', 'price fit-text', formatPrice(d.price));
+        var price = el('div', 'price sign-fit', formatPrice(d.price));
         price.style.cssText =
             'width:100%;line-height:1;' +
-            'font-size:' + (L.price_size || 32) + 'px;' +
+            'font-size:' + sz(L.price_size, 32, u) + ';' +
             'font-weight:' + (L.price_weight || 'bold') + ';' +
             'color:' + (L.price_color || '#27ae60') + ';';
         inner.appendChild(price);
     }
 
-    /* ── PROMOTIONAL ─────────────────────────────────────────── */
-    function _promo(inner, d, L) {
+    // ─── PROMOTIONAL ────────────────────────────────────────
+    function _promo(inner, d, L, u) {
         if (L.promo_label_show !== false) {
-            var lbl = mk('div', 'promo-label', L.promo_label_text || 'PROMO!!');
+            var lbl = el('div', 'promo-label', L.promo_label_text || 'PROMO!!');
             lbl.style.cssText =
-                'display:inline-block;padding:1mm 3mm;border-radius:4px;font-weight:800;' +
-                'text-transform:uppercase;letter-spacing:1px;margin-bottom:1mm;' +
-                'font-size:' + (L.promo_label_size || 12) + 'px;' +
+                'display:inline-block;padding:0.5' + u + ' 1.5' + u + ';border-radius:3px;font-weight:800;' +
+                'text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.5' + u + ';' +
+                'font-size:' + sz(L.promo_label_size, 12, u) + ';' +
                 'background:' + (L.promo_label_bg || '#FFD700') + ';' +
                 'color:' + (L.promo_label_color || '#cc0000') + ';';
             inner.appendChild(lbl);
         }
 
-        var name = mk('div', 'product-name fit-text-multi', d.name || 'PRODUCTO');
+        var name = el('div', 'product-name sign-fit', d.name || 'PRODUCTO');
         name.style.cssText =
-            'width:100%;padding:0 1mm;text-transform:uppercase;line-height:1.15;' +
-            'font-size:' + (L.product_name_size || 12) + 'px;' +
+            'width:100%;padding:0 0.5' + u + ';text-transform:uppercase;line-height:1.15;' +
+            'font-size:' + sz(L.product_name_size, 12, u) + ';' +
             'font-weight:' + (L.product_name_weight || 'bold') + ';' +
-            'color:' + (L.product_name_color || '#fff') + ';';
+            'color:' + (L.product_name_color || '#fff') + ';overflow:hidden;word-break:break-word;';
         inner.appendChild(name);
 
         if (d.price) {
-            var up = mk('div', 'unit-price fit-text', 'c/u ' + formatPrice(d.price));
+            var up = el('div', 'unit-price sign-fit', 'c/u ' + formatPrice(d.price));
             up.style.cssText =
                 'width:100%;text-decoration:line-through;opacity:.75;' +
-                'font-size:' + (L.unit_price_size || 14) + 'px;' +
+                'font-size:' + sz(L.unit_price_size, 14, u) + ';' +
                 'color:' + (L.unit_price_color || '#fff') + ';';
             inner.appendChild(up);
         }
 
-        var qty = d.promoQty || d['promo-qty'] || '';
+        var qty = ds(d, 'promoQty', 'promo-qty');
         if (qty) {
-            var badge = mk('div', 'promo-badge fit-text', 'LLEV\u00c1 ' + qty);
+            var badge = el('div', 'promo-badge sign-fit', 'LLEV\u00c1 ' + qty);
             badge.style.cssText =
                 'width:100%;font-weight:900;line-height:1;' +
-                'font-size:' + (L.promo_badge_size || 24) + 'px;' +
+                'font-size:' + sz(L.promo_badge_size, 24, u) + ';' +
                 'color:' + (L.promo_badge_color || '#FFD700') + ';';
             inner.appendChild(badge);
         }
 
-        var pp = d.promoPrice || d['promo-price'] || '';
+        var pp = ds(d, 'promoPrice', 'promo-price');
         if (pp) {
-            var pEl = mk('div', 'price fit-text', formatPrice(pp));
+            var pEl = el('div', 'price sign-fit', formatPrice(pp));
             pEl.style.cssText =
                 'width:100%;line-height:1;' +
-                'font-size:' + (L.promo_price_size || 28) + 'px;' +
+                'font-size:' + sz(L.promo_price_size, 28, u) + ';' +
                 'font-weight:' + (L.promo_price_weight || 'bold') + ';' +
                 'color:' + (L.promo_price_color || '#fff') + ';';
             inner.appendChild(pEl);
         }
     }
 
-    /* ── BULK ────────────────────────────────────────────────── */
-    function _bulk(inner, d, L) {
-        var name = mk('div', 'product-name fit-text-multi', d.name || 'PRODUCTO');
+    // ─── BULK ───────────────────────────────────────────────
+    function _bulk(inner, d, L, u) {
+        var name = el('div', 'product-name sign-fit', d.name || 'PRODUCTO');
         name.style.cssText =
-            'width:100%;padding:0 1mm;text-transform:uppercase;line-height:1.15;' +
-            'font-size:' + (L.product_name_size || 16) + 'px;' +
+            'width:100%;padding:0 0.5' + u + ';text-transform:uppercase;line-height:1.15;' +
+            'font-size:' + sz(L.product_name_size, 16, u) + ';' +
             'font-weight:' + (L.product_name_weight || 'bold') + ';' +
-            'color:' + (L.product_name_color || '#000') + ';';
+            'color:' + (L.product_name_color || '#000') + ';overflow:hidden;word-break:break-word;';
         inner.appendChild(name);
 
-        var price = mk('div', 'price fit-text', formatPrice(d.price));
+        var price = el('div', 'price sign-fit', formatPrice(d.price));
         price.style.cssText =
             'width:100%;line-height:1;' +
-            'font-size:' + (L.total_price_size || 28) + 'px;' +
+            'font-size:' + sz(L.total_price_size, 28, u) + ';' +
             'font-weight:' + (L.total_price_weight || 'bold') + ';' +
             'color:' + (L.total_price_color || '#e74c3c') + ';';
         inner.appendChild(price);
 
-        var pType = d.packageType || d['package-type'] || '';
-        var pQty = d.packageQty || d['package-qty'] || '';
+        var pt = ds(d, 'packageType', 'package-type');
+        var pq = ds(d, 'packageQty', 'package-qty');
         var parts = [];
-        if (pType) parts.push(pType.toUpperCase());
-        if (pQty) parts.push('\u00d7 ' + pQty);
+        if (pt) parts.push(pt.toUpperCase());
+        if (pq) parts.push('\u00d7 ' + pq);
         if (parts.length) {
-            var pkg = mk('div', 'package-info fit-text', parts.join(' '));
+            var pkg = el('div', 'package-info sign-fit', parts.join(' '));
             pkg.style.cssText =
-                'width:100%;text-transform:uppercase;margin-top:0.5mm;' +
-                'font-size:' + (L.package_info_size || 12) + 'px;' +
+                'width:100%;text-transform:uppercase;margin-top:0.3' + u + ';' +
+                'font-size:' + sz(L.package_info_size, 12, u) + ';' +
                 'font-weight:' + (L.package_info_weight || 'bold') + ';' +
                 'color:' + (L.package_info_color || '#2c3e50') + ';';
             inner.appendChild(pkg);
         }
     }
 
-    /* ── WEIGHT ──────────────────────────────────────────────── */
-    function _weight(inner, d, L) {
-        var name = mk('div', 'product-name fit-text-multi', d.name || 'PRODUCTO');
+    // ─── WEIGHT ─────────────────────────────────────────────
+    function _weight(inner, d, L, u) {
+        var name = el('div', 'product-name sign-fit', d.name || 'PRODUCTO');
         name.style.cssText =
-            'width:100%;padding:0 1mm;text-transform:uppercase;line-height:1.15;' +
-            'font-size:' + (L.product_name_size || 14) + 'px;' +
+            'width:100%;padding:0 0.5' + u + ';text-transform:uppercase;line-height:1.15;' +
+            'font-size:' + sz(L.product_name_size, 14, u) + ';' +
             'font-weight:' + (L.product_name_weight || 'bold') + ';' +
-            'color:' + (L.product_name_color || '#000') + ';';
+            'color:' + (L.product_name_color || '#000') + ';overflow:hidden;word-break:break-word;';
         inner.appendChild(name);
 
         if (L.show_dividers !== false) {
-            var dv = mk('div', 'divider');
+            var dv = el('div', 'divider');
             dv.style.cssText =
                 'width:80%;height:0;border-top:1px solid ' +
-                (L.divider_color || '#ccc') + ';margin:1mm auto;';
+                (L.divider_color || '#ccc') + ';margin:0.5' + u + ' auto;';
             inner.appendChild(dv);
         }
 
-        var row = mk('div', 'weight-row');
+        var row = el('div', 'weight-row');
         row.style.cssText =
             'width:100%;display:flex;justify-content:space-around;' +
-            'align-items:baseline;gap:1mm;padding:0 1mm;';
+            'align-items:baseline;gap:0.5' + u + ';padding:0 0.5' + u + ';';
 
-        // Read from both camelCase and kebab-case (HTML dataset converts kebab to camelCase)
-        var p100 = d.price100g || d['price-100g'] || '';
-        var p250 = d.price250g || d['price-250g'] || '';
-        var p1kg = d.price1kg || d['price-1kg'] || '';
+        var p100 = ds(d, 'price100g', 'price-100g');
+        var p250 = ds(d, 'price250g', 'price-250g');
+        var p1kg = ds(d, 'price1kg', 'price-1kg');
 
         var tiers = [
-            {val: p100, lbl: '100g', sz: L.price_100g_size || 12, cl: L.price_100g_color || '#000', wt: 'normal'},
-            {val: p250, lbl: '\u00bcKg', sz: L.price_250g_size || 14, cl: L.price_250g_color || '#000', wt: 'normal'},
-            {val: p1kg, lbl: '1Kg', sz: L.price_1kg_size || 20, cl: L.price_1kg_color || '#e74c3c', wt: L.price_1kg_weight || 'bold'},
+            { val: p100, lbl: '100g', s: L.price_100g_size || 12, c: L.price_100g_color || '#000', w: 'normal' },
+            { val: p250, lbl: '\u00bcKg', s: L.price_250g_size || 14, c: L.price_250g_color || '#000', w: 'normal' },
+            { val: p1kg, lbl: '1Kg', s: L.price_1kg_size || 20, c: L.price_1kg_color || '#e74c3c', w: L.price_1kg_weight || 'bold' },
         ];
 
         tiers.forEach(function (t) {
             if (!t.val) return;
-            var cell = mk('div', 'weight-cell');
+            var cell = el('div', 'weight-cell');
             cell.style.cssText = 'text-align:center;flex:1;';
-            var lb = mk('span', 'weight-label', t.lbl);
+            var lb = el('span', 'weight-label', t.lbl);
             lb.style.cssText = 'display:block;font-size:60%;opacity:.7;text-transform:uppercase;';
-            var pr = mk('span', 'fit-text', formatPrice(t.val));
-            pr.style.cssText =
-                'display:block;font-size:' + t.sz + 'px;' +
-                'color:' + t.cl + ';font-weight:' + t.wt + ';';
+            var pr = el('span', 'sign-fit', formatPrice(t.val));
+            pr.style.cssText = 'display:block;font-size:' + sz(t.s, 12, u) + ';color:' + t.c + ';font-weight:' + t.w + ';';
             cell.appendChild(lb);
             cell.appendChild(pr);
             row.appendChild(cell);
         });
-
         inner.appendChild(row);
     }
 
-    /* ── Theme Decorations ───────────────────────────────────── */
+    // ─── Font size with unit ────────────────────────────────
+    /** Convert a layout font-size number to a CSS value with the right unit.
+     *  For 'mm' we use mm directly (print context).
+     *  For 'px' we use px directly (designer zoom context — designer converts). */
+    function sz(val, fallback, unit) {
+        var v = val || fallback;
+        if (unit === 'px') return v + 'px';
+        // Convert pt-like value to mm: layout stores values as "visual points"
+        // 1 visual-point ≈ 0.35mm gives nice results at typical sign sizes
+        return (v * 0.35) + 'mm';
+    }
+
+    // ─── Theme Decorations ──────────────────────────────────
     var THEME_COLORS = {
         navidad: '#c41e3a', pascua: '#9b59b6', san_valentin: '#e91e8c',
-        dia_madre: '#c2185b', halloween: '#ff6600', anio_nuevo: '#FFD700',
-        patrio: '#74acdf',
+        dia_madre: '#c2185b', halloween: '#ff6600', anio_nuevo: '#FFD700', patrio: '#74acdf',
     };
 
-    function _decorate(el, L) {
+    function _decorate(card, L, u) {
         if (L.theme && L.theme !== 'none' && THEME_COLORS[L.theme]) {
             var stripe = document.createElement('div');
             stripe.style.cssText =
-                'position:absolute;top:0;left:0;right:0;height:1.5mm;' +
+                'position:absolute;top:0;left:0;right:0;height:1' + u + ';' +
                 'background:' + THEME_COLORS[L.theme] + ';z-index:3;pointer-events:none;';
-            el.appendChild(stripe);
+            card.appendChild(stripe);
         }
         if (L.bg_watermark_show && L.bg_watermark) {
-            var wm = mk('div', 'sign-watermark', L.bg_watermark);
+            var wm = el('div', 'sign-watermark', L.bg_watermark);
             wm.style.cssText =
                 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
                 'font-size:3em;opacity:.08;pointer-events:none;z-index:0;user-select:none;';
-            el.appendChild(wm);
+            card.appendChild(wm);
         }
-        var POS = {tl: 'top:1mm;left:1mm', tr: 'top:1mm;right:1mm', bl: 'bottom:1mm;left:1mm', br: 'bottom:1mm;right:1mm'};
+        var POS = { tl: 'top:0.5'+u+';left:0.5'+u, tr: 'top:0.5'+u+';right:0.5'+u,
+                    bl: 'bottom:0.5'+u+';left:0.5'+u, br: 'bottom:0.5'+u+';right:0.5'+u };
         ['tl', 'tr', 'bl', 'br'].forEach(function (p) {
             var ico = L['corner_' + p];
             if (!ico) return;
-            var sp = mk('span', 'sign-corner-icon', ico);
+            var sp = el('span', 'sign-corner-icon', ico);
             sp.style.cssText =
                 'position:absolute;font-size:1em;line-height:1;pointer-events:none;z-index:4;' + POS[p] + ';';
-            el.appendChild(sp);
+            card.appendChild(sp);
         });
     }
 
-    /* ── Auto-fit text ───────────────────────────────────────── */
-    function autoFitAll() {
-        document.querySelectorAll('.sign-card .fit-text, .sign-preview .fit-text').forEach(function (el) {
-            _fitOne(el);
+    // ─── Auto-fit text ──────────────────────────────────────
+    /** Shrink .sign-fit elements so they don't overflow their container.
+     *  Call after rendering and after the elements are laid out in the DOM. */
+    function autoFitAll(root) {
+        var scope = root || document;
+        scope.querySelectorAll('.sign-fit').forEach(function (txt) {
+            var ref = txt.closest('.sign-inner');
+            if (!ref) return;
+            var maxW = ref.clientWidth - 4;
+            if (maxW <= 0) return;
+            var fs = parseFloat(window.getComputedStyle(txt).fontSize);
+            if (isNaN(fs) || fs <= 0) return;
+            var tries = 0;
+            while (txt.scrollWidth > maxW && fs > 4 && tries < 100) {
+                fs -= 0.5;
+                txt.style.fontSize = fs + 'px';
+                tries++;
+            }
         });
     }
 
-    function _fitOne(el) {
-        var ref = el.closest('.sign-inner') || el.parentElement;
-        if (!ref) return;
-        var maxW = ref.clientWidth - 4;
-        if (maxW <= 0) return;
-        var fs = parseFloat(window.getComputedStyle(el).fontSize);
-        if (isNaN(fs)) return;
-        var i = 0;
-        while (el.scrollWidth > maxW && fs > 6 && i < 80) {
-            fs -= 0.5;
-            el.style.fontSize = fs + 'px';
-            i++;
-        }
-    }
-
-    return {
-        renderSign: renderSign,
-        autoFitAll: autoFitAll,
-        formatPrice: formatPrice,
-    };
+    return { renderSign: renderSign, autoFitAll: autoFitAll, formatPrice: formatPrice };
 })();

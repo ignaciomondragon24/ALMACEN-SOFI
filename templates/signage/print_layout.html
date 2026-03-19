@@ -76,8 +76,7 @@
     .sign-corner-br { bottom:1mm;right:1mm; }
     .sign-watermark { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:3em;opacity:.08;pointer-events:none;z-index:0;user-select:none; }
 
-    .fit-text { overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
-    .fit-text-multi { overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word; }
+    .sign-fit { overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
 
     @media print {
         body { background: #fff; }
@@ -134,7 +133,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.sign-card').forEach(function(el) {
-            SignageRenderer.renderSign(el, SIGNAGE_LAYOUT, SIGNAGE_TEMPLATE_TYPE);
+            SignageRenderer.renderSign(el, SIGNAGE_LAYOUT, SIGNAGE_TEMPLATE_TYPE, {unit: 'mm'});
         });
         setTimeout(function() { SignageRenderer.autoFitAll(); }, 50);
     });

@@ -1,5 +1,5 @@
 /* ============================================================
-   SIGNAGE DESIGNER v3 — Polished Visual Template Editor Styles
+   SIGNAGE DESIGNER v5 — Visual Template Editor Styles
    ============================================================ */
 
 /* ── Layout ─────────────────────────────────────────────────── */
@@ -319,18 +319,10 @@
 }
 
 /* ── Auto-fit text ──────────────────────────────────────────── */
-.fit-text {
+.sign-fit {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-}
-
-.fit-text-multi {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    word-break: break-word;
 }
 
 /* ── Controls ───────────────────────────────────────────────── */

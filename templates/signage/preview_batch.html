@@ -85,9 +85,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.sign-card').forEach(function(card) {
-            SignageRenderer.renderSign(card, window.SIGNAGE_LAYOUT, card.dataset.type);
+            SignageRenderer.renderSign(card, window.SIGNAGE_LAYOUT, card.dataset.type, {unit: 'mm'});
         });
-        // Apply auto-fit text
         setTimeout(function() { SignageRenderer.autoFitAll(); }, 100);
     });
 </script>
