@@ -64,10 +64,14 @@ def designer(request, pk=None):
 
         if not name:
             messages.error(request, 'El nombre de la plantilla es obligatorio.')
+            resolved_layout = json.dumps(
+                template.get_layout(), ensure_ascii=False
+            ) if template else 'null'
             return render(request, 'signage/designer.html', {
                 'template': template,
                 'template_types': SignTemplate.TEMPLATE_TYPES,
                 'default_layouts': _all_default_layouts(),
+                'resolved_layout': resolved_layout,
             })
 
         try:
@@ -88,10 +92,16 @@ def designer(request, pk=None):
         messages.success(request, f'Plantilla "{template.name}" guardada correctamente.')
         return redirect('signage:template_list')
 
+    # Resolve the layout so JS gets full defaults, not an empty '{}'
+    resolved_layout = json.dumps(
+        template.get_layout(), ensure_ascii=False
+    ) if template else 'null'
+
     return render(request, 'signage/designer.html', {
         'template': template,
         'template_types': SignTemplate.TEMPLATE_TYPES,
         'default_layouts': _all_default_layouts(),
+        'resolved_layout': resolved_layout,
     })
 
 

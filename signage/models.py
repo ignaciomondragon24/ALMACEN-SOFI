@@ -310,6 +310,22 @@ class SignItem(models.Model):
 
     @property
     def display_name(self):
+        if self.custom_name:
+            return self.custom_name
+        if self.product:
+            return self.product.name
+        return 'Sin nombre'
+
+    @property
+    def display_price(self):
+        if self.custom_price is not None:
+            return self.custom_price
+        if self.product:
+            return self.product.sale_price
+        return ''
+
+    @property
+    def display_name(self):
         return self.custom_name or (self.product.name if self.product else 'Sin nombre')
 
     @property

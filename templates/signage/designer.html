@@ -41,9 +41,9 @@
                     <h6 class="panel-title"><i class="fas fa-shapes me-1"></i>Tipo de Cartel</h6>
                     <div class="type-grid">
                         {% for val, label in template_types %}
-                        <label class="type-option {% if template and template.template_type == val %}active{% endif %}" data-type="{{ val }}">
+                        <label class="type-option {% if template and template.template_type == val %}active{% elif not template and val == 'simple' %}active{% endif %}" data-type="{{ val }}">
                             <input type="radio" name="template_type" value="{{ val }}"
-                                   {% if template and template.template_type == val %}checked{% endif %}>
+                                   {% if template and template.template_type == val %}checked{% elif not template and val == 'simple' %}checked{% endif %}>
                             <i class="fas {% if val == 'simple' %}fa-tag{% elif val == 'promotional' %}fa-fire{% elif val == 'bulk' %}fa-box{% else %}fa-balance-scale{% endif %}"></i>
                             <span>{{ label }}</span>
                         </label>
@@ -150,7 +150,7 @@
         isEdit: {{ template.pk|default:"null" }} !== null,
         templatePk: {{ template.pk|default:"null" }},
         templateType: "{{ template.template_type|default:'simple' }}",
-        currentLayout: {% if template %}{{ template.layout_json|safe }}{% else %}null{% endif %},
+        currentLayout: {{ resolved_layout|safe }},
         defaultLayouts: {{ default_layouts|safe }},
         apiDefaultsUrl: "{% url 'signage:api_template_defaults' %}",
     };
