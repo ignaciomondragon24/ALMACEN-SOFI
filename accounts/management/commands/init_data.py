@@ -8,7 +8,6 @@ from django.contrib.contenttypes.models import ContentType
 from accounts.models import Role
 from cashregister.models import PaymentMethod, CashRegister
 from stocks.models import UnitOfMeasure, ProductCategory
-from signage.models import SignTemplate
 
 
 class Command(BaseCommand):
@@ -32,9 +31,7 @@ class Command(BaseCommand):
         # Create categories
         self.create_categories()
         
-        # Create sign templates
-        self.create_sign_templates()
-        
+
         self.stdout.write(self.style.SUCCESS('\n✅ Data initialization complete!'))
 
     def create_roles(self):
@@ -132,25 +129,3 @@ class Command(BaseCommand):
     def create_categories(self):
         """Create default product categories."""
         self.stdout.write('  - Categorías: se crean desde el sistema, no por defecto.')
-
-    def create_sign_templates(self):
-        """Create default sign templates."""
-        self.stdout.write('Creating sign templates...')
-        
-        templates = [
-            {'name': 'Precio Simple A4', 'template_type': 'price', 'size': 'A4', 'orientation': 'portrait', 'is_default': True},
-            {'name': 'Precio 10x15', 'template_type': 'price', 'size': '10x15', 'orientation': 'landscape'},
-            {'name': 'Oferta A4', 'template_type': 'offer', 'size': 'A4', 'orientation': 'portrait'},
-            {'name': 'Promoción A5', 'template_type': 'promotion', 'size': 'A5', 'orientation': 'portrait'},
-            {'name': 'Combo A4', 'template_type': 'combo', 'size': 'A4', 'orientation': 'landscape'},
-        ]
-        
-        for tmpl_data in templates:
-            template, created = SignTemplate.objects.get_or_create(
-                name=tmpl_data['name'],
-                defaults=tmpl_data
-            )
-            if created:
-                self.stdout.write(f'  ✓ Created template: {template.name}')
-            else:
-                self.stdout.write(f'  - Template exists: {template.name}')

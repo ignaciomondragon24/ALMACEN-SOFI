@@ -171,49 +171,7 @@
 
 ---
 
-## 🏷️ 6. CARTELERÍA (`/signage/`)
-
-### Home / Dashboard
-- [ ] `/signage/` carga sin errores
-- [ ] Muestra accesos rápidos a diseñador, generador e historial
-
-### Plantillas
-- [ ] `/signage/plantillas/` lista las plantillas guardadas
-- [ ] Eliminar plantilla: modal de confirmación, se elimina correctamente
-
-### Diseñador Visual
-- [ ] `/signage/disenador/` abre sin errores
-- [ ] Formulario de nuevo cartel: llenar todos los campos
-- [ ] Preview se actualiza en tiempo real al cambiar datos
-- [ ] Cambiar tema (default, navidad, año nuevo, etc.) cambia colores de la preview
-- [ ] Cambiar fuente se refleja en la preview
-- [ ] Todos los tipos de cartel renderizan correctamente:
-  - [ ] Precio simple
-  - [ ] Oferta / Promoción
-  - [ ] Por kilo / Fraccionado
-  - [ ] Combo
-- [ ] Guardar plantilla: aparece en lista de plantillas
-- [ ] Editar plantilla guardada: `/signage/disenador/<pk>/`
-
-### Generador (con datos reales)
-- [ ] `/signage/generar/` carga la lista de productos
-- [ ] Seleccionar producto y generar cartel
-- [ ] Generar con plantilla específica: `/signage/generar/<template_pk>/`
-- [ ] Preview del cartel generado es correcta
-
-### Lotes
-- [ ] Crear lote: `/signage/crear-lote/` — seleccionar múltiples productos
-- [ ] Preview del lote: `/signage/lote/<pk>/preview/` — todos los carteles se ven bien
-- [ ] Imprimir lote: `/signage/lote/<pk>/imprimir/` — print layout carga sin errores JS
-- [ ] Fonts (Fredoka, Baloo 2, Nunito) cargan en la vista de impresión
-- [ ] Font Awesome iconos visibles en la vista de impresión
-
-### Historial
-- [ ] `/signage/historial/` muestra lotes generados anteriormente
-
----
-
-## 🛒 7. COMPRAS Y PROVEEDORES (`/purchase/`)
+## 🛒 6. COMPRAS Y PROVEEDORES (`/purchase/`)
 
 ### Proveedores
 - [ ] Listar proveedores
@@ -363,7 +321,6 @@
 - [ ] Login funciona en producción
 - [ ] Archivos estáticos (CSS, JS, imágenes) cargan sin 404
 - [ ] Fuentes de Google Fonts cargan (requiere internet)
-- [ ] `/signage/disenador/` funciona (URL ASCII-safe)
 - [ ] No hay errores 500 en ninguna sección
 - [ ] Logs de Railway no muestran excepciones críticas
 
@@ -374,7 +331,6 @@
 - [ ] Ticket de venta: formato correcto, número de ticket `CAJA-XX-YYYYMMDD-NNNN`
 - [ ] PDF de reporte de turno: datos completos, sin caracteres rotos
 - [ ] PDF de reporte de ventas: exporta el rango correcto
-- [ ] Print layout de cartelería: todos los carteles del lote visibles, sin overflow
 - [ ] Precio en formato argentino: `$1.234,56`
 
 ---
@@ -388,8 +344,7 @@
 | 3. Caja | 12 | | | |
 | 4. Stocks | 20 | | | |
 | 5. Promociones | 9 | | | |
-| 6. Cartelería | 20 | | | |
-| 7. Compras | 11 | | | |
+| 6. Compras | 11 | | | |
 | 8. Gastos | 12 | | | |
 | 9. Ventas | 11 | | | |
 | 10. Empresa | 7 | | | |

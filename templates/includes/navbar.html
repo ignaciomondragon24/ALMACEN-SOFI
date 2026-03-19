@@ -108,15 +108,6 @@
                 </li>
                 {% endif %}
                 
-                <!-- Signage - Manager, Stock Manager, Admin -->
-                {% if can_signage %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'signage:home' %}">
-                        <i class="fas fa-sign me-1"></i>Cartelería
-                    </a>
-                </li>
-                {% endif %}
-                
                 <!-- Reports - Manager, General Manager, Admin -->
                 {% if can_reports %}
                 <li class="nav-item dropdown">

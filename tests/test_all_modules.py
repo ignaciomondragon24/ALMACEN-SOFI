@@ -377,16 +377,6 @@ class AssistantTests(BaseTestCase):
             self.assertIn(response.status_code, [200, 500])
 
 
-class SignageTests(BaseTestCase):
-    """Tests for signage module"""
-    
-    def test_signage_home_loads(self):
-        """Test that signage home loads"""
-        self.client.login(username='admin_test', password='testpass123')
-        response = self.client.get(reverse('signage:home'))
-        self.assertEqual(response.status_code, 200)
-
-
 class SalesTests(BaseTestCase):
     """Tests for sales/reports module"""
     

@@ -69,9 +69,6 @@ urls_to_test = [
     
     # Company
     ('/company/settings/', 'Config Empresa'),
-    
-    # Signage
-    ('/signage/', 'Carteleria'),
 ]
 
 errors_found = []
@@ -154,7 +151,6 @@ required_templates = [
     'sales/reports_dashboard.html',
     'assistant/chat.html',
     'assistant/settings.html',
-    'signage/home.html',
     'company/settings.html',
 ]
 

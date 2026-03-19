@@ -185,17 +185,6 @@
         </div>
         {% endif %}
         
-        {% if can_signage %}
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'signage:home' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #6c757d, #495057);">
-                <div class="card-body text-center text-white">
-                    <i class="fas fa-sign fa-2x mb-2"></i>
-                    <h6 class="card-title mb-0">Cartelería</h6>
-                </div>
-            </a>
-        </div>
-        {% endif %}
-        
         {% if is_admin %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
             <a href="{% url 'accounts:user_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #dc3545, #c82333);">

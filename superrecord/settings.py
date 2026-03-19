@@ -56,7 +56,6 @@ INSTALLED_APPS = [
     'pos.apps.PosConfig',
     'stocks.apps.StocksConfig',
     'promotions.apps.PromotionsConfig',
-    'signage.apps.SignageConfig',
     'purchase.apps.PurchaseConfig',
     'expenses.apps.ExpensesConfig',
     'sales.apps.SalesConfig',

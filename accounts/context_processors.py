@@ -43,7 +43,6 @@ def role_context(request):
         'can_purchases': is_manager or is_stock_manager,
         'can_expenses': is_manager,
         'can_promotions': is_manager,
-        'can_signage': is_manager or is_stock_manager,
         'can_sales': is_manager or is_general_manager,
         'can_reports': is_manager or is_general_manager,
         'can_settings': is_admin,

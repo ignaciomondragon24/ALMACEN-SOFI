@@ -327,19 +327,7 @@ def run_tests():
         results['failed'] += 1
     
     # =========================================
-    section("8. PRUEBAS DE CARTELERÍA")
-    # =========================================
-    
-    response = client.get('/signage/')
-    if response.status_code == 200:
-        ok("Cartelería carga correctamente")
-        results['passed'] += 1
-    else:
-        fail(f"Cartelería falla: {response.status_code}")
-        results['failed'] += 1
-    
-    # =========================================
-    section("9. PRUEBAS DE DASHBOARD")
+    section("8. PRUEBAS DE DASHBOARD")
     # =========================================
     
     response = client.get('/dashboard/')

@@ -376,10 +376,6 @@ def test_other_modules():
             ('company:settings', 'Config. Empresa'),
             ('company:branch_list', 'Sucursales'),
         ],
-        'Signage': [
-            ('signage:home', 'Cartelería Home'),
-            ('signage:template_list', 'Templates'),
-        ],
     }
     
     total_passed = 0

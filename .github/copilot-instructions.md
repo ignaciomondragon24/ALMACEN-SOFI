@@ -11,7 +11,6 @@ Sistema integral de gestión para supermercados pequeños y medianos que integra
 - Sistema de promociones avanzado (2x1, combos, descuentos)
 - Reportes y estadísticas con exportación a Excel
 - Control de gastos y compras
-- Gestión de cartelería (PDFs)
 
 ## Stack Tecnológico
 - **Backend**: Python 3.11+, Django 4.2, Django REST Framework
@@ -32,7 +31,6 @@ Sistema integral de gestión para supermercados pequeños y medianos que integra
 - `pos/` - Punto de venta, transacciones, carrito, checkout
 - `stocks/` - Productos, categorías, unidades, movimientos de stock
 - `promotions/` - Motor de promociones (2x1, combos, descuentos)
-- `signage/` - Cartelería y generación de PDFs
 - `purchase/` - Compras y proveedores
 - `expenses/` - Gastos operativos
 - `sales/` - Reportes de ventas y exportación

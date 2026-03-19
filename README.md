@@ -16,7 +16,6 @@ Desplegado en **Railway** con PostgreSQL en producción.
 - **Sistema de Promociones** — 2x1, combos, descuentos porcentuales y fijos
 - **Reportes y Estadísticas** — ventas diarias, por período, por método de pago, exportación a Excel
 - **Control de Gastos y Compras** — registro de gastos operativos y compras a proveedores
-- **Gestión de Cartelería** — generación de carteles de precios en PDF
 - **Roles de Usuario** — Admin, Manager, Cajero, Stock Manager
 
 ## Stack Tecnológico
@@ -88,7 +87,6 @@ che-goloso/
 ├── promotions/        # Motor de promociones (2x1, combos, descuentos)
 ├── purchase/          # Compras y proveedores
 ├── sales/             # Reportes de ventas y exportación
-├── signage/           # Cartelería y generación de PDFs
 ├── stocks/            # Productos, categorías, inventario, carga por bultos
 ├── superrecord/       # Configuración del proyecto (settings, urls)
 ├── static/            # CSS, JS, imágenes

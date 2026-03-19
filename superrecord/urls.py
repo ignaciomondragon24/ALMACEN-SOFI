@@ -26,7 +26,6 @@ urlpatterns = [
     path('cashregister/', include('cashregister.urls')),
     path('stocks/', include('stocks.urls')),
     path('promotions/', include('promotions.urls')),
-    path('signage/', include('signage.urls')),
     path('purchase/', include('purchase.urls')),
     path('expenses/', include('expenses.urls')),
     path('sales/', include('sales.urls')),
