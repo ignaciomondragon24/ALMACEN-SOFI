@@ -97,16 +97,35 @@
         word-break: break-word;
     }
 
-    /* Sign type internal layouts - applied via JS/inline styles */
+    /* Sign inner */
     .sign-inner {
+        flex: 1;          /* FIX: was height:100% */
+        min-height: 0;    /* FIX: allows shrinking in flex column */
         width: 100%;
-        height: 100%;
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         text-align: center;
         overflow: hidden;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Corner icons & watermark */
+    .sign-corner-icon {
+        position: absolute; font-size: 1em; line-height: 1;
+        pointer-events: none; z-index: 4;
+    }
+    .sign-corner-tl { top: 1mm; left: 1mm; }
+    .sign-corner-tr { top: 1mm; right: 1mm; }
+    .sign-corner-bl { bottom: 1mm; left: 1mm; }
+    .sign-corner-br { bottom: 1mm; right: 1mm; }
+    .sign-watermark {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%,-50%); font-size: 3em;
+        opacity: .1; pointer-events: none; z-index: 0;
     }
 
     .sign-inner .store-header {
@@ -273,15 +292,21 @@
     function renderSign(el, layout, type) {
         var d = el.dataset;
         var L = layout;
-        // Apply card styles
+        // Outer card — visual frame only (no padding)
         el.style.background = L.background_color || '#fff';
         el.style.border = (L.border_width || 0) + 'px solid ' + (L.border_color || '#000');
         el.style.borderRadius = (L.border_radius || 0) + 'px';
-        el.style.padding = (L.padding || 3) + 'mm';
         el.style.fontFamily = L.font_family || 'Arial, sans-serif';
+        el.style.position = 'relative';
 
+        // Inner content — fills the card via flex
         var inner = document.createElement('div');
         inner.className = 'sign-inner';
+        inner.style.flex = '1';
+        inner.style.minHeight = '0';
+        inner.style.padding = (L.padding || 3) + 'mm';
+        inner.style.boxSizing = 'border-box';
+        inner.style.textAlign = L.text_align || 'center';
 
         if (type === 'simple') {
             renderSimple(inner, d, L);
@@ -294,6 +319,28 @@
         }
 
         el.appendChild(inner);
+
+        // Watermark
+        if (L.bg_watermark_show && L.bg_watermark) {
+            var wm = document.createElement('div');
+            wm.className = 'sign-watermark';
+            wm.setAttribute('aria-hidden', 'true');
+            wm.textContent = L.bg_watermark;
+            el.appendChild(wm);
+        }
+        // Corner icons
+        if (L.corner_tl) _addC(el, L.corner_tl, 'tl');
+        if (L.corner_tr) _addC(el, L.corner_tr, 'tr');
+        if (L.corner_bl) _addC(el, L.corner_bl, 'bl');
+        if (L.corner_br) _addC(el, L.corner_br, 'br');
+    }
+
+    function _addC(el, icon, pos) {
+        var s = document.createElement('span');
+        s.className = 'sign-corner-icon sign-corner-' + pos;
+        s.setAttribute('aria-hidden', 'true');
+        s.textContent = icon;
+        el.appendChild(s);
     }
 
     function renderSimple(inner, d, L) {
@@ -456,10 +503,13 @@
     }
 
     function autoFitElement(el) {
-        var parent = el.closest('.sign-card') || el.parentElement;
+        // Use sign-inner as reference (it has the actual content width after padding)
+        var parent = el.closest('.sign-inner') || el.closest('.sign-card') || el.parentElement;
         if (!parent) return;
-        var maxWidth = parent.clientWidth - 4; // small padding
+        var maxWidth = parent.clientWidth - 4;
+        if (maxWidth <= 0) return;
         var fontSize = parseFloat(window.getComputedStyle(el).fontSize);
+        if (isNaN(fontSize)) return;
         var minSize = 6;
         while (el.scrollWidth > maxWidth && fontSize > minSize) {
             fontSize -= 0.5;

@@ -11,6 +11,28 @@
     var layout = CFG.currentLayout || defaults[currentType] || defaults.simple;
     var zoom = 3; // px per mm (≈ 3x zoom for comfortable editing)
 
+    // Seasonal theme presets
+    var THEME_PRESETS = {
+        none:        { theme: 'none', corner_tl: '', corner_tr: '', corner_bl: '', corner_br: '', bg_watermark: '', bg_watermark_show: false },
+        navidad:     { theme: 'navidad',     background_color: '#1a472a', border_color: '#c41e3a', border_width: 3, product_name_color: '#ffffff', price_color: '#FFD700', corner_tl: '❄️', corner_tr: '🎄', corner_bl: '⭐', corner_br: '❄️', bg_watermark: '🎄', bg_watermark_show: false },
+        pascua:      { theme: 'pascua',      background_color: '#fff9e6', border_color: '#9b59b6', border_width: 3, product_name_color: '#4a235a', price_color: '#8e44ad', corner_tl: '🐰', corner_tr: '🥚', corner_bl: '🌸', corner_br: '🐣', bg_watermark: '🥚', bg_watermark_show: false },
+        san_valentin:{ theme: 'san_valentin',background_color: '#fff0f3', border_color: '#e91e8c', border_width: 3, product_name_color: '#c0392b', price_color: '#e91e8c', corner_tl: '❤️', corner_tr: '💕', corner_bl: '🌹', corner_br: '💝', bg_watermark: '❤️', bg_watermark_show: false },
+        dia_madre:   { theme: 'dia_madre',   background_color: '#fce4ec', border_color: '#e91e8c', border_width: 3, product_name_color: '#880e4f', price_color: '#c2185b', corner_tl: '🌸', corner_tr: '💐', corner_bl: '🌷', corner_br: '🌺', bg_watermark: '🌸', bg_watermark_show: false },
+        halloween:   { theme: 'halloween',   background_color: '#1a0a00', border_color: '#ff6600', border_width: 3, product_name_color: '#ff6600', price_color: '#ff9900', corner_tl: '🎃', corner_tr: '🕷️', corner_bl: '👻', corner_br: '🦇', bg_watermark: '🎃', bg_watermark_show: false },
+        año_nuevo:   { theme: 'año_nuevo',   background_color: '#0a0a2e', border_color: '#FFD700', border_width: 3, product_name_color: '#FFD700', price_color: '#FFD700', corner_tl: '🎆', corner_tr: '✨', corner_bl: '🥂', corner_br: '🎉', bg_watermark: '✨', bg_watermark_show: false },
+        patrio:      { theme: 'patrio',      background_color: '#e8f4fc', border_color: '#74acdf', border_width: 3, product_name_color: '#003087', price_color: '#003087', corner_tl: '🎉', corner_tr: '⭐', corner_bl: '🌟', corner_br: '🎊', bg_watermark: '⭐', bg_watermark_show: false },
+    };
+
+    var FONTS = [
+        ['Arial, sans-serif', 'Arial'],
+        ["'Helvetica Neue', Helvetica, sans-serif", 'Helvetica'],
+        ['Impact, Charcoal, sans-serif', 'Impact'],
+        ["Georgia, 'Times New Roman', serif", 'Georgia'],
+        ["'Trebuchet MS', sans-serif", 'Trebuchet MS'],
+        ["'Courier New', Courier, monospace", 'Courier New'],
+        ["'Comic Sans MS', cursive", 'Comic Sans'],
+    ];
+
     // DOM refs
     var preview, widthInput, heightInput, nameInput, layoutInput;
 
@@ -122,6 +144,23 @@
         document.getElementById('designerForm').addEventListener('submit', function () {
             layoutInput.value = JSON.stringify(layout);
         });
+
+        // Theme buttons
+        document.querySelectorAll('.theme-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                applyTheme(btn.dataset.theme);
+                document.querySelectorAll('.theme-btn').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+            });
+        });
+    }
+
+    function applyTheme(themeName) {
+        var preset = THEME_PRESETS[themeName];
+        if (!preset) return;
+        Object.keys(preset).forEach(function (k) { layout[k] = preset[k]; });
+        syncControlsFromLayout();
+        renderPreview();
     }
 
     // ====================== ELEMENT CONTROLS ======================
@@ -267,7 +306,25 @@
         }
 
         if (!groups) return;
-
+        // Common groups for ALL types
+        groups.push({
+            title: '🔤 Tipografía',
+            controls: [
+                { type: 'font',   prop: 'font_family', label: 'Fuente' },
+                { type: 'select', prop: 'text_align',  label: 'Alineación', options: [['center', '▼ Centrado'], ['left', '◄ Izquierda'], ['right', '► Derecha']] },
+            ]
+        });
+        groups.push({
+            title: '✨ Decoraciones / Iconos',
+            controls: [
+                { type: 'text',  prop: 'corner_tl', label: '↖ Sup. izquierda', placeholder: '❄️' },
+                { type: 'text',  prop: 'corner_tr', label: '↗ Sup. derecha',    placeholder: '🎄' },
+                { type: 'text',  prop: 'corner_bl', label: '↙ Inf. izquierda', placeholder: '⭐' },
+                { type: 'text',  prop: 'corner_br', label: '↘ Inf. derecha',   placeholder: '❄️' },
+                { type: 'text',  prop: 'bg_watermark',      label: '🖼 Marca de agua (emoji)', placeholder: '🎄' },
+                { type: 'check', prop: 'bg_watermark_show', label: 'Mostrar marca de agua' },
+            ]
+        });
         groups.forEach(function (g) {
             var div = document.createElement('div');
             div.className = 'element-control-group';
@@ -300,11 +357,17 @@
 
     function buildControl(c) {
         var val = layout[c.prop];
-        var colClass = (c.type === 'text' || c.type === 'check') ? 'col-12' : 'col-6';
+        var colClass = (c.type === 'text' || c.type === 'check' || c.type === 'font') ? 'col-12' : 'col-6';
         var html = '<div class="' + colClass + '">';
         html += '<label class="form-label mb-0">' + c.label + '</label>';
 
-        if (c.type === 'color') {
+        if (c.type === 'font') {
+            html += '<select class="form-select form-select-sm" data-prop="' + c.prop + '" style="font-family:' + (val || 'Arial') + '">';
+            FONTS.forEach(function (f) {
+                html += '<option value="' + f[0] + '"' + (val === f[0] ? ' selected' : '') + ' style="font-family:' + f[0] + '">' + f[1] + '</option>';
+            });
+            html += '</select>';
+        } else if (c.type === 'color') {
             html += '<input type="color" class="form-control form-control-sm form-control-color" data-prop="' + c.prop + '" value="' + (val || '#000000') + '">';
         } else if (c.type === 'range') {
             var min = c.min || 4, max = c.max || 60;
@@ -348,6 +411,11 @@
                 if (valSpan) valSpan.textContent = val;
             }
         });
+        // Sync active theme button
+        var curTheme = layout.theme || 'none';
+        document.querySelectorAll('.theme-btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.theme === curTheme);
+        });
     }
 
     function setVal(id, val) {
@@ -375,15 +443,28 @@
         preview.style.background = layout.background_color || '#fff';
         preview.style.border = (layout.border_width || 0) + 'px solid ' + (layout.border_color || '#000');
         preview.style.borderRadius = (layout.border_radius || 0) + 'px';
-        preview.style.padding = ((layout.padding || 3) * zoom / 3.78) + 'px';
         preview.style.fontFamily = layout.font_family || 'Arial, sans-serif';
+        preview.style.display = 'flex';
+        preview.style.flexDirection = 'column';
+        preview.style.position = 'relative';
 
         // Clear and rebuild inner content
         preview.innerHTML = '';
         var inner = document.createElement('div');
         inner.className = 'sign-inner';
+        inner.style.flex = '1';
+        inner.style.minHeight = '0';
         inner.style.width = '100%';
-        inner.style.height = '100%';
+        inner.style.boxSizing = 'border-box';
+        inner.style.padding = ((layout.padding || 3) * zoom / 3.78) + 'px';
+        inner.style.display = 'flex';
+        inner.style.flexDirection = 'column';
+        inner.style.justifyContent = 'center';
+        inner.style.alignItems = 'center';
+        inner.style.textAlign = layout.text_align || 'center';
+        inner.style.overflow = 'hidden';
+        inner.style.position = 'relative';
+        inner.style.zIndex = '1';
 
         // Scale factor: designer uses px at zoom level, real sign uses mm
         var sf = zoom / 3.78; // ratio to approximate mm-to-px scaling
@@ -394,6 +475,22 @@
         else if (currentType === 'weight') renderWeightPreview(inner, sf);
 
         preview.appendChild(inner);
+
+        // Watermark
+        if (layout.bg_watermark_show && layout.bg_watermark) {
+            var wm = el('div', 'sign-watermark', layout.bg_watermark);
+            wm.setAttribute('aria-hidden', 'true');
+            preview.appendChild(wm);
+        }
+        // Corner icons
+        ['tl','tr','bl','br'].forEach(function (pos) {
+            var icon = layout['corner_' + pos];
+            if (icon) {
+                var span = el('span', 'sign-corner-icon sign-corner-' + pos, icon);
+                span.setAttribute('aria-hidden', 'true');
+                preview.appendChild(span);
+            }
+        });
 
         // Auto-fit text in preview
         setTimeout(function () { autoFitPreview(); }, 10);
