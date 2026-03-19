@@ -1,6 +1,6 @@
 /**
- * SIGNAGE DESIGNER - Visual Template Editor
- * Handles the interactive template designer with live preview.
+ * SIGNAGE DESIGNER v3 — Visual Template Editor
+ * Uses SignageRenderer (signage-render.js) for preview rendering.
  */
 (function () {
     'use strict';
@@ -9,18 +9,17 @@
     var defaults = JSON.parse(CFG.defaultLayouts);
     var currentType = CFG.templateType || 'simple';
     var layout = CFG.currentLayout || defaults[currentType] || defaults.simple;
-    var zoom = 3; // px per mm (≈ 3x zoom for comfortable editing)
+    var zoom = 3;
 
-    // Seasonal theme presets
     var THEME_PRESETS = {
-        none:        { theme: 'none', corner_tl: '', corner_tr: '', corner_bl: '', corner_br: '', bg_watermark: '', bg_watermark_show: false },
-        navidad:     { theme: 'navidad',     background_color: '#1a472a', border_color: '#c41e3a', border_width: 3, product_name_color: '#ffffff', price_color: '#FFD700', corner_tl: '❄️', corner_tr: '🎄', corner_bl: '⭐', corner_br: '❄️', bg_watermark: '🎄', bg_watermark_show: false },
-        pascua:      { theme: 'pascua',      background_color: '#fff9e6', border_color: '#9b59b6', border_width: 3, product_name_color: '#4a235a', price_color: '#8e44ad', corner_tl: '🐰', corner_tr: '🥚', corner_bl: '🌸', corner_br: '🐣', bg_watermark: '🥚', bg_watermark_show: false },
-        san_valentin:{ theme: 'san_valentin',background_color: '#fff0f3', border_color: '#e91e8c', border_width: 3, product_name_color: '#c0392b', price_color: '#e91e8c', corner_tl: '❤️', corner_tr: '💕', corner_bl: '🌹', corner_br: '💝', bg_watermark: '❤️', bg_watermark_show: false },
-        dia_madre:   { theme: 'dia_madre',   background_color: '#fce4ec', border_color: '#e91e8c', border_width: 3, product_name_color: '#880e4f', price_color: '#c2185b', corner_tl: '🌸', corner_tr: '💐', corner_bl: '🌷', corner_br: '🌺', bg_watermark: '🌸', bg_watermark_show: false },
-        halloween:   { theme: 'halloween',   background_color: '#1a0a00', border_color: '#ff6600', border_width: 3, product_name_color: '#ff6600', price_color: '#ff9900', corner_tl: '🎃', corner_tr: '🕷️', corner_bl: '👻', corner_br: '🦇', bg_watermark: '🎃', bg_watermark_show: false },
-        año_nuevo:   { theme: 'año_nuevo',   background_color: '#0a0a2e', border_color: '#FFD700', border_width: 3, product_name_color: '#FFD700', price_color: '#FFD700', corner_tl: '🎆', corner_tr: '✨', corner_bl: '🥂', corner_br: '🎉', bg_watermark: '✨', bg_watermark_show: false },
-        patrio:      { theme: 'patrio',      background_color: '#e8f4fc', border_color: '#74acdf', border_width: 3, product_name_color: '#003087', price_color: '#003087', corner_tl: '🎉', corner_tr: '⭐', corner_bl: '🌟', corner_br: '🎊', bg_watermark: '⭐', bg_watermark_show: false },
+        none:         { theme: 'none', corner_tl: '', corner_tr: '', corner_bl: '', corner_br: '', bg_watermark: '', bg_watermark_show: false },
+        navidad:      { theme: 'navidad',      background_color: '#1a472a', border_color: '#c41e3a', border_width: 3, product_name_color: '#ffffff', price_color: '#FFD700', corner_tl: '❄️', corner_tr: '🎄', corner_bl: '⭐', corner_br: '❄️', bg_watermark: '🎄', bg_watermark_show: false },
+        pascua:       { theme: 'pascua',       background_color: '#fff9e6', border_color: '#9b59b6', border_width: 3, product_name_color: '#4a235a', price_color: '#8e44ad', corner_tl: '🐰', corner_tr: '🥚', corner_bl: '🌸', corner_br: '🐣', bg_watermark: '🥚', bg_watermark_show: false },
+        san_valentin: { theme: 'san_valentin', background_color: '#fff0f3', border_color: '#e91e8c', border_width: 3, product_name_color: '#c0392b', price_color: '#e91e8c', corner_tl: '❤️', corner_tr: '💕', corner_bl: '🌹', corner_br: '💝', bg_watermark: '❤️', bg_watermark_show: false },
+        dia_madre:    { theme: 'dia_madre',    background_color: '#fce4ec', border_color: '#e91e8c', border_width: 3, product_name_color: '#880e4f', price_color: '#c2185b', corner_tl: '🌸', corner_tr: '💐', corner_bl: '🌷', corner_br: '🌺', bg_watermark: '🌸', bg_watermark_show: false },
+        halloween:    { theme: 'halloween',    background_color: '#1a0a00', border_color: '#ff6600', border_width: 3, product_name_color: '#ff6600', price_color: '#ff9900', corner_tl: '🎃', corner_tr: '🕷️', corner_bl: '👻', corner_br: '🦇', bg_watermark: '🎃', bg_watermark_show: false },
+        anio_nuevo:   { theme: 'anio_nuevo',   background_color: '#0a0a2e', border_color: '#FFD700', border_width: 3, product_name_color: '#FFD700', price_color: '#FFD700', corner_tl: '🎆', corner_tr: '✨', corner_bl: '🥂', corner_br: '🎉', bg_watermark: '✨', bg_watermark_show: false },
+        patrio:       { theme: 'patrio',       background_color: '#e8f4fc', border_color: '#74acdf', border_width: 3, product_name_color: '#003087', price_color: '#003087', corner_tl: '🎉', corner_tr: '⭐', corner_bl: '🌟', corner_br: '🎊', bg_watermark: '⭐', bg_watermark_show: false },
     };
 
     var FONTS = [
@@ -30,21 +29,30 @@
         ["Georgia, 'Times New Roman', serif", 'Georgia'],
         ["'Trebuchet MS', sans-serif", 'Trebuchet MS'],
         ["'Courier New', Courier, monospace", 'Courier New'],
-        ["'Comic Sans MS', cursive", 'Comic Sans'],
+        ["'Fredoka', sans-serif", 'Fredoka'],
+        ["'Baloo 2', sans-serif", 'Baloo 2'],
+        ["'Nunito', sans-serif", 'Nunito'],
     ];
 
     // DOM refs
     var preview, widthInput, heightInput, nameInput, layoutInput;
 
+    /* ── SAMPLE DATA for preview per type ───────────────────── */
+    var SAMPLE = {
+        simple:      { name: 'SALADIX QUESO', price: '890', gramaje: '100g' },
+        promotional: { name: 'TURRÓN MISKY', price: '180', promoQty: '3', promoPrice: '500' },
+        bulk:        { name: 'FEELING PREMIUM', price: '11500', packageType: 'CAJA', packageQty: '30U.' },
+        weight:      { name: 'ALMENDRAS PELADAS', price100g: '3200', price250g: '7350', price1kg: '29400' },
+    };
+
     // ====================== INIT ======================
     document.addEventListener('DOMContentLoaded', function () {
-        preview = document.getElementById('signPreview');
-        widthInput = document.getElementById('widthMm');
+        preview     = document.getElementById('signPreview');
+        widthInput  = document.getElementById('widthMm');
         heightInput = document.getElementById('heightMm');
-        nameInput = document.getElementById('templateName');
+        nameInput   = document.getElementById('templateName');
         layoutInput = document.getElementById('layoutJsonInput');
 
-        // Read type from URL if new template
         if (!CFG.isEdit) {
             var params = new URLSearchParams(window.location.search);
             var urlType = params.get('type');
@@ -54,7 +62,6 @@
                 var dims = getDefaultDims(urlType);
                 widthInput.value = dims[0];
                 heightInput.value = dims[1];
-                // Check radio
                 var radio = document.querySelector('input[name="template_type"][value="' + urlType + '"]');
                 if (radio) {
                     radio.checked = true;
@@ -432,200 +439,52 @@
         var w = parseInt(widthInput.value) || 50;
         var h = parseInt(heightInput.value) || 40;
 
-        // Update dimension label
-        document.getElementById('dimensionLabel').textContent = w + '×' + h + ' mm';
+        document.getElementById('dimensionLabel').textContent = w + '\u00d7' + h + ' mm';
 
-        // Set preview dimensions (scaled)
-        preview.style.width = (w * zoom) + 'px';
+        preview.style.width  = (w * zoom) + 'px';
         preview.style.height = (h * zoom) + 'px';
 
-        // Apply base styles
-        preview.style.background = layout.background_color || '#fff';
-        preview.style.border = (layout.border_width || 0) + 'px solid ' + (layout.border_color || '#000');
-        preview.style.borderRadius = (layout.border_radius || 0) + 'px';
-        preview.style.fontFamily = layout.font_family || 'Arial, sans-serif';
-        preview.style.display = 'flex';
-        preview.style.flexDirection = 'column';
-        preview.style.position = 'relative';
+        // Build a temporary element with sample data attributes
+        var sample = SAMPLE[currentType] || SAMPLE.simple;
+        preview.dataset.name       = sample.name  || '';
+        preview.dataset.price      = sample.price || '';
+        preview.dataset.gramaje    = sample.gramaje || '';
+        preview.dataset.promoQty   = sample.promoQty || '';
+        preview.dataset.promoPrice = sample.promoPrice || '';
+        preview.dataset.packageType= sample.packageType || '';
+        preview.dataset.packageQty = sample.packageQty || '';
+        preview.dataset.price100g  = sample.price100g || '';
+        preview.dataset.price250g  = sample.price250g || '';
+        preview.dataset.price1kg   = sample.price1kg || '';
 
-        // Clear and rebuild inner content
-        preview.innerHTML = '';
-        var inner = document.createElement('div');
-        inner.className = 'sign-inner';
-        inner.style.flex = '1';
-        inner.style.minHeight = '0';
-        inner.style.width = '100%';
-        inner.style.boxSizing = 'border-box';
-        inner.style.padding = ((layout.padding || 3) * zoom / 3.78) + 'px';
-        inner.style.display = 'flex';
-        inner.style.flexDirection = 'column';
-        inner.style.justifyContent = 'center';
-        inner.style.alignItems = 'center';
-        inner.style.textAlign = layout.text_align || 'center';
-        inner.style.overflow = 'hidden';
-        inner.style.position = 'relative';
-        inner.style.zIndex = '1';
+        // Use the shared renderer — it sets all styles on the element
+        SignageRenderer.renderSign(preview, layout, currentType);
 
-        // Scale factor: designer uses px at zoom level, real sign uses mm
-        var sf = zoom / 3.78; // ratio to approximate mm-to-px scaling
-
-        if (currentType === 'simple') renderSimplePreview(inner, sf);
-        else if (currentType === 'promotional') renderPromotionalPreview(inner, sf);
-        else if (currentType === 'bulk') renderBulkPreview(inner, sf);
-        else if (currentType === 'weight') renderWeightPreview(inner, sf);
-
-        preview.appendChild(inner);
-
-        // Watermark
-        if (layout.bg_watermark_show && layout.bg_watermark) {
-            var wm = el('div', 'sign-watermark', layout.bg_watermark);
-            wm.setAttribute('aria-hidden', 'true');
-            preview.appendChild(wm);
-        }
-        // Corner icons
-        ['tl','tr','bl','br'].forEach(function (pos) {
-            var icon = layout['corner_' + pos];
-            if (icon) {
-                var span = el('span', 'sign-corner-icon sign-corner-' + pos, icon);
-                span.setAttribute('aria-hidden', 'true');
-                preview.appendChild(span);
-            }
+        // Scale internal fonts for designer zoom (renderer uses mm, we use px zoom)
+        var sf = zoom / 3.78;
+        preview.querySelectorAll('.sign-inner *').forEach(function (child) {
+            var fs = parseFloat(child.style.fontSize);
+            if (fs) child.style.fontSize = (fs * sf) + 'px';
         });
-
-        // Auto-fit text in preview
-        setTimeout(function () { autoFitPreview(); }, 10);
-    }
-
-    function renderSimplePreview(inner, sf) {
-        if (layout.show_store_name) {
-            var sh = el('div', 'store-header', layout.store_name || 'CHE GOLOSO');
-            sh.style.backgroundColor = layout.store_name_bg || '#333';
-            sh.style.color = layout.store_name_color || '#fff';
-            sh.style.fontSize = ((layout.store_name_size || 8) * sf) + 'px';
-            inner.appendChild(sh);
+        // Scale padding
+        var inner = preview.querySelector('.sign-inner');
+        if (inner) {
+            inner.style.padding = ((layout.padding || 3) * zoom / 3.78) + 'px';
         }
 
-        var name = el('div', 'product-name fit-text-multi', 'SALADIX');
-        name.style.fontSize = ((layout.product_name_size || 14) * sf) + 'px';
-        name.style.fontWeight = layout.product_name_weight || 'bold';
-        name.style.color = layout.product_name_color || '#000';
-        inner.appendChild(name);
-
-        if (layout.gramaje_show !== false) {
-            var gr = el('div', 'gramaje', '100g');
-            gr.style.fontSize = ((layout.gramaje_size || 9) * sf) + 'px';
-            gr.style.color = layout.gramaje_color || '#666';
-            inner.appendChild(gr);
-        }
-
-        var price = el('div', 'price fit-text', '$790');
-        price.style.fontSize = ((layout.price_size || 32) * sf) + 'px';
-        price.style.fontWeight = layout.price_weight || 'bold';
-        price.style.color = layout.price_color || '#27ae60';
-        inner.appendChild(price);
-    }
-
-    function renderPromotionalPreview(inner, sf) {
-        if (layout.promo_label_show !== false) {
-            var label = el('div', 'promo-label', layout.promo_label_text || 'PROMO!!');
-            label.style.backgroundColor = layout.promo_label_bg || '#FFD700';
-            label.style.color = layout.promo_label_color || '#cc0000';
-            label.style.fontSize = ((layout.promo_label_size || 12) * sf) + 'px';
-            inner.appendChild(label);
-        }
-
-        var name = el('div', 'product-name fit-text-multi', 'TURRÓN MISKY');
-        name.style.fontSize = ((layout.product_name_size || 12) * sf) + 'px';
-        name.style.fontWeight = layout.product_name_weight || 'bold';
-        name.style.color = layout.product_name_color || '#fff';
-        inner.appendChild(name);
-
-        var up = el('div', 'unit-price', '$180');
-        up.style.fontSize = ((layout.unit_price_size || 14) * sf) + 'px';
-        up.style.color = layout.unit_price_color || '#fff';
-        inner.appendChild(up);
-
-        var badge = el('div', 'promo-badge fit-text', '3 X');
-        badge.style.fontSize = ((layout.promo_badge_size || 24) * sf) + 'px';
-        badge.style.color = layout.promo_badge_color || '#FFD700';
-        inner.appendChild(badge);
-
-        var pp = el('div', 'price fit-text', '$500');
-        pp.style.fontSize = ((layout.promo_price_size || 28) * sf) + 'px';
-        pp.style.fontWeight = layout.promo_price_weight || 'bold';
-        pp.style.color = layout.promo_price_color || '#fff';
-        inner.appendChild(pp);
-    }
-
-    function renderBulkPreview(inner, sf) {
-        var name = el('div', 'product-name fit-text-multi', 'FEELING');
-        name.style.fontSize = ((layout.product_name_size || 16) * sf) + 'px';
-        name.style.fontWeight = layout.product_name_weight || 'bold';
-        name.style.color = layout.product_name_color || '#000';
-        inner.appendChild(name);
-
-        var price = el('div', 'price fit-text', '$11.500');
-        price.style.fontSize = ((layout.total_price_size || 28) * sf) + 'px';
-        price.style.fontWeight = layout.total_price_weight || 'bold';
-        price.style.color = layout.total_price_color || '#e74c3c';
-        inner.appendChild(price);
-
-        var pkg = el('div', 'package-info fit-text', 'CAJA X 30U.');
-        pkg.style.fontSize = ((layout.package_info_size || 12) * sf) + 'px';
-        pkg.style.color = layout.package_info_color || '#2c3e50';
-        pkg.style.fontWeight = layout.package_info_weight || 'bold';
-        inner.appendChild(pkg);
-    }
-
-    function renderWeightPreview(inner, sf) {
-        var name = el('div', 'product-name fit-text-multi', 'ALMENDRAS PELADAS');
-        name.style.fontSize = ((layout.product_name_size || 14) * sf) + 'px';
-        name.style.fontWeight = layout.product_name_weight || 'bold';
-        name.style.color = layout.product_name_color || '#000';
-        inner.appendChild(name);
-
-        if (layout.show_dividers !== false) {
-            var div1 = document.createElement('div');
-            div1.className = 'divider';
-            div1.style.borderColor = layout.divider_color || '#ccc';
-            inner.appendChild(div1);
-        }
-
-        var row = document.createElement('div');
-        row.className = 'weight-row';
-
-        var prices = [
-            { val: '$3.200', label: '100 gr', size: layout.price_100g_size || 12, color: layout.price_100g_color || '#000', weight: 'normal' },
-            { val: '$7.350', label: '¼ Kg', size: layout.price_250g_size || 14, color: layout.price_250g_color || '#000', weight: 'normal' },
-            { val: '$29.400', label: 'Kg', size: layout.price_1kg_size || 20, color: layout.price_1kg_color || '#e74c3c', weight: layout.price_1kg_weight || 'bold' },
-        ];
-
-        prices.forEach(function (p) {
-            var cell = document.createElement('div');
-            cell.className = 'weight-cell';
-            cell.innerHTML =
-                '<span class="weight-label" style="font-size:' + (p.size * sf * 0.5) + 'px;">' + p.label + '</span>' +
-                '<span class="fit-text" style="font-size:' + (p.size * sf) + 'px;color:' + p.color + ';font-weight:' + p.weight + ';">' + p.val + '</span>';
-            row.appendChild(cell);
-        });
-
-        inner.appendChild(row);
-    }
-
-    // ====================== AUTO-FIT TEXT ======================
-    function autoFitPreview() {
-        preview.querySelectorAll('.fit-text').forEach(function (txt) {
-            var parent = txt.closest('.sign-inner') || preview;
-            var maxW = parent.clientWidth - 8;
-            var fontSize = parseFloat(window.getComputedStyle(txt).fontSize);
-            var minSize = 6;
-            var iterations = 0;
-            while (txt.scrollWidth > maxW && fontSize > minSize && iterations < 50) {
-                fontSize -= 0.5;
-                txt.style.fontSize = fontSize + 'px';
-                iterations++;
-            }
-        });
+        setTimeout(function () {
+            preview.querySelectorAll('.fit-text').forEach(function (txt) {
+                var ref = txt.closest('.sign-inner') || preview;
+                var maxW = ref.clientWidth - 8;
+                var fs = parseFloat(window.getComputedStyle(txt).fontSize);
+                var i = 0;
+                while (txt.scrollWidth > maxW && fs > 6 && i < 50) {
+                    fs -= 0.5;
+                    txt.style.fontSize = fs + 'px';
+                    i++;
+                }
+            });
+        }, 10);
     }
 
     // ====================== ZOOM ======================
@@ -635,20 +494,8 @@
     }
 
     // ====================== HELPERS ======================
-    function el(tag, cls, text) {
-        var e = document.createElement(tag);
-        e.className = cls;
-        if (text) e.textContent = text;
-        return e;
-    }
-
     function getDefaultDims(type) {
-        var dims = {
-            simple: [50, 40],
-            promotional: [70, 50],
-            bulk: [100, 70],
-            weight: [100, 70],
-        };
+        var dims = { simple: [50, 40], promotional: [70, 50], bulk: [100, 70], weight: [100, 70] };
         return dims[type] || [50, 40];
     }
 

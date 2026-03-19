@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 <link href="{% static 'css/signage-designer.css' %}" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -109,7 +110,7 @@
                         <button type="button" class="theme-btn" data-theme="san_valentin">❤️ S. Valentín</button>
                         <button type="button" class="theme-btn" data-theme="dia_madre">🌸 Día Madre</button>
                         <button type="button" class="theme-btn" data-theme="halloween">🎃 Halloween</button>
-                        <button type="button" class="theme-btn" data-theme="año_nuevo">🎆 Año Nuevo</button>
+                        <button type="button" class="theme-btn" data-theme="anio_nuevo">🎆 Año Nuevo</button>
                         <button type="button" class="theme-btn" data-theme="patrio">⭐ Fiestas Patrias</button>
                     </div>
                     <p class="text-muted mb-0" style="font-size:.68rem;">Aplica colores e iconos del tema automáticamente · podés ajustar cada valor individualmente.</p>
@@ -154,5 +155,6 @@
         apiDefaultsUrl: "{% url 'signage:api_template_defaults' %}",
     };
 </script>
+<script src="{% static 'js/signage-render.js' %}"></script>
 <script src="{% static 'js/signage-designer.js' %}"></script>
 {% endblock %}

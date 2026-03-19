@@ -12,8 +12,8 @@ urlpatterns = [
 
     # Template management
     path('plantillas/', views.template_list, name='template_list'),
-    path('diseñador/', views.designer, name='designer_new'),
-    path('diseñador/<int:pk>/', views.designer, name='designer_edit'),
+    path('disenador/', views.designer, name='designer_new'),
+    path('disenador/<int:pk>/', views.designer, name='designer_edit'),
     path('plantilla/<int:pk>/eliminar/', views.template_delete, name='template_delete'),
 
     # API (AJAX)
