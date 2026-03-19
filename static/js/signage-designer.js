@@ -6,9 +6,10 @@
     'use strict';
 
     var CFG = window.SIGNAGE_DESIGNER;
-    var defaults = JSON.parse(CFG.defaultLayouts);
+    // defaultLayouts is already a JS object (rendered via |safe in template)
+    var defaults = CFG.defaultLayouts || {};
     var currentType = CFG.templateType || 'simple';
-    var layout = CFG.currentLayout || defaults[currentType] || defaults.simple;
+    var layout = CFG.currentLayout || defaults[currentType] || defaults.simple || {};
     var zoom = 3;
 
     var THEME_PRESETS = {
