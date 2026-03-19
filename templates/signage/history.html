@@ -1,73 +1,65 @@
 {% extends 'base.html' %}
-{% load currency_filters %}
 
 {% block title %}Historial de Carteles{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Header -->
+<div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-0">
-                <i class="fas fa-history me-2"></i>Historial de Generaciones
-            </h1>
-            <p class="text-muted mb-0">Todos los carteles generados</p>
+            <h2 class="mb-1"><i class="fas fa-history me-2" style="color: var(--che-pink);"></i>Historial de Lotes</h2>
+            <p class="text-muted mb-0">Todos los lotes de carteles generados</p>
         </div>
-        <a href="{% url 'signage:generate' %}" class="btn btn-primary">
-            <i class="fas fa-plus me-2"></i>Nuevo Cartel
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{% url 'signage:home' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+            </a>
+            <a href="{% url 'signage:generator' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Nuevo Lote
+            </a>
+        </div>
     </div>
 
-    <!-- Table -->
-    <div class="card">
+    <div class="card shadow-sm">
         <div class="card-body p-0">
-            {% if generations %}
+            {% if batches %}
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>#</th>
                             <th>Fecha</th>
+                            <th>Plantilla</th>
                             <th>Tipo</th>
-                            <th>Promoción</th>
-                            <th>Productos</th>
-                            <th>Generado por</th>
+                            <th>Carteles</th>
+                            <th>Papel</th>
+                            <th>Creado por</th>
                             <th class="text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for gen in generations %}
+                        {% for batch in batches %}
                         <tr>
-                            <td><strong>{{ gen.pk }}</strong></td>
-                            <td>{{ gen.generated_at|date:"d/m/Y H:i" }}</td>
+                            <td><strong>{{ batch.pk }}</strong></td>
+                            <td>{{ batch.created_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ batch.template.name }}</td>
                             <td>
-                                {% if gen.sign_type == 'promotion' %}
-                                    <span class="badge bg-danger"><i class="fas fa-tags me-1"></i>Promoción</span>
-                                {% elif gen.sign_type == 'offer' %}
-                                    <span class="badge bg-warning text-dark"><i class="fas fa-percentage me-1"></i>Oferta</span>
-                                {% elif gen.sign_type == 'custom' %}
-                                    <span class="badge bg-info"><i class="fas fa-edit me-1"></i>Personalizado</span>
-                                {% else %}
-                                    <span class="badge bg-success"><i class="fas fa-dollar-sign me-1"></i>Precio</span>
-                                {% endif %}
+                                <span class="badge text-white
+                                    {% if batch.template.template_type == 'simple' %}bg-success
+                                    {% elif batch.template.template_type == 'promotional' %}bg-danger
+                                    {% elif batch.template.template_type == 'bulk' %}bg-dark
+                                    {% else %}bg-purple{% endif %}">
+                                    {{ batch.template.get_template_type_display }}
+                                </span>
                             </td>
-                            <td>
-                                {% if gen.promotion %}
-                                    <span class="badge bg-primary">{{ gen.promotion.name }}</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary">{{ gen.products.count }}</span> productos
-                            </td>
-                            <td>{{ gen.generated_by.get_full_name|default:gen.generated_by.username }}</td>
+                            <td><span class="badge bg-secondary">{{ batch.total_signs }}</span></td>
+                            <td>{{ batch.paper_size }}</td>
+                            <td>{{ batch.created_by.get_full_name|default:batch.created_by.username }}</td>
                             <td class="text-center">
-                                <a href="{% url 'signage:preview' gen.pk %}" class="btn btn-sm btn-outline-primary" title="Ver">
+                                <a href="{% url 'signage:preview_batch' pk=batch.pk %}" class="btn btn-sm btn-outline-primary" title="Ver">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{% url 'signage:download' gen.pk %}" class="btn btn-sm btn-outline-success" title="Descargar">
-                                    <i class="fas fa-download"></i>
+                                <a href="{% url 'signage:print_layout' pk=batch.pk %}" class="btn btn-sm btn-outline-success" title="Imprimir">
+                                    <i class="fas fa-print"></i>
                                 </a>
                             </td>
                         </tr>
@@ -78,14 +70,16 @@
             {% else %}
             <div class="text-center py-5">
                 <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
-                <h4 class="text-muted">No hay carteles generados</h4>
-                <p class="text-muted">Genera tu primer cartel de precios</p>
-                <a href="{% url 'signage:generate' %}" class="btn btn-primary">
-                    <i class="fas fa-plus me-2"></i>Generar Cartel
+                <h4 class="text-muted">No hay lotes generados</h4>
+                <p class="text-muted">Generá tu primer lote de carteles</p>
+                <a href="{% url 'signage:generator' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Generar Carteles
                 </a>
             </div>
             {% endif %}
         </div>
     </div>
 </div>
+
+<style>.bg-purple { background-color: #8e44ad; }</style>
 {% endblock %}

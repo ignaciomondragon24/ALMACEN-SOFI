@@ -1,266 +1,301 @@
 """
-Signage Views - Sistema de Cartelería
+Signage Views - Diseñador Visual de Carteles
 """
+import json
+from decimal import Decimal, InvalidOperation
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-from decimal import Decimal
-import json
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 
-from .models import SignTemplate, SignGeneration
+from .models import SignTemplate, SignBatch, SignItem
 from stocks.models import Product, ProductCategory
-from promotions.models import Promotion
 from decorators.decorators import group_required
 
-
-def _parse_id(value):
-    """Parsea IDs tolerando separadores (ej: '1.194' -> 1194)."""
-    if value is None:
-        return None
-    s = str(value).strip()
-    if not s:
-        return None
-    digits = ''.join(ch for ch in s if ch.isdigit())
-    if not digits:
-        return None
-    try:
-        return int(digits)
-    except (TypeError, ValueError):
-        return None
+SIGN_ROLES = ['Admin', 'Manager', 'Stock Manager', 'General Manager']
 
 
+# ---------------------------------------------------------------------------
+# Home
+# ---------------------------------------------------------------------------
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
+@group_required(SIGN_ROLES)
 def signage_home(request):
-    """Página principal de cartelería con accesos rápidos."""
     templates = SignTemplate.objects.filter(is_active=True)
-    recent_generations = SignGeneration.objects.filter(
-        generated_by=request.user
-    ).order_by('-generated_at')[:10]
-    
-    # Obtener promociones activas para mostrar
-    active_promos = Promotion.objects.filter(status='active')
-    
+    recent_batches = (
+        SignBatch.objects.filter(created_by=request.user)
+        .select_related('template')
+        .order_by('-created_at')[:10]
+    )
     return render(request, 'signage/home.html', {
         'templates': templates,
-        'recent_generations': recent_generations,
-        'active_promos': active_promos
+        'recent_batches': recent_batches,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Template CRUD
+# ---------------------------------------------------------------------------
+@login_required
+@group_required(SIGN_ROLES)
+def template_list(request):
+    templates = SignTemplate.objects.filter(is_active=True)
+    return render(request, 'signage/template_list.html', {
+        'templates': templates,
     })
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
-def generate_sign(request):
-    """Generar cartel - interfaz principal mejorada."""
-    categories = ProductCategory.objects.filter(is_active=True)
-    products = Product.objects.filter(is_active=True).order_by('name')
-    promotions = Promotion.objects.filter(status='active')
-    
+@group_required(SIGN_ROLES)
+def designer(request, pk=None):
+    """Visual template designer – create or edit."""
+    template = None
+    if pk:
+        template = get_object_or_404(SignTemplate, pk=pk)
+
     if request.method == 'POST':
-        sign_type = request.POST.get('sign_type', 'price')
-        product_ids_raw = request.POST.getlist('products')
-        promotion_id_raw = request.POST.get('promotion')
-        custom_text = request.POST.get('custom_text', '')
-        sign_size = request.POST.get('sign_size', 'A4')
+        name = request.POST.get('name', '').strip()
+        template_type = request.POST.get('template_type', 'simple')
+        width_mm = int(request.POST.get('width_mm', 50))
+        height_mm = int(request.POST.get('height_mm', 40))
+        layout_raw = request.POST.get('layout_json', '{}')
 
-        # Normalizar IDs recibidos para evitar ValueError por formatos locales.
-        product_ids = []
-        for raw_id in product_ids_raw:
-            parsed_id = _parse_id(raw_id)
-            if parsed_id:
-                product_ids.append(parsed_id)
-
-        product_ids = list(dict.fromkeys(product_ids))
-        promotion_id = _parse_id(promotion_id_raw)
-
-        selected_products = Product.objects.filter(pk__in=product_ids, is_active=True)
-        if not selected_products.exists():
-            messages.error(request, 'Seleccioná al menos un producto válido para generar el cartel.')
-            return render(request, 'signage/generate.html', {
-                'categories': categories,
-                'products': products,
-                'promotions': promotions
+        if not name:
+            messages.error(request, 'El nombre de la plantilla es obligatorio.')
+            return render(request, 'signage/designer.html', {
+                'template': template,
+                'template_types': SignTemplate.TEMPLATE_TYPES,
+                'default_layouts': _all_default_layouts(),
             })
-        
-        # Crear registro de generación
-        generation = SignGeneration.objects.create(
-            generated_by=request.user,
-            sign_type=sign_type,
-            sign_size=sign_size,
-            custom_text=custom_text
-        )
 
-        generation.products.set(selected_products)
+        try:
+            layout = json.loads(layout_raw)
+        except json.JSONDecodeError:
+            layout = SignTemplate.get_default_layout(template_type)
 
-        if promotion_id:
-            promo = Promotion.objects.filter(pk=promotion_id, status='active').first()
-            if promo:
-                generation.promotion = promo
-                generation.save(update_fields=['promotion'])
-        
-        return redirect('signage:preview', pk=generation.pk)
-    
-    return render(request, 'signage/generate.html', {
-        'categories': categories,
-        'products': products,
-        'promotions': promotions
-    })
+        if template is None:
+            template = SignTemplate(created_by=request.user)
 
+        template.name = name
+        template.template_type = template_type
+        template.width_mm = max(20, min(width_mm, 300))
+        template.height_mm = max(20, min(height_mm, 300))
+        template.set_layout(layout)
+        template.save()
 
-@login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
-def preview_sign(request, pk):
-    """Vista previa del cartel generado."""
-    generation = get_object_or_404(SignGeneration, pk=pk)
-    products = generation.products.all()
-    promotion = generation.promotion
-    
-    # Preparar datos para el cartel
-    sign_data = []
-    
-    for product in products:
-        item = {
-            'product': product,
-            'name': product.name,
-            'price': product.sale_price,
-            'old_price': None,
-            'promo_text': None,
-            'promo_type': None,
-            'discount_percent': None,
-        }
-        
-        # Si hay promoción, calcular datos
-        if promotion:
-            item['promo_type'] = promotion.promo_type
-            
-            if promotion.promo_type == 'nxm':
-                # Promociones NxM (2x1, 3x2, etc)
-                item['promo_text'] = f"{promotion.quantity_required}x{promotion.quantity_charged}"
-                if promotion.quantity_charged == 1:
-                    item['promo_text'] = f"{promotion.quantity_required}x1"
-                # Calcular precio efectivo
-                effective_price = (product.sale_price * promotion.quantity_charged) / promotion.quantity_required
-                savings_percent = ((product.sale_price - effective_price) / product.sale_price) * 100
-                item['discount_percent'] = int(savings_percent)
-                
-            elif promotion.promo_type == 'second_unit':
-                # Segunda unidad con descuento
-                discount = promotion.second_unit_discount
-                item['promo_text'] = f"2da unidad {int(discount)}% OFF"
-                item['discount_percent'] = int(discount / 2)  # Promedio
-                
-            elif promotion.promo_type == 'simple_discount':
-                # Descuento simple
-                discount = promotion.discount_percent
-                item['promo_text'] = f"{int(discount)}% OFF"
-                item['old_price'] = product.sale_price
-                item['price'] = product.sale_price * (1 - discount / 100)
-                item['discount_percent'] = int(discount)
-                
-            elif promotion.promo_type == 'combo':
-                # Combo
-                if promotion.final_price:
-                    item['promo_text'] = "COMBO"
-                    item['price'] = promotion.final_price
-        
-        sign_data.append(item)
-    
-    return render(request, 'signage/preview.html', {
-        'generation': generation,
-        'products': products,
-        'promotion': promotion,
-        'sign_data': sign_data,
-        'sign_type': generation.sign_type,
-        'sign_size': generation.sign_size,
-    })
+        messages.success(request, f'Plantilla "{template.name}" guardada correctamente.')
+        return redirect('signage:template_list')
 
-
-@login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
-def download_sign(request, pk):
-    """Descargar cartel como HTML imprimible."""
-    generation = get_object_or_404(SignGeneration, pk=pk)
-    products = generation.products.all()
-    promotion = generation.promotion
-    
-    # Preparar datos
-    sign_data = []
-    for product in products:
-        item = {
-            'name': product.name,
-            'price': product.sale_price,
-            'old_price': None,
-            'promo_text': None,
-        }
-        
-        if promotion:
-            if promotion.promo_type == 'nxm':
-                item['promo_text'] = f"{promotion.quantity_required}x{promotion.quantity_charged}"
-            elif promotion.promo_type == 'second_unit':
-                item['promo_text'] = f"2da unidad {int(promotion.second_unit_discount)}% OFF"
-            elif promotion.promo_type == 'simple_discount':
-                item['promo_text'] = f"{int(promotion.discount_percent)}% OFF"
-                item['old_price'] = product.sale_price
-                item['price'] = product.sale_price * (1 - promotion.discount_percent / 100)
-        
-        sign_data.append(item)
-    
-    # Generar HTML para imprimir
-    html_content = render_to_string('signage/print_sign.html', {
-        'generation': generation,
-        'sign_data': sign_data,
-        'promotion': promotion,
-        'sign_type': generation.sign_type,
-    })
-    
-    response = HttpResponse(html_content, content_type='text/html')
-    return response
-
-
-@login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
-def quick_promo_sign(request, promo_id):
-    """Generar cartel rápido desde una promoción."""
-    promotion = get_object_or_404(Promotion, pk=promo_id)
-    
-    # Obtener productos de la promoción
-    products = promotion.products.all()
-    
-    if not products.exists():
-        messages.error(request, 'Esta promoción no tiene productos asociados.')
-        return redirect('signage:home')
-    
-    # Crear generación
-    generation = SignGeneration.objects.create(
-        generated_by=request.user,
-        sign_type='promotion',
-        sign_size='A4',
-        promotion=promotion
-    )
-    generation.products.set(products)
-    
-    return redirect('signage:preview', pk=generation.pk)
-
-
-@login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
-def history(request):
-    """Historial de carteles generados."""
-    generations = SignGeneration.objects.all().order_by('-generated_at')
-    
-    return render(request, 'signage/history.html', {
-        'generations': generations
+    return render(request, 'signage/designer.html', {
+        'template': template,
+        'template_types': SignTemplate.TEMPLATE_TYPES,
+        'default_layouts': _all_default_layouts(),
     })
 
 
 @login_required
 @group_required(['Admin', 'Manager', 'General Manager'])
-def template_list(request):
-    """Lista de plantillas."""
-    templates = SignTemplate.objects.all()
-    
-    return render(request, 'signage/template_list.html', {
-        'templates': templates
+def template_delete(request, pk):
+    template = get_object_or_404(SignTemplate, pk=pk)
+    if request.method == 'POST':
+        template.is_active = False
+        template.save(update_fields=['is_active'])
+        messages.success(request, f'Plantilla "{template.name}" eliminada.')
+    return redirect('signage:template_list')
+
+
+# ---------------------------------------------------------------------------
+# API – Template defaults (AJAX)
+# ---------------------------------------------------------------------------
+@login_required
+def api_template_defaults(request):
+    ttype = request.GET.get('type', 'simple')
+    layout = SignTemplate.get_default_layout(ttype)
+    w, h = SignTemplate.get_default_dimensions(ttype)
+    return JsonResponse({'layout': layout, 'width_mm': w, 'height_mm': h})
+
+
+# ---------------------------------------------------------------------------
+# Generator – Select template, add products, create batch
+# ---------------------------------------------------------------------------
+@login_required
+@group_required(SIGN_ROLES)
+def generator(request, template_pk=None):
+    """Sign generator – pick a template and add products."""
+    template = None
+    if template_pk:
+        template = get_object_or_404(SignTemplate, pk=template_pk, is_active=True)
+
+    templates = SignTemplate.objects.filter(is_active=True)
+    categories = ProductCategory.objects.filter(is_active=True)
+    products = Product.objects.filter(is_active=True).select_related('category').order_by('name')
+
+    return render(request, 'signage/generator.html', {
+        'selected_template': template,
+        'templates': templates,
+        'categories': categories,
+        'products': products,
     })
+
+
+@login_required
+@group_required(SIGN_ROLES)
+@require_POST
+def create_batch(request):
+    """Create a batch of signs from submitted form data."""
+    template_pk = request.POST.get('template_pk')
+    paper_size = request.POST.get('paper_size', 'A4')
+    items_json = request.POST.get('items_json', '[]')
+
+    template = get_object_or_404(SignTemplate, pk=template_pk, is_active=True)
+
+    try:
+        items_data = json.loads(items_json)
+    except json.JSONDecodeError:
+        messages.error(request, 'Datos de carteles inválidos.')
+        return redirect('signage:generator_with_template', template_pk=template.pk)
+
+    if not items_data:
+        messages.error(request, 'Agregá al menos un producto para generar carteles.')
+        return redirect('signage:generator_with_template', template_pk=template.pk)
+
+    batch = SignBatch.objects.create(
+        template=template,
+        paper_size=paper_size,
+        created_by=request.user,
+    )
+
+    for idx, item in enumerate(items_data):
+        product_id = item.get('product_id')
+        product = None
+        if product_id:
+            try:
+                product = Product.objects.get(pk=int(product_id), is_active=True)
+            except (Product.DoesNotExist, ValueError, TypeError):
+                pass
+
+        SignItem.objects.create(
+            batch=batch,
+            product=product,
+            custom_name=item.get('custom_name', ''),
+            custom_price=_safe_decimal(item.get('custom_price')),
+            gramaje=item.get('gramaje', ''),
+            promo_quantity=_safe_int(item.get('promo_quantity')),
+            promo_price=_safe_decimal(item.get('promo_price')),
+            package_type=item.get('package_type', ''),
+            quantity_per_package=item.get('quantity_per_package', ''),
+            price_100g=_safe_decimal(item.get('price_100g')),
+            price_250g=_safe_decimal(item.get('price_250g')),
+            price_1kg=_safe_decimal(item.get('price_1kg')),
+            copies=max(1, _safe_int(item.get('copies')) or 1),
+            order=idx,
+        )
+
+    return redirect('signage:preview_batch', pk=batch.pk)
+
+
+# ---------------------------------------------------------------------------
+# Preview & Print
+# ---------------------------------------------------------------------------
+@login_required
+@group_required(SIGN_ROLES)
+def preview_batch(request, pk):
+    batch = get_object_or_404(SignBatch.objects.select_related('template'), pk=pk)
+    items = batch.items.select_related('product').all()
+    layout = batch.template.get_layout()
+
+    return render(request, 'signage/preview_batch.html', {
+        'batch': batch,
+        'items': items,
+        'layout': layout,
+        'layout_json': json.dumps(layout, ensure_ascii=False),
+        'template': batch.template,
+    })
+
+
+@login_required
+@group_required(SIGN_ROLES)
+def print_layout(request, pk):
+    batch = get_object_or_404(SignBatch.objects.select_related('template'), pk=pk)
+    items = batch.items.select_related('product').all()
+    layout = batch.template.get_layout()
+    paper_w, paper_h = batch.get_paper_dimensions()
+    margin_mm = 5
+    sign_w = batch.template.width_mm
+    sign_h = batch.template.height_mm
+    gap = 2
+
+    cols = max(1, (paper_w - 2 * margin_mm + gap) // (sign_w + gap))
+    rows = max(1, (paper_h - 2 * margin_mm + gap) // (sign_h + gap))
+    per_page = cols * rows
+
+    # Build expanded list (respecting copies)
+    expanded = []
+    for item in items:
+        for _ in range(item.copies):
+            expanded.append(item)
+
+    # Split into pages
+    pages = []
+    for i in range(0, len(expanded), per_page):
+        pages.append(expanded[i:i + per_page])
+
+    return render(request, 'signage/print_layout.html', {
+        'batch': batch,
+        'pages': pages,
+        'layout': layout,
+        'layout_json': json.dumps(layout, ensure_ascii=False),
+        'template': batch.template,
+        'cols': cols,
+        'rows': rows,
+        'per_page': per_page,
+        'paper_w': paper_w,
+        'paper_h': paper_h,
+        'margin_mm': margin_mm,
+        'sign_w': sign_w,
+        'sign_h': sign_h,
+        'gap': gap,
+    })
+
+
+# ---------------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------------
+@login_required
+@group_required(SIGN_ROLES)
+def history(request):
+    batches = (
+        SignBatch.objects.select_related('template', 'created_by')
+        .order_by('-created_at')
+    )
+    return render(request, 'signage/history.html', {'batches': batches})
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _all_default_layouts():
+    return json.dumps({
+        t: SignTemplate.get_default_layout(t)
+        for t in ('simple', 'promotional', 'bulk', 'weight')
+    }, ensure_ascii=False)
+
+
+def _safe_decimal(val):
+    if val is None or val == '':
+        return None
+    try:
+        return Decimal(str(val).replace(',', '.'))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _safe_int(val):
+    if val is None or val == '':
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Imprimir Carteles - Lote #{{ batch.pk }}</title>
+<style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        font-family: Arial, sans-serif;
+        background: #888;
+    }
+
+    /* Screen-only controls */
+    .print-controls {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: #2D1E5F;
+        color: #fff;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0,0,0,.3);
+    }
+    .print-controls a,
+    .print-controls button {
+        color: #fff;
+        text-decoration: none;
+        padding: 8px 20px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .print-controls .btn-back { background: rgba(255,255,255,.15); }
+    .print-controls .btn-back:hover { background: rgba(255,255,255,.25); }
+    .print-controls .btn-print { background: #27ae60; font-weight: bold; font-size: 16px; }
+    .print-controls .btn-print:hover { background: #2ecc71; }
+    .print-controls .info { font-size: 13px; opacity: .85; }
+
+    /* Page Container */
+    .page {
+        width: {{ paper_w }}mm;
+        height: {{ paper_h }}mm;
+        background: #fff;
+        margin: 60px auto 20px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 2px 20px rgba(0,0,0,.3);
+    }
+
+    .page-inner {
+        position: absolute;
+        top: {{ margin_mm }}mm;
+        left: {{ margin_mm }}mm;
+        right: {{ margin_mm }}mm;
+        bottom: {{ margin_mm }}mm;
+        display: grid;
+        grid-template-columns: repeat({{ cols }}, {{ sign_w }}mm);
+        grid-template-rows: repeat({{ rows }}, {{ sign_h }}mm);
+        gap: {{ gap }}mm;
+        align-content: start;
+    }
+
+    /* Cut guides */
+    .cut-guide-h, .cut-guide-v {
+        position: absolute;
+        background: none;
+    }
+
+    /* Sign card shared styles */
+    .sign-card {
+        width: {{ sign_w }}mm;
+        height: {{ sign_h }}mm;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    /* Auto-fit text containers */
+    .sign-card .fit-text {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .sign-card .fit-text-multi {
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        word-break: break-word;
+    }
+
+    /* Sign type internal layouts - applied via JS/inline styles */
+    .sign-inner {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        overflow: hidden;
+    }
+
+    .sign-inner .store-header {
+        width: 100%;
+        padding: 1mm 2mm;
+        text-align: center;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .sign-inner .product-name {
+        width: 100%;
+        padding: 0 2mm;
+        text-align: center;
+        text-transform: uppercase;
+        line-height: 1.15;
+    }
+
+    .sign-inner .gramaje {
+        width: 100%;
+        text-align: center;
+    }
+
+    .sign-inner .price {
+        width: 100%;
+        text-align: center;
+        line-height: 1;
+    }
+
+    .sign-inner .promo-label {
+        display: inline-block;
+        padding: 1mm 3mm;
+        border-radius: 3px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .sign-inner .promo-badge {
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .sign-inner .unit-price {
+        width: 100%;
+        text-align: center;
+    }
+
+    .sign-inner .package-info {
+        width: 100%;
+        text-align: center;
+        text-transform: uppercase;
+    }
+
+    .sign-inner .weight-row {
+        width: 100%;
+        display: flex;
+        justify-content: space-around;
+        align-items: baseline;
+        padding: 0 2mm;
+    }
+
+    .sign-inner .weight-cell {
+        text-align: center;
+        flex: 1;
+    }
+
+    .sign-inner .weight-cell .weight-label {
+        display: block;
+        font-size: 60%;
+        opacity: .7;
+        text-transform: uppercase;
+    }
+
+    .sign-inner .divider {
+        width: 80%;
+        height: 0;
+        border-top: 1px solid;
+        margin: 1mm auto;
+    }
+
+    /* Print styles */
+    @media print {
+        body { background: #fff; }
+        .print-controls { display: none !important; }
+        .page {
+            margin: 0;
+            box-shadow: none;
+            page-break-after: always;
+        }
+        .page:last-child { page-break-after: auto; }
+    }
+
+    @page {
+        size: {{ paper_w }}mm {{ paper_h }}mm;
+        margin: 0;
+    }
+</style>
+</head>
+<body>
+
+<!-- Screen Controls -->
+<div class="print-controls">
+    <a href="{% url 'signage:preview_batch' pk=batch.pk %}" class="btn-back">
+        <i class="fas fa-arrow-left" style="margin-right:6px;"></i>Volver a Vista Previa
+    </a>
+    <span class="info">
+        {{ batch.total_signs }} cartel{{ batch.total_signs|pluralize:"es" }} en
+        {{ pages|length }} página{{ pages|length|pluralize }} · {{ cols }}×{{ rows }} por hoja ·
+        {{ template.name }} ({{ sign_w }}×{{ sign_h }}mm) · {{ batch.paper_size }}
+    </span>
+    <button class="btn-print" onclick="window.print()">
+        <i class="fas fa-print" style="margin-right:8px;"></i>IMPRIMIR
+    </button>
+</div>
+
+<!-- Pages -->
+{% for page_items in pages %}
+<div class="page">
+    <div class="page-inner">
+        {% for item in page_items %}
+        <div class="sign-card"
+             data-type="{{ template.template_type }}"
+             data-name="{{ item.display_name }}"
+             data-price="{{ item.display_price }}"
+             data-gramaje="{{ item.gramaje }}"
+             data-promo-qty="{{ item.promo_quantity|default:'' }}"
+             data-promo-price="{{ item.promo_price|default:'' }}"
+             data-package-type="{{ item.get_package_type_display|default:'' }}"
+             data-package-qty="{{ item.quantity_per_package }}"
+             data-price-100g="{{ item.price_100g|default:'' }}"
+             data-price-250g="{{ item.price_250g|default:'' }}"
+             data-price-1kg="{{ item.price_1kg|default:'' }}">
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+<!-- Font Awesome for icons (screen only) -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+<script>
+    var SIGNAGE_LAYOUT = {{ layout_json|safe }};
+    var SIGNAGE_TEMPLATE_TYPE = "{{ template.template_type }}";
+</script>
+<script>
+// ======================== SIGN RENDERER (inline for print page) ========================
+(function() {
+    'use strict';
+
+    function formatPrice(val) {
+        if (!val && val !== 0) return '';
+        var n = parseFloat(val);
+        if (isNaN(n)) return '';
+        var parts = n.toFixed(2).split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        // Remove trailing zeros in decimals for cleaner display
+        if (parts[1] === '00') return '$' + parts[0];
+        return '$' + parts[0] + ',' + parts[1];
+    }
+
+    function renderSign(el, layout, type) {
+        var d = el.dataset;
+        var L = layout;
+        // Apply card styles
+        el.style.background = L.background_color || '#fff';
+        el.style.border = (L.border_width || 0) + 'px solid ' + (L.border_color || '#000');
+        el.style.borderRadius = (L.border_radius || 0) + 'px';
+        el.style.padding = (L.padding || 3) + 'mm';
+        el.style.fontFamily = L.font_family || 'Arial, sans-serif';
+
+        var inner = document.createElement('div');
+        inner.className = 'sign-inner';
+
+        if (type === 'simple') {
+            renderSimple(inner, d, L);
+        } else if (type === 'promotional') {
+            renderPromotional(inner, d, L);
+        } else if (type === 'bulk') {
+            renderBulk(inner, d, L);
+        } else if (type === 'weight') {
+            renderWeight(inner, d, L);
+        }
+
+        el.appendChild(inner);
+    }
+
+    function renderSimple(inner, d, L) {
+        if (L.show_store_name) {
+            var sh = document.createElement('div');
+            sh.className = 'store-header';
+            sh.style.backgroundColor = L.store_name_bg || '#333';
+            sh.style.color = L.store_name_color || '#fff';
+            sh.style.fontSize = (L.store_name_size || 8) + 'px';
+            sh.textContent = L.store_name || 'CHE GOLOSO';
+            inner.appendChild(sh);
+        }
+        var name = document.createElement('div');
+        name.className = 'product-name fit-text-multi';
+        name.style.fontSize = (L.product_name_size || 14) + 'px';
+        name.style.fontWeight = L.product_name_weight || 'bold';
+        name.style.color = L.product_name_color || '#000';
+        name.textContent = d.name || 'PRODUCTO';
+        inner.appendChild(name);
+
+        if (L.gramaje_show !== false && d.gramaje) {
+            var gr = document.createElement('div');
+            gr.className = 'gramaje';
+            gr.style.fontSize = (L.gramaje_size || 9) + 'px';
+            gr.style.color = L.gramaje_color || '#666';
+            gr.textContent = d.gramaje;
+            inner.appendChild(gr);
+        }
+
+        var price = document.createElement('div');
+        price.className = 'price fit-text';
+        price.style.fontSize = (L.price_size || 32) + 'px';
+        price.style.fontWeight = L.price_weight || 'bold';
+        price.style.color = L.price_color || '#27ae60';
+        price.textContent = formatPrice(d.price);
+        inner.appendChild(price);
+    }
+
+    function renderPromotional(inner, d, L) {
+        if (L.promo_label_show !== false) {
+            var label = document.createElement('div');
+            label.className = 'promo-label';
+            label.style.backgroundColor = L.promo_label_bg || '#FFD700';
+            label.style.color = L.promo_label_color || '#cc0000';
+            label.style.fontSize = (L.promo_label_size || 12) + 'px';
+            label.textContent = L.promo_label_text || 'PROMO!!';
+            inner.appendChild(label);
+        }
+
+        var name = document.createElement('div');
+        name.className = 'product-name fit-text-multi';
+        name.style.fontSize = (L.product_name_size || 12) + 'px';
+        name.style.fontWeight = L.product_name_weight || 'bold';
+        name.style.color = L.product_name_color || '#fff';
+        name.textContent = d.name || 'PRODUCTO';
+        inner.appendChild(name);
+
+        var up = document.createElement('div');
+        up.className = 'unit-price';
+        up.style.fontSize = (L.unit_price_size || 14) + 'px';
+        up.style.color = L.unit_price_color || '#fff';
+        up.textContent = formatPrice(d.price);
+        inner.appendChild(up);
+
+        if (d.promoQty) {
+            var badge = document.createElement('div');
+            badge.className = 'promo-badge fit-text';
+            badge.style.fontSize = (L.promo_badge_size || 24) + 'px';
+            badge.style.color = L.promo_badge_color || '#FFD700';
+            badge.textContent = d.promoQty + ' X';
+            inner.appendChild(badge);
+        }
+
+        if (d.promoPrice) {
+            var pp = document.createElement('div');
+            pp.className = 'price fit-text';
+            pp.style.fontSize = (L.promo_price_size || 28) + 'px';
+            pp.style.fontWeight = L.promo_price_weight || 'bold';
+            pp.style.color = L.promo_price_color || '#fff';
+            pp.textContent = formatPrice(d.promoPrice);
+            inner.appendChild(pp);
+        }
+    }
+
+    function renderBulk(inner, d, L) {
+        var name = document.createElement('div');
+        name.className = 'product-name fit-text-multi';
+        name.style.fontSize = (L.product_name_size || 16) + 'px';
+        name.style.fontWeight = L.product_name_weight || 'bold';
+        name.style.color = L.product_name_color || '#000';
+        name.textContent = d.name || 'PRODUCTO';
+        inner.appendChild(name);
+
+        var price = document.createElement('div');
+        price.className = 'price fit-text';
+        price.style.fontSize = (L.total_price_size || 28) + 'px';
+        price.style.fontWeight = L.total_price_weight || 'bold';
+        price.style.color = L.total_price_color || '#e74c3c';
+        price.textContent = formatPrice(d.price);
+        inner.appendChild(price);
+
+        var pkgText = '';
+        if (d.packageType) pkgText += d.packageType;
+        if (d.packageQty) pkgText += ' X ' + d.packageQty;
+        if (pkgText) {
+            var pkg = document.createElement('div');
+            pkg.className = 'package-info fit-text';
+            pkg.style.fontSize = (L.package_info_size || 12) + 'px';
+            pkg.style.color = L.package_info_color || '#2c3e50';
+            pkg.style.fontWeight = L.package_info_weight || 'bold';
+            pkg.textContent = pkgText;
+            inner.appendChild(pkg);
+        }
+    }
+
+    function renderWeight(inner, d, L) {
+        var name = document.createElement('div');
+        name.className = 'product-name fit-text-multi';
+        name.style.fontSize = (L.product_name_size || 14) + 'px';
+        name.style.fontWeight = L.product_name_weight || 'bold';
+        name.style.color = L.product_name_color || '#000';
+        name.textContent = d.name || 'PRODUCTO';
+        inner.appendChild(name);
+
+        if (L.show_dividers !== false) {
+            var div1 = document.createElement('div');
+            div1.className = 'divider';
+            div1.style.borderColor = L.divider_color || '#ccc';
+            inner.appendChild(div1);
+        }
+
+        var row = document.createElement('div');
+        row.className = 'weight-row';
+
+        var prices = [
+            { val: d.price100g, label: '100 gr', size: L.price_100g_size || 12, color: L.price_100g_color || '#000', weight: 'normal' },
+            { val: d.price250g, label: '¼ Kg', size: L.price_250g_size || 14, color: L.price_250g_color || '#000', weight: 'normal' },
+            { val: d.price1kg, label: 'Kg', size: L.price_1kg_size || 20, color: L.price_1kg_color || '#e74c3c', weight: L.price_1kg_weight || 'bold' },
+        ];
+
+        prices.forEach(function(p) {
+            if (p.val) {
+                var cell = document.createElement('div');
+                cell.className = 'weight-cell';
+                cell.innerHTML = '<span class="weight-label">' + p.label + '</span>' +
+                    '<span class="fit-text" style="font-size:' + p.size + 'px;color:' + p.color + ';font-weight:' + p.weight + ';">' +
+                    formatPrice(p.val) + '</span>';
+                row.appendChild(cell);
+            }
+        });
+
+        inner.appendChild(row);
+    }
+
+    // Auto-fit text: shrink font until it fits container
+    function autoFitAll() {
+        document.querySelectorAll('.fit-text').forEach(function(el) {
+            autoFitElement(el);
+        });
+    }
+
+    function autoFitElement(el) {
+        var parent = el.closest('.sign-card') || el.parentElement;
+        if (!parent) return;
+        var maxWidth = parent.clientWidth - 4; // small padding
+        var fontSize = parseFloat(window.getComputedStyle(el).fontSize);
+        var minSize = 6;
+        while (el.scrollWidth > maxWidth && fontSize > minSize) {
+            fontSize -= 0.5;
+            el.style.fontSize = fontSize + 'px';
+        }
+    }
+
+    // Run
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.sign-card').forEach(function(el) {
+            renderSign(el, SIGNAGE_LAYOUT, SIGNAGE_TEMPLATE_TYPE);
+        });
+        setTimeout(autoFitAll, 50);
+    });
+})();
+</script>
+</body>
+</html>
