@@ -52,6 +52,8 @@ class SignRenderer {
                 this._renderShapeElement(div, el, px);
             } else if (el.type === 'line') {
                 this._renderLineElement(div, el, px);
+            } else if (el.type === 'image') {
+                this._renderImageElement(div, el, px);
             }
 
             signEl.appendChild(div);
@@ -117,6 +119,15 @@ class SignRenderer {
         if (el.opacity !== undefined && el.opacity !== 1) {
             div.style.opacity = el.opacity;
         }
+    }
+
+    _renderImageElement(div, el, px) {
+        const img = document.createElement('img');
+        img.src = el.src || '';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+        div.appendChild(img);
     }
 
     _renderLineElement(div, el, px) {

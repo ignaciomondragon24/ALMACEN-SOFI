@@ -132,16 +132,17 @@ class SignGenerator {
     _updateItemsUI() {
         const list = document.getElementById('itemsList');
         const counter = document.getElementById('itemCount');
+        const btnPrint = document.getElementById('btnPrint');
+        const emptyMsg = document.getElementById('emptyMessage');
 
         const totalCopies = this.items.reduce((s, i) => s + (i.copies || 1), 0);
         if (counter) counter.textContent = `${this.items.length} producto(s), ${totalCopies} cartel(es)`;
 
+        if (btnPrint) btnPrint.disabled = this.items.length === 0;
+        if (emptyMsg) emptyMsg.style.display = this.items.length === 0 ? '' : 'none';
+
         if (this.items.length === 0) {
-            list.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-search fa-2x mb-2"></i>
-                    <p>Buscá un producto arriba para agregar carteles.</p>
-                </div>`;
+            list.innerHTML = '';
             return;
         }
 
@@ -260,8 +261,15 @@ class SignGenerator {
 /* ============================================================
    INITIALIZATION
    ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof GENERATE_CONFIG !== 'undefined') {
-        window.generator = new SignGenerator(GENERATE_CONFIG);
+(function() {
+    function init() {
+        if (typeof GENERATE_CONFIG !== 'undefined') {
+            window.generator = new SignGenerator(GENERATE_CONFIG);
+        }
     }
-});
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

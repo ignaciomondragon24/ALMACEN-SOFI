@@ -229,6 +229,13 @@
                 div.style.borderTop = (el.lineWidth || 1) + 'mm ' + (el.lineStyle || 'solid') + ' ' + (el.lineColor || '#000');
                 div.style.top = (el.y + el.height / 2) + 'mm';
                 div.style.height = '0';
+            } else if (el.type === 'image') {
+                const img = document.createElement('img');
+                img.src = el.src || '';
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'contain';
+                div.appendChild(img);
             }
 
             container.appendChild(div);

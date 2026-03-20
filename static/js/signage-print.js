@@ -76,23 +76,17 @@ class SignPrintManager {
      * Stores data in localStorage and opens print_preview.html
      */
     openPrintWindow(printUrl) {
-        const grid = this.calculateGrid();
-        const pages = this.generatePages();
-        const paper = SignPrintManager.PAPER_SIZES[this.paperSize] || SignPrintManager.PAPER_SIZES.A4;
-
         const printData = {
             layout: this.layout,
-            signWidthMM: this.signWidthMM,
-            signHeightMM: this.signHeightMM,
-            paperWidth: paper.width,
-            paperHeight: paper.height,
+            items: this.items,
+            widthMM: this.signWidthMM,
+            heightMM: this.signHeightMM,
+            paperSize: this.paperSize,
             margin: this.margin,
             gap: this.gap,
-            grid: grid,
-            pages: pages,
         };
 
-        localStorage.setItem('signage_print_data', JSON.stringify(printData));
+        localStorage.setItem('signagePrintData', JSON.stringify(printData));
         window.open(printUrl, '_blank');
     }
 }
