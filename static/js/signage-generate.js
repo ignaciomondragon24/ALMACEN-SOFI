@@ -251,7 +251,6 @@ class SignGenerator {
     _updatePreview() {
         const container = document.getElementById('previewArea');
         if (!container) return;
-        container.innerHTML = '';
 
         const { paperSize, margin, gap } = this._getPrintSettings();
         const grid = this._calcGrid(paperSize, margin, gap);
@@ -266,75 +265,76 @@ class SignGenerator {
         const sw = this.config.widthMM;
         const sh = this.config.heightMM;
 
-        // Expand items by copies
+        // Collect product data (expand by copies)
         const allSigns = [];
         this.items.forEach(item => {
             for (let c = 0; c < (item.copies || 1); c++) {
                 allSigns.push(item.data);
             }
         });
-
         const totalCopies = allSigns.length;
-        const totalPages = totalCopies > 0 ? Math.ceil(totalCopies / grid.perPage) : 1;
-        const pagesToShow = Math.min(totalPages, 4); // max 4 pages in preview
+        const totalPages = totalCopies > 0 ? Math.ceil(totalCopies / grid.perPage) : 0;
 
-        // Scale paper to fit preview area
-        const maxW = container.clientWidth - 20;
-        const maxH = totalPages > 1 ? 350 : 500;
+        // Scale paper to fit preview area — use parent's width as fallback
+        const containerW = container.clientWidth || container.parentElement?.clientWidth || 500;
+        const maxW = containerW - 20;
         const paperWPx = paper.w * 3.78;
         const paperHPx = paper.h * 3.78;
-        const scale = Math.min(maxW / paperWPx, maxH / paperHPx, 1);
+        const scale = Math.min(maxW / paperWPx, 500 / paperHPx, 1);
         const px = 3.78 * scale;
 
-        for (let page = 0; page < pagesToShow; page++) {
-            // Page label
-            if (totalPages > 1) {
-                const label = document.createElement('div');
-                label.className = 'text-center text-muted small mb-1 mt-2';
-                label.innerHTML = `<i class="fas fa-file me-1"></i>Hoja ${page + 1} de ${totalPages}`;
-                container.appendChild(label);
-            }
+        // Clear AFTER measuring width
+        container.innerHTML = '';
 
-            const pageDiv = document.createElement('div');
-            pageDiv.style.cssText = `position:relative;width:${paper.w * px / 3.78 * 3.78}px;height:${paper.h * px / 3.78 * 3.78}px;background:white;border:1px solid #ccc;margin:0 auto 8px;box-shadow:0 2px 10px rgba(0,0,0,0.15);overflow:hidden;`;
-            pageDiv.style.width = (paper.w * px) + 'px';
-            pageDiv.style.height = (paper.h * px) + 'px';
+        // --- Build ONE representative page showing ALL grid positions filled ---
+        const pageDiv = document.createElement('div');
+        pageDiv.style.cssText = `position:relative;background:white;border:1px solid #ccc;margin:0 auto 8px;box-shadow:0 2px 10px rgba(0,0,0,0.15);overflow:hidden;`;
+        pageDiv.style.width = (paper.w * px) + 'px';
+        pageDiv.style.height = (paper.h * px) + 'px';
 
-            const pageStart = page * grid.perPage;
+        for (let i = 0; i < grid.perPage; i++) {
+            const row = Math.floor(i / grid.cols);
+            const col = i % grid.cols;
+            const x = margin + col * (sw + gap);
+            const y = margin + row * (sh + gap);
 
-            for (let i = 0; i < grid.perPage; i++) {
-                const row = Math.floor(i / grid.cols);
-                const col = i % grid.cols;
-                const x = margin + col * (sw + gap);
-                const y = margin + row * (sh + gap);
+            const slot = document.createElement('div');
+            slot.style.cssText = `position:absolute;left:${x * px}px;top:${y * px}px;width:${sw * px}px;height:${sh * px}px;overflow:hidden;border:1px solid #e0e0e0;box-sizing:border-box;`;
 
-                const slot = document.createElement('div');
-                slot.style.cssText = `position:absolute;left:${x * px}px;top:${y * px}px;width:${sw * px}px;height:${sh * px}px;overflow:hidden;`;
-
-                const signIdx = pageStart + i;
-                if (signIdx < totalCopies) {
-                    this.renderer.render(slot, this.config.layout, allSigns[signIdx], sw, sh, scale);
-                } else {
-                    slot.style.border = '1px dashed #ccc';
-                    slot.style.borderRadius = '2px';
-                    slot.style.display = 'flex';
-                    slot.style.alignItems = 'center';
-                    slot.style.justifyContent = 'center';
-                    slot.innerHTML = `<span style="color:#ccc;font-size:${Math.max(8, 10 * scale)}px;"><i class="fas fa-plus"></i></span>`;
+            if (allSigns.length > 0) {
+                // Cycle through products to fill ALL slots on the page
+                const signData = allSigns[i % allSigns.length];
+                try {
+                    this.renderer.render(slot, this.config.layout, signData, sw, sh, scale);
+                } catch (err) {
+                    console.error('Error rendering sign slot', i, err);
+                    slot.style.background = '#fff3f3';
+                    slot.innerHTML = '<span style="color:red;font-size:10px;">Error</span>';
                 }
-
-                pageDiv.appendChild(slot);
+            } else {
+                // No products yet — show empty placeholder
+                slot.style.border = '1px dashed #ccc';
+                slot.style.display = 'flex';
+                slot.style.alignItems = 'center';
+                slot.style.justifyContent = 'center';
+                slot.innerHTML = `<span style="color:#ccc;font-size:${Math.max(8, 10 * scale)}px;"><i class="fas fa-plus"></i></span>`;
             }
 
-            container.appendChild(pageDiv);
+            pageDiv.appendChild(slot);
         }
 
-        if (totalPages > pagesToShow) {
-            const extra = document.createElement('p');
-            extra.className = 'text-center text-muted small mt-1';
-            extra.textContent = `... y ${totalPages - pagesToShow} hoja(s) más`;
-            container.appendChild(extra);
+        container.appendChild(pageDiv);
+
+        // Info summary below the page
+        const summary = document.createElement('div');
+        summary.className = 'text-center small mt-2';
+        if (totalCopies > 0) {
+            summary.innerHTML = `<span class="text-muted">Entran <strong>${grid.perPage}</strong> carteles por hoja.</span> ` +
+                `<span class="text-primary">Con <strong>${totalCopies}</strong> copia(s) necesitás <strong>${totalPages}</strong> hoja(s).</span>`;
+        } else {
+            summary.innerHTML = `<span class="text-muted">Entran <strong>${grid.perPage}</strong> carteles por hoja. Agregá productos para verlos.</span>`;
         }
+        container.appendChild(summary);
     }
 
     /* ----------------------------------------------------------
