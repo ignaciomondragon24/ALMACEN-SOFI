@@ -67,7 +67,7 @@
 </head>
 <body>
     <div class="print-controls" id="printControls">
-        <span>Vista de Impresión - CHE GOLOSO</span>
+        <span id="nestingLabel">Vista de Impresión - CHE GOLOSO</span>
         <div style="display: flex; gap: 10px;">
             <button class="btn-close-print" onclick="window.close()">Cerrar</button>
             <button class="btn-print" onclick="window.print()">
@@ -106,9 +106,23 @@
         const usableW = paper.w - 2 * margin;
         const usableH = paper.h - 2 * margin;
 
-        const cols = Math.max(1, Math.floor((usableW + gap) / (widthMM + gap)));
-        const rows = Math.max(1, Math.floor((usableH + gap) / (heightMM + gap)));
-        const perPage = cols * rows;
+        // Try both orientations
+        const colsN = Math.max(1, Math.floor((usableW + gap) / (widthMM + gap)));
+        const rowsN = Math.max(1, Math.floor((usableH + gap) / (heightMM + gap)));
+        const totalN = colsN * rowsN;
+
+        const colsR = Math.max(1, Math.floor((usableW + gap) / (heightMM + gap)));
+        const rowsR = Math.max(1, Math.floor((usableH + gap) / (widthMM + gap)));
+        const totalR = colsR * rowsR;
+
+        let cols, rows, perPage, signW, signH;
+        if (totalR > totalN) {
+            cols = colsR; rows = rowsR; perPage = totalR;
+            signW = heightMM; signH = widthMM;
+        } else {
+            cols = colsN; rows = rowsN; perPage = totalN;
+            signW = widthMM; signH = heightMM;
+        }
 
         // Expand items by copies
         const allSigns = [];
@@ -121,6 +135,12 @@
         const totalPages = Math.ceil(allSigns.length / perPage);
         const container = document.getElementById('printPagesContainer');
         container.innerHTML = '';
+
+        // Update nesting info label
+        const label = document.getElementById('nestingLabel');
+        if (label) {
+            label.textContent = `${cols}×${rows} = ${perPage} carteles/hoja | ${totalPages} hoja(s) | ${allSigns.length} cartel(es)`;
+        }
 
         // Screen scale for preview (1mm = ~3.78px at 96dpi)
         const screenPxPerMM = 3.78;
@@ -137,17 +157,17 @@
 
                 const row = Math.floor(i / cols);
                 const col = i % cols;
-                const x = margin + col * (widthMM + gap);
-                const y = margin + row * (heightMM + gap);
+                const x = margin + col * (signW + gap);
+                const y = margin + row * (signH + gap);
 
                 const signDiv = document.createElement('div');
                 signDiv.className = 'print-sign';
                 signDiv.style.left = x + 'mm';
                 signDiv.style.top = y + 'mm';
-                signDiv.style.width = widthMM + 'mm';
-                signDiv.style.height = heightMM + 'mm';
+                signDiv.style.width = signW + 'mm';
+                signDiv.style.height = signH + 'mm';
 
-                renderSign(signDiv, layout, allSigns[idx], widthMM, heightMM);
+                renderSign(signDiv, layout, allSigns[idx], signW, signH);
                 pageDiv.appendChild(signDiv);
             }
 

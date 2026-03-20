@@ -9,34 +9,34 @@ from django.conf import settings
 LOGO_URL = '/static/img/logo.png'
 
 DEFAULT_LAYOUTS = {
-    'simple_50x40': {
+    'simple_40x40': {
         'name': 'Simple Clásico',
         'sign_type': 'simple',
-        'width_mm': 50, 'height_mm': 40,
+        'width_mm': 40, 'height_mm': 40,
         'layout': {
             'background_color': '#FFFFFF',
             'border_color': '#000000',
             'border_width': 0.3,
             'elements': [
                 {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 1, 'y': 0.5, 'width': 12, 'height': 5, 'zIndex': 20},
+                 'x': 1, 'y': 0.5, 'width': 10, 'height': 4, 'zIndex': 20},
                 {'id': 'e2', 'type': 'variable', 'variable': 'nombre_producto',
-                 'x': 2, 'y': 6, 'width': 46, 'height': 11,
-                 'fontFamily': 'Arial Black', 'fontSize': 12, 'fontWeight': 'bold',
+                 'x': 2, 'y': 5, 'width': 36, 'height': 10,
+                 'fontFamily': 'Arial Black', 'fontSize': 11, 'fontWeight': 'bold',
                  'color': '#000000', 'backgroundColor': 'transparent',
                  'textAlign': 'center', 'verticalAlign': 'middle',
-                 'autoScale': True, 'minFontSize': 7, 'zIndex': 10},
+                 'autoScale': True, 'minFontSize': 6, 'zIndex': 10},
                 {'id': 'e3', 'type': 'variable', 'variable': 'gramaje',
-                 'x': 15, 'y': 16.5, 'width': 20, 'height': 4,
+                 'x': 10, 'y': 15, 'width': 20, 'height': 4,
                  'fontFamily': 'Arial', 'fontSize': 7, 'fontWeight': 'normal',
                  'fontStyle': 'italic', 'color': '#666666', 'backgroundColor': 'transparent',
                  'textAlign': 'center', 'verticalAlign': 'middle',
                  'autoScale': True, 'minFontSize': 5, 'zIndex': 10},
-                {'id': 'e4', 'type': 'line', 'x': 5, 'y': 21, 'width': 40, 'height': 0.3,
+                {'id': 'e4', 'type': 'line', 'x': 4, 'y': 19.5, 'width': 32, 'height': 0.3,
                  'lineColor': '#000000', 'lineWidth': 0.3, 'lineStyle': 'solid', 'zIndex': 5},
                 {'id': 'e5', 'type': 'variable', 'variable': 'precio_unitario',
-                 'x': 3, 'y': 22, 'width': 44, 'height': 16,
-                 'fontFamily': 'Arial Black', 'fontSize': 26, 'fontWeight': 'bold',
+                 'x': 2, 'y': 20, 'width': 36, 'height': 18,
+                 'fontFamily': 'Arial Black', 'fontSize': 24, 'fontWeight': 'bold',
                  'color': '#000000', 'backgroundColor': 'transparent',
                  'textAlign': 'center', 'verticalAlign': 'middle',
                  'autoScale': True, 'minFontSize': 14, 'zIndex': 10},
@@ -450,7 +450,7 @@ class SignTemplate(models.Model):
 
     PRESET_SIZES = {
         'simple': [
-            {'label': '5 × 4 cm', 'width': 50, 'height': 40},
+            {'label': '4 × 4 cm', 'width': 40, 'height': 40},
             {'label': '5 × 3 cm', 'width': 50, 'height': 30},
         ],
         'promo': [

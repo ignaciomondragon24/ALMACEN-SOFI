@@ -14,7 +14,9 @@ class SignGenerator {
     _init() {
         this._setupSearch();
         this._setupPrintControls();
+        this._setupNestingListeners();
         this._updateItemsUI();
+        this._updateNestingInfo();
     }
 
     /* ----------------------------------------------------------
@@ -188,27 +190,144 @@ class SignGenerator {
     }
 
     /* ----------------------------------------------------------
-       PREVIEW
+       NESTING INFO & PREVIEW
        ---------------------------------------------------------- */
+    _getPrintSettings() {
+        const paperSize = document.getElementById('paperSize')?.value || 'A4';
+        const margin = parseInt(document.getElementById('printMargin')?.value) || 5;
+        const gap = parseInt(document.getElementById('printGap')?.value) || 2;
+        return { paperSize, margin, gap };
+    }
+
+    _calcGrid(paperSize, margin, gap) {
+        const PAPER = { A4: {w:210,h:297}, A3: {w:297,h:420}, letter: {w:216,h:279} };
+        const paper = PAPER[paperSize] || PAPER.A4;
+        const pw = paper.w - 2 * margin;
+        const ph = paper.h - 2 * margin;
+        const sw = this.config.widthMM;
+        const sh = this.config.heightMM;
+
+        const colsN = Math.floor((pw + gap) / (sw + gap));
+        const rowsN = Math.floor((ph + gap) / (sh + gap));
+        const totalN = colsN * rowsN;
+
+        const colsR = Math.floor((pw + gap) / (sh + gap));
+        const rowsR = Math.floor((ph + gap) / (sw + gap));
+        const totalR = colsR * rowsR;
+
+        if (totalR > totalN) {
+            return { cols: colsR, rows: rowsR, perPage: totalR, rotated: true, paper };
+        }
+        return { cols: colsN, rows: rowsN, perPage: totalN, rotated: false, paper };
+    }
+
+    _setupNestingListeners() {
+        ['paperSize', 'printMargin', 'printGap'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', () => {
+                this._updateNestingInfo();
+                this._updatePreview();
+            });
+        });
+    }
+
+    _updateNestingInfo() {
+        const info = document.getElementById('nestingInfo');
+        if (!info) return;
+
+        const { paperSize, margin, gap } = this._getPrintSettings();
+        const grid = this._calcGrid(paperSize, margin, gap);
+
+        if (grid.perPage === 0) {
+            info.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>El cartel no entra en esta hoja.</span>';
+            return;
+        }
+
+        const totalCopies = this.items.reduce((s, i) => s + (i.copies || 1), 0);
+        const totalPages = totalCopies > 0 ? Math.ceil(totalCopies / grid.perPage) : 0;
+        const rotatedLabel = grid.rotated ? ' <span class="badge bg-info">Rotado</span>' : '';
+
+        info.innerHTML = `
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span><i class="fas fa-th me-1"></i><strong>${grid.cols} × ${grid.rows} = ${grid.perPage}</strong> carteles/hoja${rotatedLabel}</span>
+                ${totalCopies > 0 ? `<span class="text-primary">| <strong>${totalPages}</strong> hoja(s) para ${totalCopies} cartel(es)</span>` : ''}
+            </div>`;
+    }
+
     _updatePreview() {
         const container = document.getElementById('previewArea');
         if (!container) return;
         container.innerHTML = '';
 
-        if (this.items.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center">Vista previa aquí</p>';
+        const { paperSize, margin, gap } = this._getPrintSettings();
+        const grid = this._calcGrid(paperSize, margin, gap);
+        this._updateNestingInfo();
+
+        if (grid.perPage === 0) {
+            container.innerHTML = '<p class="text-danger text-center py-3">El cartel no entra en esta hoja</p>';
             return;
         }
 
-        // Show first item as preview
-        const firstItem = this.items[0];
-        const maxW = container.clientWidth - 20;
-        const cw = this.config.widthMM * 3.78;
-        const ch = this.config.heightMM * 3.78;
-        const scale = Math.min(maxW / cw, 2);
+        const PAPER = { A4: {w:210,h:297}, A3: {w:297,h:420}, letter: {w:216,h:279} };
+        const paper = PAPER[paperSize] || PAPER.A4;
+        const sw = grid.rotated ? this.config.heightMM : this.config.widthMM;
+        const sh = grid.rotated ? this.config.widthMM : this.config.heightMM;
 
-        this.renderer.render(container, this.config.layout, firstItem.data,
-            this.config.widthMM, this.config.heightMM, scale);
+        // Scale paper to fit preview area
+        const maxW = container.clientWidth - 20;
+        const maxH = 500;
+        const paperWPx = paper.w * 3.78;
+        const paperHPx = paper.h * 3.78;
+        const scale = Math.min(maxW / paperWPx, maxH / paperHPx, 1);
+
+        const pageDiv = document.createElement('div');
+        pageDiv.style.cssText = `position:relative;width:${paper.w * 3.78 * scale}px;height:${paper.h * 3.78 * scale}px;background:white;border:1px solid #ccc;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,0.15);overflow:hidden;`;
+
+        // Expand items by copies
+        const allSigns = [];
+        this.items.forEach(item => {
+            for (let c = 0; c < (item.copies || 1); c++) {
+                allSigns.push(item.data);
+            }
+        });
+
+        const px = 3.78 * scale;
+
+        for (let i = 0; i < grid.perPage; i++) {
+            const row = Math.floor(i / grid.cols);
+            const col = i % grid.cols;
+            const x = margin + col * (sw + gap);
+            const y = margin + row * (sh + gap);
+
+            const slot = document.createElement('div');
+            slot.style.cssText = `position:absolute;left:${x * px}px;top:${y * px}px;width:${sw * px}px;height:${sh * px}px;overflow:hidden;`;
+
+            if (i < allSigns.length) {
+                // Render actual sign
+                this.renderer.render(slot, this.config.layout, allSigns[i], sw, sh, scale);
+            } else {
+                // Empty slot placeholder
+                slot.style.border = '1px dashed #ccc';
+                slot.style.borderRadius = '2px';
+                slot.style.display = 'flex';
+                slot.style.alignItems = 'center';
+                slot.style.justifyContent = 'center';
+                slot.innerHTML = `<span style="color:#ccc;font-size:${10 * scale}px;"><i class="fas fa-plus"></i></span>`;
+            }
+
+            pageDiv.appendChild(slot);
+        }
+
+        container.appendChild(pageDiv);
+
+        // Page info below
+        const totalCopies = this.items.reduce((s, i) => s + (i.copies || 1), 0);
+        if (totalCopies > grid.perPage) {
+            const extra = document.createElement('p');
+            extra.className = 'text-center text-muted small mt-2';
+            extra.textContent = `Mostrando hoja 1 de ${Math.ceil(totalCopies / grid.perPage)}`;
+            container.appendChild(extra);
+        }
     }
 
     /* ----------------------------------------------------------
@@ -227,7 +346,7 @@ class SignGenerator {
             return;
         }
 
-        const paperSize = document.getElementById('paperSize')?.value || 'A4';
+        const { paperSize, margin, gap } = this._getPrintSettings();
 
         const manager = new SignPrintManager({
             signWidthMM: this.config.widthMM,
@@ -235,8 +354,8 @@ class SignGenerator {
             layout: this.config.layout,
             items: this.items,
             paperSize: paperSize,
-            margin: 5,
-            gap: 2,
+            margin: margin,
+            gap: gap,
         });
 
         manager.openPrintWindow(this.config.printUrl);
