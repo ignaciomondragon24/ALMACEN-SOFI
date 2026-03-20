@@ -62,6 +62,7 @@
             }
             .print-page:last-child { page-break-after: auto; }
             body { background: white; }
+            @page { margin: 0; size: A4 portrait; }
         }
     </style>
 </head>
@@ -106,23 +107,14 @@
         const usableW = paper.w - 2 * margin;
         const usableH = paper.h - 2 * margin;
 
-        // Try both orientations
-        const colsN = Math.max(1, Math.floor((usableW + gap) / (widthMM + gap)));
-        const rowsN = Math.max(1, Math.floor((usableH + gap) / (heightMM + gap)));
-        const totalN = colsN * rowsN;
+        const cols = Math.max(1, Math.floor((usableW + gap) / (widthMM + gap)));
+        const rows = Math.max(1, Math.floor((usableH + gap) / (heightMM + gap)));
+        const perPage = cols * rows;
 
-        const colsR = Math.max(1, Math.floor((usableW + gap) / (heightMM + gap)));
-        const rowsR = Math.max(1, Math.floor((usableH + gap) / (widthMM + gap)));
-        const totalR = colsR * rowsR;
-
-        let cols, rows, perPage, signW, signH;
-        if (totalR > totalN) {
-            cols = colsR; rows = rowsR; perPage = totalR;
-            signW = heightMM; signH = widthMM;
-        } else {
-            cols = colsN; rows = rowsN; perPage = totalN;
-            signW = widthMM; signH = heightMM;
-        }
+        // Dynamic @page size
+        const styleEl = document.createElement('style');
+        styleEl.textContent = `@media print { @page { margin: 0; size: ${paper.w}mm ${paper.h}mm; } }`;
+        document.head.appendChild(styleEl);
 
         // Expand items by copies
         const allSigns = [];
@@ -142,9 +134,6 @@
             label.textContent = `${cols}×${rows} = ${perPage} carteles/hoja | ${totalPages} hoja(s) | ${allSigns.length} cartel(es)`;
         }
 
-        // Screen scale for preview (1mm = ~3.78px at 96dpi)
-        const screenPxPerMM = 3.78;
-
         for (let page = 0; page < totalPages; page++) {
             const pageDiv = document.createElement('div');
             pageDiv.className = 'print-page';
@@ -157,18 +146,34 @@
 
                 const row = Math.floor(i / cols);
                 const col = i % cols;
-                const x = margin + col * (signW + gap);
-                const y = margin + row * (signH + gap);
+                const x = margin + col * (widthMM + gap);
+                const y = margin + row * (heightMM + gap);
 
                 const signDiv = document.createElement('div');
                 signDiv.className = 'print-sign';
                 signDiv.style.left = x + 'mm';
                 signDiv.style.top = y + 'mm';
-                signDiv.style.width = signW + 'mm';
-                signDiv.style.height = signH + 'mm';
+                signDiv.style.width = widthMM + 'mm';
+                signDiv.style.height = heightMM + 'mm';
 
-                renderSign(signDiv, layout, allSigns[idx], signW, signH);
+                renderSign(signDiv, layout, allSigns[idx], widthMM, heightMM);
                 pageDiv.appendChild(signDiv);
+            }
+
+            // Add cut lines between signs
+            for (let c = 1; c < cols; c++) {
+                const lineX = margin + c * (widthMM + gap) - gap / 2;
+                const line = document.createElement('div');
+                line.className = 'cut-line-v';
+                line.style.left = lineX + 'mm';
+                pageDiv.appendChild(line);
+            }
+            for (let r = 1; r < rows; r++) {
+                const lineY = margin + r * (heightMM + gap) - gap / 2;
+                const line = document.createElement('div');
+                line.className = 'cut-line-h';
+                line.style.top = lineY + 'mm';
+                pageDiv.appendChild(line);
             }
 
             container.appendChild(pageDiv);

@@ -22,7 +22,6 @@ class SignPrintManager {
 
     /**
      * Calculate how many signs fit on one page.
-     * Tries both orientations (normal & rotated) and picks the best.
      */
     calculateGrid() {
         const paper = SignPrintManager.PAPER_SIZES[this.paperSize] || SignPrintManager.PAPER_SIZES.A4;
@@ -32,20 +31,9 @@ class SignPrintManager {
         const sh = this.signHeightMM;
         const gap = this.gap;
 
-        // Normal orientation
-        const colsN = Math.floor((pw + gap) / (sw + gap));
-        const rowsN = Math.floor((ph + gap) / (sh + gap));
-        const totalN = colsN * rowsN;
-
-        // Rotated (swap sign w/h)
-        const colsR = Math.floor((pw + gap) / (sh + gap));
-        const rowsR = Math.floor((ph + gap) / (sw + gap));
-        const totalR = colsR * rowsR;
-
-        if (totalR > totalN) {
-            return { cols: colsR, rows: rowsR, total: totalR, rotated: true };
-        }
-        return { cols: colsN, rows: rowsN, total: totalN, rotated: false };
+        const cols = Math.floor((pw + gap) / (sw + gap));
+        const rows = Math.floor((ph + gap) / (sh + gap));
+        return { cols, rows, total: cols * rows };
     }
 
     /**
