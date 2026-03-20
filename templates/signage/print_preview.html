@@ -223,21 +223,36 @@
                 span.textContent = text;
 
                 if (el.autoScale && text) {
-                    // Auto-scale: start from max font size and shrink to fit
                     const maxSize = el.fontSize || 14;
                     const minSize = el.minFontSize || 6;
-                    // Convert mm to px for measurement (using a fixed ratio)
-                    const containerWPx = el.width * 3.78;
-                    const containerHPx = el.height * 3.78;
 
                     span.style.fontSize = maxSize + 'pt';
                     div.appendChild(span);
 
-                    // Shrink until it fits
-                    let size = maxSize;
-                    while (size > minSize && (span.scrollWidth > containerWPx + 1 || span.scrollHeight > containerHPx + 1)) {
-                        size -= 0.5;
-                        span.style.fontSize = size + 'pt';
+                    // Use actual rendered container size for accurate measuring
+                    const cW = div.clientWidth || (el.width * 3.78);
+                    const cH = div.clientHeight || (el.height * 3.78);
+
+                    if (cW > 0 && (span.scrollWidth > cW + 1 || span.scrollHeight > cH + 1)) {
+                        // Binary search for optimal size
+                        let lo = minSize, hi = maxSize;
+                        while (hi - lo > 0.5) {
+                            const mid = (lo + hi) / 2;
+                            span.style.fontSize = mid + 'pt';
+                            if (span.scrollWidth <= cW + 1 && span.scrollHeight <= cH + 1) {
+                                lo = mid;
+                            } else {
+                                hi = mid;
+                            }
+                        }
+                        // Fine-tune
+                        let size = lo;
+                        while (size > minSize) {
+                            span.style.fontSize = size + 'pt';
+                            if (span.scrollWidth <= cW + 1 && span.scrollHeight <= cH + 1) break;
+                            size -= 0.25;
+                        }
+                        span.style.fontSize = Math.max(size, minSize) + 'pt';
                     }
                 } else {
                     span.style.fontSize = (el.fontSize || 14) + 'pt';

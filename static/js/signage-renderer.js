@@ -139,6 +139,7 @@ class SignRenderer {
 
     /**
      * Apply auto-scaling to all marked text spans after DOM insertion.
+     * Uses binary search for speed, then fine-tunes. Checks both axes.
      */
     _applyAutoScale(container, scale) {
         container.querySelectorAll('[data-auto-scale="1"]').forEach(span => {
@@ -150,17 +151,27 @@ class SignRenderer {
 
             if (!span.textContent.trim() || containerW <= 0) return;
 
-            let size = maxSize;
-            span.style.fontSize = size + 'pt';
+            // Helper: does text fit at given pt size?
+            const fits = (sz) => {
+                span.style.fontSize = sz + 'pt';
+                return span.scrollWidth <= containerW + 1 && span.scrollHeight <= containerH + 1;
+            };
 
-            // Shrink until text fits
-            while (size > minSize) {
-                if (span.scrollWidth <= containerW + 1 && span.scrollHeight <= containerH + 1) {
-                    break;
-                }
-                size -= 0.5;
-                span.style.fontSize = size + 'pt';
+            // Quick check: if max fits, done
+            if (fits(maxSize)) return;
+
+            // Binary search down to ~0.5pt precision
+            let lo = minSize, hi = maxSize;
+            while (hi - lo > 0.5) {
+                const mid = (lo + hi) / 2;
+                if (fits(mid)) { lo = mid; } else { hi = mid; }
             }
+            // Fine-tune: step down from lo in 0.25pt steps
+            let size = lo;
+            while (size > minSize && !fits(size)) {
+                size -= 0.25;
+            }
+            span.style.fontSize = Math.max(size, minSize) + 'pt';
         });
     }
 
@@ -170,9 +181,9 @@ class SignRenderer {
     getSampleData(signType) {
         const SAMPLES = {
             simple: {
-                nombre_producto: 'SALADIX',
-                gramaje: '100g',
-                precio_unitario: '$790',
+                nombre_producto: 'GALLETAS DE ARROZ GALLO',
+                gramaje: '120g',
+                precio_unitario: '$1.290',
             },
             promo: {
                 nombre_producto: 'TURRON MISKY',
@@ -182,13 +193,13 @@ class SignRenderer {
                 etiqueta_promo: 'PROMO!!',
             },
             bulk: {
-                nombre_producto: 'FEELING',
+                nombre_producto: 'CARAMELOS ARCOR SURTIDOS',
                 precio_total: '$11.500',
                 tipo_empaque: 'CAJA',
                 contenido_empaque: 'X 30U.',
             },
             weight: {
-                nombre_producto: 'ALMENDRAS PELADAS',
+                nombre_producto: 'ALMENDRAS PELADAS PREMIUM',
                 precio_100g: '$3.200',
                 precio_250g: '$7.350',
                 precio_1kg: '$29.400',
