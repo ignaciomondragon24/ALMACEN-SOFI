@@ -98,6 +98,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'superrecord.wsgi.application'
 
+# Messages - map Django message tags to Bootstrap CSS classes
+from django.contrib.messages import constants as messages
+MESSAGE_TAGS = {
+    messages.DEBUG: 'secondary',
+    messages.INFO: 'info',
+    messages.SUCCESS: 'success',
+    messages.WARNING: 'warning',
+    messages.ERROR: 'danger',
+}
+
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 

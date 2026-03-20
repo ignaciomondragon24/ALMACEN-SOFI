@@ -18,10 +18,13 @@
                         {% csrf_token %}
                         
                         {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {% for error in form.non_field_errors %}
-                                {{ error }}
-                            {% endfor %}
+                        <div class="alert alert-danger d-flex align-items-center border-0 shadow-sm" style="border-radius: 0.75rem;">
+                            <i class="fas fa-exclamation-circle me-2 fs-5"></i>
+                            <div>
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
                         </div>
                         {% endif %}
                         
@@ -29,7 +32,9 @@
                             <label for="id_username" class="form-label">Usuario *</label>
                             {{ form.username|add_class:"form-control"|attr:"placeholder:Nombre de usuario" }}
                             {% if form.username.errors %}
-                                <div class="text-danger small">{{ form.username.errors.0 }}</div>
+                                <div class="invalid-feedback d-block">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>{{ form.username.errors.0 }}
+                                </div>
                             {% endif %}
                         </div>
 
@@ -52,9 +57,11 @@
                         {% if form.password %}
                         <div class="mb-3">
                             <label for="id_password" class="form-label">Contraseña *</label>
-                            {{ form.password|add_class:"form-control"|attr:"placeholder:Contraseña" }}
+                            {{ form.password|add_class:"form-control"|attr:"placeholder:Mínimo 8 caracteres" }}
                             {% if form.password.errors %}
-                                <div class="text-danger small">{{ form.password.errors.0 }}</div>
+                                <div class="invalid-feedback d-block">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>{{ form.password.errors.0 }}
+                                </div>
                             {% endif %}
                         </div>
                         
@@ -62,7 +69,9 @@
                             <label for="id_password_confirm" class="form-label">Confirmar Contraseña *</label>
                             {{ form.password_confirm|add_class:"form-control"|attr:"placeholder:Repetir contraseña" }}
                             {% if form.password_confirm.errors %}
-                                <div class="text-danger small">{{ form.password_confirm.errors.0 }}</div>
+                                <div class="invalid-feedback d-block">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>{{ form.password_confirm.errors.0 }}
+                                </div>
                             {% endif %}
                         </div>
                         {% endif %}
@@ -71,7 +80,9 @@
                             <label for="id_role" class="form-label">Rol *</label>
                             {{ form.role|add_class:"form-select" }}
                             {% if form.role.errors %}
-                                <div class="text-danger small">{{ form.role.errors.0 }}</div>
+                                <div class="invalid-feedback d-block">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>{{ form.role.errors.0 }}
+                                </div>
                             {% endif %}
                             <small class="text-muted">El rol determina qué puede hacer el usuario</small>
                         </div>

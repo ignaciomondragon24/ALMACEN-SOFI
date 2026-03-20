@@ -37,9 +37,9 @@ def login_view(request):
                         return redirect(next_url)
                     return redirect('accounts:home')
                 else:
-                    messages.error(request, 'Tu cuenta está desactivada.')
+                    messages.error(request, 'Tu cuenta está desactivada. Contactá al administrador.')
             else:
-                messages.error(request, 'Usuario o contraseña incorrectos.')
+                messages.error(request, 'Usuario o contraseña incorrectos. Verificá tus datos e intentá de nuevo.')
     else:
         form = LoginForm()
     
@@ -277,9 +277,9 @@ def change_password(request):
         confirm_password = request.POST.get('confirm_password')
         
         if not request.user.check_password(current_password):
-            messages.error(request, 'La contraseña actual es incorrecta.')
+            messages.error(request, 'La contraseña actual es incorrecta. Verificá e intentá de nuevo.')
         elif new_password != confirm_password:
-            messages.error(request, 'Las contraseñas nuevas no coinciden.')
+            messages.error(request, 'Las contraseñas nuevas no coinciden. Asegurate de escribirlas igual.')
         elif len(new_password) < 8:
             messages.error(request, 'La contraseña debe tener al menos 8 caracteres.')
         else:

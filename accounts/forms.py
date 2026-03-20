@@ -54,6 +54,11 @@ class UserForm(forms.ModelForm):
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+        error_messages = {
+            'username': {
+                'unique': 'Ya existe un usuario con ese nombre. Elegí otro.',
+            },
+        }
     
     def clean(self):
         cleaned_data = super().clean()
@@ -61,7 +66,10 @@ class UserForm(forms.ModelForm):
         password_confirm = cleaned_data.get('password_confirm')
         
         if password and password_confirm and password != password_confirm:
-            raise forms.ValidationError('Las contraseñas no coinciden.')
+            raise forms.ValidationError('Las contraseñas no coinciden. Asegurate de escribirlas igual.')
+        
+        if password and len(password) < 8:
+            raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres.')
         
         return cleaned_data
 
