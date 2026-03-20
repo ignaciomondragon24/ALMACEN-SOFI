@@ -124,7 +124,6 @@ class SignRenderer {
         const lineW = (el.lineWidth || 1) * px;
         div.style.borderTop = lineW + 'px ' + (el.lineStyle || 'solid') + ' ' + (el.lineColor || '#000');
         div.style.height = lineW + 'px';
-        div.style.top = ((el.y + el.height / 2) * (px / this.pxPerMM / (px / this.pxPerMM))) + 'px';
     }
 
     /**
