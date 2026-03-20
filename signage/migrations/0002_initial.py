@@ -7,9 +7,8 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    initial = True
-
     dependencies = [
+        ('signage', '0001_reset_legacy'),
         ('stocks', '0007_alter_stockmovement_quantity'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
