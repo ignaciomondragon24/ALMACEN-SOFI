@@ -7,80 +7,49 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 
 from decorators.decorators import group_required
-from .models import SignTemplate, SignBatch, SignItem
-from .forms import SignTemplateForm
+from .models import SignTemplate, SignBatch, SignItem, ensure_default_templates
 from .services import auto_fill_product_data
 
 
 @login_required
 @group_required('Admin', 'Manager', 'Stock Manager')
 def template_list(request):
-    """Lista de plantillas de carteles."""
-    templates = SignTemplate.objects.filter(is_active=True)
+    """Catálogo de plantillas pre-armadas."""
+    ensure_default_templates()
+    templates = SignTemplate.objects.filter(is_active=True).order_by('sign_type', 'width_mm')
+    # Solo mostrar plantillas con layout completo
+    templates = [t for t in templates if t.layout.get('elements')]
+
+    # Agrupar por tipo
+    type_meta = {
+        'simple': {'icon': 'fa-tag', 'color': '#2D1E5F'},
+        'promo': {'icon': 'fa-fire', 'color': '#E91E8C'},
+        'bulk': {'icon': 'fa-box', 'color': '#F5D000'},
+        'weight': {'icon': 'fa-balance-scale', 'color': '#28a745'},
+    }
+
+    grouped = []
+    seen_types = set()
+    for t in templates:
+        if t.sign_type not in seen_types:
+            meta = type_meta.get(t.sign_type, {'icon': 'fa-tag', 'color': '#666'})
+            grouped.append({
+                'type_key': t.sign_type,
+                'label': t.get_sign_type_display(),
+                'icon': meta['icon'],
+                'color': meta['color'],
+                'templates': [],
+            })
+            seen_types.add(t.sign_type)
+        # Append to last group
+        for g in grouped:
+            if g['type_key'] == t.sign_type:
+                g['templates'].append(t)
+                break
+
     return render(request, 'signage/template_list.html', {
-        'templates': templates,
-        'sign_types': SignTemplate.SIGN_TYPES,
+        'grouped': grouped,
     })
-
-
-@login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
-def template_create(request):
-    """Crear una nueva plantilla (paso 1: elegir tipo y tamaño)."""
-    if request.method == 'POST':
-        form = SignTemplateForm(request.POST)
-        if form.is_valid():
-            template = form.save(commit=False)
-            template.created_by = request.user
-            template.layout_json = '{}'
-            template.save()
-            return redirect('signage:designer', pk=template.pk)
-    else:
-        form = SignTemplateForm()
-
-    return render(request, 'signage/template_form.html', {
-        'form': form,
-        'preset_sizes': json.dumps(SignTemplate.PRESET_SIZES),
-        'sign_types': SignTemplate.SIGN_TYPES,
-    })
-
-
-@login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
-def designer(request, pk):
-    """Diseñador visual estilo Canva."""
-    template = get_object_or_404(SignTemplate, pk=pk)
-    variables = SignTemplate.get_type_variables(template.sign_type)
-
-    return render(request, 'signage/designer.html', {
-        'template': template,
-        'layout_json': json.dumps(template.layout),
-        'variables': variables,
-        'variables_json': json.dumps(variables),
-    })
-
-
-@login_required
-@require_POST
-def save_layout(request, pk):
-    """API: Guardar layout del diseñador."""
-    template = get_object_or_404(SignTemplate, pk=pk)
-    try:
-        data = json.loads(request.body)
-        layout = data.get('layout', {})
-
-        if 'name' in data and data['name']:
-            template.name = data['name'][:200]
-        if 'width_mm' in data:
-            template.width_mm = max(10, int(data['width_mm']))
-        if 'height_mm' in data:
-            template.height_mm = max(10, int(data['height_mm']))
-
-        template.layout_json = json.dumps(layout)
-        template.save()
-        return JsonResponse({'success': True})
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON inválido'}, status=400)
 
 
 @login_required
