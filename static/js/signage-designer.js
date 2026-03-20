@@ -1075,8 +1075,16 @@ class SignageDesigner {
    INITIALIZATION
    ============================================================ */
 
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof TEMPLATE_CONFIG !== 'undefined') {
-        window.designer = new SignageDesigner(TEMPLATE_CONFIG);
+(function() {
+    function initDesigner() {
+        if (typeof TEMPLATE_CONFIG !== 'undefined') {
+            window.designer = new SignageDesigner(TEMPLATE_CONFIG);
+        }
     }
-});
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDesigner);
+    } else {
+        initDesigner();
+    }
+})();
