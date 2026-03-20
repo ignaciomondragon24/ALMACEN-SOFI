@@ -48,4 +48,5 @@ def role_context(request):
         'can_settings': is_admin,
         'can_users': is_admin,
         'can_price_list': is_cashier or is_stock_manager,
+        'can_signage': is_manager or is_stock_manager,
     }

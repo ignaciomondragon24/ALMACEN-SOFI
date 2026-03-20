@@ -1,0 +1,98 @@
+/**
+ * CHE GOLOSO - Print Nesting Manager
+ * Optimizes placement of multiple signs on a single paper sheet.
+ */
+
+class SignPrintManager {
+    constructor(config) {
+        this.signWidthMM = config.signWidthMM;
+        this.signHeightMM = config.signHeightMM;
+        this.layout = config.layout;
+        this.items = config.items || [];
+        this.paperSize = config.paperSize || 'A4';
+        this.margin = config.margin || 5;
+        this.gap = config.gap || 2;
+    }
+
+    static PAPER_SIZES = {
+        A4: { width: 210, height: 297 },
+        A3: { width: 297, height: 420 },
+        letter: { width: 216, height: 279 },
+    };
+
+    /**
+     * Calculate how many signs fit on one page.
+     * Tries both orientations (normal & rotated) and picks the best.
+     */
+    calculateGrid() {
+        const paper = SignPrintManager.PAPER_SIZES[this.paperSize] || SignPrintManager.PAPER_SIZES.A4;
+        const pw = paper.width - 2 * this.margin;
+        const ph = paper.height - 2 * this.margin;
+        const sw = this.signWidthMM;
+        const sh = this.signHeightMM;
+        const gap = this.gap;
+
+        // Normal orientation
+        const colsN = Math.floor((pw + gap) / (sw + gap));
+        const rowsN = Math.floor((ph + gap) / (sh + gap));
+        const totalN = colsN * rowsN;
+
+        // Rotated (swap sign w/h)
+        const colsR = Math.floor((pw + gap) / (sh + gap));
+        const rowsR = Math.floor((ph + gap) / (sw + gap));
+        const totalR = colsR * rowsR;
+
+        if (totalR > totalN) {
+            return { cols: colsR, rows: rowsR, total: totalR, rotated: true };
+        }
+        return { cols: colsN, rows: rowsN, total: totalN, rotated: false };
+    }
+
+    /**
+     * Generate all pages as arrays of items.
+     */
+    generatePages() {
+        const grid = this.calculateGrid();
+        if (grid.total === 0) return [];
+
+        // Expand items by copies
+        const expanded = [];
+        this.items.forEach(item => {
+            const copies = Math.max(1, item.copies || 1);
+            for (let i = 0; i < copies; i++) {
+                expanded.push(item.data);
+            }
+        });
+
+        const pages = [];
+        for (let i = 0; i < expanded.length; i += grid.total) {
+            pages.push(expanded.slice(i, i + grid.total));
+        }
+        return pages;
+    }
+
+    /**
+     * Open print window with all pages rendered.
+     * Stores data in localStorage and opens print_preview.html
+     */
+    openPrintWindow(printUrl) {
+        const grid = this.calculateGrid();
+        const pages = this.generatePages();
+        const paper = SignPrintManager.PAPER_SIZES[this.paperSize] || SignPrintManager.PAPER_SIZES.A4;
+
+        const printData = {
+            layout: this.layout,
+            signWidthMM: this.signWidthMM,
+            signHeightMM: this.signHeightMM,
+            paperWidth: paper.width,
+            paperHeight: paper.height,
+            margin: this.margin,
+            gap: this.gap,
+            grid: grid,
+            pages: pages,
+        };
+
+        localStorage.setItem('signage_print_data', JSON.stringify(printData));
+        window.open(printUrl, '_blank');
+    }
+}

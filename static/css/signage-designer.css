@@ -1,0 +1,331 @@
+/* ==========================================================
+   CHE GOLOSO - Signage Designer Styles
+   ========================================================== */
+
+:root {
+    --dsg-bg: #1e1e2e;
+    --dsg-sidebar: #252536;
+    --dsg-toolbar: #2D1E5F;
+    --dsg-canvas-bg: #383850;
+    --dsg-accent: #E91E8C;
+    --dsg-border: #3a3a50;
+    --dsg-text: #e0e0e0;
+    --dsg-text-muted: #8888aa;
+}
+
+/* Full-height designer page */
+.signage-designer-page {
+    overflow: hidden;
+    height: 100vh;
+}
+
+.signage-designer-page .assistant-widget { display: none; }
+
+/* Container */
+.designer-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--dsg-bg);
+    color: var(--dsg-text);
+}
+
+/* Toolbar */
+.designer-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--dsg-toolbar);
+    border-bottom: 1px solid var(--dsg-border);
+    min-height: 44px;
+    flex-shrink: 0;
+}
+
+/* Body (3-column layout) */
+.designer-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Left Sidebar */
+.designer-sidebar-left {
+    width: 180px;
+    background: var(--dsg-sidebar);
+    border-right: 1px solid var(--dsg-border);
+    padding: 10px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+/* Right Sidebar */
+.designer-sidebar-right {
+    width: 240px;
+    background: var(--dsg-sidebar);
+    border-left: 1px solid var(--dsg-border);
+    padding: 10px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.sidebar-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--dsg-text-muted);
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--dsg-border);
+}
+
+/* Element Palette */
+.element-palette {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.palette-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 6px;
+    border: 1px solid var(--dsg-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--dsg-text);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 0.75rem;
+}
+.palette-item i { font-size: 1.1rem; }
+.palette-item:hover {
+    background: rgba(233, 30, 140, 0.1);
+    border-color: var(--dsg-accent);
+    color: var(--dsg-accent);
+}
+
+/* Variable List */
+.variable-list .var-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    margin-bottom: 3px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    color: var(--dsg-text);
+}
+.variable-list .var-item:hover {
+    background: rgba(233, 30, 140, 0.15);
+}
+.variable-list .var-item .var-key {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--dsg-accent);
+}
+
+/* Properties Panel */
+.prop-group {
+    margin-bottom: 10px;
+}
+.prop-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--dsg-text-muted);
+    margin-bottom: 4px;
+    display: block;
+}
+
+.prop-input, .designer-sidebar-right .form-control,
+.designer-sidebar-right .form-select {
+    background: var(--dsg-bg) !important;
+    border-color: var(--dsg-border) !important;
+    color: var(--dsg-text) !important;
+    font-size: 0.8rem;
+}
+.designer-sidebar-right .input-group-text {
+    background: var(--dsg-sidebar);
+    border-color: var(--dsg-border);
+    color: var(--dsg-text-muted);
+    font-size: 0.7rem;
+    padding: 2px 6px;
+}
+.designer-sidebar-right .btn-outline-secondary {
+    border-color: var(--dsg-border);
+    color: var(--dsg-text);
+}
+.designer-sidebar-right .btn-outline-secondary:hover,
+.designer-sidebar-right .btn-outline-secondary.active {
+    background: var(--dsg-accent);
+    border-color: var(--dsg-accent);
+    color: white;
+}
+.designer-sidebar-right .form-check-label {
+    color: var(--dsg-text);
+}
+
+/* Canvas Area */
+.designer-canvas-area {
+    flex: 1;
+    background: var(--dsg-canvas-bg);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    /* Dot grid pattern */
+    background-image: radial-gradient(circle, #555 0.5px, transparent 0.5px);
+    background-size: 20px 20px;
+}
+
+.canvas-wrapper {
+    position: relative;
+    transform-origin: center center;
+}
+
+.canvas-sign {
+    position: relative;
+    background: white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    overflow: hidden;
+}
+
+/* Designer Elements */
+.dsg-element {
+    position: absolute;
+    cursor: move;
+    user-select: none;
+    box-sizing: border-box;
+    transition: box-shadow 0.1s;
+}
+.dsg-element:hover {
+    outline: 1px dashed rgba(233, 30, 140, 0.4);
+}
+.dsg-element.selected {
+    outline: 2px solid var(--dsg-accent);
+    z-index: 999 !important;
+}
+.dsg-element.selected:hover {
+    outline: 2px solid var(--dsg-accent);
+}
+
+/* Element type indicators */
+.dsg-element[data-type="variable"]::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 6px; height: 6px;
+    background: var(--dsg-accent);
+    border-radius: 0 0 3px 0;
+    font-size: 6px;
+    z-index: 2;
+}
+
+.dsg-element-text {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    word-break: break-word;
+    line-height: 1.1;
+}
+.dsg-element-text span {
+    display: block;
+    width: 100%;
+}
+
+/* Resize Handles */
+.resize-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--dsg-accent);
+    border: 1px solid white;
+    border-radius: 1px;
+    z-index: 1001;
+}
+.resize-handle-nw { top: -4px; left: -4px; cursor: nw-resize; }
+.resize-handle-n  { top: -4px; left: 50%; margin-left: -4px; cursor: n-resize; }
+.resize-handle-ne { top: -4px; right: -4px; cursor: ne-resize; }
+.resize-handle-e  { top: 50%; right: -4px; margin-top: -4px; cursor: e-resize; }
+.resize-handle-se { bottom: -4px; right: -4px; cursor: se-resize; }
+.resize-handle-s  { bottom: -4px; left: 50%; margin-left: -4px; cursor: s-resize; }
+.resize-handle-sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+.resize-handle-w  { top: 50%; left: -4px; margin-top: -4px; cursor: w-resize; }
+
+/* Status Bar */
+.designer-statusbar {
+    display: flex;
+    gap: 20px;
+    padding: 4px 12px;
+    background: var(--dsg-sidebar);
+    border-top: 1px solid var(--dsg-border);
+    font-size: 0.7rem;
+    color: var(--dsg-text-muted);
+    flex-shrink: 0;
+}
+
+/* ============================================
+   Generate Page Styles
+   ============================================ */
+
+.sign-items-list .sign-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 0.85rem;
+}
+.sign-items-list .sign-item:hover {
+    background: #f8f9fa;
+}
+.sign-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.sign-item-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+.sign-item-fields .field-group {
+    display: flex;
+    flex-direction: column;
+}
+.sign-item-fields .field-group label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    color: #6c757d;
+    margin-bottom: 1px;
+}
+.sign-item-fields .field-group input {
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+}
+
+/* Preview signs in generate page */
+.preview-area .preview-sign {
+    display: inline-block;
+    margin: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    vertical-align: top;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 768px) {
+    .designer-sidebar-left { width: 60px; }
+    .designer-sidebar-left .sidebar-title,
+    .designer-sidebar-left .variable-list,
+    .designer-sidebar-left #btnLoadPreset { display: none; }
+    .palette-item span { display: none; }
+    .designer-sidebar-right { width: 200px; }
+}

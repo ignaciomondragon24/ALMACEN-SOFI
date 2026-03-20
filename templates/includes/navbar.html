@@ -108,6 +108,23 @@
                 </li>
                 {% endif %}
                 
+                <!-- Signage - Manager, Stock Manager, Admin -->
+                {% if can_signage %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="signageDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-paint-brush me-1"></i>Cartelería
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'signage:template_list' %}">
+                            <i class="fas fa-palette me-2"></i>Plantillas
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'signage:batch_list' %}">
+                            <i class="fas fa-history me-2"></i>Historial de Lotes
+                        </a></li>
+                    </ul>
+                </li>
+                {% endif %}
+                
                 <!-- Reports - Manager, General Manager, Admin -->
                 {% if can_reports %}
                 <li class="nav-item dropdown">

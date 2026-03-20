@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'company.apps.CompanyConfig',
     'mercadopago.apps.MercadopagoConfig',
     'assistant.apps.AssistantConfig',
+    'signage.apps.SignageConfig',
 ]
 
 MIDDLEWARE = [
