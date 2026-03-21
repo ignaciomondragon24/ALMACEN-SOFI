@@ -220,6 +220,8 @@ def api_generate_all_data(request):
         'weight': {'template_id': template_weight_id, 'items': []},
     }
 
+    categories_used = {}
+
     for product in products:
         # Determine sign type for this product
         has_promo = product.pk in promo_product_ids
@@ -233,10 +235,19 @@ def api_generate_all_data(request):
         else:
             sign_type = 'simple'
 
+        cat_id = product.category_id
+        cat_name = product.category.name if product.category else 'Sin categoría'
+        cat_color = product.category.color if product.category else '#999999'
+
+        if cat_id not in categories_used:
+            categories_used[cat_id] = {'id': cat_id, 'name': cat_name, 'color': cat_color}
+
         data = auto_fill_product_data(product, sign_type)
         groups[sign_type]['items'].append({
             'product_id': product.pk,
             'product_name': product.name,
+            'category_id': cat_id,
+            'category_name': cat_name,
             'data': data,
             'copies': 1,
         })
@@ -254,9 +265,13 @@ def api_generate_all_data(request):
             except SignTemplate.DoesNotExist:
                 pass
 
+    # Sort categories by name
+    categories_list = sorted(categories_used.values(), key=lambda c: c['name'] or '')
+
     return JsonResponse({
         'success': True,
         'groups': groups,
+        'categories': categories_list,
         'total_products': products.count(),
         'total_promo': len(groups['promo']['items']),
     })

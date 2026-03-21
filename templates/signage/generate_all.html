@@ -76,6 +76,26 @@
     display: inline-flex; align-items: center; justify-content: center;
     color: white; font-size: 0.9rem;
 }
+.cat-filter-bar {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 0.5rem 0; margin-bottom: 0.25rem;
+}
+.cat-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 600;
+    cursor: pointer; user-select: none;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+    color: white;
+}
+.cat-tag.active { opacity: 1; }
+.cat-tag:not(.active) { opacity: 0.35; }
+.cat-tag .cat-count {
+    background: rgba(255,255,255,0.3);
+    border-radius: 10px; padding: 0 6px;
+    font-size: 0.7rem; min-width: 18px; text-align: center;
+}
 </style>
 {% endblock %}
 
@@ -164,6 +184,7 @@
     {% endfor %}
 
     let allGroups = {};
+    let allCategories = [];
 
     async function loadAll() {
         // Build query with default (smallest) templates
@@ -181,6 +202,7 @@
         }
 
         allGroups = json.groups;
+        allCategories = json.categories || [];
         const total = json.total_products;
 
         document.getElementById('loadingOverlay').style.display = 'none';
@@ -220,6 +242,26 @@
                 `<option value="${t.id}" data-w="${t.w}" data-h="${t.h}">${t.name} (${t.label})</option>`
             ).join('');
 
+            // Build category counts for this group
+            const catCounts = {};
+            items.forEach(item => {
+                const cid = item.category_id || 'null';
+                const cname = item.category_name || 'Sin categoría';
+                if (!catCounts[cid]) catCounts[cid] = { name: cname, count: 0, color: '#999' };
+                catCounts[cid].count++;
+            });
+            // Find colors from allCategories
+            allCategories.forEach(c => {
+                const key = c.id === null ? 'null' : c.id;
+                if (catCounts[key]) catCounts[key].color = c.color || '#999';
+            });
+
+            const catTags = Object.entries(catCounts).map(([cid, c]) =>
+                `<span class="cat-tag active" data-type="${type}" data-cat="${cid}" style="background:${c.color};" title="${c.name}">
+                    ${c.name} <span class="cat-count">${c.count}</span>
+                </span>`
+            ).join('');
+
             card.innerHTML = `
                 <div class="group-header" onclick="this.nextElementSibling.classList.toggle('d-none')">
                     <div class="d-flex align-items-center gap-2">
@@ -239,13 +281,18 @@
                     </div>
                 </div>
                 <div class="group-body">
-                    <div class="d-flex gap-2 mb-2">
+                    <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
                         <button class="btn btn-outline-secondary btn-sm btn-select-all" data-type="${type}">
                             <i class="fas fa-check-double me-1"></i>Todos
                         </button>
                         <button class="btn btn-outline-secondary btn-sm btn-select-none" data-type="${type}">
                             <i class="fas fa-times me-1"></i>Ninguno
                         </button>
+                        <span class="text-muted mx-1" style="font-size:0.8rem;">|</span>
+                        <span style="font-size:0.78rem; font-weight:600; color:#666;">Categorías:</span>
+                    </div>
+                    <div class="cat-filter-bar" data-type="${type}">
+                        ${catTags}
                     </div>
                     <div class="table-responsive" style="max-height:400px; overflow-y:auto;">
                         <table class="table table-sm table-hover product-table mb-0">
@@ -253,6 +300,7 @@
                                 <tr>
                                     <th class="cb-col"><input type="checkbox" class="check-all" data-type="${type}" checked></th>
                                     <th>Producto</th>
+                                    <th>Categoría</th>
                                     <th>Precio</th>
                                     <th class="copies-col">Copias</th>
                                 </tr>
@@ -263,9 +311,12 @@
                                     const promoLabel = item.data.etiqueta_promo
                                         ? `<span class="badge bg-danger ms-1">${item.data.cantidad_promo}x${item.data.etiqueta_promo}</span>`
                                         : '';
-                                    return `<tr>
-                                        <td class="cb-col"><input type="checkbox" class="item-check" data-type="${type}" data-idx="${idx}" checked></td>
+                                    const catId = item.category_id || 'null';
+                                    const catName = item.category_name || 'Sin categoría';
+                                    return `<tr data-cat="${catId}">
+                                        <td class="cb-col"><input type="checkbox" class="item-check" data-type="${type}" data-idx="${idx}" data-cat="${catId}" checked></td>
                                         <td>${item.product_name}${promoLabel}</td>
+                                        <td><span class="badge" style="background:${(allCategories.find(c => (c.id === null ? 'null' : String(c.id)) === String(catId)) || {color:'#999'}).color}; font-size:0.72rem;">${catName}</span></td>
                                         <td><strong>${price}</strong></td>
                                         <td class="copies-col"><input type="number" class="item-copies" data-type="${type}" data-idx="${idx}" value="1" min="1" max="99"></td>
                                     </tr>`;
@@ -291,11 +342,16 @@
             cb.addEventListener('change', e => {
                 const type = e.target.dataset.type;
                 container.querySelectorAll(`.item-check[data-type="${type}"]`).forEach(c => c.checked = e.target.checked);
+                // Sync cat tags
+                syncCatTags(type);
                 updateCount(type);
             });
         });
         container.querySelectorAll('.item-check').forEach(cb => {
-            cb.addEventListener('change', e => updateCount(e.target.dataset.type));
+            cb.addEventListener('change', e => {
+                syncCatTags(e.target.dataset.type);
+                updateCount(e.target.dataset.type);
+            });
         });
         container.querySelectorAll('.btn-select-all').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -303,6 +359,7 @@
                 container.querySelectorAll(`.item-check[data-type="${type}"]`).forEach(c => c.checked = true);
                 const chAll = container.querySelector(`.check-all[data-type="${type}"]`);
                 if (chAll) chAll.checked = true;
+                syncCatTags(type);
                 updateCount(type);
             });
         });
@@ -312,6 +369,25 @@
                 container.querySelectorAll(`.item-check[data-type="${type}"]`).forEach(c => c.checked = false);
                 const chAll = container.querySelector(`.check-all[data-type="${type}"]`);
                 if (chAll) chAll.checked = false;
+                syncCatTags(type);
+                updateCount(type);
+            });
+        });
+        // Category tag click: toggle all products of that category
+        container.querySelectorAll('.cat-tag').forEach(tag => {
+            tag.addEventListener('click', () => {
+                const type = tag.dataset.type;
+                const catId = tag.dataset.cat;
+                const isActive = tag.classList.contains('active');
+                // Toggle: if active → deselect all in category; if inactive → select all
+                const newState = !isActive;
+                tag.classList.toggle('active', newState);
+                container.querySelectorAll(`.item-check[data-type="${type}"][data-cat="${catId}"]`).forEach(c => c.checked = newState);
+                // Update check-all header
+                const allChecks = container.querySelectorAll(`.item-check[data-type="${type}"]`);
+                const allChecked = Array.from(allChecks).every(c => c.checked);
+                const chAll = container.querySelector(`.check-all[data-type="${type}"]`);
+                if (chAll) chAll.checked = allChecked;
                 updateCount(type);
             });
         });
@@ -323,6 +399,18 @@
     function updateCount(type) {
         const checked = document.querySelectorAll(`.item-check[data-type="${type}"]:checked`).length;
         document.querySelectorAll(`.selected-count[data-type="${type}"]`).forEach(el => el.textContent = checked);
+    }
+
+    function syncCatTags(type) {
+        // Sync category tag active state based on individual checkboxes
+        const bar = document.querySelector(`.cat-filter-bar[data-type="${type}"]`);
+        if (!bar) return;
+        bar.querySelectorAll('.cat-tag').forEach(tag => {
+            const catId = tag.dataset.cat;
+            const checks = document.querySelectorAll(`.item-check[data-type="${type}"][data-cat="${catId}"]`);
+            const anyChecked = Array.from(checks).some(c => c.checked);
+            tag.classList.toggle('active', anyChecked);
+        });
     }
 
     function printGroup(type) {
