@@ -28,7 +28,7 @@ def extract_weight(name):
     return ''
 
 
-def auto_fill_product_data(product, sign_type):
+def auto_fill_product_data(product, sign_type, promo=None):
     """Auto-completa los datos de un cartel a partir de un producto."""
     data = {
         'nombre_producto': product.name.upper()
@@ -40,16 +40,17 @@ def auto_fill_product_data(product, sign_type):
 
     elif sign_type == 'promo':
         data['precio_unitario'] = format_currency(product.sale_price)
-        promo = None
-        try:
-            from promotions.models import Promotion
-            promo = Promotion.objects.filter(
-                products=product,
-                status='active',
-                promo_type__in=['nxm', 'quantity_discount']
-            ).first()
-        except Exception:
-            pass
+        # If promo not passed, try to fetch (fallback for single-product usage)
+        if promo is None:
+            try:
+                from promotions.models import Promotion
+                promo = Promotion.objects.filter(
+                    products=product,
+                    status='active',
+                    promo_type__in=['nxm', 'quantity_discount']
+                ).first()
+            except Exception:
+                pass
 
         if promo:
             data['cantidad_promo'] = str(promo.quantity_required)

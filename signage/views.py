@@ -203,15 +203,16 @@ def api_generate_all_data(request):
         'category', 'unit_of_measure'
     ).order_by('name')
 
-    # Get all product IDs with active promotions (nxm or quantity_discount)
-    promo_product_ids = set()
+    # Pre-fetch all promo data in 1 query to avoid N+1
+    promo_product_map = {}  # product_id -> promo
     active_promos = Promotion.objects.filter(
         status='active',
         promo_type__in=['nxm', 'quantity_discount']
     ).prefetch_related('products')
     for promo in active_promos:
         for p in promo.products.all():
-            promo_product_ids.add(p.pk)
+            promo_product_map[p.pk] = promo
+    promo_product_ids = set(promo_product_map.keys())
 
     groups = {
         'simple': {'template_id': template_simple_id, 'items': []},
@@ -242,7 +243,8 @@ def api_generate_all_data(request):
         if cat_id not in categories_used:
             categories_used[cat_id] = {'id': cat_id, 'name': cat_name, 'color': cat_color}
 
-        data = auto_fill_product_data(product, sign_type)
+        promo = promo_product_map.get(product.pk)
+        data = auto_fill_product_data(product, sign_type, promo=promo)
         groups[sign_type]['items'].append({
             'product_id': product.pk,
             'product_name': product.name,
@@ -272,6 +274,6 @@ def api_generate_all_data(request):
         'success': True,
         'groups': groups,
         'categories': categories_list,
-        'total_products': products.count(),
+        'total_products': sum(len(g['items']) for g in groups.values()),
         'total_promo': len(groups['promo']['items']),
     })
