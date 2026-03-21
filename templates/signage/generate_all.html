@@ -59,9 +59,10 @@
     border: 1px solid #dee2e6; border-radius: 4px;
     padding: 2px 4px; font-size: 0.85rem;
 }
-.product-table .type-badge {
+.type-badge {
     font-size: 0.68rem; padding: 2px 6px; border-radius: 4px;
     color: white; font-weight: 600;
+    display: inline-block;
 }
 .print-settings { background: #f8f9fa; border-radius: 10px; padding: 1rem 1.25rem; }
 .print-settings label { font-size: 0.85rem; font-weight: 600; }
@@ -138,7 +139,9 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     overflow: hidden;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: white;
 }
 .step-indicator {
@@ -282,7 +285,7 @@
     const TYPE_META = {
         simple: { label: 'Precio', color: '#2D1E5F' },
         promo:  { label: 'Promo', color: '#E91E8C' },
-        bulk:   { label: 'Bulto', color: '#F5D000' },
+        bulk:   { label: 'Bulto', color: '#C8A600' },
         weight: { label: 'Peso', color: '#28a745' },
     };
 
@@ -637,6 +640,8 @@
         });
     }
 
+    const PX_PER_MM = 3.78;
+
     function renderMiniPreview(i) {
         const item = selectedItems[i];
         const layoutInfo = allLayouts[item.sign_type];
@@ -644,7 +649,8 @@
         const el = document.getElementById(`miniPreview-${i}`);
         if (!el) return;
         el.innerHTML = '';
-        const scale = 60 / Math.max(layoutInfo.width_mm, layoutInfo.height_mm);
+        const maxDim = Math.max(layoutInfo.width_mm, layoutInfo.height_mm);
+        const scale = 56 / (maxDim * PX_PER_MM);
         try {
             renderer.render(el, layoutInfo.layout, item.data, layoutInfo.width_mm, layoutInfo.height_mm, scale);
         } catch(e) { /* ignore render errors */ }
@@ -657,7 +663,8 @@
         const el = document.getElementById(`editPreview-${i}`);
         if (!el) return;
         el.innerHTML = '';
-        const scale = 180 / Math.max(layoutInfo.width_mm, layoutInfo.height_mm);
+        const maxDim = Math.max(layoutInfo.width_mm, layoutInfo.height_mm);
+        const scale = 180 / (maxDim * PX_PER_MM);
         try {
             renderer.render(el, layoutInfo.layout, item.data, layoutInfo.width_mm, layoutInfo.height_mm, scale);
         } catch(e) { /* ignore render errors */ }
