@@ -153,19 +153,19 @@ class SignGenerator {
         }
 
         list.innerHTML = this.items.map(item => `
-            <div class="item-row p-2 mb-2 rounded" style="background:var(--dsg-surface,#2a2a3e);">
+            <div class="item-row p-2 mb-2 rounded" style="background:#f0f0f5; border:1px solid #dee2e6;">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong>${this._escapeHtml(item.product_name)}</strong>
+                    <strong style="color:#212529;">${this._escapeHtml(item.product_name)}</strong>
                     <button class="btn btn-sm btn-outline-danger" onclick="generator.removeItem(${item.id})">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <label class="text-muted small mb-0">Copias:</label>
+                    <label class="small mb-0" style="color:#555;">Copias:</label>
                     <input type="number" class="form-control form-control-sm" style="width:70px"
                         value="${item.copies}" min="1" max="100"
                         onchange="generator.setCopies(${item.id}, this.value)">
-                    <button class="btn btn-sm btn-outline-info ms-auto"
+                    <button class="btn btn-sm btn-outline-primary ms-auto"
                         onclick="generator.toggleItemEdit(${item.id})" title="Editar datos">
                         <i class="fas fa-pen"></i>
                     </button>
