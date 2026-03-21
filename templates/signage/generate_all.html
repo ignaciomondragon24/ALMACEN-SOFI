@@ -6,30 +6,40 @@
 {% block extra_css %}
 <style>
 .gen-all-container { padding: 1rem 0; }
-.group-card {
+.cat-card {
     border: 2px solid #e9ecef;
     border-radius: 12px;
     overflow: hidden;
     background: white;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
 }
-.group-header {
-    padding: 1rem 1.25rem;
+.cat-card.cat-selected { border-color: var(--cat-color, #2D1E5F); }
+.cat-header {
+    padding: 0.75rem 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
     user-select: none;
+    gap: 0.5rem;
 }
-.group-header:hover { background: #fafafa; }
-.group-header .badge-count {
-    font-size: 1rem;
-    padding: 0.35em 0.75em;
+.cat-header:hover { background: #fafafa; }
+.cat-color-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    display: inline-block; flex-shrink: 0;
 }
-.group-body { padding: 0 1.25rem 1rem; }
+.cat-header .badge-count {
+    font-size: 0.85rem;
+    padding: 0.25em 0.6em;
+    border-radius: 20px;
+    color: white;
+}
+.cat-body { padding: 0 1rem 0.75rem; display: none; }
+.cat-card.cat-selected .cat-body { display: block; }
 .product-table {
     font-size: 0.85rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
 }
 .product-table th {
     background: #f8f9fa;
@@ -37,6 +47,7 @@
     font-size: 0.78rem;
     text-transform: uppercase;
     color: #666;
+    position: sticky; top: 0; z-index: 1;
 }
 .product-table td { vertical-align: middle; }
 .product-table .cb-col { width: 36px; text-align: center; }
@@ -46,15 +57,10 @@
     border: 1px solid #dee2e6; border-radius: 4px;
     padding: 2px 4px; font-size: 0.85rem;
 }
-.group-footer {
-    padding: 0.75rem 1.25rem;
-    background: #f8f9fa;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid #e9ecef;
+.product-table .type-badge {
+    font-size: 0.68rem; padding: 2px 6px; border-radius: 4px;
+    color: white; font-weight: 600;
 }
-.template-select { max-width: 260px; font-size: 0.85rem; }
 .print-settings { background: #f8f9fa; border-radius: 10px; padding: 1rem 1.25rem; }
 .print-settings label { font-size: 0.85rem; font-weight: 600; }
 .loading-overlay {
@@ -65,36 +71,25 @@
 .loading-overlay .spinner-border { width: 3rem; height: 3rem; }
 .summary-box {
     background: linear-gradient(135deg, #2D1E5F 0%, #E91E8C 100%);
-    color: white; border-radius: 12px; padding: 1.25rem;
-    display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;
+    color: white; border-radius: 12px; padding: 1rem 1.25rem;
+    display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
 }
 .summary-box .stat { text-align: center; }
-.summary-box .stat-num { font-size: 1.8rem; font-weight: 700; line-height: 1; }
-.summary-box .stat-label { font-size: 0.75rem; opacity: 0.85; }
-.type-icon-sm {
-    width: 32px; height: 32px; border-radius: 8px;
-    display: inline-flex; align-items: center; justify-content: center;
-    color: white; font-size: 0.9rem;
+.summary-box .stat-num { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+.summary-box .stat-label { font-size: 0.7rem; opacity: 0.85; }
+.cat-select-bar {
+    display: flex; gap: 0.5rem; flex-wrap: wrap;
+    margin-bottom: 1rem;
 }
-.cat-filter-bar {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    padding: 0.5rem 0; margin-bottom: 0.25rem;
+.cat-select-bar .btn { font-size: 0.82rem; }
+.print-fab {
+    position: fixed; bottom: 24px; right: 24px; z-index: 1000;
+    display: flex; gap: 10px; align-items: center;
 }
-.cat-tag {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 4px 10px; border-radius: 20px;
-    font-size: 0.78rem; font-weight: 600;
-    cursor: pointer; user-select: none;
-    border: 2px solid transparent;
-    transition: all 0.15s;
-    color: white;
-}
-.cat-tag.active { opacity: 1; }
-.cat-tag:not(.active) { opacity: 0.35; }
-.cat-tag .cat-count {
-    background: rgba(255,255,255,0.3);
-    border-radius: 10px; padding: 0 6px;
-    font-size: 0.7rem; min-width: 18px; text-align: center;
+.print-fab .btn { box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 1rem; padding: 0.6rem 1.25rem; }
+.print-fab .sel-count { 
+    background: white; border-radius: 20px; padding: 4px 12px;
+    font-size: 0.85rem; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 </style>
 {% endblock %}
@@ -104,14 +99,14 @@
     <!-- Loading -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner-border text-primary"></div>
-        <h5>Generando carteles de todo el inventario...</h5>
+        <h5>Cargando inventario...</h5>
     </div>
 
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h4><i class="fas fa-print me-2" style="color: #E91E8C;"></i>Imprimir Todo el Inventario</h4>
-            <p class="text-muted mb-0">Genera todos los carteles de precios y promociones de una sola vez</p>
+            <h4><i class="fas fa-print me-2" style="color: #E91E8C;"></i>Imprimir Inventario por Categoría</h4>
+            <p class="text-muted mb-0">Seleccioná categorías, sacá los productos que no quieras, e imprimí</p>
         </div>
         <a href="{% url 'signage:template_list' %}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i>Volver
@@ -119,17 +114,35 @@
     </div>
 
     <!-- Summary -->
-    <div class="summary-box mb-4" id="summaryBox" style="display:none;">
+    <div class="summary-box mb-3" id="summaryBox" style="display:none;">
         <div class="stat"><div class="stat-num" id="statTotal">0</div><div class="stat-label">PRODUCTOS</div></div>
-        <div class="stat"><div class="stat-num" id="statSimple">0</div><div class="stat-label">PRECIOS</div></div>
-        <div class="stat"><div class="stat-num" id="statPromo">0</div><div class="stat-label">PROMOS</div></div>
-        <div class="stat"><div class="stat-num" id="statBulk">0</div><div class="stat-label">BULTOS</div></div>
-        <div class="stat"><div class="stat-num" id="statWeight">0</div><div class="stat-label">POR PESO</div></div>
+        <div class="stat"><div class="stat-num" id="statCats">0</div><div class="stat-label">CATEGORÍAS</div></div>
+        <div class="stat"><div class="stat-num" id="statSelected">0</div><div class="stat-label">SELECCIONADOS</div></div>
+    </div>
+
+    <!-- Quick select bar -->
+    <div class="cat-select-bar" id="catSelectBar" style="display:none;">
+        <button class="btn btn-sm btn-outline-primary" id="btnSelectAllCats">
+            <i class="fas fa-check-double me-1"></i>Todas las categorías
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" id="btnDeselectAllCats">
+            <i class="fas fa-times me-1"></i>Ninguna
+        </button>
     </div>
 
     <!-- Print Settings -->
-    <div class="print-settings mb-3">
+    <div class="print-settings mb-3" id="printSettings" style="display:none;">
         <div class="row align-items-end g-3">
+            <div class="col-auto">
+                <label class="form-label">Tamaño cartel</label>
+                <select id="tplSize" class="form-select form-select-sm">
+                    {% for st, choices in template_choices.items %}
+                    {% for t in choices %}
+                    <option value="{{ t.pk }}" data-type="{{ st }}" data-w="{{ t.width_mm }}" data-h="{{ t.height_mm }}">{{ t.name }} ({{ t.size_label }})</option>
+                    {% endfor %}
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-auto">
                 <label class="form-label">Papel</label>
                 <select id="paperSize" class="form-select form-select-sm">
@@ -149,14 +162,21 @@
         </div>
     </div>
 
-    <!-- Groups -->
-    <div id="groupsContainer"></div>
+    <!-- Categories -->
+    <div id="categoriesContainer"></div>
 
     <!-- Empty state -->
     <div id="emptyState" style="display:none;" class="text-center py-5">
         <i class="fas fa-box-open fa-4x text-muted mb-3 d-block opacity-25"></i>
         <h5 class="text-muted">No hay productos activos con precio</h5>
-        <p class="text-muted">Cargá productos en el inventario primero.</p>
+    </div>
+
+    <!-- Print FAB -->
+    <div class="print-fab" id="printFab" style="display:none;">
+        <span class="sel-count"><span id="fabCount">0</span> carteles</span>
+        <button class="btn btn-success btn-lg" id="btnPrint">
+            <i class="fas fa-print me-2"></i>Imprimir Seleccionados
+        </button>
     </div>
 </div>
 {% endblock %}
@@ -166,28 +186,26 @@
 <script>
 (function() {
     const TYPE_META = {
-        simple: { label: 'Carteles de Precio', icon: 'fa-tag', color: '#2D1E5F' },
-        promo:  { label: 'Carteles de Promoción', icon: 'fa-fire', color: '#E91E8C' },
-        bulk:   { label: 'Carteles de Bulto', icon: 'fa-box', color: '#F5D000' },
-        weight: { label: 'Carteles por Peso', icon: 'fa-balance-scale', color: '#28a745' },
+        simple: { label: 'Precio', color: '#2D1E5F' },
+        promo:  { label: 'Promo', color: '#E91E8C' },
+        bulk:   { label: 'Bulto', color: '#F5D000' },
+        weight: { label: 'Peso', color: '#28a745' },
     };
-    const TEMPLATE_CHOICES = JSON.parse('{{ template_choices|safe }}'.replace(/'/g, '"') || '{}');
 
-    // Build template_id selects from Django context
+    // Template IDs per sign_type from Django
     const TPL_IDS = {};
     {% for st, choices in template_choices.items %}
     TPL_IDS['{{ st }}'] = [
         {% for t in choices %}
-        { id: {{ t.pk }}, name: '{{ t.name|escapejs }}', w: {{ t.width_mm }}, h: {{ t.height_mm }}, label: '{{ t.size_label|escapejs }}' },
+        { id: {{ t.pk }}, name: '{{ t.name|escapejs }}', w: {{ t.width_mm }}, h: {{ t.height_mm }} },
         {% endfor %}
     ];
     {% endfor %}
 
-    let allGroups = {};
     let allCategories = [];
+    let allLayouts = {};
 
     async function loadAll() {
-        // Build query with default (smallest) templates
         const params = new URLSearchParams();
         for (const [st, choices] of Object.entries(TPL_IDS)) {
             if (choices.length) params.set('tpl_' + st, choices[0].id);
@@ -195,269 +213,216 @@
 
         const resp = await fetch('{% url "signage:api_generate_all_data" %}?' + params.toString());
         const json = await resp.json();
-        if (!json.success) {
-            document.getElementById('loadingOverlay').style.display = 'none';
-            document.getElementById('emptyState').style.display = 'block';
-            return;
-        }
-
-        allGroups = json.groups;
-        allCategories = json.categories || [];
-        const total = json.total_products;
-
         document.getElementById('loadingOverlay').style.display = 'none';
 
-        if (total === 0) {
+        if (!json.success || !json.total_products) {
             document.getElementById('emptyState').style.display = 'block';
             return;
         }
 
-        // Summary
-        const box = document.getElementById('summaryBox');
-        box.style.display = 'flex';
-        document.getElementById('statTotal').textContent = total;
-        document.getElementById('statSimple').textContent = (allGroups.simple?.items || []).length;
-        document.getElementById('statPromo').textContent = (allGroups.promo?.items || []).length;
-        document.getElementById('statBulk').textContent = (allGroups.bulk?.items || []).length;
-        document.getElementById('statWeight').textContent = (allGroups.weight?.items || []).length;
+        allCategories = json.categories;
+        allLayouts = json.layouts || {};
 
-        renderGroups();
+        // Show UI
+        document.getElementById('summaryBox').style.display = 'flex';
+        document.getElementById('catSelectBar').style.display = 'flex';
+        document.getElementById('printSettings').style.display = 'block';
+        document.getElementById('printFab').style.display = 'flex';
+        document.getElementById('statTotal').textContent = json.total_products;
+        document.getElementById('statCats').textContent = allCategories.length;
+
+        renderCategories();
+        updateGlobalCount();
     }
 
-    function renderGroups() {
-        const container = document.getElementById('groupsContainer');
+    function renderCategories() {
+        const container = document.getElementById('categoriesContainer');
         container.innerHTML = '';
 
-        for (const [type, meta] of Object.entries(TYPE_META)) {
-            const group = allGroups[type];
-            if (!group || !group.items || !group.items.length) continue;
+        allCategories.forEach((cat, catIdx) => {
+            const items = cat.items;
+            if (!items.length) return;
 
-            const items = group.items;
             const card = document.createElement('div');
-            card.className = 'group-card';
-            card.dataset.type = type;
+            card.className = 'cat-card';
+            card.dataset.catIdx = catIdx;
+            card.style.setProperty('--cat-color', cat.color || '#999');
 
-            // Template selector options
-            const tplOptions = (TPL_IDS[type] || []).map(t =>
-                `<option value="${t.id}" data-w="${t.w}" data-h="${t.h}">${t.name} (${t.label})</option>`
-            ).join('');
-
-            // Build category counts for this group
-            const catCounts = {};
-            items.forEach(item => {
-                const cid = item.category_id || 'null';
-                const cname = item.category_name || 'Sin categoría';
-                if (!catCounts[cid]) catCounts[cid] = { name: cname, count: 0, color: '#999' };
-                catCounts[cid].count++;
+            const typeBreakdown = {};
+            items.forEach(it => {
+                typeBreakdown[it.sign_type] = (typeBreakdown[it.sign_type] || 0) + 1;
             });
-            // Find colors from allCategories
-            allCategories.forEach(c => {
-                const key = c.id === null ? 'null' : c.id;
-                if (catCounts[key]) catCounts[key].color = c.color || '#999';
-            });
-
-            const catTags = Object.entries(catCounts).map(([cid, c]) =>
-                `<span class="cat-tag active" data-type="${type}" data-cat="${cid}" style="background:${c.color};" title="${c.name}">
-                    ${c.name} <span class="cat-count">${c.count}</span>
-                </span>`
-            ).join('');
+            const typeBadges = Object.entries(typeBreakdown).map(([t, n]) => {
+                const m = TYPE_META[t] || { label: t, color: '#999' };
+                return `<span class="type-badge" style="background:${m.color}">${n} ${m.label}</span>`;
+            }).join(' ');
 
             card.innerHTML = `
-                <div class="group-header" onclick="this.nextElementSibling.classList.toggle('d-none')">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="type-icon-sm" style="background:${meta.color}">
-                            <i class="fas ${meta.icon}"></i>
-                        </span>
-                        <h5 class="mb-0">${meta.label}</h5>
-                        <span class="badge badge-count" style="background:${meta.color}">${items.length}</span>
+                <div class="cat-header">
+                    <div class="d-flex align-items-center gap-2" style="min-width:0;">
+                        <input type="checkbox" class="cat-check form-check-input" data-cat-idx="${catIdx}" style="flex-shrink:0;">
+                        <span class="cat-color-dot" style="background:${cat.color || '#999'}"></span>
+                        <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cat.name}</strong>
+                        <span class="badge-count" style="background:${cat.color || '#999'}">${items.length}</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <select class="form-select form-select-sm template-select tpl-select" data-type="${type}">
-                            ${tplOptions}
-                        </select>
-                        <button class="btn btn-success btn-sm btn-print-group" data-type="${type}">
-                            <i class="fas fa-print me-1"></i>Imprimir Grupo
-                        </button>
+                        ${typeBadges}
+                        <i class="fas fa-chevron-down text-muted" style="font-size:0.8rem;"></i>
                     </div>
                 </div>
-                <div class="group-body">
-                    <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
-                        <button class="btn btn-outline-secondary btn-sm btn-select-all" data-type="${type}">
-                            <i class="fas fa-check-double me-1"></i>Todos
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm btn-select-none" data-type="${type}">
-                            <i class="fas fa-times me-1"></i>Ninguno
-                        </button>
-                        <span class="text-muted mx-1" style="font-size:0.8rem;">|</span>
-                        <span style="font-size:0.78rem; font-weight:600; color:#666;">Categorías:</span>
-                    </div>
-                    <div class="cat-filter-bar" data-type="${type}">
-                        ${catTags}
-                    </div>
-                    <div class="table-responsive" style="max-height:400px; overflow-y:auto;">
+                <div class="cat-body">
+                    <div class="table-responsive" style="max-height:350px; overflow-y:auto;">
                         <table class="table table-sm table-hover product-table mb-0">
                             <thead>
                                 <tr>
-                                    <th class="cb-col"><input type="checkbox" class="check-all" data-type="${type}" checked></th>
+                                    <th class="cb-col"><input type="checkbox" class="check-all-cat" data-cat-idx="${catIdx}" checked></th>
                                     <th>Producto</th>
-                                    <th>Categoría</th>
+                                    <th>Tipo</th>
                                     <th>Precio</th>
                                     <th class="copies-col">Copias</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${items.map((item, idx) => {
-                                    const price = item.data.precio_unitario || item.data.precio_total || item.data.precio_1kg || item.data.precio_promo || '';
-                                    const promoLabel = item.data.etiqueta_promo
-                                        ? `<span class="badge bg-danger ms-1">${item.data.cantidad_promo}x${item.data.etiqueta_promo}</span>`
+                                    const d = item.data;
+                                    const price = d.precio_unitario || d.precio_total || d.precio_1kg || d.precio_promo || '';
+                                    const promoLabel = d.etiqueta_promo
+                                        ? ` <span class="badge bg-danger" style="font-size:0.65rem;">${d.cantidad_promo}x</span>`
                                         : '';
-                                    const catId = item.category_id || 'null';
-                                    const catName = item.category_name || 'Sin categoría';
-                                    return `<tr data-cat="${catId}">
-                                        <td class="cb-col"><input type="checkbox" class="item-check" data-type="${type}" data-idx="${idx}" data-cat="${catId}" checked></td>
+                                    const tm = TYPE_META[item.sign_type] || { label: item.sign_type, color: '#999' };
+                                    return `<tr>
+                                        <td class="cb-col"><input type="checkbox" class="item-check" data-cat-idx="${catIdx}" data-idx="${idx}" checked></td>
                                         <td>${item.product_name}${promoLabel}</td>
-                                        <td><span class="badge" style="background:${(allCategories.find(c => (c.id === null ? 'null' : String(c.id)) === String(catId)) || {color:'#999'}).color}; font-size:0.72rem;">${catName}</span></td>
+                                        <td><span class="type-badge" style="background:${tm.color}">${tm.label}</span></td>
                                         <td><strong>${price}</strong></td>
-                                        <td class="copies-col"><input type="number" class="item-copies" data-type="${type}" data-idx="${idx}" value="1" min="1" max="99"></td>
+                                        <td class="copies-col"><input type="number" class="item-copies" data-cat-idx="${catIdx}" data-idx="${idx}" value="1" min="1" max="99"></td>
                                     </tr>`;
                                 }).join('')}
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div class="group-footer">
-                    <small class="text-muted">
-                        <span class="selected-count" data-type="${type}">${items.length}</span> de ${items.length} seleccionados
-                    </small>
-                    <button class="btn btn-success btn-sm btn-print-group" data-type="${type}">
-                        <i class="fas fa-print me-1"></i>Imprimir este grupo
-                    </button>
-                </div>
             `;
             container.appendChild(card);
-        }
+        });
 
-        // Events
-        container.querySelectorAll('.check-all').forEach(cb => {
+        // --- Events ---
+        // Category checkbox: select/deselect category
+        container.querySelectorAll('.cat-check').forEach(cb => {
             cb.addEventListener('change', e => {
-                const type = e.target.dataset.type;
-                container.querySelectorAll(`.item-check[data-type="${type}"]`).forEach(c => c.checked = e.target.checked);
-                // Sync cat tags
-                syncCatTags(type);
-                updateCount(type);
+                const idx = e.target.dataset.catIdx;
+                const card = container.querySelector(`.cat-card[data-cat-idx="${idx}"]`);
+                const checked = e.target.checked;
+                card.classList.toggle('cat-selected', checked);
+                card.querySelectorAll('.item-check').forEach(c => c.checked = checked);
+                const chAll = card.querySelector('.check-all-cat');
+                if (chAll) chAll.checked = checked;
+                updateGlobalCount();
             });
         });
+
+        // Click on header (not the checkbox) toggles expand
+        container.querySelectorAll('.cat-header').forEach(h => {
+            h.addEventListener('click', e => {
+                if (e.target.closest('input')) return; // don't toggle on checkbox click
+                const card = h.closest('.cat-card');
+                const catIdx = card.dataset.catIdx;
+                const cb = card.querySelector('.cat-check');
+                // If not selected, select it and expand
+                if (!card.classList.contains('cat-selected')) {
+                    cb.checked = true;
+                    card.classList.add('cat-selected');
+                    card.querySelectorAll('.item-check').forEach(c => c.checked = true);
+                    const chAll = card.querySelector('.check-all-cat');
+                    if (chAll) chAll.checked = true;
+                } else {
+                    // Toggle body visibility
+                    const body = card.querySelector('.cat-body');
+                    body.style.display = body.style.display === 'none' ? 'block' : (body.style.display === 'block' ? 'none' : 'block');
+                }
+                updateGlobalCount();
+            });
+        });
+
+        // Check all within a category
+        container.querySelectorAll('.check-all-cat').forEach(cb => {
+            cb.addEventListener('change', e => {
+                const idx = e.target.dataset.catIdx;
+                const card = container.querySelector(`.cat-card[data-cat-idx="${idx}"]`);
+                card.querySelectorAll('.item-check').forEach(c => c.checked = e.target.checked);
+                updateGlobalCount();
+            });
+        });
+
+        // Individual item check
         container.querySelectorAll('.item-check').forEach(cb => {
             cb.addEventListener('change', e => {
-                syncCatTags(e.target.dataset.type);
-                updateCount(e.target.dataset.type);
-            });
-        });
-        container.querySelectorAll('.btn-select-all').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const type = btn.dataset.type;
-                container.querySelectorAll(`.item-check[data-type="${type}"]`).forEach(c => c.checked = true);
-                const chAll = container.querySelector(`.check-all[data-type="${type}"]`);
-                if (chAll) chAll.checked = true;
-                syncCatTags(type);
-                updateCount(type);
-            });
-        });
-        container.querySelectorAll('.btn-select-none').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const type = btn.dataset.type;
-                container.querySelectorAll(`.item-check[data-type="${type}"]`).forEach(c => c.checked = false);
-                const chAll = container.querySelector(`.check-all[data-type="${type}"]`);
-                if (chAll) chAll.checked = false;
-                syncCatTags(type);
-                updateCount(type);
-            });
-        });
-        // Category tag click: toggle all products of that category
-        container.querySelectorAll('.cat-tag').forEach(tag => {
-            tag.addEventListener('click', () => {
-                const type = tag.dataset.type;
-                const catId = tag.dataset.cat;
-                const isActive = tag.classList.contains('active');
-                // Toggle: if active → deselect all in category; if inactive → select all
-                const newState = !isActive;
-                tag.classList.toggle('active', newState);
-                container.querySelectorAll(`.item-check[data-type="${type}"][data-cat="${catId}"]`).forEach(c => c.checked = newState);
-                // Update check-all header
-                const allChecks = container.querySelectorAll(`.item-check[data-type="${type}"]`);
+                const idx = e.target.dataset.catIdx;
+                const card = container.querySelector(`.cat-card[data-cat-idx="${idx}"]`);
+                const allChecks = card.querySelectorAll('.item-check');
+                const anyChecked = Array.from(allChecks).some(c => c.checked);
                 const allChecked = Array.from(allChecks).every(c => c.checked);
-                const chAll = container.querySelector(`.check-all[data-type="${type}"]`);
+                const chAll = card.querySelector('.check-all-cat');
                 if (chAll) chAll.checked = allChecked;
-                updateCount(type);
+                // Keep category selected if any item is checked
+                const catCb = card.querySelector('.cat-check');
+                catCb.checked = anyChecked;
+                card.classList.toggle('cat-selected', anyChecked);
+                updateGlobalCount();
             });
         });
-        container.querySelectorAll('.btn-print-group').forEach(btn => {
-            btn.addEventListener('click', () => printGroup(btn.dataset.type));
+
+        // Select/deselect all categories
+        document.getElementById('btnSelectAllCats').addEventListener('click', () => {
+            container.querySelectorAll('.cat-card').forEach(card => {
+                card.classList.add('cat-selected');
+                card.querySelector('.cat-check').checked = true;
+                card.querySelectorAll('.item-check').forEach(c => c.checked = true);
+                const chAll = card.querySelector('.check-all-cat');
+                if (chAll) chAll.checked = true;
+            });
+            updateGlobalCount();
         });
-    }
-
-    function updateCount(type) {
-        const checked = document.querySelectorAll(`.item-check[data-type="${type}"]:checked`).length;
-        document.querySelectorAll(`.selected-count[data-type="${type}"]`).forEach(el => el.textContent = checked);
-    }
-
-    function syncCatTags(type) {
-        // Sync category tag active state based on individual checkboxes
-        const bar = document.querySelector(`.cat-filter-bar[data-type="${type}"]`);
-        if (!bar) return;
-        bar.querySelectorAll('.cat-tag').forEach(tag => {
-            const catId = tag.dataset.cat;
-            const checks = document.querySelectorAll(`.item-check[data-type="${type}"][data-cat="${catId}"]`);
-            const anyChecked = Array.from(checks).some(c => c.checked);
-            tag.classList.toggle('active', anyChecked);
+        document.getElementById('btnDeselectAllCats').addEventListener('click', () => {
+            container.querySelectorAll('.cat-card').forEach(card => {
+                card.classList.remove('cat-selected');
+                card.querySelector('.cat-check').checked = false;
+                card.querySelectorAll('.item-check').forEach(c => c.checked = false);
+                const chAll = card.querySelector('.check-all-cat');
+                if (chAll) chAll.checked = false;
+            });
+            updateGlobalCount();
         });
+
+        // Print button
+        document.getElementById('btnPrint').addEventListener('click', printSelected);
     }
 
-    function printGroup(type) {
-        const group = allGroups[type];
-        if (!group || !group.items.length) return;
+    function updateGlobalCount() {
+        const total = document.querySelectorAll('.item-check:checked').length;
+        document.getElementById('statSelected').textContent = total;
+        document.getElementById('fabCount').textContent = total;
+        const fab = document.getElementById('printFab');
+        fab.style.display = total > 0 ? 'flex' : 'flex';
+        document.getElementById('btnPrint').disabled = total === 0;
+    }
 
-        // Get selected template
-        const sel = document.querySelector(`.tpl-select[data-type="${type}"]`);
-        const tplId = sel ? sel.value : null;
-        const opt = sel ? sel.selectedOptions[0] : null;
-        const widthMM = opt ? parseInt(opt.dataset.w) : group.width_mm;
-        const heightMM = opt ? parseInt(opt.dataset.h) : group.height_mm;
-
-        // If template changed, we need to refetch data for that template
-        // For now, use the layout already loaded (it comes from the default smallest)
-        // The layout structure is the same for same sign_type, just different sizes.
-        // We need to fetch the correct layout for the selected template.
-        const selectedTpl = (TPL_IDS[type] || []).find(t => t.id == tplId);
-
-        // Collect selected items
-        const selected = [];
-        document.querySelectorAll(`.item-check[data-type="${type}"]:checked`).forEach(cb => {
+    function printSelected() {
+        // Group selected items by sign_type
+        const byType = {};  // sign_type -> [{data, copies}]
+        document.querySelectorAll('.item-check:checked').forEach(cb => {
+            const catIdx = parseInt(cb.dataset.catIdx);
             const idx = parseInt(cb.dataset.idx);
-            const item = group.items[idx];
-            const copiesInput = document.querySelector(`.item-copies[data-type="${type}"][data-idx="${idx}"]`);
+            const item = allCategories[catIdx].items[idx];
+            const copiesInput = document.querySelector(`.item-copies[data-cat-idx="${catIdx}"][data-idx="${idx}"]`);
             const copies = copiesInput ? Math.max(1, parseInt(copiesInput.value) || 1) : 1;
-            selected.push({ data: item.data, copies });
+            if (!byType[item.sign_type]) byType[item.sign_type] = [];
+            byType[item.sign_type].push({ data: item.data, copies });
         });
 
-        if (!selected.length) {
+        const types = Object.keys(byType);
+        if (!types.length) {
             alert('Seleccioná al menos un producto para imprimir.');
-            return;
-        }
-
-        // We need the actual layout for the selected template
-        // Fetch it
-        fetchLayoutAndPrint(tplId, type, selected, widthMM, heightMM);
-    }
-
-    async function fetchLayoutAndPrint(tplId, type, items, widthMM, heightMM) {
-        // Fetch layout for this specific template
-        const resp = await fetch(`{% url "signage:api_generate_all_data" %}?tpl_${type}=${tplId}`);
-        const json = await resp.json();
-        const layout = json.groups[type]?.layout;
-
-        if (!layout) {
-            alert('No se pudo cargar la plantilla.');
             return;
         }
 
@@ -465,20 +430,56 @@
         const margin = parseInt(document.getElementById('marginMM').value) || 5;
         const gap = parseInt(document.getElementById('gapMM').value) || 2;
 
-        const printData = {
-            layout,
-            items,
-            widthMM,
-            heightMM,
-            paperSize,
-            margin,
-            gap,
-        };
+        // Print one type at a time (each type has its own layout)
+        // Open first immediately, queue the rest
+        let idx = 0;
+        function printNext() {
+            if (idx >= types.length) return;
+            const st = types[idx];
+            const layoutInfo = allLayouts[st];
+            if (!layoutInfo) {
+                idx++;
+                printNext();
+                return;
+            }
 
-        localStorage.setItem('signagePrintData', JSON.stringify(printData));
-        window.open('{% url "signage:print_view" %}', '_blank');
+            // Check if user selected a specific template size for this type
+            const tplSelect = document.getElementById('tplSize');
+            let widthMM = layoutInfo.width_mm;
+            let heightMM = layoutInfo.height_mm;
+            let layout = layoutInfo.layout;
+
+            // If user picked a template matching this type, use its dimensions
+            if (tplSelect) {
+                const opt = tplSelect.selectedOptions[0];
+                if (opt && opt.dataset.type === st) {
+                    widthMM = parseInt(opt.dataset.w) || widthMM;
+                    heightMM = parseInt(opt.dataset.h) || heightMM;
+                }
+            }
+
+            const printData = {
+                layout,
+                items: byType[st],
+                widthMM,
+                heightMM,
+                paperSize,
+                margin,
+                gap,
+            };
+
+            localStorage.setItem('signagePrintData', JSON.stringify(printData));
+            window.open('{% url "signage:print_view" %}', '_blank');
+
+            idx++;
+            if (idx < types.length) {
+                setTimeout(printNext, 500);
+            }
+        }
+        printNext();
     }
 
+    // Start by deselecting all categories (user picks what they want)
     loadAll();
 })();
 </script>

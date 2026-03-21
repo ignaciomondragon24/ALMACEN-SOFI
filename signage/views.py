@@ -214,17 +214,11 @@ def api_generate_all_data(request):
             promo_product_map[p.pk] = promo
     promo_product_ids = set(promo_product_map.keys())
 
-    groups = {
-        'simple': {'template_id': template_simple_id, 'items': []},
-        'promo': {'template_id': template_promo_id, 'items': []},
-        'bulk': {'template_id': template_bulk_id, 'items': []},
-        'weight': {'template_id': template_weight_id, 'items': []},
-    }
-
-    categories_used = {}
+    # Build all items flat, grouped by category
+    categories_map = {}  # cat_id -> { id, name, color, items: [] }
+    layouts = {}  # sign_type -> layout info
 
     for product in products:
-        # Determine sign type for this product
         has_promo = product.pk in promo_product_ids
 
         if has_promo:
@@ -236,44 +230,54 @@ def api_generate_all_data(request):
         else:
             sign_type = 'simple'
 
-        cat_id = product.category_id
+        cat_id = product.category_id or 0
         cat_name = product.category.name if product.category else 'Sin categoría'
         cat_color = product.category.color if product.category else '#999999'
 
-        if cat_id not in categories_used:
-            categories_used[cat_id] = {'id': cat_id, 'name': cat_name, 'color': cat_color}
+        if cat_id not in categories_map:
+            categories_map[cat_id] = {
+                'id': cat_id,
+                'name': cat_name,
+                'color': cat_color,
+                'items': [],
+            }
 
         promo = promo_product_map.get(product.pk)
         data = auto_fill_product_data(product, sign_type, promo=promo)
-        groups[sign_type]['items'].append({
+        categories_map[cat_id]['items'].append({
             'product_id': product.pk,
             'product_name': product.name,
-            'category_id': cat_id,
-            'category_name': cat_name,
+            'sign_type': sign_type,
             'data': data,
-            'copies': 1,
         })
 
-    # Also load template layouts
-    for key, group in groups.items():
-        tid = group.get('template_id')
+    # Load template layouts for each requested type
+    tpl_ids = {
+        'simple': template_simple_id,
+        'promo': template_promo_id,
+        'bulk': template_bulk_id,
+        'weight': template_weight_id,
+    }
+    for st, tid in tpl_ids.items():
         if tid:
             try:
                 tpl = SignTemplate.objects.get(pk=tid)
-                group['layout'] = tpl.layout
-                group['width_mm'] = tpl.width_mm
-                group['height_mm'] = tpl.height_mm
-                group['template_name'] = tpl.name
+                layouts[st] = {
+                    'layout': tpl.layout,
+                    'width_mm': tpl.width_mm,
+                    'height_mm': tpl.height_mm,
+                    'template_name': tpl.name,
+                }
             except SignTemplate.DoesNotExist:
                 pass
 
-    # Sort categories by name
-    categories_list = sorted(categories_used.values(), key=lambda c: c['name'] or '')
+    # Sort categories by name, convert to list
+    categories_list = sorted(categories_map.values(), key=lambda c: c['name'] or '')
+    total = sum(len(c['items']) for c in categories_list)
 
     return JsonResponse({
         'success': True,
-        'groups': groups,
         'categories': categories_list,
-        'total_products': sum(len(g['items']) for g in groups.values()),
-        'total_promo': len(groups['promo']['items']),
+        'layouts': layouts,
+        'total_products': total,
     })
