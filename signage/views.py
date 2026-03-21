@@ -155,3 +155,108 @@ def save_batch(request):
         return JsonResponse({'success': True, 'batch_id': batch.pk})
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON inválido'}, status=400)
+
+
+@login_required
+@group_required('Admin', 'Manager', 'Stock Manager')
+def generate_all(request):
+    """Generar TODOS los carteles: precios de inventario + promociones activas."""
+    ensure_default_templates()
+    templates = SignTemplate.objects.filter(is_active=True, is_default=True)
+    # Build quick lookup: sign_type → smallest template (use smaller for nesting efficiency)
+    type_templates = {}
+    for t in templates.order_by('width_mm'):
+        if t.sign_type not in type_templates:
+            type_templates[t.sign_type] = t
+
+    # Also offer bigger sizes
+    type_templates_big = {}
+    for t in templates.order_by('-width_mm'):
+        if t.sign_type not in type_templates_big:
+            type_templates_big[t.sign_type] = t
+
+    template_choices = {}
+    for st in ('simple', 'promo', 'bulk', 'weight'):
+        choices = list(templates.filter(sign_type=st).order_by('width_mm'))
+        if choices:
+            template_choices[st] = choices
+
+    return render(request, 'signage/generate_all.html', {
+        'template_choices': template_choices,
+        'type_templates': {k: v.pk for k, v in type_templates.items()},
+        'type_templates_json': json.dumps({k: v.pk for k, v in type_templates.items()}),
+    })
+
+
+@login_required
+def api_generate_all_data(request):
+    """API: Genera todos los datos de carteles según inventario y promos activas."""
+    from stocks.models import Product
+    from promotions.models import Promotion
+
+    template_simple_id = request.GET.get('tpl_simple')
+    template_promo_id = request.GET.get('tpl_promo')
+    template_bulk_id = request.GET.get('tpl_bulk')
+    template_weight_id = request.GET.get('tpl_weight')
+
+    products = Product.objects.filter(is_active=True, sale_price__gt=0).select_related(
+        'category', 'unit_of_measure'
+    ).order_by('name')
+
+    # Get all product IDs with active promotions (nxm or quantity_discount)
+    promo_product_ids = set()
+    active_promos = Promotion.objects.filter(
+        status='active',
+        promo_type__in=['nxm', 'quantity_discount']
+    ).prefetch_related('products')
+    for promo in active_promos:
+        for p in promo.products.all():
+            promo_product_ids.add(p.pk)
+
+    groups = {
+        'simple': {'template_id': template_simple_id, 'items': []},
+        'promo': {'template_id': template_promo_id, 'items': []},
+        'bulk': {'template_id': template_bulk_id, 'items': []},
+        'weight': {'template_id': template_weight_id, 'items': []},
+    }
+
+    for product in products:
+        # Determine sign type for this product
+        has_promo = product.pk in promo_product_ids
+
+        if has_promo:
+            sign_type = 'promo'
+        elif product.is_bulk and product.bulk_unit in ('kg', 'g'):
+            sign_type = 'weight'
+        elif product.units_per_package and product.units_per_package > 1:
+            sign_type = 'bulk'
+        else:
+            sign_type = 'simple'
+
+        data = auto_fill_product_data(product, sign_type)
+        groups[sign_type]['items'].append({
+            'product_id': product.pk,
+            'product_name': product.name,
+            'data': data,
+            'copies': 1,
+        })
+
+    # Also load template layouts
+    for key, group in groups.items():
+        tid = group.get('template_id')
+        if tid:
+            try:
+                tpl = SignTemplate.objects.get(pk=tid)
+                group['layout'] = tpl.layout
+                group['width_mm'] = tpl.width_mm
+                group['height_mm'] = tpl.height_mm
+                group['template_name'] = tpl.name
+            except SignTemplate.DoesNotExist:
+                pass
+
+    return JsonResponse({
+        'success': True,
+        'groups': groups,
+        'total_products': products.count(),
+        'total_promo': len(groups['promo']['items']),
+    })
