@@ -383,17 +383,26 @@
     function showSearchResults(products) {
         if (!searchResultsList || !searchResults) return;
         
-        searchResultsList.innerHTML = products.map(product => `
+        searchResultsList.innerHTML = products.map(product => {
+            const pkgBadge = product.packaging_type 
+                ? `<span class="badge bg-${product.packaging_type === 'bulk' ? 'primary' : product.packaging_type === 'display' ? 'info' : 'success'} ms-1">${product.packaging_name || product.packaging_type}</span>`
+                : '';
+            const stockDisplay = product.stock_in_packaging !== undefined
+                ? `Stock: ${product.stock_in_packaging} ${product.packaging_name || 'uds'} (${product.stock} uds)`
+                : `Stock: ${product.stock} ${product.unit}`;
+            
+            return `
             <div class="search-result-item" data-product='${JSON.stringify(product)}'>
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="search-result-name">
                             ${product.name}
+                            ${pkgBadge}
                             ${product.is_bulk ? '<span class="badge bg-info ms-1">Granel</span>' : ''}
                             ${product.allow_sell_by_amount ? '<span class="badge bg-warning ms-1">$ Monto</span>' : ''}
                         </div>
                         <div class="search-result-info">
-                            ${product.barcode || 'Sin código'} | Stock: ${product.stock} ${product.unit}
+                            ${product.barcode || 'Sin código'} | ${stockDisplay}
                             ${product.is_bulk ? `| $${product.unit_price}/${product.unit}` : ''}
                         </div>
                     </div>
@@ -403,7 +412,7 @@
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
         
         searchResults.style.display = 'block';
         
@@ -429,7 +438,7 @@
                 if (product.is_bulk) {
                     showBulkQuantityModal(product);
                 } else {
-                    addToCart(product.id, 1);
+                    addToCart(product.id, 1, product.packaging_id || null);
                     hideSearchResults();
                     productSearch.value = '';
                     productSearch.focus();
@@ -683,11 +692,11 @@
             
             if (data.products && data.products.length > 0) {
                 const product = data.products[0];
-                // For bulk products, show modal
+                // For bulk products (granel), show weight modal
                 if (product.is_bulk) {
                     showBulkQuantityModal(product);
                 } else {
-                    addToCart(product.id, 1);
+                    addToCart(product.id, 1, product.packaging_id || null);
                     productSearch.value = '';
                 }
             } else {
@@ -764,19 +773,23 @@
         }
     }
 
-    async function addToCart(productId, quantity = 1) {
+    async function addToCart(productId, quantity = 1, packagingId = null) {
         try {
+            const payload = {
+                transaction_id: TRANSACTION_ID,
+                product_id: productId,
+                quantity: quantity
+            };
+            if (packagingId) {
+                payload.packaging_id = packagingId;
+            }
             const response = await fetch(API_URLS.addToCart, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': CSRF_TOKEN
                 },
-                body: JSON.stringify({
-                    transaction_id: TRANSACTION_ID,
-                    product_id: productId,
-                    quantity: quantity
-                })
+                body: JSON.stringify(payload)
             });
             
             const data = await response.json();
@@ -890,11 +903,16 @@
             if (btnInternalConsumption) btnInternalConsumption.disabled = true;
             if (btnMixedPay) btnMixedPay.disabled = true;
         } else {
-            cartItems.innerHTML = cart.items.map(item => `
+            cartItems.innerHTML = cart.items.map(item => {
+                const pkgLabel = item.packaging_name 
+                    ? `<span class="badge bg-${item.packaging_type === 'bulk' ? 'primary' : item.packaging_type === 'display' ? 'info' : 'success'} ms-1" style="font-size:.65em">${item.packaging_name}</span>`
+                    : '';
+                return `
                 <div class="cart-item" data-item-id="${item.id}">
                     <div class="cart-item-info">
                         <div class="cart-item-name">
                             ${item.product_name || item.name}
+                            ${pkgLabel}
                             ${item.promotion_name ? `<span class="cart-item-promo badge bg-success ms-1">${item.promotion_name}</span>` : ''}
                         </div>
                         <div class="cart-item-price d-flex align-items-center gap-2">
@@ -922,7 +940,7 @@
                         <i class="fas fa-trash"></i>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
             
             if (btnCheckout) btnCheckout.disabled = false;
             if (btnCostSale) btnCostSale.disabled = false;

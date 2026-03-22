@@ -85,14 +85,20 @@ class CartService:
     
     @staticmethod
     @transaction.atomic
-    def add_item(pos_transaction, product_id, quantity=Decimal('1')):
+    def add_item(pos_transaction, product_id, quantity=Decimal('1'), packaging_id=None):
         """
         Add a product to the cart.
+        
+        Args:
+            pos_transaction: POSTransaction instance
+            product_id: Product ID
+            quantity: Quantity to add
+            packaging_id: ProductPackaging ID (optional). If provided, uses packaging price and units.
         
         Returns:
             tuple (item: POSTransactionItem or None, message: str)
         """
-        from stocks.models import Product
+        from stocks.models import Product, ProductPackaging
         
         try:
             product = Product.objects.get(id=product_id, is_active=True)
@@ -101,25 +107,43 @@ class CartService:
         
         quantity = Decimal(str(quantity))
         
-        # Check if item already exists in cart
+        # Resolve packaging
+        packaging = None
+        packaging_units = 1
+        unit_price = product.sale_price
+        
+        if packaging_id:
+            try:
+                packaging = ProductPackaging.objects.get(id=packaging_id, product=product, is_active=True)
+                packaging_units = packaging.units_quantity
+                unit_price = packaging.sale_price
+            except ProductPackaging.DoesNotExist:
+                pass
+        
+        # Check if item already exists in cart (same product AND same packaging)
         existing_item = POSTransactionItem.objects.filter(
             transaction=pos_transaction,
-            product=product
+            product=product,
+            packaging=packaging
         ).first()
         
         if existing_item:
             existing_item.quantity += quantity
             existing_item.save()
             item = existing_item
-            message = f'{product.name} actualizado ({existing_item.quantity})'
+            pkg_label = f' ({packaging.name})' if packaging else ''
+            message = f'{product.name}{pkg_label} actualizado ({existing_item.quantity})'
         else:
             item = POSTransactionItem.objects.create(
                 transaction=pos_transaction,
                 product=product,
+                packaging=packaging,
+                packaging_units=packaging_units,
                 quantity=quantity,
-                unit_price=product.sale_price
+                unit_price=unit_price
             )
-            message = f'{product.name} agregado'
+            pkg_label = f' ({packaging.name})' if packaging else ''
+            message = f'{product.name}{pkg_label} agregado'
         
         # Apply promotions
         CartService.apply_promotions(pos_transaction)
@@ -314,12 +338,17 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock
+        # Deduct stock (using packaging_units for correct unit conversion)
         for item in pos_transaction.items.all():
+            # Each item sold = item.quantity * item.packaging_units base units
+            units_to_deduct = item.quantity * item.packaging_units
+            pkg_note = ''
+            if item.packaging and item.packaging_units > 1:
+                pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
             StockManagementService.deduct_stock(
                 product=item.product,
-                quantity=item.quantity,
-                reference=f'Venta {pos_transaction.ticket_number}',
+                quantity=units_to_deduct,
+                reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
                 reference_id=pos_transaction.id
             )
         
@@ -487,11 +516,12 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock
+        # Deduct stock (using packaging_units for correct unit conversion)
         for item in pos_transaction.items.all():
+            units_to_deduct = item.quantity * item.packaging_units
             StockManagementService.deduct_stock(
                 product=item.product,
-                quantity=item.quantity,
+                quantity=units_to_deduct,
                 reference=f'Venta al costo {pos_transaction.ticket_number}',
                 reference_id=pos_transaction.id
             )
@@ -552,11 +582,12 @@ class CheckoutService:
             item.save()
             total_cost += item.subtotal
         
-        # Deduct stock
+        # Deduct stock (using packaging_units for correct unit conversion)
         for item in pos_transaction.items.all():
+            units_to_deduct = item.quantity * item.packaging_units
             StockManagementService.deduct_stock(
                 product=item.product,
-                quantity=item.quantity,
+                quantity=units_to_deduct,
                 reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
                 reference_id=pos_transaction.id
             )

@@ -225,6 +225,20 @@ class POSTransactionItem(models.Model):
         related_name='pos_items',
         verbose_name='Producto'
     )
+    packaging = models.ForeignKey(
+        'stocks.ProductPackaging',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pos_items',
+        verbose_name='Empaque',
+        help_text='Empaque vendido (unidad/display/bulto). Si es null, se vende 1 unidad.'
+    )
+    packaging_units = models.PositiveIntegerField(
+        'Unidades por Empaque',
+        default=1,
+        help_text='Cuántas unidades base se descuentan por cada unidad vendida de este empaque'
+    )
     quantity = models.PositiveIntegerField(
         'Cantidad',
         default=1,
@@ -271,7 +285,13 @@ class POSTransactionItem(models.Model):
         ordering = ['id']
     
     def __str__(self):
-        return f'{self.product.name} x {self.quantity}'
+        pkg_label = f' ({self.packaging.get_packaging_type_display()})' if self.packaging else ''
+        return f'{self.product.name}{pkg_label} x {self.quantity}'
+    
+    @property
+    def total_units_deducted(self):
+        """Total base units to deduct from stock."""
+        return self.quantity * self.packaging_units
     
     def save(self, *args, **kwargs):
         # Calculate subtotal

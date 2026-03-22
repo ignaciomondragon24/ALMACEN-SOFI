@@ -166,7 +166,7 @@
                                 <dd class="col-6 text-success fw-bold">{{ unit_pkg.sale_price|currency_ar }}</dd>
                                 
                                 <dt class="col-6">Margen:</dt>
-                                <dd class="col-6">{{ unit_pkg.margin_percent }}%</dd>
+                                <dd class="col-6"><span class="badge bg-success">{{ unit_pkg.margin_percent }}%</span></dd>
                             </dl>
                         </div>
                         <hr>
@@ -215,6 +215,9 @@
                                 
                                 <dt class="col-6">Precio Venta:</dt>
                                 <dd class="col-6 text-success fw-bold">{{ display_pkg.sale_price|currency_ar }}</dd>
+                                
+                                <dt class="col-6">Margen:</dt>
+                                <dd class="col-6"><span class="badge bg-info">{{ display_pkg.margin_percent }}%</span></dd>
                             </dl>
                         </div>
                         <hr>
@@ -269,6 +272,9 @@
                                 
                                 <dt class="col-6">Precio Venta:</dt>
                                 <dd class="col-6 text-success fw-bold">{{ bulk_pkg.sale_price|currency_ar }}</dd>
+                                
+                                <dt class="col-6">Margen:</dt>
+                                <dd class="col-6"><span class="badge bg-primary">{{ bulk_pkg.margin_percent }}%</span></dd>
                             </dl>
                         </div>
                         <div class="price-display">
@@ -407,6 +413,18 @@
                                         <input type="number" name="purchase_price" id="pkg_purchase_price" 
                                                class="form-control" step="0.01" min="0" value="0">
                                     </div>
+                                    <small class="text-muted">Costo del empaque completo</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Precio de Venta</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" name="direct_sale_price" id="pkg_sale_preview" 
+                                               class="form-control" step="0.01" min="0" placeholder="Ingrese o calcule">
+                                    </div>
+                                    <small class="text-muted">Precio de venta del empaque completo</small>
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -417,21 +435,29 @@
                                                class="form-control" step="0.01" min="0" value="30">
                                         <span class="input-group-text">%</span>
                                     </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label class="form-label">Precio de Venta (calculado)</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">$</span>
-                                        <input type="number" id="pkg_sale_preview" class="form-control text-end" 
-                                               step="0.01" min="0" placeholder="Auto o manual">
-                                    </div>
+                                    <small class="text-muted">Se auto-calcula al poner precio</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="alert alert-success" id="unitPricePreview" style="display:none;">
-                            <strong>Precio por unidad:</strong> $<span id="unitPriceValue">0.00</span>
+                        <div class="row mt-2" id="derivedPricesPreview" style="display:none;">
+                            <div class="col-md-4">
+                                <div class="alert alert-success py-2 text-center mb-0">
+                                    <small class="text-muted d-block">Precio por Unidad</small>
+                                    <strong class="fs-5">$<span id="unitPriceValue">0.00</span></strong>
+                                </div>
+                            </div>
+                            <div class="col-md-4" id="displayPriceCol">
+                                <div class="alert alert-info py-2 text-center mb-0">
+                                    <small class="text-muted d-block">Precio por Display</small>
+                                    <strong class="fs-5">$<span id="displayPriceValue">0.00</span></strong>
+                                </div>
+                            </div>
+                            <div class="col-md-4" id="bulkPriceCol">
+                                <div class="alert alert-primary py-2 text-center mb-0">
+                                    <small class="text-muted d-block">Precio por Bulto</small>
+                                    <strong class="fs-5">$<span id="bulkPriceValue">0.00</span></strong>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -515,8 +541,24 @@ function createPackaging(type) {
 }
 
 function editPackaging(type, id) {
-    // TODO: Cargar datos del empaque existente via AJAX
-    createPackaging(type);
+    // Fetch packaging data and pre-fill the modal
+    fetch(`/stocks/api/packaging/${id}/`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            createPackaging(type);
+            document.getElementById('pkg_barcode').value = data.barcode || '';
+            document.getElementById('pkg_name').value = data.name || '';
+            document.getElementById('pkg_units_per_display').value = data.units_per_display || 1;
+            document.getElementById('pkg_displays_per_bulk').value = data.displays_per_bulk || 1;
+            document.getElementById('pkg_purchase_price').value = data.purchase_price || 0;
+            document.getElementById('pkg_margin_percent').value = data.margin_percent || 30;
+            document.getElementById('pkg_sale_preview').value = data.sale_price || '';
+            document.getElementById('pkg_is_default').checked = data.is_default;
+            document.getElementById('pkg_is_active').checked = data.is_active;
+            updatePriceCalculations();
+        })
+        .catch(err => console.error('Error loading packaging:', err));
 }
 
 function generateBarcode() {
@@ -529,6 +571,7 @@ function generateBarcode() {
 
 // Actualizar cálculos de precio (costo + margen → venta)
 function updatePriceCalculations() {
+    const type = document.getElementById('packaging_type').value;
     const unitsPerDisplay = parseInt(document.getElementById('pkg_units_per_display').value) || 1;
     const displaysPerBulk = parseInt(document.getElementById('pkg_displays_per_bulk').value) || 1;
     const purchasePrice = parseFloat(document.getElementById('pkg_purchase_price').value) || 0;
@@ -540,15 +583,16 @@ function updatePriceCalculations() {
     if (purchasePrice > 0) {
         const salePrice = purchasePrice * (1 + marginPercent / 100);
         document.getElementById('pkg_sale_preview').value = salePrice.toFixed(2);
-        updateUnitPreview(salePrice, totalUnits);
+        updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk);
     } else {
         document.getElementById('pkg_sale_preview').value = '';
-        document.getElementById('unitPricePreview').style.display = 'none';
+        document.getElementById('derivedPricesPreview').style.display = 'none';
     }
 }
 
 // Calcular margen desde precio de venta (venta + costo → margen)
 function updateMarginFromSale() {
+    const type = document.getElementById('packaging_type').value;
     const purchasePrice = parseFloat(document.getElementById('pkg_purchase_price').value) || 0;
     const salePrice = parseFloat(document.getElementById('pkg_sale_preview').value) || 0;
     const unitsPerDisplay = parseInt(document.getElementById('pkg_units_per_display').value) || 1;
@@ -558,14 +602,37 @@ function updateMarginFromSale() {
     if (purchasePrice > 0 && salePrice > 0) {
         const margin = ((salePrice - purchasePrice) / purchasePrice) * 100;
         document.getElementById('pkg_margin_percent').value = margin.toFixed(2);
-        updateUnitPreview(salePrice, totalUnits);
+        updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk);
     }
 }
 
-function updateUnitPreview(salePrice, totalUnits) {
-    const unitPrice = salePrice / totalUnits;
+function updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk) {
+    const preview = document.getElementById('derivedPricesPreview');
+    preview.style.display = 'flex';
+    
+    let unitPrice, displayPrice, bulkPrice;
+    
+    if (type === 'bulk') {
+        bulkPrice = salePrice;
+        displayPrice = displaysPerBulk > 0 ? salePrice / displaysPerBulk : salePrice;
+        unitPrice = totalUnits > 0 ? salePrice / totalUnits : salePrice;
+    } else if (type === 'display') {
+        displayPrice = salePrice;
+        unitPrice = unitsPerDisplay > 0 ? salePrice / unitsPerDisplay : salePrice;
+        bulkPrice = salePrice * displaysPerBulk;
+    } else {
+        unitPrice = salePrice;
+        displayPrice = salePrice * unitsPerDisplay;
+        bulkPrice = salePrice * totalUnits;
+    }
+    
     document.getElementById('unitPriceValue').textContent = unitPrice.toFixed(2);
-    document.getElementById('unitPricePreview').style.display = 'block';
+    document.getElementById('displayPriceValue').textContent = displayPrice.toFixed(2);
+    document.getElementById('bulkPriceValue').textContent = bulkPrice.toFixed(2);
+    
+    // Show/hide columns based on type
+    document.getElementById('displayPriceCol').style.display = type !== 'unit' ? 'block' : 'none';
+    document.getElementById('bulkPriceCol').style.display = type === 'bulk' ? 'block' : 'none';
 }
 
 // Event listeners para actualizar cálculos

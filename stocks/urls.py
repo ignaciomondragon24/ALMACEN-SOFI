@@ -35,6 +35,7 @@ urlpatterns = [
     path('api/search/', views.api_search_products, name='api_search'),
     path('api/generate-barcode/', views.api_generate_barcode, name='generate_barcode'),
     path('api/lookup-packaging/', views.api_lookup_packaging, name='api_lookup_packaging'),
+    path('api/packaging/<int:packaging_id>/', views.api_get_packaging, name='api_get_packaging'),
     path('api/calculate-prices/', views.api_calculate_prices, name='api_calculate_prices'),
     path('api/create-product-packaging/', views.api_create_product_with_packaging, name='api_create_product_packaging'),
 ]

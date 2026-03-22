@@ -24,7 +24,7 @@ def normalize_text(text):
     return ''.join(c for c in nfkd_form if not unicodedata.combining(c)).lower()
 from .services import POSService, CartService, CheckoutService
 from cashregister.models import CashShift, PaymentMethod
-from stocks.models import Product, ProductCategory
+from stocks.models import Product, ProductCategory, ProductPackaging
 from company.models import Company
 from decorators.decorators import group_required
 
@@ -119,7 +119,7 @@ def pos_main(request):
 @login_required
 @require_GET
 def api_search(request):
-    """Search products with accent-insensitive matching."""
+    """Search products with accent-insensitive matching. Also searches ProductPackaging barcodes."""
     query = request.GET.get('q', '').strip()
     
     if not query:
@@ -128,9 +128,19 @@ def api_search(request):
     # Normalize query (remove accents)
     query_normalized = normalize_text(query)
     
-    # Check if it's a barcode (8-13 digits)
+    # For barcode searches, also check ProductPackaging barcodes
+    packaging_match = None
     if query.isdigit() and 8 <= len(query) <= 13:
+        # First try Product.barcode
         products = Product.objects.filter(is_active=True, barcode=query)
+        
+        # If not found, try ProductPackaging.barcode
+        if not products.exists():
+            packaging_match = ProductPackaging.objects.filter(
+                barcode=query, is_active=True, product__is_active=True
+            ).select_related('product', 'product__unit_of_measure', 'product__category').first()
+            if packaging_match:
+                products = Product.objects.filter(id=packaging_match.product_id)
     elif len(query) >= 1:
         # Get all active products and filter in Python for accent-insensitive search
         all_products = Product.objects.filter(is_active=True).select_related('unit_of_measure', 'category')
@@ -151,25 +161,43 @@ def api_search(request):
     else:
         products = Product.objects.none()
     
-    data = {
-        'products': [
-            {
-                'id': p.id,
-                'name': p.name,
-                'barcode': p.barcode or '',
-                'sku': p.sku,
-                'unit_price': float(p.sale_price),
-                'stock': float(p.current_stock),
-                'unit': p.get_unit_display(),
-                'is_bulk': p.is_bulk,
-                'bulk_unit': p.bulk_unit if p.is_bulk else None,
-                'allow_sell_by_amount': p.allow_sell_by_amount,
-                'has_parent': p.parent_product is not None,
-                'parent_name': p.parent_product.name if p.parent_product else None,
-            }
-            for p in products
-        ]
-    }
+    products_data = []
+    for p in products:
+        product_data = {
+            'id': p.id,
+            'name': p.name,
+            'barcode': p.barcode or '',
+            'sku': p.sku,
+            'unit_price': float(p.sale_price),
+            'stock': float(p.current_stock),
+            'unit': p.get_unit_display(),
+            'is_bulk': p.is_bulk,
+            'bulk_unit': p.bulk_unit if p.is_bulk else None,
+            'allow_sell_by_amount': p.allow_sell_by_amount,
+            'has_parent': p.parent_product is not None,
+            'parent_name': p.parent_product.name if p.parent_product else None,
+            'packaging_id': None,
+            'packaging_type': None,
+            'packaging_name': None,
+            'packaging_units': 1,
+        }
+        
+        # If this was matched through a packaging barcode, include packaging info
+        if packaging_match and packaging_match.product_id == p.id:
+            product_data['unit_price'] = float(packaging_match.sale_price)
+            product_data['packaging_id'] = packaging_match.id
+            product_data['packaging_type'] = packaging_match.packaging_type
+            product_data['packaging_name'] = packaging_match.name
+            product_data['packaging_units'] = packaging_match.units_quantity
+            product_data['barcode'] = packaging_match.barcode
+            # Show stock in terms of this packaging level
+            if packaging_match.units_quantity > 1:
+                stock_in_pkg = float(p.current_stock) / packaging_match.units_quantity
+                product_data['stock_in_packaging'] = round(stock_in_pkg, 1)
+        
+        products_data.append(product_data)
+    
+    data = {'products': products_data}
     
     return JsonResponse(data)
 
@@ -300,6 +328,7 @@ def api_cart_add(request):
     transaction_id = data.get('transaction_id')
     product_id = data.get('product_id')
     quantity = data.get('quantity', 1)
+    packaging_id = data.get('packaging_id')
     
     if not transaction_id or not product_id:
         return JsonResponse({'success': False, 'error': 'Datos incompletos'}, status=400)
@@ -309,7 +338,7 @@ def api_cart_add(request):
     except POSTransaction.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Transacción no encontrada'}, status=404)
     
-    item, message = CartService.add_item(transaction, product_id, Decimal(str(quantity)))
+    item, message = CartService.add_item(transaction, product_id, Decimal(str(quantity)), packaging_id=packaging_id)
     
     if item:
         # Check stock and add warning if needed
@@ -513,7 +542,7 @@ def api_transaction_detail(request, transaction_id):
     except POSTransaction.DoesNotExist:
         return JsonResponse({'error': 'Transacción no encontrada'}, status=404)
     
-    items = transaction.items.select_related('product', 'promotion').all()
+    items = transaction.items.select_related('product', 'promotion', 'packaging').all()
     
     data = {
         'id': transaction.id,
@@ -528,7 +557,11 @@ def api_transaction_detail(request, transaction_id):
                 'unit_price': float(item.unit_price),
                 'discount': float(item.discount),
                 'subtotal': float(item.subtotal),
-                'promotion_name': item.promotion_name
+                'promotion_name': item.promotion_name,
+                'packaging_id': item.packaging_id,
+                'packaging_name': item.packaging.name if item.packaging else None,
+                'packaging_type': item.packaging.packaging_type if item.packaging else None,
+                'packaging_units': item.packaging_units,
             }
             for item in items
         ],
