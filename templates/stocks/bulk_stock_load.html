@@ -670,13 +670,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-focus en barcode
     barcodeInput.focus();
     
-    // Buscar al presionar Enter o después de un delay
-    barcodeInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            clearTimeout(searchTimeout);
-            searchPackaging();
-        }
+    // Prevenir que Enter en CUALQUIER campo del formulario haga POST submit
+    // (el submit real se maneja con el botón submitBtn via JS)
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+                e.preventDefault();
+                // Si Enter es en el campo barcode, buscar inmediatamente
+                if (e.target === barcodeInput) {
+                    clearTimeout(searchTimeout);
+                    searchPackaging();
+                }
+            }
+        });
     });
     
     barcodeInput.addEventListener('input', function() {
@@ -685,11 +691,26 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Auto-buscar: EAN-13 (13+ chars) con delay corto, 8+ chars con delay más largo
         if (barcode.length >= 13) {
-            searchTimeout = setTimeout(searchPackaging, 400);
+            searchTimeout = setTimeout(searchPackaging, 300);
         } else if (barcode.length >= 8) {
-            searchTimeout = setTimeout(searchPackaging, 800);
+            searchTimeout = setTimeout(searchPackaging, 400);
         }
     });
+    
+    function showSearching(barcode) {
+        hideError();
+        hideProduct();
+        mainForm.style.display = 'none';
+        productPreview.classList.add('active');
+        productPreview.classList.remove('error');
+        document.getElementById('preview-icon').className = 'fas fa-spinner fa-spin fa-3x text-info';
+        document.getElementById('productName').textContent = 'Buscando...';
+        document.getElementById('productSku').textContent = barcode;
+        document.getElementById('currentStock').textContent = '';
+        document.getElementById('packagingType').textContent = '';
+        document.getElementById('packagingUnits').textContent = '';
+        document.getElementById('packagingDisplays').textContent = '';
+    }
     
     async function searchPackaging() {
         const barcode = barcodeInput.value.trim();
@@ -700,6 +721,9 @@ document.addEventListener('DOMContentLoaded', function() {
             currentAbortController.abort();
         }
         currentAbortController = new AbortController();
+        
+        // Mostrar spinner mientras busca
+        showSearching(barcode);
         
         try {
             const response = await fetch(
