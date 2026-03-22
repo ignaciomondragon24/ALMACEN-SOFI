@@ -182,6 +182,7 @@
 
     // Search
     let _scannerTimer = null;
+    let _searchAbortController = null;
     function initSearch() {
         if (!productSearch) return;
         
@@ -190,7 +191,7 @@
             // Si parece un barcode en progreso (solo dígitos), dar más tiempo al scanner
             clearTimeout(_scannerTimer);
             if (/^\d+$/.test(val) && val.length < 13) {
-                _scannerTimer = setTimeout(() => handleSearch(e), 400);
+                _scannerTimer = setTimeout(() => handleSearch(e), 500);
             } else {
                 _scannerTimer = setTimeout(() => handleSearch(e), 150);
             }
@@ -213,9 +214,21 @@
             return;
         }
 
+        // Cancelar búsqueda anterior en vuelo
+        if (_searchAbortController) {
+            _searchAbortController.abort();
+        }
+        _searchAbortController = new AbortController();
+
         try {
-            const response = await fetch(`${API_URLS.search}?q=${encodeURIComponent(query)}`);
+            const response = await fetch(
+                `${API_URLS.search}?q=${encodeURIComponent(query)}`,
+                { signal: _searchAbortController.signal }
+            );
             const data = await response.json();
+            
+            // Verificar que el input no cambió mientras esperábamos
+            if (productSearch.value.trim() !== query) return;
             
             if (data.products && data.products.length > 0) {
                 showSearchResults(data.products);
@@ -228,6 +241,7 @@
                 }
             }
         } catch (error) {
+            if (error.name === 'AbortError') return;
             console.error('Search error:', error);
             showToast('Error al buscar productos', 'error');
         }
@@ -309,6 +323,7 @@
     function handleSearchKeydown(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
+            clearTimeout(_scannerTimer);
             const query = e.target.value.trim();
             
             // Check if it's a barcode (numeric, 8-13 digits)

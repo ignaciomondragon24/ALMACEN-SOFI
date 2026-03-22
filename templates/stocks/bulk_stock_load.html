@@ -665,6 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let currentPackaging = null;
     let searchTimeout = null;
+    let currentAbortController = null;
     
     // Auto-focus en barcode
     barcodeInput.focus();
@@ -673,6 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
     barcodeInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
+            clearTimeout(searchTimeout);
             searchPackaging();
         }
     });
@@ -681,9 +683,11 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(searchTimeout);
         const barcode = this.value.trim();
         
-        // Auto-buscar después de escanear (mínimo 8 caracteres)
-        if (barcode.length >= 8) {
-            searchTimeout = setTimeout(searchPackaging, 300);
+        // Auto-buscar: EAN-13 (13+ chars) con delay corto, 8+ chars con delay más largo
+        if (barcode.length >= 13) {
+            searchTimeout = setTimeout(searchPackaging, 400);
+        } else if (barcode.length >= 8) {
+            searchTimeout = setTimeout(searchPackaging, 800);
         }
     });
     
@@ -691,9 +695,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const barcode = barcodeInput.value.trim();
         if (!barcode) return;
         
+        // Cancelar búsqueda anterior si está en vuelo
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        currentAbortController = new AbortController();
+        
         try {
-            const response = await fetch(`{% url 'stocks:api_lookup_packaging' %}?barcode=${encodeURIComponent(barcode)}`);
+            const response = await fetch(
+                `{% url 'stocks:api_lookup_packaging' %}?barcode=${encodeURIComponent(barcode)}`,
+                { signal: currentAbortController.signal }
+            );
             const data = await response.json();
+            
+            // Verificar que el barcode no cambió mientras esperábamos la respuesta
+            if (barcodeInput.value.trim() !== barcode) return;
             
             if (data.success) {
                 currentPackaging = data;
@@ -726,6 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 mainForm.style.display = 'none';
             }
         } catch (error) {
+            if (error.name === 'AbortError') return; // Búsqueda cancelada, ignorar
             console.error('Error:', error);
             showError('Error al buscar el producto');
             hideProduct();
