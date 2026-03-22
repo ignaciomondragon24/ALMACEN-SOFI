@@ -730,10 +730,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 `{% url 'stocks:api_lookup_packaging' %}?barcode=${encodeURIComponent(barcode)}`,
                 { signal: currentAbortController.signal }
             );
-            const data = await response.json();
+            
+            // Parsear JSON de forma segura (404 puede devolver HTML en vez de JSON)
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonErr) {
+                // Respuesta no es JSON (ej: 404 HTML) → tratar como no encontrado
+                showNotFoundOptions(barcode);
+                hideProduct();
+                mainForm.style.display = 'none';
+                return;
+            }
             
             // Verificar que el barcode no cambió mientras esperábamos la respuesta
-            if (barcodeInput.value.trim() !== barcode) return;
+            if (barcodeInput.value.trim() !== barcode) {
+                hideProduct();
+                return;
+            }
             
             if (data.success) {
                 currentPackaging = data;
