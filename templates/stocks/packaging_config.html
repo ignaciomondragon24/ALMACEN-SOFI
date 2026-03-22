@@ -442,20 +442,32 @@
                         <div class="row mt-2" id="derivedPricesPreview" style="display:none;">
                             <div class="col-md-4">
                                 <div class="alert alert-success py-2 text-center mb-0">
-                                    <small class="text-muted d-block">Precio por Unidad</small>
-                                    <strong class="fs-5">$<span id="unitPriceValue">0.00</span></strong>
+                                    <small class="text-muted d-block">Precio Venta Unidad</small>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" id="unitPriceInput" class="form-control text-center fw-bold" step="0.01" min="0">
+                                    </div>
+                                    <small class="text-muted" id="unitMarginLabel"></small>
                                 </div>
                             </div>
                             <div class="col-md-4" id="displayPriceCol">
                                 <div class="alert alert-info py-2 text-center mb-0">
-                                    <small class="text-muted d-block">Precio por Display</small>
-                                    <strong class="fs-5">$<span id="displayPriceValue">0.00</span></strong>
+                                    <small class="text-muted d-block">Precio Venta Display</small>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" id="displayPriceInput" class="form-control text-center fw-bold" step="0.01" min="0">
+                                    </div>
+                                    <small class="text-muted" id="displayMarginLabel"></small>
                                 </div>
                             </div>
                             <div class="col-md-4" id="bulkPriceCol">
                                 <div class="alert alert-primary py-2 text-center mb-0">
-                                    <small class="text-muted d-block">Precio por Bulto</small>
-                                    <strong class="fs-5">$<span id="bulkPriceValue">0.00</span></strong>
+                                    <small class="text-muted d-block">Precio Venta Bulto</small>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" id="bulkPriceInput" class="form-control text-center fw-bold" step="0.01" min="0">
+                                    </div>
+                                    <small class="text-muted" id="bulkMarginLabel"></small>
                                 </div>
                             </div>
                         </div>
@@ -583,7 +595,7 @@ function updatePriceCalculations() {
     if (purchasePrice > 0) {
         const salePrice = purchasePrice * (1 + marginPercent / 100);
         document.getElementById('pkg_sale_preview').value = salePrice.toFixed(2);
-        updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk);
+        updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk, true);
     } else {
         document.getElementById('pkg_sale_preview').value = '';
         document.getElementById('derivedPricesPreview').style.display = 'none';
@@ -602,37 +614,129 @@ function updateMarginFromSale() {
     if (purchasePrice > 0 && salePrice > 0) {
         const margin = ((salePrice - purchasePrice) / purchasePrice) * 100;
         document.getElementById('pkg_margin_percent').value = margin.toFixed(2);
-        updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk);
+        updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk, true);
     }
 }
 
-function updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk) {
+let _updatingDerived = false;
+
+function updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk, fromCalc) {
     const preview = document.getElementById('derivedPricesPreview');
     preview.style.display = 'flex';
     
     let unitPrice, displayPrice, bulkPrice;
+    let unitCost, displayCost, bulkCost;
     
     if (type === 'bulk') {
         bulkPrice = salePrice;
+        bulkCost = purchasePrice;
         displayPrice = displaysPerBulk > 0 ? salePrice / displaysPerBulk : salePrice;
+        displayCost = displaysPerBulk > 0 ? purchasePrice / displaysPerBulk : purchasePrice;
         unitPrice = totalUnits > 0 ? salePrice / totalUnits : salePrice;
+        unitCost = totalUnits > 0 ? purchasePrice / totalUnits : purchasePrice;
     } else if (type === 'display') {
         displayPrice = salePrice;
+        displayCost = purchasePrice;
         unitPrice = unitsPerDisplay > 0 ? salePrice / unitsPerDisplay : salePrice;
+        unitCost = unitsPerDisplay > 0 ? purchasePrice / unitsPerDisplay : purchasePrice;
         bulkPrice = salePrice * displaysPerBulk;
+        bulkCost = purchasePrice * displaysPerBulk;
     } else {
         unitPrice = salePrice;
+        unitCost = purchasePrice;
         displayPrice = salePrice * unitsPerDisplay;
+        displayCost = purchasePrice * unitsPerDisplay;
         bulkPrice = salePrice * totalUnits;
+        bulkCost = purchasePrice * totalUnits;
     }
     
-    document.getElementById('unitPriceValue').textContent = unitPrice.toFixed(2);
-    document.getElementById('displayPriceValue').textContent = displayPrice.toFixed(2);
-    document.getElementById('bulkPriceValue').textContent = bulkPrice.toFixed(2);
+    // Solo actualizar los inputs si viene del cálculo de margen (no de edición manual)
+    if (fromCalc) {
+        _updatingDerived = true;
+        document.getElementById('unitPriceInput').value = unitPrice.toFixed(2);
+        document.getElementById('displayPriceInput').value = displayPrice.toFixed(2);
+        document.getElementById('bulkPriceInput').value = bulkPrice.toFixed(2);
+        _updatingDerived = false;
+    }
+    
+    // Mostrar margen por nivel
+    const unitMargin = unitCost > 0 ? ((unitPrice - unitCost) / unitCost * 100) : 0;
+    const displayMargin = displayCost > 0 ? ((displayPrice - displayCost) / displayCost * 100) : 0;
+    const bulkMargin = bulkCost > 0 ? ((bulkPrice - bulkCost) / bulkCost * 100) : 0;
+    document.getElementById('unitMarginLabel').textContent = `Ganancia: ${unitMargin.toFixed(1)}%`;
+    document.getElementById('displayMarginLabel').textContent = `Ganancia: ${displayMargin.toFixed(1)}%`;
+    document.getElementById('bulkMarginLabel').textContent = `Ganancia: ${bulkMargin.toFixed(1)}%`;
     
     // Show/hide columns based on type
     document.getElementById('displayPriceCol').style.display = type !== 'unit' ? 'block' : 'none';
     document.getElementById('bulkPriceCol').style.display = type === 'bulk' ? 'block' : 'none';
+}
+
+// Cuando el usuario edita un precio derivado manualmente
+function onDerivedPriceEdit(level) {
+    if (_updatingDerived) return;
+    
+    const type = document.getElementById('packaging_type').value;
+    const purchasePrice = parseFloat(document.getElementById('pkg_purchase_price').value) || 0;
+    const unitsPerDisplay = parseInt(document.getElementById('pkg_units_per_display').value) || 1;
+    const displaysPerBulk = parseInt(document.getElementById('pkg_displays_per_bulk').value) || 1;
+    const totalUnits = unitsPerDisplay * displaysPerBulk;
+    
+    const unitPrice = parseFloat(document.getElementById('unitPriceInput').value) || 0;
+    const displayPrice = parseFloat(document.getElementById('displayPriceInput').value) || 0;
+    const bulkPrice = parseFloat(document.getElementById('bulkPriceInput').value) || 0;
+    
+    // Recalcular el precio de venta del empaque siendo editado
+    let newSalePrice;
+    if (type === 'bulk') {
+        if (level === 'unit') newSalePrice = unitPrice * totalUnits;
+        else if (level === 'display') newSalePrice = displayPrice * displaysPerBulk;
+        else newSalePrice = bulkPrice;
+    } else if (type === 'display') {
+        if (level === 'unit') newSalePrice = unitPrice * unitsPerDisplay;
+        else if (level === 'display') newSalePrice = displayPrice;
+        else newSalePrice = bulkPrice / displaysPerBulk;
+    } else {
+        if (level === 'unit') newSalePrice = unitPrice;
+        else if (level === 'display') newSalePrice = displayPrice / unitsPerDisplay;
+        else newSalePrice = bulkPrice / totalUnits;
+    }
+    
+    // Actualizar precio de venta del empaque y margen
+    document.getElementById('pkg_sale_preview').value = newSalePrice.toFixed(2);
+    if (purchasePrice > 0 && newSalePrice > 0) {
+        const margin = ((newSalePrice - purchasePrice) / purchasePrice) * 100;
+        document.getElementById('pkg_margin_percent').value = margin.toFixed(2);
+    }
+    
+    // Recalcular los otros niveles desde el nuevo precio de venta
+    updateDerivedPrices(type, newSalePrice, purchasePrice, totalUnits, unitsPerDisplay, displaysPerBulk, false);
+    
+    // Mostrar márgenes actualizados con los valores manuales
+    let unitCost, displayCost, bulkCost;
+    if (type === 'bulk') {
+        bulkCost = purchasePrice;
+        displayCost = displaysPerBulk > 0 ? purchasePrice / displaysPerBulk : purchasePrice;
+        unitCost = totalUnits > 0 ? purchasePrice / totalUnits : purchasePrice;
+    } else if (type === 'display') {
+        displayCost = purchasePrice;
+        unitCost = unitsPerDisplay > 0 ? purchasePrice / unitsPerDisplay : purchasePrice;
+        bulkCost = purchasePrice * displaysPerBulk;
+    } else {
+        unitCost = purchasePrice;
+        displayCost = purchasePrice * unitsPerDisplay;
+        bulkCost = purchasePrice * totalUnits;
+    }
+    
+    const uP = parseFloat(document.getElementById('unitPriceInput').value) || 0;
+    const dP = parseFloat(document.getElementById('displayPriceInput').value) || 0;
+    const bP = parseFloat(document.getElementById('bulkPriceInput').value) || 0;
+    const um = unitCost > 0 ? ((uP - unitCost) / unitCost * 100) : 0;
+    const dm = displayCost > 0 ? ((dP - displayCost) / displayCost * 100) : 0;
+    const bm = bulkCost > 0 ? ((bP - bulkCost) / bulkCost * 100) : 0;
+    document.getElementById('unitMarginLabel').textContent = `Ganancia: ${um.toFixed(1)}%`;
+    document.getElementById('displayMarginLabel').textContent = `Ganancia: ${dm.toFixed(1)}%`;
+    document.getElementById('bulkMarginLabel').textContent = `Ganancia: ${bm.toFixed(1)}%`;
 }
 
 // Event listeners para actualizar cálculos
@@ -640,6 +744,11 @@ function updateDerivedPrices(type, salePrice, purchasePrice, totalUnits, unitsPe
     document.getElementById(id).addEventListener('input', updatePriceCalculations);
 });
 document.getElementById('pkg_sale_preview').addEventListener('input', updateMarginFromSale);
+
+// Event listeners para precios derivados editables
+document.getElementById('unitPriceInput').addEventListener('input', () => onDerivedPriceEdit('unit'));
+document.getElementById('displayPriceInput').addEventListener('input', () => onDerivedPriceEdit('display'));
+document.getElementById('bulkPriceInput').addEventListener('input', () => onDerivedPriceEdit('bulk'));
 
 // Auto-focus en código de barras al abrir modal
 document.getElementById('packagingModal').addEventListener('shown.bs.modal', function() {

@@ -345,9 +345,30 @@
                                             </tr>
                                             <tr>
                                                 <td class="text-start fw-bold">Venta</td>
-                                                <td id="calcUnitPrice" class="text-success fw-bold">-</td>
-                                                <td id="calcDisplayPrice" class="text-success fw-bold">-</td>
-                                                <td id="calcBulkPrice" class="text-success fw-bold">-</td>
+                                                <td class="p-1">
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text px-1">$</span>
+                                                        <input type="number" id="saleUnitPrice" name="sale_unit_price"
+                                                               class="form-control form-control-sm text-center text-success fw-bold"
+                                                               step="0.01" min="0">
+                                                    </div>
+                                                </td>
+                                                <td class="p-1">
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text px-1">$</span>
+                                                        <input type="number" id="saleDisplayPrice" name="sale_display_price"
+                                                               class="form-control form-control-sm text-center text-success fw-bold"
+                                                               step="0.01" min="0">
+                                                    </div>
+                                                </td>
+                                                <td class="p-1">
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text px-1">$</span>
+                                                        <input type="number" id="saleBulkPrice" name="sale_bulk_price"
+                                                               class="form-control form-control-sm text-center text-success fw-bold"
+                                                               step="0.01" min="0">
+                                                    </div>
+                                                </td>
                                             </tr>
                                             <tr class="table-light">
                                                 <td class="text-start fw-bold">Ganancia</td>
@@ -398,7 +419,7 @@
                                     <div>
                                         <h6 class="mb-1">{{ load.product.name|truncatechars:25 }}</h6>
                                         <small class="text-muted">
-                                            <i class="fas fa-cubes me-1"></i>+{{ load.quantity }} unidades
+                                            <i class="fas fa-cubes me-1"></i>+{{ load.quantity|floatformat:0 }} unidades
                                         </small><br>
                                         <small class="text-muted">
                                             <i class="fas fa-user me-1"></i>{{ load.created_by.get_full_name|default:load.created_by.username }}
@@ -409,7 +430,7 @@
                                             {{ load.created_at|date:"d/m H:i" }}
                                         </small>
                                         <span class="badge bg-success">
-                                            +{{ load.quantity }}
+                                            +{{ load.quantity|floatformat:0 }}
                                         </span>
                                     </div>
                                 </div>
@@ -791,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayProduct(data) {
         document.getElementById('productName').textContent = data.product_name;
         document.getElementById('productSku').textContent = `SKU: ${data.product_sku}`;
-        document.getElementById('currentStock').textContent = `Stock actual: ${data.current_stock}`;
+        document.getElementById('currentStock').textContent = `Stock actual: ${Math.round(data.current_stock)}`;
         
         if (data.found_in === 'packaging') {
             document.getElementById('packagingType').textContent = data.packaging_type_display;
@@ -1051,10 +1072,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Referencias a inputs de precio de venta editables
+    const saleUnitInput = document.getElementById('saleUnitPrice');
+    const saleDisplayInput = document.getElementById('saleDisplayPrice');
+    const saleBulkInput = document.getElementById('saleBulkPrice');
+    let updatingFromMargin = false; // flag para evitar loops
+    
     // Actualizar cálculos en tiempo real
     [bulkQtyInput, priceInput, marginInput].forEach(input => {
         input.addEventListener('input', updateCalculations);
     });
+    
+    // Cuando el usuario edita manualmente un precio de venta, recalcular ganancia
+    saleUnitInput.addEventListener('input', function() {
+        if (updatingFromMargin) return;
+        recalcProfitFromSalePrices();
+    });
+    saleDisplayInput.addEventListener('input', function() {
+        if (updatingFromMargin) return;
+        recalcProfitFromSalePrices();
+    });
+    saleBulkInput.addEventListener('input', function() {
+        if (updatingFromMargin) return;
+        // Recalcular margen general desde precio bulto
+        const purchasePrice = parseFloat(priceInput.value) || parseFloat(currentPackaging?.purchase_price) || 0;
+        const bulkSale = parseFloat(this.value) || 0;
+        if (purchasePrice > 0 && bulkSale > 0) {
+            const newMargin = ((bulkSale - purchasePrice) / purchasePrice) * 100;
+            marginInput.value = newMargin.toFixed(2);
+        }
+        recalcProfitFromSalePrices();
+    });
+    
+    function recalcProfitFromSalePrices() {
+        if (!currentPackaging || currentPackaging.found_in !== 'packaging') return;
+        const purchasePrice = parseFloat(priceInput.value) || parseFloat(currentPackaging.purchase_price) || 0;
+        if (purchasePrice <= 0) return;
+        
+        const unitsPerBulk = currentPackaging.units_quantity;
+        const displaysPerBulk = currentPackaging.displays_per_bulk;
+        const unitCost = purchasePrice / unitsPerBulk;
+        const displayCost = purchasePrice / displaysPerBulk;
+        
+        const unitSale = parseFloat(saleUnitInput.value) || 0;
+        const displaySale = parseFloat(saleDisplayInput.value) || 0;
+        const bulkSale = parseFloat(saleBulkInput.value) || 0;
+        
+        // Ganancia en $ y %
+        const unitProfit = unitSale - unitCost;
+        const displayProfit = displaySale - displayCost;
+        const bulkProfit = bulkSale - purchasePrice;
+        
+        const unitMargin = unitCost > 0 ? (unitProfit / unitCost * 100) : 0;
+        const displayMargin = displayCost > 0 ? (displayProfit / displayCost * 100) : 0;
+        const bulkMargin = purchasePrice > 0 ? (bulkProfit / purchasePrice * 100) : 0;
+        
+        document.getElementById('calcUnitProfit').innerHTML = `${fmtPrice(unitProfit)}<br><small class="text-muted">${unitMargin.toFixed(1)}%</small>`;
+        document.getElementById('calcDisplayProfit').innerHTML = `${fmtPrice(displayProfit)}<br><small class="text-muted">${displayMargin.toFixed(1)}%</small>`;
+        document.getElementById('calcBulkProfit').innerHTML = `${fmtPrice(bulkProfit)}<br><small class="text-muted">${bulkMargin.toFixed(1)}%</small>`;
+    }
     
     function updateCalculations() {
         if (!currentPackaging || currentPackaging.found_in !== 'packaging') return;
@@ -1083,14 +1159,19 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('calcUnitCost').textContent = fmtPrice(unitCost);
             document.getElementById('calcDisplayCost').textContent = fmtPrice(displayCost);
             document.getElementById('calcBulkCost').textContent = fmtPrice(purchasePrice);
-            // Ventas
-            document.getElementById('calcUnitPrice').textContent = fmtPrice(unitSale);
-            document.getElementById('calcDisplayPrice').textContent = fmtPrice(displaySale);
-            document.getElementById('calcBulkPrice').textContent = fmtPrice(bulkSale);
-            // Ganancias
-            document.getElementById('calcUnitProfit').textContent = fmtPrice(unitSale - unitCost);
-            document.getElementById('calcDisplayProfit').textContent = fmtPrice(displaySale - displayCost);
-            document.getElementById('calcBulkProfit').textContent = fmtPrice(bulkSale - purchasePrice);
+            // Ventas (inputs editables)
+            updatingFromMargin = true;
+            saleUnitInput.value = unitSale.toFixed(2);
+            saleDisplayInput.value = displaySale.toFixed(2);
+            saleBulkInput.value = bulkSale.toFixed(2);
+            updatingFromMargin = false;
+            // Ganancias con % de margen
+            const unitProfit = unitSale - unitCost;
+            const displayProfit = displaySale - displayCost;
+            const bulkProfit = bulkSale - purchasePrice;
+            document.getElementById('calcUnitProfit').innerHTML = `${fmtPrice(unitProfit)}<br><small class="text-muted">${marginPercent.toFixed(1)}%</small>`;
+            document.getElementById('calcDisplayProfit').innerHTML = `${fmtPrice(displayProfit)}<br><small class="text-muted">${marginPercent.toFixed(1)}%</small>`;
+            document.getElementById('calcBulkProfit').innerHTML = `${fmtPrice(bulkProfit)}<br><small class="text-muted">${marginPercent.toFixed(1)}%</small>`;
         } else {
             // Sin precio, intentar mostrar datos del packaging existente
             const up = currentPackaging.unit_purchase_price ? parseFloat(currentPackaging.unit_purchase_price) : 0;
@@ -1098,15 +1179,15 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('calcUnitCost').textContent = up > 0 ? fmtPrice(up) : '-';
             document.getElementById('calcDisplayCost').textContent = up > 0 ? fmtPrice(up * (unitsPerBulk / displaysPerBulk)) : '-';
             document.getElementById('calcBulkCost').textContent = '-';
-            document.getElementById('calcUnitPrice').textContent = us > 0 ? fmtPrice(us) : '-';
-            document.getElementById('calcDisplayPrice').textContent = us > 0 ? fmtPrice(us * (unitsPerBulk / displaysPerBulk)) : '-';
-            document.getElementById('calcBulkPrice').textContent = '-';
+            saleUnitInput.value = us > 0 ? us.toFixed(2) : '';
+            saleDisplayInput.value = us > 0 ? (us * (unitsPerBulk / displaysPerBulk)).toFixed(2) : '';
+            saleBulkInput.value = '';
             document.getElementById('calcUnitProfit').textContent = (up > 0 && us > 0) ? fmtPrice(us - up) : '-';
             document.getElementById('calcDisplayProfit').textContent = '-';
             document.getElementById('calcBulkProfit').textContent = '-';
         }
         
-        const finalStock = currentPackaging.current_stock + totalUnits;
+        const finalStock = Math.round(currentPackaging.current_stock + totalUnits);
         document.getElementById('calcFinalStock').textContent = `${finalStock} unidades`;
     }
     
@@ -1115,6 +1196,9 @@ document.addEventListener('DOMContentLoaded', function() {
         bulkQtyInput.value = '1';
         priceInput.value = '';
         marginInput.value = '30';
+        saleUnitInput.value = '';
+        saleDisplayInput.value = '';
+        saleBulkInput.value = '';
         hideProduct();
         hideError();
         mainForm.style.display = 'none';

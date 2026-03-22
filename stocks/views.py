@@ -1055,6 +1055,9 @@ def bulk_stock_load(request):
             purchase_price = form.cleaned_data.get('purchase_price_per_bulk')
             margin_percent = form.cleaned_data['margin_percent']
             notes = form.cleaned_data.get('notes', '')
+            sale_unit_price = form.cleaned_data.get('sale_unit_price')
+            sale_display_price = form.cleaned_data.get('sale_display_price')
+            sale_bulk_price = form.cleaned_data.get('sale_bulk_price')
             
             # Buscar el empaque por código de barras
             try:
@@ -1079,9 +1082,40 @@ def bulk_stock_load(request):
                     packaging.purchase_price = purchase_price
                     packaging.margin_percent = margin_percent
                     
-                    # Calcular precio de venta
-                    packaging.sale_price = purchase_price * (1 + margin_percent / 100)
+                    # Usar precio de venta manual del bulto si se proporcionó, sino calcular desde margen
+                    if sale_bulk_price and sale_bulk_price > 0:
+                        packaging.sale_price = sale_bulk_price
+                        # Recalcular margen real
+                        packaging.margin_percent = ((sale_bulk_price - purchase_price) / purchase_price) * 100
+                    else:
+                        packaging.sale_price = purchase_price * (1 + margin_percent / 100)
                     packaging.save()
+                    
+                    # Guardar precios individuales en display y unit si existen
+                    product = packaging.product
+                    if sale_display_price and sale_display_price > 0:
+                        display_pkg = product.packagings.filter(
+                            packaging_type='display', is_active=True
+                        ).first()
+                        if display_pkg:
+                            display_cost = packaging.purchase_price / packaging.displays_per_bulk if packaging.displays_per_bulk > 0 else Decimal('0')
+                            display_pkg.sale_price = sale_display_price
+                            display_pkg.purchase_price = display_cost
+                            if display_cost > 0:
+                                display_pkg.margin_percent = ((sale_display_price - display_cost) / display_cost) * 100
+                            display_pkg.save()
+                    
+                    if sale_unit_price and sale_unit_price > 0:
+                        unit_pkg = product.packagings.filter(
+                            packaging_type='unit', is_active=True
+                        ).first()
+                        if unit_pkg:
+                            unit_cost = packaging.purchase_price / packaging.units_quantity if packaging.units_quantity > 0 else Decimal('0')
+                            unit_pkg.sale_price = sale_unit_price
+                            unit_pkg.purchase_price = unit_cost
+                            if unit_cost > 0:
+                                unit_pkg.margin_percent = ((sale_unit_price - unit_cost) / unit_cost) * 100
+                            unit_pkg.save()
                 
                 # Calcular cantidades
                 total_units = packaging.calculate_total_units(bulk_qty)
@@ -1093,9 +1127,12 @@ def bulk_stock_load(request):
                 product.current_stock += total_units
                 
                 # Actualizar precios del producto (precio por unidad)
-                if packaging.unit_purchase_price > 0:
+                if sale_unit_price and sale_unit_price > 0:
                     product.purchase_price = packaging.unit_purchase_price
-                if packaging.unit_sale_price > 0:
+                    product.sale_price = sale_unit_price
+                elif packaging.unit_purchase_price > 0:
+                    product.purchase_price = packaging.unit_purchase_price
+                if not (sale_unit_price and sale_unit_price > 0) and packaging.unit_sale_price > 0:
                     product.sale_price = packaging.unit_sale_price
                 
                 product.save()

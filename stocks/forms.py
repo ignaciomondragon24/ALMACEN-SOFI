@@ -155,6 +155,26 @@ class BulkStockLoadForm(forms.Form):
             'placeholder': 'Observaciones sobre esta carga...'
         })
     )
+    
+    # Precios de venta editables por nivel
+    sale_unit_price = forms.DecimalField(
+        label='Precio Venta Unidad',
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+    )
+    sale_display_price = forms.DecimalField(
+        label='Precio Venta Display',
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+    )
+    sale_bulk_price = forms.DecimalField(
+        label='Precio Venta Bulto',
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+    )
 
 
 class ProductPackagingForm(forms.ModelForm):
