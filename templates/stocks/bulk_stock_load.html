@@ -687,6 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentPackaging = null;
     let searchTimeout = null;
     let currentAbortController = null;
+    let _searchId = 0;
     
     // Auto-focus en barcode
     barcodeInput.focus();
@@ -743,6 +744,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         currentAbortController = new AbortController();
         
+        // ID único para esta búsqueda: solo la más reciente modifica la UI
+        const mySearchId = ++_searchId;
+        
         // Mostrar spinner mientras busca
         showSearching(barcode);
         
@@ -752,11 +756,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 { signal: currentAbortController.signal }
             );
             
+            // Si otra búsqueda empezó mientras esperábamos, ignorar esta respuesta
+            if (mySearchId !== _searchId) return;
+            
             // Parsear JSON de forma segura (404 puede devolver HTML en vez de JSON)
             let data;
             try {
                 data = await response.json();
             } catch (jsonErr) {
+                if (mySearchId !== _searchId) return;
                 // Respuesta no es JSON (ej: 404 HTML) → tratar como no encontrado
                 showNotFoundOptions(barcode);
                 hideProduct();
@@ -764,11 +772,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Verificar que el barcode no cambió mientras esperábamos la respuesta
-            if (barcodeInput.value.trim() !== barcode) {
-                hideProduct();
-                return;
-            }
+            // Verificar que esta sigue siendo la búsqueda activa
+            if (mySearchId !== _searchId) return;
             
             if (data.success) {
                 currentPackaging = data;
@@ -801,11 +806,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 mainForm.style.display = 'none';
             }
         } catch (error) {
-            if (error.name === 'AbortError') return; // Búsqueda cancelada, ignorar
+            if (error.name === 'AbortError') return;
+            if (mySearchId !== _searchId) return;
             console.error('Error:', error);
             showError('Error al buscar el producto');
             hideProduct();
             mainForm.style.display = 'none';
+        } finally {
+            // Limpiar controller si esta búsqueda es la activa
+            if (mySearchId === _searchId) {
+                currentAbortController = null;
+            }
         }
     }
     
