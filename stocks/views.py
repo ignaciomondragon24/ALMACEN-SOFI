@@ -1312,19 +1312,82 @@ def product_packaging_view(request, pk):
             if form.is_valid():
                 pkg = form.save(commit=False)
                 pkg.product = product
-                sale_price = request.POST.get('direct_sale_price', '').strip()
-                if sale_price:
+
+                def _calc_margin(purchase, sale):
+                    if purchase and purchase > 0 and sale and sale > 0:
+                        return ((sale - purchase) / purchase) * 100
+                    return Decimal('0')
+
+                # Bulk sale price & margin
+                bulk_sale = request.POST.get('direct_sale_price', '').strip()
+                if bulk_sale:
                     try:
-                        pkg.sale_price = Decimal(sale_price)
-                        if pkg.purchase_price > 0:
-                            pkg.margin_percent = ((pkg.sale_price - pkg.purchase_price) / pkg.purchase_price) * 100
+                        pkg.sale_price = Decimal(bulk_sale)
                     except (ValueError, InvalidOperation):
                         pass
-                elif pkg.purchase_price > 0:
-                    pkg.sale_price = pkg.purchase_price * (1 + pkg.margin_percent / 100)
+                pkg.margin_percent = _calc_margin(pkg.purchase_price, pkg.sale_price)
                 pkg.save()
+
+                # Cascade: derive display and unit purchase prices from bulk
+                displays_per_bulk = int(request.POST.get('displays_per_bulk', '1') or '1')
+                units_per_display = int(request.POST.get('units_per_display', '1') or '1')
+                total_units = displays_per_bulk * units_per_display
+                bulk_purchase = pkg.purchase_price
+
+                # Save/update display packaging
+                display_sale_str = request.POST.get('display_sale_price', '').strip()
+                if display_sale_str:
+                    d_purchase = (bulk_purchase / displays_per_bulk) if bulk_purchase > 0 else Decimal('0')
+                    d_sale = Decimal(display_sale_str)
+                    display_existing = product.packagings.filter(packaging_type='display').first()
+                    defaults = {
+                        'purchase_price': d_purchase,
+                        'sale_price': d_sale,
+                        'margin_percent': _calc_margin(d_purchase, d_sale),
+                    }
+                    if display_existing:
+                        for k, v in defaults.items():
+                            setattr(display_existing, k, v)
+                        display_existing.save()
+                    else:
+                        ProductPackaging.objects.create(
+                            product=product, packaging_type='display',
+                            barcode=f'{product.barcode or product.sku}-D',
+                            name=f'Display x{units_per_display}',
+                            units_per_display=units_per_display,
+                            displays_per_bulk=1,
+                            is_active=True,
+                            **defaults,
+                        )
+
+                # Save/update unit packaging
+                unit_sale_str = request.POST.get('unit_sale_price', '').strip()
+                if unit_sale_str:
+                    u_purchase = (bulk_purchase / total_units) if bulk_purchase > 0 else Decimal('0')
+                    u_sale = Decimal(unit_sale_str)
+                    unit_existing = product.packagings.filter(packaging_type='unit').first()
+                    defaults = {
+                        'purchase_price': u_purchase,
+                        'sale_price': u_sale,
+                        'margin_percent': _calc_margin(u_purchase, u_sale),
+                    }
+                    if unit_existing:
+                        for k, v in defaults.items():
+                            setattr(unit_existing, k, v)
+                        unit_existing.save()
+                    else:
+                        ProductPackaging.objects.create(
+                            product=product, packaging_type='unit',
+                            barcode=f'{product.barcode or product.sku}-U',
+                            name='Unidad',
+                            units_per_display=1,
+                            displays_per_bulk=1,
+                            is_active=True,
+                            **defaults,
+                        )
+
                 _sync_packaging_prices(product, pkg)
-                messages.success(request, f'Empaque {pkg.get_packaging_type_display()} guardado.')
+                messages.success(request, f'Empaques actualizados correctamente.')
             else:
                 messages.error(request, 'Error en formulario de empaque.')
 
