@@ -309,19 +309,26 @@ class StockManagementService:
     @transaction.atomic
     def receive_packaging(packaging_record, quantity, cost=None, user=None):
         """
-        Recibe mercadería a nivel de empaque y suma las unidades base al producto.
+        Recibe mercadería a nivel de empaque y actualiza TODO en cascada:
+        - El empaque recibido (ej: bulk += 5)
+        - Las unidades base del producto (Product.current_stock += 5 * 288)
+        - Los otros niveles de packaging proporcionalmente
+          (ej: display += 5*12, unit += 5*288)
+
+        La idea es que TODOS los niveles reflejen el stock real.
+        Cuando recibís 5 bultos, tenés 5 bultos, 60 displays y 1440 unidades.
         """
         quantity = Decimal(str(quantity))
         product = packaging_record.product
 
-        # Sumar al packaging
+        # 1) Sumar al packaging recibido
         pkg_before = packaging_record.current_stock
         packaging_record.current_stock = pkg_before + quantity
         if cost is not None and Decimal(str(cost)) > 0:
             packaging_record.purchase_price = Decimal(str(cost))
         packaging_record.save()
 
-        # Calcular unidades base que corresponden
+        # 2) Calcular unidades base que corresponden
         if packaging_record.packaging_type == 'bulk':
             units_added = quantity * Decimal(str(packaging_record.units_quantity))
         elif packaging_record.packaging_type == 'display':
@@ -329,19 +336,35 @@ class StockManagementService:
         else:
             units_added = quantity
 
-        # Sumar al producto
+        # 3) Sumar al producto (unidades base)
         stock_before = product.current_stock
         product.current_stock = stock_before + units_added
 
-        # Actualizar costo promedio
+        # 4) Actualizar costo promedio
         cost_each = Decimal(str(cost)) if cost else packaging_record.purchase_price
         if cost_each and cost_each > 0 and packaging_record.units_quantity > 0:
             unit_cost = cost_each / Decimal(str(packaging_record.units_quantity))
             total_value = (product.cost_price * stock_before) + (unit_cost * units_added)
             if product.current_stock > 0:
                 product.cost_price = total_value / product.current_stock
-
         product.save()
+
+        # 5) Actualizar OTROS niveles de packaging proporcionalmente
+        other_pkgs = product.packagings.filter(
+            is_active=True
+        ).exclude(pk=packaging_record.pk)
+
+        for other in other_pkgs:
+            if other.packaging_type == 'unit':
+                # Sumar las unidades base equivalentes
+                other.current_stock += units_added
+            elif other.packaging_type == 'display':
+                if other.units_per_display > 0:
+                    other.current_stock += units_added / Decimal(str(other.units_per_display))
+            elif other.packaging_type == 'bulk':
+                if other.units_quantity > 0:
+                    other.current_stock += units_added / Decimal(str(other.units_quantity))
+            other.save()
 
         movement = StockMovement.objects.create(
             product=product,

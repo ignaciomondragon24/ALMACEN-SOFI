@@ -1293,13 +1293,46 @@ def product_packaging_view(request, pk):
             try:
                 pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
                 old_stock = pkg.current_stock
-                pkg.current_stock = Decimal(new_stock)
+                new_stock_val = Decimal(new_stock)
+                diff = new_stock_val - old_stock
+
+                # Calcular diferencia en unidades base
+                if pkg.packaging_type == 'bulk':
+                    units_diff = diff * Decimal(str(pkg.units_quantity))
+                elif pkg.packaging_type == 'display':
+                    units_diff = diff * Decimal(str(pkg.units_per_display))
+                else:
+                    units_diff = diff
+
+                # Actualizar el packaging ajustado
+                pkg.current_stock = new_stock_val
                 pkg.save()
+
+                # Actualizar Product.current_stock
+                stock_before = product.current_stock
+                product.current_stock = stock_before + units_diff
+                product.save()
+
+                # Actualizar otros niveles de packaging proporcionalmente
+                other_pkgs = product.packagings.filter(
+                    is_active=True
+                ).exclude(pk=pkg.pk)
+                for other in other_pkgs:
+                    if other.packaging_type == 'unit':
+                        other.current_stock += units_diff
+                    elif other.packaging_type == 'display':
+                        if other.units_per_display > 0:
+                            other.current_stock += units_diff / Decimal(str(other.units_per_display))
+                    elif other.packaging_type == 'bulk':
+                        if other.units_quantity > 0:
+                            other.current_stock += units_diff / Decimal(str(other.units_quantity))
+                    other.save()
+
                 StockMovement.objects.create(
                     product=product,
-                    movement_type='adjustment_in' if Decimal(new_stock) >= old_stock else 'adjustment_out',
-                    quantity=Decimal(new_stock) - old_stock,
-                    stock_before=product.current_stock,
+                    movement_type='adjustment_in' if diff >= 0 else 'adjustment_out',
+                    quantity=units_diff,
+                    stock_before=stock_before,
                     stock_after=product.current_stock,
                     reference=f'Ajuste {pkg.get_packaging_type_display()}',
                     notes=reason,
