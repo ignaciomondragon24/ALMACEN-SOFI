@@ -575,6 +575,8 @@ class ProductPackaging(models.Model):
         'Código de Barras',
         max_length=50,
         unique=True,
+        blank=True,
+        null=True,
         help_text='Código de barras para este empaque'
     )
     name = models.CharField(

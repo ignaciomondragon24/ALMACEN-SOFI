@@ -150,12 +150,26 @@ def _save_inline_packaging(request, product):
             return ((sale - purchase) / purchase) * 100
         return Decimal('0')
 
+    def _check_barcode(barcode, pkg_type):
+        """Validate barcode is not used by another packaging record."""
+        if not barcode:
+            return None
+        dup = ProductPackaging.objects.filter(barcode=barcode).exclude(
+            product=product, packaging_type=pkg_type
+        ).first()
+        if dup:
+            raise ValueError(
+                f'El código de barras {barcode} ya está en uso por '
+                f'{dup.product.name} - {dup.get_packaging_type_display()}'
+            )
+        return barcode
+
     # Get bulk purchase price to derive display/unit costs
     b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
 
     # Bulk packaging
     if request.POST.get('has_bulk'):
-        b_barcode = request.POST.get('bulk_barcode', '').strip()
+        b_barcode = _check_barcode(request.POST.get('bulk_barcode', '').strip(), 'bulk')
         b_name = request.POST.get('bulk_name', '').strip()
         b_sale = Decimal(request.POST.get('bulk_sale_price', '0').strip() or '0')
 
@@ -175,7 +189,7 @@ def _save_inline_packaging(request, product):
 
     # Display packaging — purchase price = bulk / displays_per_bulk
     if request.POST.get('has_display'):
-        d_barcode = request.POST.get('display_barcode', '').strip()
+        d_barcode = _check_barcode(request.POST.get('display_barcode', '').strip(), 'display')
         d_name = request.POST.get('display_name', '').strip()
         d_purchase = (b_purchase / displays_per_bulk) if b_purchase > 0 else Decimal('0')
         d_sale = Decimal(request.POST.get('display_sale_price', '0').strip() or '0')
@@ -196,7 +210,7 @@ def _save_inline_packaging(request, product):
 
     # Unit packaging — purchase price = bulk / total_units
     if request.POST.get('has_unit'):
-        u_barcode = request.POST.get('unit_barcode', '').strip()
+        u_barcode = _check_barcode(request.POST.get('unit_barcode', '').strip(), 'unit')
         u_name = request.POST.get('unit_name', '').strip()
         u_purchase = (b_purchase / total_units) if b_purchase > 0 else Decimal('0')
         u_sale = Decimal(request.POST.get('unit_sale_price', '0').strip() or '0')
