@@ -687,7 +687,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentPackaging = null;
     let searchTimeout = null;
     let currentAbortController = null;
-    let _searchId = 0;
     
     // Auto-focus en barcode
     barcodeInput.focus();
@@ -721,9 +720,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function showSearching(barcode) {
         hideError();
-        hideProduct();
         mainForm.style.display = 'none';
-        productPreview.style.display = '';  // Limpiar override inline para que CSS .active funcione
+        productPreview.style.display = 'block';
         productPreview.classList.add('active');
         productPreview.classList.remove('error');
         document.getElementById('preview-icon').className = 'fas fa-spinner fa-spin fa-3x text-info';
@@ -739,91 +737,83 @@ document.addEventListener('DOMContentLoaded', function() {
         const barcode = barcodeInput.value.trim();
         if (!barcode) return;
         
-        // Cancelar búsqueda anterior si está en vuelo
+        // Cancelar búsqueda anterior
         if (currentAbortController) {
             currentAbortController.abort();
         }
         currentAbortController = new AbortController();
+        const controller = currentAbortController;
         
-        // ID único para esta búsqueda: solo la más reciente modifica la UI
-        const mySearchId = ++_searchId;
-        
-        // Mostrar spinner mientras busca
         showSearching(barcode);
+        
+        let data = null;
+        let errorMsg = null;
         
         try {
             const response = await fetch(
                 `{% url 'stocks:api_lookup_packaging' %}?barcode=${encodeURIComponent(barcode)}`,
-                { signal: currentAbortController.signal }
+                { signal: controller.signal }
             );
-            
-            // Si otra búsqueda empezó mientras esperábamos, ignorar esta respuesta
-            if (mySearchId !== _searchId) return;
-            
-            // Parsear JSON de forma segura
-            let data;
-            try {
-                data = await response.json();
-            } catch (jsonErr) {
-                // Si es AbortError, dejar que el catch externo lo maneje
-                if (jsonErr.name === 'AbortError') throw jsonErr;
-                if (mySearchId !== _searchId) return;
-                // Respuesta no es JSON (ej: 404 HTML) → tratar como no encontrado
-                showNotFoundOptions(barcode);
-                hideProduct();
-                mainForm.style.display = 'none';
-                return;
-            }
-            
-            // Verificar que esta sigue siendo la búsqueda activa
-            if (mySearchId !== _searchId) return;
-            
-            if (data.success) {
-                currentPackaging = data;
-                displayProduct(data);
-                hideError();
-                
-                if (data.found_in === 'packaging') {
-                    mainForm.style.display = 'block';
-                    
-                    // Prellenar datos
-                    if (data.purchase_price && parseFloat(data.purchase_price) > 0) {
-                        priceInput.value = data.purchase_price;
-                    }
-                    if (data.margin_percent) {
-                        marginInput.value = data.margin_percent;
-                    }
-                    
-                    updateCalculations();
-                    bulkQtyInput.focus();
-                    bulkQtyInput.select();
-                } else {
-                    // Producto sin empaques
-                    mainForm.style.display = 'none';
-                    showError(`El producto "${data.product_name}" no tiene empaques configurados. <a href="/stocks/packaging/${data.product_id}/" class="alert-link">Configurar empaques</a>`);
-                }
-            } else {
-                // Código no encontrado - mostrar opción de crear
-                showNotFoundOptions(barcode);
-                hideProduct();
-                mainForm.style.display = 'none';
-            }
+            data = await response.json();
         } catch (error) {
-            if (error.name === 'AbortError') return; // Búsqueda cancelada, ignorar
-            if (mySearchId !== _searchId) return;
-            console.error('Error buscando packaging:', error);
-            showError('Error al buscar el producto');
+            if (error.name === 'AbortError') return;
+            errorMsg = 'Error de conexión al buscar el producto';
+        }
+        
+        // Si este controller ya no es el activo, otra búsqueda lo reemplazó → no tocar UI
+        if (currentAbortController !== controller) return;
+        currentAbortController = null;
+        
+        // Si el barcode cambió mientras esperábamos → no tocar UI
+        if (barcodeInput.value.trim() !== barcode) {
+            hideProduct();
+            return;
+        }
+        
+        // Error de red
+        if (errorMsg) {
+            showError(errorMsg);
             hideProduct();
             mainForm.style.display = 'none';
-        } finally {
-            if (mySearchId === _searchId) {
-                currentAbortController = null;
-                // Safety net: si el spinner sigue visible, forzar ocultarlo
-                const icon = document.getElementById('preview-icon');
-                if (icon && icon.className.includes('fa-spinner')) {
-                    hideProduct();
+            return;
+        }
+        
+        // JSON no parseado correctamente
+        if (!data) {
+            showNotFoundOptions(barcode);
+            hideProduct();
+            mainForm.style.display = 'none';
+            return;
+        }
+        
+        if (data.success) {
+            currentPackaging = data;
+            displayProduct(data);
+            hideError();
+            
+            if (data.found_in === 'packaging') {
+                mainForm.style.display = 'block';
+                
+                if (data.purchase_price && parseFloat(data.purchase_price) > 0) {
+                    priceInput.value = data.purchase_price;
                 }
+                if (data.margin_percent) {
+                    marginInput.value = data.margin_percent;
+                }
+                
+                updateCalculations();
+                bulkQtyInput.focus();
+                bulkQtyInput.select();
+            } else {
+                mainForm.style.display = 'none';
+                hideProduct();
+                showError(`El producto "${data.product_name}" no tiene empaques configurados. <a href="/stocks/packaging/${data.product_id}/" class="alert-link">Configurar empaques</a>`);
             }
+        } else {
+            // No encontrado (404 JSON) → mostrar opción de crear
+            hideProduct();
+            showNotFoundOptions(barcode);
+            mainForm.style.display = 'none';
         }
     }
     
@@ -844,14 +834,14 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('preview-icon').className = 'fas fa-exclamation-triangle fa-3x text-warning';
         }
         
-        productPreview.style.display = '';  // Limpiar override inline
+        productPreview.style.display = 'block';
         productPreview.classList.add('active');
         productPreview.classList.remove('error');
     }
     
     function hideProduct() {
         productPreview.classList.remove('active');
-        productPreview.style.display = 'none';  // Forzar oculto por inline style
+        productPreview.style.display = 'none';
         currentPackaging = null;
     }
     
