@@ -141,45 +141,76 @@ def product_list(request):
 
 def _save_inline_packaging(request, product):
     """Process inline packaging fields from the product form."""
-    # Check if bulk packaging is enabled
-    if request.POST.get('has_bulk'):
-        bulk_barcode = request.POST.get('bulk_barcode', '').strip()
-        bulk_name = request.POST.get('bulk_name', '').strip()
-        units_per_display = int(request.POST.get('pkg_units_per_display', 1) or 1)
-        displays_per_bulk = int(request.POST.get('pkg_displays_per_bulk', 1) or 1)
-        bulk_purchase = request.POST.get('bulk_purchase_price', '').strip()
-        bulk_margin = request.POST.get('bulk_margin_percent', '').strip()
+    units_per_display = int(request.POST.get('pkg_units_per_display', 1) or 1)
+    displays_per_bulk = int(request.POST.get('pkg_displays_per_bulk', 1) or 1)
+    total_units = units_per_display * displays_per_bulk
 
-        bulk_pkg, _ = ProductPackaging.objects.update_or_create(
+    def _calc_margin(purchase, sale):
+        if purchase and purchase > 0 and sale and sale > 0:
+            return ((sale - purchase) / purchase) * 100
+        return Decimal('0')
+
+    # Get bulk purchase price to derive display/unit costs
+    b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
+
+    # Bulk packaging
+    if request.POST.get('has_bulk'):
+        b_barcode = request.POST.get('bulk_barcode', '').strip()
+        b_name = request.POST.get('bulk_name', '').strip()
+        b_sale = Decimal(request.POST.get('bulk_sale_price', '0').strip() or '0')
+
+        ProductPackaging.objects.update_or_create(
             product=product, packaging_type='bulk',
             defaults={
-                'barcode': bulk_barcode or None,
-                'name': bulk_name or f'Bulto x {units_per_display * displays_per_bulk}',
+                'barcode': b_barcode or None,
+                'name': b_name or f'Bulto x {total_units}',
                 'units_per_display': units_per_display,
                 'displays_per_bulk': displays_per_bulk,
-                'purchase_price': Decimal(bulk_purchase) if bulk_purchase else Decimal('0'),
-                'margin_percent': Decimal(bulk_margin) if bulk_margin else Decimal('30'),
+                'purchase_price': b_purchase,
+                'sale_price': b_sale,
+                'margin_percent': _calc_margin(b_purchase, b_sale),
                 'is_active': True,
             }
         )
 
-    # Check if display packaging is enabled
+    # Display packaging — purchase price = bulk / displays_per_bulk
     if request.POST.get('has_display'):
-        display_barcode = request.POST.get('display_barcode', '').strip()
-        display_name = request.POST.get('display_name', '').strip()
-        units_per_display = int(request.POST.get('pkg_units_per_display', 1) or 1)
-        display_purchase = request.POST.get('display_purchase_price', '').strip()
-        display_margin = request.POST.get('display_margin_percent', '').strip()
+        d_barcode = request.POST.get('display_barcode', '').strip()
+        d_name = request.POST.get('display_name', '').strip()
+        d_purchase = (b_purchase / displays_per_bulk) if b_purchase > 0 else Decimal('0')
+        d_sale = Decimal(request.POST.get('display_sale_price', '0').strip() or '0')
 
-        display_pkg, _ = ProductPackaging.objects.update_or_create(
+        ProductPackaging.objects.update_or_create(
             product=product, packaging_type='display',
             defaults={
-                'barcode': display_barcode or None,
-                'name': display_name or f'Display x {units_per_display}',
+                'barcode': d_barcode or None,
+                'name': d_name or f'Display x {units_per_display}',
                 'units_per_display': units_per_display,
                 'displays_per_bulk': 1,
-                'purchase_price': Decimal(display_purchase) if display_purchase else Decimal('0'),
-                'margin_percent': Decimal(display_margin) if display_margin else Decimal('30'),
+                'purchase_price': d_purchase,
+                'sale_price': d_sale,
+                'margin_percent': _calc_margin(d_purchase, d_sale),
+                'is_active': True,
+            }
+        )
+
+    # Unit packaging — purchase price = bulk / total_units
+    if request.POST.get('has_unit'):
+        u_barcode = request.POST.get('unit_barcode', '').strip()
+        u_name = request.POST.get('unit_name', '').strip()
+        u_purchase = (b_purchase / total_units) if b_purchase > 0 else Decimal('0')
+        u_sale = Decimal(request.POST.get('unit_sale_price', '0').strip() or '0')
+
+        ProductPackaging.objects.update_or_create(
+            product=product, packaging_type='unit',
+            defaults={
+                'barcode': u_barcode or None,
+                'name': u_name or 'Unidad',
+                'units_per_display': 1,
+                'displays_per_bulk': 1,
+                'purchase_price': u_purchase,
+                'sale_price': u_sale,
+                'margin_percent': _calc_margin(u_purchase, u_sale),
                 'is_active': True,
             }
         )
@@ -232,6 +263,7 @@ def product_edit(request, pk):
             'units_per_display': pkg.units_per_display,
             'displays_per_bulk': pkg.displays_per_bulk,
             'purchase_price': str(pkg.purchase_price),
+            'sale_price': str(pkg.sale_price),
             'margin_percent': str(pkg.margin_percent),
         }
     

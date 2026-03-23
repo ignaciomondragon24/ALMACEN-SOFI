@@ -238,6 +238,62 @@
                                 </div>
                             </div>
 
+                            <!-- Unit Packaging -->
+                            <div class="card mb-3 border">
+                                <div class="card-header bg-light py-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="has_unit" id="id_has_unit"
+                                               class="form-check-input" value="1"
+                                               {% if existing_packagings.unit %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="id_has_unit">
+                                            <i class="fas fa-cube me-1"></i>Unidad
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="card-body" id="unit_fields" style="{% if not existing_packagings.unit %}display:none{% endif %}">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Código de Barras</label>
+                                            <input type="text" name="unit_barcode" class="form-control form-control-sm"
+                                                   placeholder="EAN-13 unidad" value="{{ existing_packagings.unit.barcode|default:'' }}">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Nombre</label>
+                                            <input type="text" name="unit_name" class="form-control form-control-sm"
+                                                   placeholder="Ej: Unidad" value="{{ existing_packagings.unit.name|default:'' }}">
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Precio Compra <small class="text-muted">(auto)</small></label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="unit_purchase_price" id="id_unit_purchase"
+                                                       class="form-control text-end pkg-price bg-light" data-pkg="unit"
+                                                       step="0.01" min="0" readonly
+                                                       value="{{ existing_packagings.unit.purchase_price|default:'0' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Precio Venta</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="unit_sale_price" id="id_unit_sale"
+                                                       class="form-control text-end pkg-price" data-pkg="unit"
+                                                       step="0.01" min="0" value="{{ existing_packagings.unit.sale_price|default:'0' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Margen %</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" name="unit_margin_percent" id="id_unit_margin"
+                                                       class="form-control text-end" step="0.01" readonly
+                                                       value="{{ existing_packagings.unit.margin_percent|default:'0' }}">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Display Packaging -->
                             <div class="card mb-3 border">
                                 <div class="card-header bg-light py-2">
@@ -262,19 +318,31 @@
                                             <input type="text" name="display_name" class="form-control form-control-sm"
                                                    placeholder="Ej: Display x 12" value="{{ existing_packagings.display.name|default:'' }}">
                                         </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="form-label small">Precio Compra</label>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Precio Compra <small class="text-muted">(auto)</small></label>
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text">$</span>
-                                                <input type="number" name="display_purchase_price" class="form-control text-end"
-                                                       step="0.01" min="0" value="{{ existing_packagings.display.purchase_price|default:'0' }}">
+                                                <input type="number" name="display_purchase_price" id="id_display_purchase"
+                                                       class="form-control text-end pkg-price bg-light" data-pkg="display"
+                                                       step="0.01" min="0" readonly
+                                                       value="{{ existing_packagings.display.purchase_price|default:'0' }}">
                                             </div>
                                         </div>
-                                        <div class="col-md-6 mb-2">
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Precio Venta</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="display_sale_price" id="id_display_sale"
+                                                       class="form-control text-end pkg-price" data-pkg="display"
+                                                       step="0.01" min="0" value="{{ existing_packagings.display.sale_price|default:'0' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-2">
                                             <label class="form-label small">Margen %</label>
                                             <div class="input-group input-group-sm">
-                                                <input type="number" name="display_margin_percent" class="form-control text-end"
-                                                       step="0.01" min="0" value="{{ existing_packagings.display.margin_percent|default:'30' }}">
+                                                <input type="number" name="display_margin_percent" id="id_display_margin"
+                                                       class="form-control text-end" step="0.01" readonly
+                                                       value="{{ existing_packagings.display.margin_percent|default:'0' }}">
                                                 <span class="input-group-text">%</span>
                                             </div>
                                         </div>
@@ -306,19 +374,30 @@
                                             <input type="text" name="bulk_name" class="form-control form-control-sm"
                                                    placeholder="Ej: Bulto x 144" value="{{ existing_packagings.bulk.name|default:'' }}">
                                         </div>
-                                        <div class="col-md-6 mb-2">
+                                        <div class="col-md-4 mb-2">
                                             <label class="form-label small">Precio Compra</label>
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text">$</span>
-                                                <input type="number" name="bulk_purchase_price" class="form-control text-end"
+                                                <input type="number" name="bulk_purchase_price" id="id_bulk_purchase"
+                                                       class="form-control text-end pkg-price" data-pkg="bulk"
                                                        step="0.01" min="0" value="{{ existing_packagings.bulk.purchase_price|default:'0' }}">
                                             </div>
                                         </div>
-                                        <div class="col-md-6 mb-2">
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Precio Venta</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="bulk_sale_price" id="id_bulk_sale"
+                                                       class="form-control text-end pkg-price" data-pkg="bulk"
+                                                       step="0.01" min="0" value="{{ existing_packagings.bulk.sale_price|default:'0' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-2">
                                             <label class="form-label small">Margen %</label>
                                             <div class="input-group input-group-sm">
-                                                <input type="number" name="bulk_margin_percent" class="form-control text-end"
-                                                       step="0.01" min="0" value="{{ existing_packagings.bulk.margin_percent|default:'30' }}">
+                                                <input type="number" name="bulk_margin_percent" id="id_bulk_margin"
+                                                       class="form-control text-end" step="0.01" readonly
+                                                       value="{{ existing_packagings.bulk.margin_percent|default:'0' }}">
                                                 <span class="input-group-text">%</span>
                                             </div>
                                         </div>
@@ -388,11 +467,59 @@
     });
 
     // Packaging toggle
+    document.getElementById('id_has_unit').addEventListener('change', function() {
+        document.getElementById('unit_fields').style.display = this.checked ? '' : 'none';
+    });
     document.getElementById('id_has_display').addEventListener('change', function() {
         document.getElementById('display_fields').style.display = this.checked ? '' : 'none';
     });
     document.getElementById('id_has_bulk').addEventListener('change', function() {
         document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
     });
+
+    // Auto-calculate margin for each packaging type
+    function calcPkgMargin(prefix) {
+        const purchase = parseFloat(document.getElementById('id_' + prefix + '_purchase').value) || 0;
+        const sale = parseFloat(document.getElementById('id_' + prefix + '_sale').value) || 0;
+        const marginEl = document.getElementById('id_' + prefix + '_margin');
+        if (purchase > 0 && sale > 0) {
+            marginEl.value = (((sale - purchase) / purchase) * 100).toFixed(2);
+        } else {
+            marginEl.value = '0.00';
+        }
+    }
+
+    ['unit', 'display', 'bulk'].forEach(function(prefix) {
+        const purchaseEl = document.getElementById('id_' + prefix + '_purchase');
+        const saleEl = document.getElementById('id_' + prefix + '_sale');
+        if (purchaseEl) purchaseEl.addEventListener('input', function() { calcPkgMargin(prefix); });
+        if (saleEl) saleEl.addEventListener('input', function() { calcPkgMargin(prefix); });
+        // Calculate on page load
+        calcPkgMargin(prefix);
+    });
+
+    // Auto-calculate display & unit purchase prices from bulk
+    function cascadePurchasePrices() {
+        const bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
+        const displaysPerBulk = parseInt(document.getElementById('id_pkg_displays_per_bulk').value) || 1;
+        const unitsPerDisplay = parseInt(document.getElementById('id_pkg_units_per_display').value) || 1;
+        const totalUnits = displaysPerBulk * unitsPerDisplay;
+
+        if (bulkPurchase > 0) {
+            const displayPrice = (bulkPurchase / displaysPerBulk).toFixed(2);
+            const unitPrice = (bulkPurchase / totalUnits).toFixed(2);
+            document.getElementById('id_display_purchase').value = displayPrice;
+            document.getElementById('id_unit_purchase').value = unitPrice;
+        } else {
+            document.getElementById('id_display_purchase').value = '0';
+            document.getElementById('id_unit_purchase').value = '0';
+        }
+        calcPkgMargin('display');
+        calcPkgMargin('unit');
+    }
+
+    document.getElementById('id_bulk_purchase').addEventListener('input', cascadePurchasePrices);
+    document.getElementById('id_pkg_displays_per_bulk').addEventListener('input', cascadePurchasePrices);
+    document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadePurchasePrices);
 </script>
 {% endblock %}
