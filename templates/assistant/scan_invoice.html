@@ -151,8 +151,8 @@
             </h1>
             <p class="text-muted mb-0">Sacá una foto del remito y el asistente extrae los datos automáticamente</p>
         </div>
-        <a href="{% url 'stocks:bulk_stock_load' %}" class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-arrow-left me-1"></i>Carga Manual
+        <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Inventario
         </a>
     </div>
 
@@ -394,8 +394,8 @@
                     <a href="{% url 'purchase:purchase_list' %}" class="btn btn-outline-primary">
                         <i class="fas fa-file-invoice me-1"></i>Ver Compras
                     </a>
-                    <a href="{% url 'stocks:bulk_stock_load' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-boxes-stacked me-1"></i>Carga Manual
+                    <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-boxes me-1"></i>Inventario
                     </a>
                 </div>
             </div>

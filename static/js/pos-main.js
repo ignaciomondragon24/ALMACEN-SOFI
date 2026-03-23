@@ -264,14 +264,7 @@
                         <button type="button" class="btn btn-success" onclick="openQuickAddProduct('${query}')">
                             <i class="fas fa-plus-circle me-2"></i>Producto Nuevo
                         </button>
-                        <a href="/stocks/bulk-load/?barcode=${query}" class="btn btn-primary">
-                            <i class="fas fa-boxes me-2"></i>Carga por Bulto/Display
-                        </a>
                     </div>
-                    <p class="text-muted small mt-2 mb-0">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Use "Carga por Bulto" para cargar desde packaging mayorista
-                    </p>
                 </div>
             `;
         } else {
@@ -298,12 +291,6 @@
         document.getElementById('quick-add-category').value = '';
         document.getElementById('quick-add-stock').value = '1';
         document.getElementById('quick-add-to-cart').checked = true;
-        
-        // Update bulk load link with barcode
-        const bulkLoadLink = document.getElementById('option-bulk-load');
-        if (bulkLoadLink) {
-            bulkLoadLink.href = `/stocks/bulk-load/?barcode=${barcode}`;
-        }
         
         // Hide search results
         hideSearchResults();

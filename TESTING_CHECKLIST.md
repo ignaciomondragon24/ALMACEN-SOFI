@@ -140,11 +140,6 @@
 - [ ] Importar productos desde Excel (formato correcto)
 - [ ] Importar con errores de formato muestra mensaje descriptivo
 
-### Carga Masiva de Stock
-- [ ] `/stocks/bulk-stock-load/` carga la pantalla
-- [ ] Agregar múltiples items y confirmar
-- [ ] Stock se actualiza correctamente en todos los ítems
-
 ### Empaquetado / Packaging
 - [ ] Configurar unidades de empaque (ej: caja × 30u.)
 - [ ] API de cálculo de precios por packaging funciona
