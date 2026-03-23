@@ -23,6 +23,23 @@
     </div>
 
     <!-- Tarjetas de empaques -->
+    {% if not unit_pkg and not display_pkg and not bulk_pkg %}
+    <!-- No hay empaques: un solo card para crear -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card text-center border" style="border-style:dashed !important;">
+                <div class="card-body py-5">
+                    <i class="fas fa-boxes-stacked fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted mb-2">Este producto no tiene empaques configurados</h5>
+                    <p class="text-muted mb-3">Configurá Unidad, Display y Bulto con sus códigos y precios.</p>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditPkg">
+                        <i class="fas fa-plus me-1"></i>Crear Empaques
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
     <div class="row g-3 mb-4">
         {% for label, pkg, type_key, icon in packaging_cards %}
         <div class="col-md-4">
@@ -76,16 +93,19 @@
             <div class="card h-100 text-center border" style="border-style:dashed !important;">
                 <div class="card-body d-flex flex-column justify-content-center">
                     <i class="fas {{ icon }} fa-2x text-muted mb-2"></i>
-                    <p class="text-muted mb-2">Sin empaque {{ label }}</p>
-                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalEditPkg">
-                        <i class="fas fa-plus me-1"></i>Crear {{ label }}
-                    </button>
+                    <p class="text-muted mb-0">Sin empaque {{ label }}</p>
                 </div>
             </div>
             {% endif %}
         </div>
         {% endfor %}
+        <div class="col-12 text-end">
+            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditPkg">
+                <i class="fas fa-edit me-1"></i>Editar Empaques
+            </button>
+        </div>
     </div>
+    {% endif %}
 
     <!-- Tabla de Equivalencias -->
     {% if equiv_rows %}
