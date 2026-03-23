@@ -100,6 +100,7 @@ class ProductPackagingForm(forms.ModelForm):
             'packaging_type', 'barcode', 'name',
             'units_per_display', 'displays_per_bulk',
             'purchase_price', 'margin_percent',
+            'current_stock', 'min_stock',
             'is_default', 'is_active'
         ]
         widgets = {
@@ -127,6 +128,15 @@ class ProductPackagingForm(forms.ModelForm):
             'margin_percent': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '1'
+            }),
+            'current_stock': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.001',
+                'min': '0'
+            }),
+            'min_stock': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0'
             }),
             'is_default': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),

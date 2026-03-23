@@ -37,3 +37,5 @@ class Migration(migrations.Migration):
         migrations.RunPython(drop_legacy_tables, migrations.RunPython.noop),
         migrations.RunPython(clear_old_migration_records, migrations.RunPython.noop),
     ]
+
+    

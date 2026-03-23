@@ -139,6 +139,52 @@ def product_list(request):
     return render(request, 'stocks/product_list.html', context)
 
 
+def _save_inline_packaging(request, product):
+    """Process inline packaging fields from the product form."""
+    # Check if bulk packaging is enabled
+    if request.POST.get('has_bulk'):
+        bulk_barcode = request.POST.get('bulk_barcode', '').strip()
+        bulk_name = request.POST.get('bulk_name', '').strip()
+        units_per_display = int(request.POST.get('pkg_units_per_display', 1) or 1)
+        displays_per_bulk = int(request.POST.get('pkg_displays_per_bulk', 1) or 1)
+        bulk_purchase = request.POST.get('bulk_purchase_price', '').strip()
+        bulk_margin = request.POST.get('bulk_margin_percent', '').strip()
+
+        bulk_pkg, _ = ProductPackaging.objects.update_or_create(
+            product=product, packaging_type='bulk',
+            defaults={
+                'barcode': bulk_barcode or None,
+                'name': bulk_name or f'Bulto x {units_per_display * displays_per_bulk}',
+                'units_per_display': units_per_display,
+                'displays_per_bulk': displays_per_bulk,
+                'purchase_price': Decimal(bulk_purchase) if bulk_purchase else Decimal('0'),
+                'margin_percent': Decimal(bulk_margin) if bulk_margin else Decimal('30'),
+                'is_active': True,
+            }
+        )
+
+    # Check if display packaging is enabled
+    if request.POST.get('has_display'):
+        display_barcode = request.POST.get('display_barcode', '').strip()
+        display_name = request.POST.get('display_name', '').strip()
+        units_per_display = int(request.POST.get('pkg_units_per_display', 1) or 1)
+        display_purchase = request.POST.get('display_purchase_price', '').strip()
+        display_margin = request.POST.get('display_margin_percent', '').strip()
+
+        display_pkg, _ = ProductPackaging.objects.update_or_create(
+            product=product, packaging_type='display',
+            defaults={
+                'barcode': display_barcode or None,
+                'name': display_name or f'Display x {units_per_display}',
+                'units_per_display': units_per_display,
+                'displays_per_bulk': 1,
+                'purchase_price': Decimal(display_purchase) if display_purchase else Decimal('0'),
+                'margin_percent': Decimal(display_margin) if display_margin else Decimal('30'),
+                'is_active': True,
+            }
+        )
+
+
 @login_required
 @group_required(['Admin', 'Manager', 'Stock Manager'])
 def product_create(request):
@@ -147,6 +193,8 @@ def product_create(request):
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
             product = form.save()
+            # Process inline packaging if provided
+            _save_inline_packaging(request, product)
             messages.success(request, f'Producto "{product.name}" creado correctamente.')
             return redirect('stocks:product_list')
     else:
@@ -168,15 +216,30 @@ def product_edit(request, pk):
         form = ProductForm(request.POST, request.FILES, instance=product)
         if form.is_valid():
             form.save()
+            # Process inline packaging if provided
+            _save_inline_packaging(request, product)
             messages.success(request, f'Producto "{product.name}" actualizado correctamente.')
             return redirect('stocks:product_list')
     else:
         form = ProductForm(instance=product)
     
+    # Load existing packagings for the form
+    existing_packagings = {}
+    for pkg in product.packagings.filter(is_active=True):
+        existing_packagings[pkg.packaging_type] = {
+            'barcode': pkg.barcode or '',
+            'name': pkg.name or '',
+            'units_per_display': pkg.units_per_display,
+            'displays_per_bulk': pkg.displays_per_bulk,
+            'purchase_price': str(pkg.purchase_price),
+            'margin_percent': str(pkg.margin_percent),
+        }
+    
     return render(request, 'stocks/product_form.html', {
         'form': form,
         'title': 'Editar Producto',
-        'product': product
+        'product': product,
+        'existing_packagings': existing_packagings,
     })
 
 
@@ -1144,3 +1207,211 @@ def packaging_delete(request, packaging_id):
         return redirect('stocks:packaging_config', product_id=product_id)
     
     return redirect('stocks:packaging_config', product_id=product_id)
+
+
+# ==================== GESTIÓN DE EMPAQUES ====================
+
+@login_required
+@group_required(['Admin', 'Stock Manager', 'Manager', 'General Manager'])
+def product_packaging_view(request, pk):
+    """Vista completa de gestión de empaques con recepción, apertura y ajuste."""
+    product = get_object_or_404(Product, pk=pk)
+
+    unit_pkg = product.packagings.filter(packaging_type='unit', is_active=True).first()
+    display_pkg = product.packagings.filter(packaging_type='display', is_active=True).first()
+    bulk_pkg = product.packagings.filter(packaging_type='bulk', is_active=True).first()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'receive':
+            pkg_id = request.POST.get('packaging_id')
+            qty = request.POST.get('quantity', '0')
+            cost = request.POST.get('cost', '').strip()
+            try:
+                pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
+                StockManagementService.receive_packaging(
+                    pkg,
+                    Decimal(qty),
+                    cost=Decimal(cost) if cost else None,
+                    user=request.user,
+                )
+                messages.success(request, f'Recibido {qty} {pkg.get_packaging_type_display()}(s) de {product.name}.')
+            except Exception as e:
+                messages.error(request, f'Error al recibir mercadería: {e}')
+
+        elif action == 'adjust':
+            pkg_id = request.POST.get('packaging_id')
+            new_stock = request.POST.get('new_stock', '0')
+            reason = request.POST.get('reason', '')
+            try:
+                pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
+                old_stock = pkg.current_stock
+                pkg.current_stock = Decimal(new_stock)
+                pkg.save()
+                StockMovement.objects.create(
+                    product=product,
+                    movement_type='adjustment_in' if Decimal(new_stock) >= old_stock else 'adjustment_out',
+                    quantity=Decimal(new_stock) - old_stock,
+                    stock_before=product.current_stock,
+                    stock_after=product.current_stock,
+                    reference=f'Ajuste {pkg.get_packaging_type_display()}',
+                    notes=reason,
+                    created_by=request.user,
+                )
+                messages.success(request, f'Stock de {pkg.get_packaging_type_display()} ajustado a {new_stock}.')
+            except Exception as e:
+                messages.error(request, f'Error al ajustar stock: {e}')
+
+        elif action == 'open':
+            pkg_id = request.POST.get('packaging_id')
+            qty = request.POST.get('quantity', '1')
+            try:
+                pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
+                StockManagementService.open_packaging(pkg, Decimal(qty), user=request.user)
+                messages.success(request, f'Empaque abierto correctamente.')
+            except Exception as e:
+                messages.error(request, f'Error al abrir empaque: {e}')
+
+        elif action == 'save_pkg':
+            pkg_type = request.POST.get('packaging_type')
+            existing = product.packagings.filter(packaging_type=pkg_type).first()
+            form = ProductPackagingForm(request.POST, instance=existing)
+            if form.is_valid():
+                pkg = form.save(commit=False)
+                pkg.product = product
+                sale_price = request.POST.get('direct_sale_price', '').strip()
+                if sale_price:
+                    try:
+                        pkg.sale_price = Decimal(sale_price)
+                        if pkg.purchase_price > 0:
+                            pkg.margin_percent = ((pkg.sale_price - pkg.purchase_price) / pkg.purchase_price) * 100
+                    except (ValueError, InvalidOperation):
+                        pass
+                elif pkg.purchase_price > 0:
+                    pkg.sale_price = pkg.purchase_price * (1 + pkg.margin_percent / 100)
+                pkg.save()
+                _sync_packaging_prices(product, pkg)
+                messages.success(request, f'Empaque {pkg.get_packaging_type_display()} guardado.')
+            else:
+                messages.error(request, 'Error en formulario de empaque.')
+
+        return redirect('stocks:product_packaging', pk=product.pk)
+
+    # Equivalencias
+    equiv_rows = []
+    total_equiv = Decimal('0')
+    for label, pkg in [('Bultos', bulk_pkg), ('Displays', display_pkg), ('Unidades', unit_pkg)]:
+        if pkg:
+            equiv = pkg.current_stock * Decimal(str(pkg.units_quantity))
+            equiv_rows.append({
+                'label': label,
+                'stock': pkg.current_stock,
+                'equiv': equiv,
+                'sale_price': pkg.sale_price,
+                'min_stock': pkg.min_stock,
+                'type': pkg.packaging_type,
+            })
+            total_equiv += equiv
+
+    context = {
+        'product': product,
+        'unit_pkg': unit_pkg,
+        'display_pkg': display_pkg,
+        'bulk_pkg': bulk_pkg,
+        'packaging_cards': [
+            ('Bulto', bulk_pkg, 'bulk', 'fa-cubes'),
+            ('Display', display_pkg, 'display', 'fa-box'),
+            ('Unidad', unit_pkg, 'unit', 'fa-cube'),
+        ],
+        'equiv_rows': equiv_rows,
+        'total_equiv': total_equiv,
+        'form': ProductPackagingForm(),
+        'categories': ProductCategory.objects.filter(is_active=True),
+    }
+    return render(request, 'stocks/product_packaging.html', context)
+
+
+@login_required
+@group_required(['Admin', 'Stock Manager', 'Manager', 'General Manager'])
+def packaging_inventory_view(request):
+    """Inventario general de empaques."""
+    qs = Product.objects.filter(is_active=True).select_related('category').prefetch_related('packagings')
+
+    category_id = request.GET.get('category')
+    if category_id:
+        qs = qs.filter(category_id=category_id)
+
+    has_packaging = request.GET.get('has_packaging')
+    if has_packaging:
+        qs = qs.filter(packagings__is_active=True).distinct()
+
+    low_stock = request.GET.get('low_stock')
+
+    rows = []
+    for product in qs:
+        pkgs = {p.packaging_type: p for p in product.packagings.filter(is_active=True)}
+        if has_packaging and not pkgs:
+            continue
+
+        unit_pkg = pkgs.get('unit')
+        display_pkg = pkgs.get('display')
+        bulk_pkg = pkgs.get('bulk')
+
+        total_equiv = Decimal('0')
+        alert = False
+        for pkg in pkgs.values():
+            total_equiv += pkg.current_stock * Decimal(str(pkg.units_quantity))
+            if pkg.current_stock <= pkg.min_stock:
+                alert = True
+
+        if low_stock and not alert:
+            continue
+
+        rows.append({
+            'product': product,
+            'unit_stock': unit_pkg.current_stock if unit_pkg else None,
+            'unit_alert': unit_pkg and unit_pkg.current_stock <= unit_pkg.min_stock if unit_pkg else False,
+            'display_stock': display_pkg.current_stock if display_pkg else None,
+            'display_alert': display_pkg and display_pkg.current_stock <= display_pkg.min_stock if display_pkg else False,
+            'bulk_stock': bulk_pkg.current_stock if bulk_pkg else None,
+            'bulk_alert': bulk_pkg and bulk_pkg.current_stock <= bulk_pkg.min_stock if bulk_pkg else False,
+            'total_equiv': total_equiv,
+            'has_alert': alert,
+        })
+
+    paginator = Paginator(rows, 25)
+    page = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'page_obj': page,
+        'categories': ProductCategory.objects.filter(is_active=True),
+        'current_category': category_id,
+        'current_low_stock': low_stock,
+        'current_has_packaging': has_packaging,
+    }
+    return render(request, 'stocks/packaging_inventory.html', context)
+
+
+@login_required
+def packaging_api(request, pk):
+    """API JSON con los packagings de un producto."""
+    product = get_object_or_404(Product, pk=pk)
+    data = []
+    for pkg in product.packagings.filter(is_active=True):
+        data.append({
+            'id': pkg.id,
+            'packaging_type': pkg.packaging_type,
+            'type_display': pkg.get_packaging_type_display(),
+            'barcode': pkg.barcode,
+            'name': pkg.name,
+            'units_quantity': pkg.units_quantity,
+            'units_per_display': pkg.units_per_display,
+            'displays_per_bulk': pkg.displays_per_bulk,
+            'purchase_price': str(pkg.purchase_price),
+            'sale_price': str(pkg.sale_price),
+            'margin_percent': str(pkg.margin_percent),
+            'current_stock': str(pkg.current_stock),
+            'min_stock': pkg.min_stock,
+        })
+    return JsonResponse({'success': True, 'packagings': data})

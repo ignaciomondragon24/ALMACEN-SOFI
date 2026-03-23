@@ -216,6 +216,116 @@
                             <textarea name="description" id="id_description" 
                                       class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
                         </div>
+
+                        <!-- Inline Packaging Configuration -->
+                        <hr class="my-4">
+                        <h6 class="text-muted mb-3" data-bs-toggle="collapse" data-bs-target="#packagingSection" 
+                            style="cursor:pointer;">
+                            <i class="fas fa-boxes-stacked me-2"></i>Empaques (opcional)
+                            <i class="fas fa-chevron-down ms-2 small"></i>
+                        </h6>
+                        <div class="collapse {% if existing_packagings %}show{% endif %}" id="packagingSection">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Unidades por Display</label>
+                                    <input type="number" name="pkg_units_per_display" id="id_pkg_units_per_display"
+                                           class="form-control" min="1" value="{% if existing_packagings.display %}{{ existing_packagings.display.units_per_display }}{% elif existing_packagings.bulk %}{{ existing_packagings.bulk.units_per_display }}{% else %}1{% endif %}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Displays por Bulto</label>
+                                    <input type="number" name="pkg_displays_per_bulk" id="id_pkg_displays_per_bulk"
+                                           class="form-control" min="1" value="{% if existing_packagings.bulk %}{{ existing_packagings.bulk.displays_per_bulk }}{% else %}1{% endif %}">
+                                </div>
+                            </div>
+
+                            <!-- Display Packaging -->
+                            <div class="card mb-3 border">
+                                <div class="card-header bg-light py-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="has_display" id="id_has_display"
+                                               class="form-check-input" value="1"
+                                               {% if existing_packagings.display %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="id_has_display">
+                                            <i class="fas fa-box me-1"></i>Display
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="card-body" id="display_fields" style="{% if not existing_packagings.display %}display:none{% endif %}">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Código de Barras</label>
+                                            <input type="text" name="display_barcode" class="form-control form-control-sm"
+                                                   placeholder="EAN-13 del display" value="{{ existing_packagings.display.barcode|default:'' }}">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Nombre</label>
+                                            <input type="text" name="display_name" class="form-control form-control-sm"
+                                                   placeholder="Ej: Display x 12" value="{{ existing_packagings.display.name|default:'' }}">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Precio Compra</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="display_purchase_price" class="form-control text-end"
+                                                       step="0.01" min="0" value="{{ existing_packagings.display.purchase_price|default:'0' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Margen %</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" name="display_margin_percent" class="form-control text-end"
+                                                       step="0.01" min="0" value="{{ existing_packagings.display.margin_percent|default:'30' }}">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bulk Packaging -->
+                            <div class="card mb-3 border">
+                                <div class="card-header bg-light py-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="has_bulk" id="id_has_bulk"
+                                               class="form-check-input" value="1"
+                                               {% if existing_packagings.bulk %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="id_has_bulk">
+                                            <i class="fas fa-boxes-stacked me-1"></i>Bulto
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="card-body" id="bulk_fields" style="{% if not existing_packagings.bulk %}display:none{% endif %}">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Código de Barras</label>
+                                            <input type="text" name="bulk_barcode" class="form-control form-control-sm"
+                                                   placeholder="EAN-13 del bulto" value="{{ existing_packagings.bulk.barcode|default:'' }}">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Nombre</label>
+                                            <input type="text" name="bulk_name" class="form-control form-control-sm"
+                                                   placeholder="Ej: Bulto x 144" value="{{ existing_packagings.bulk.name|default:'' }}">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Precio Compra</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="bulk_purchase_price" class="form-control text-end"
+                                                       step="0.01" min="0" value="{{ existing_packagings.bulk.purchase_price|default:'0' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label small">Margen %</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" name="bulk_margin_percent" class="form-control text-end"
+                                                       step="0.01" min="0" value="{{ existing_packagings.bulk.margin_percent|default:'30' }}">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         
                         <hr class="my-4">
                         
@@ -275,6 +385,14 @@
         } catch (error) {
             console.error('Error generating barcode:', error);
         }
+    });
+
+    // Packaging toggle
+    document.getElementById('id_has_display').addEventListener('change', function() {
+        document.getElementById('display_fields').style.display = this.checked ? '' : 'none';
+    });
+    document.getElementById('id_has_bulk').addEventListener('change', function() {
+        document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
     });
 </script>
 {% endblock %}

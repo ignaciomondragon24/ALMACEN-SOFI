@@ -647,6 +647,17 @@ class ProductPackaging(models.Model):
         default=True
     )
     
+    current_stock = models.DecimalField(
+        'Stock Actual',
+        max_digits=12,
+        decimal_places=3,
+        default=0
+    )
+    min_stock = models.PositiveIntegerField(
+        'Stock Mínimo',
+        default=0
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -30,6 +30,11 @@ urlpatterns = [
     path('packaging/<int:product_id>/', views.packaging_config, name='packaging_config'),
     path('packaging/delete/<int:packaging_id>/', views.packaging_delete, name='packaging_delete'),
     
+    # Packaging management
+    path('<int:pk>/packaging-manage/', views.product_packaging_view, name='product_packaging'),
+    path('packaging-inventory/', views.packaging_inventory_view, name='packaging_inventory'),
+    path('<int:pk>/packaging-manage/api/', views.packaging_api, name='packaging_api'),
+    
     # API
     path('api/search/', views.api_search_products, name='api_search'),
     path('api/generate-barcode/', views.api_generate_barcode, name='generate_barcode'),

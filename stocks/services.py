@@ -3,7 +3,7 @@ Stock Management Services
 """
 from decimal import Decimal
 from django.db import transaction
-from .models import Product, StockMovement
+from .models import Product, StockMovement, ProductPackaging
 
 
 class StockManagementService:
@@ -239,6 +239,186 @@ class StockManagementService:
             queryset = queryset.filter(created_at__lte=end_date)
         
         return queryset.order_by('created_at')
+
+    # ==================== PACKAGING CASCADE ====================
+
+    @staticmethod
+    @transaction.atomic
+    def deduct_stock_with_cascade(product, quantity, reference='', reference_id=None, notes='', user=None):
+        """
+        Descuenta stock del producto y actualiza proporcionalmente cada nivel de packaging.
+        Si el producto no tiene packagings activos, delega a deduct_stock().
+        """
+        quantity = Decimal(str(quantity))
+
+        packagings = {
+            p.packaging_type: p
+            for p in product.packagings.filter(is_active=True).select_for_update()
+        }
+
+        if not packagings:
+            return StockManagementService.deduct_stock(
+                product, quantity, reference=reference,
+                reference_id=reference_id, notes=notes, user=user,
+            )
+
+        # --- Producto base ---
+        stock_before = product.current_stock
+        product.current_stock = stock_before - quantity
+        if product.current_stock < 0:
+            notes += ' [ALERTA: Stock negativo]'
+        product.save()
+
+        base_movement = StockMovement.objects.create(
+            product=product,
+            movement_type='sale',
+            quantity=-quantity,
+            unit_cost=product.cost_price,
+            stock_before=stock_before,
+            stock_after=product.current_stock,
+            reference=reference,
+            reference_id=reference_id,
+            notes=notes,
+            created_by=user,
+        )
+
+        # --- Unidad ---
+        unit_pkg = packagings.get('unit')
+        if unit_pkg:
+            pkg_before = unit_pkg.current_stock
+            unit_pkg.current_stock = pkg_before - quantity
+            unit_pkg.save()
+
+        # --- Display ---
+        display_pkg = packagings.get('display')
+        if display_pkg and display_pkg.units_per_display > 0:
+            pkg_before = display_pkg.current_stock
+            display_pkg.current_stock = pkg_before - (quantity / Decimal(str(display_pkg.units_per_display)))
+            display_pkg.save()
+
+        # --- Bulto ---
+        bulk_pkg = packagings.get('bulk')
+        if bulk_pkg and bulk_pkg.units_quantity > 0:
+            pkg_before = bulk_pkg.current_stock
+            bulk_pkg.current_stock = pkg_before - (quantity / Decimal(str(bulk_pkg.units_quantity)))
+            bulk_pkg.save()
+
+        return True, 'Stock descontado en cascada', base_movement
+
+    @staticmethod
+    @transaction.atomic
+    def receive_packaging(packaging_record, quantity, cost=None, user=None):
+        """
+        Recibe mercadería a nivel de empaque y suma las unidades base al producto.
+        """
+        quantity = Decimal(str(quantity))
+        product = packaging_record.product
+
+        # Sumar al packaging
+        pkg_before = packaging_record.current_stock
+        packaging_record.current_stock = pkg_before + quantity
+        if cost is not None and Decimal(str(cost)) > 0:
+            packaging_record.purchase_price = Decimal(str(cost))
+        packaging_record.save()
+
+        # Calcular unidades base que corresponden
+        if packaging_record.packaging_type == 'bulk':
+            units_added = quantity * Decimal(str(packaging_record.units_quantity))
+        elif packaging_record.packaging_type == 'display':
+            units_added = quantity * Decimal(str(packaging_record.units_per_display))
+        else:
+            units_added = quantity
+
+        # Sumar al producto
+        stock_before = product.current_stock
+        product.current_stock = stock_before + units_added
+
+        # Actualizar costo promedio
+        cost_each = Decimal(str(cost)) if cost else packaging_record.purchase_price
+        if cost_each and cost_each > 0 and packaging_record.units_quantity > 0:
+            unit_cost = cost_each / Decimal(str(packaging_record.units_quantity))
+            total_value = (product.cost_price * stock_before) + (unit_cost * units_added)
+            if product.current_stock > 0:
+                product.cost_price = total_value / product.current_stock
+
+        product.save()
+
+        movement = StockMovement.objects.create(
+            product=product,
+            movement_type='purchase',
+            quantity=units_added,
+            unit_cost=cost_each / Decimal(str(packaging_record.units_quantity)) if cost_each and packaging_record.units_quantity > 0 else Decimal('0'),
+            stock_before=stock_before,
+            stock_after=product.current_stock,
+            reference=f'Recepción {packaging_record.get_packaging_type_display()} x{quantity}',
+            notes=f'{packaging_record.name}',
+            created_by=user,
+        )
+        return movement
+
+    @staticmethod
+    @transaction.atomic
+    def open_packaging(packaging_record, quantity=1, user=None):
+        """
+        Abre un empaque superior y lo convierte al nivel inferior.
+        Bulto → Displays | Display → Unidades.
+        Product.current_stock NO cambia (las unidades ya estaban contadas).
+        """
+        quantity = Decimal(str(quantity))
+        product = packaging_record.product
+        pkg_type = packaging_record.packaging_type
+
+        if pkg_type == 'bulk':
+            # Bulto → Displays
+            target = product.packagings.filter(packaging_type='display', is_active=True).first()
+            if not target:
+                raise ValueError('No existe empaque Display para abrir el bulto')
+            convert_qty = quantity * Decimal(str(packaging_record.displays_per_bulk))
+
+            packaging_record.current_stock -= quantity
+            packaging_record.save()
+            target.current_stock += convert_qty
+            target.save()
+
+            ref = f'Apertura Bulto x{quantity} → {convert_qty} displays'
+
+        elif pkg_type == 'display':
+            # Display → Unidades
+            target = product.packagings.filter(packaging_type='unit', is_active=True).first()
+            if not target:
+                raise ValueError('No existe empaque Unidad para abrir el display')
+            convert_qty = quantity * Decimal(str(packaging_record.units_per_display))
+
+            packaging_record.current_stock -= quantity
+            packaging_record.save()
+            target.current_stock += convert_qty
+            target.save()
+
+            ref = f'Apertura Display x{quantity} → {convert_qty} unidades'
+        else:
+            raise ValueError('Solo se pueden abrir Bultos o Displays')
+
+        # Movimientos informativos (no cambia product.current_stock)
+        StockMovement.objects.create(
+            product=product,
+            movement_type='adjustment_out',
+            quantity=-quantity,
+            stock_before=product.current_stock,
+            stock_after=product.current_stock,
+            reference=ref,
+            notes=f'Empaque origen: {packaging_record.name}',
+            created_by=user,
+        )
+        StockMovement.objects.create(
+            product=product,
+            movement_type='adjustment_in',
+            quantity=convert_qty,
+            stock_before=product.current_stock,
+            stock_after=product.current_stock,
+            reference=ref,
+            notes=f'Empaque destino: {target.name}',
+            created_by=user,
+        )
 
 
 class BarcodeService:

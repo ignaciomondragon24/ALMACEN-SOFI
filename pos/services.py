@@ -338,19 +338,26 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock (using packaging_units for correct unit conversion)
+        # Deduct stock with cascade (packaging-aware)
         for item in pos_transaction.items.all():
-            # Each item sold = item.quantity * item.packaging_units base units
             units_to_deduct = item.quantity * item.packaging_units
             pkg_note = ''
             if item.packaging and item.packaging_units > 1:
                 pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
-            StockManagementService.deduct_stock(
-                product=item.product,
-                quantity=units_to_deduct,
-                reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
-                reference_id=pos_transaction.id
-            )
+            if item.product.packagings.filter(is_active=True).exists():
+                StockManagementService.deduct_stock_with_cascade(
+                    product=item.product,
+                    quantity=units_to_deduct,
+                    reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
+                    reference_id=pos_transaction.id
+                )
+            else:
+                StockManagementService.deduct_stock(
+                    product=item.product,
+                    quantity=units_to_deduct,
+                    reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
+                    reference_id=pos_transaction.id
+                )
         
         # Complete transaction
         pos_transaction.status = 'completed'
@@ -516,15 +523,23 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock (using packaging_units for correct unit conversion)
+        # Deduct stock with cascade (packaging-aware)
         for item in pos_transaction.items.all():
             units_to_deduct = item.quantity * item.packaging_units
-            StockManagementService.deduct_stock(
-                product=item.product,
-                quantity=units_to_deduct,
-                reference=f'Venta al costo {pos_transaction.ticket_number}',
-                reference_id=pos_transaction.id
-            )
+            if item.product.packagings.filter(is_active=True).exists():
+                StockManagementService.deduct_stock_with_cascade(
+                    product=item.product,
+                    quantity=units_to_deduct,
+                    reference=f'Venta al costo {pos_transaction.ticket_number}',
+                    reference_id=pos_transaction.id
+                )
+            else:
+                StockManagementService.deduct_stock(
+                    product=item.product,
+                    quantity=units_to_deduct,
+                    reference=f'Venta al costo {pos_transaction.ticket_number}',
+                    reference_id=pos_transaction.id
+                )
         
         # Complete transaction
         pos_transaction.transaction_type = 'cost_sale'
@@ -582,15 +597,23 @@ class CheckoutService:
             item.save()
             total_cost += item.subtotal
         
-        # Deduct stock (using packaging_units for correct unit conversion)
+        # Deduct stock with cascade (packaging-aware)
         for item in pos_transaction.items.all():
             units_to_deduct = item.quantity * item.packaging_units
-            StockManagementService.deduct_stock(
-                product=item.product,
-                quantity=units_to_deduct,
-                reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
-                reference_id=pos_transaction.id
-            )
+            if item.product.packagings.filter(is_active=True).exists():
+                StockManagementService.deduct_stock_with_cascade(
+                    product=item.product,
+                    quantity=units_to_deduct,
+                    reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
+                    reference_id=pos_transaction.id
+                )
+            else:
+                StockManagementService.deduct_stock(
+                    product=item.product,
+                    quantity=units_to_deduct,
+                    reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
+                    reference_id=pos_transaction.id
+                )
         
         # Complete transaction with zero payment
         pos_transaction.transaction_type = 'internal_consumption'
