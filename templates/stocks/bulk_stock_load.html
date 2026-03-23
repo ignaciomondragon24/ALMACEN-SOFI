@@ -723,6 +723,7 @@ document.addEventListener('DOMContentLoaded', function() {
         hideError();
         hideProduct();
         mainForm.style.display = 'none';
+        productPreview.style.display = '';  // Limpiar override inline para que CSS .active funcione
         productPreview.classList.add('active');
         productPreview.classList.remove('error');
         document.getElementById('preview-icon').className = 'fas fa-spinner fa-spin fa-3x text-info';
@@ -759,11 +760,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Si otra búsqueda empezó mientras esperábamos, ignorar esta respuesta
             if (mySearchId !== _searchId) return;
             
-            // Parsear JSON de forma segura (404 puede devolver HTML en vez de JSON)
+            // Parsear JSON de forma segura
             let data;
             try {
                 data = await response.json();
             } catch (jsonErr) {
+                // Si es AbortError, dejar que el catch externo lo maneje
+                if (jsonErr.name === 'AbortError') throw jsonErr;
                 if (mySearchId !== _searchId) return;
                 // Respuesta no es JSON (ej: 404 HTML) → tratar como no encontrado
                 showNotFoundOptions(barcode);
@@ -806,16 +809,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 mainForm.style.display = 'none';
             }
         } catch (error) {
-            if (error.name === 'AbortError') return;
+            if (error.name === 'AbortError') return; // Búsqueda cancelada, ignorar
             if (mySearchId !== _searchId) return;
-            console.error('Error:', error);
+            console.error('Error buscando packaging:', error);
             showError('Error al buscar el producto');
             hideProduct();
             mainForm.style.display = 'none';
         } finally {
-            // Limpiar controller si esta búsqueda es la activa
             if (mySearchId === _searchId) {
                 currentAbortController = null;
+                // Safety net: si el spinner sigue visible, forzar ocultarlo
+                const icon = document.getElementById('preview-icon');
+                if (icon && icon.className.includes('fa-spinner')) {
+                    hideProduct();
+                }
             }
         }
     }
@@ -837,12 +844,14 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('preview-icon').className = 'fas fa-exclamation-triangle fa-3x text-warning';
         }
         
+        productPreview.style.display = '';  // Limpiar override inline
         productPreview.classList.add('active');
         productPreview.classList.remove('error');
     }
     
     function hideProduct() {
         productPreview.classList.remove('active');
+        productPreview.style.display = 'none';  // Forzar oculto por inline style
         currentPackaging = null;
     }
     
