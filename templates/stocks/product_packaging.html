@@ -311,7 +311,7 @@
                                     <label class="form-label small">Margen %</label>
                                     <div class="input-group input-group-sm">
                                         <input type="number" id="id_unit_margin"
-                                               class="form-control text-end" step="0.01" readonly
+                                               class="form-control text-end" step="0.01"
                                                value="{% if unit_pkg %}{{ unit_pkg.margin_percent }}{% else %}0{% endif %}">
                                         <span class="input-group-text">%</span>
                                     </div>
@@ -366,7 +366,7 @@
                                     <label class="form-label small">Margen %</label>
                                     <div class="input-group input-group-sm">
                                         <input type="number" id="id_display_margin"
-                                               class="form-control text-end" step="0.01" readonly
+                                               class="form-control text-end" step="0.01"
                                                value="{{ display_pkg.margin_percent|default:'0' }}">
                                         <span class="input-group-text">%</span>
                                     </div>
@@ -421,7 +421,7 @@
                                     <label class="form-label small">Margen %</label>
                                     <div class="input-group input-group-sm">
                                         <input type="number" id="id_bulk_margin"
-                                               class="form-control text-end" step="0.01" readonly
+                                               class="form-control text-end" step="0.01"
                                                value="{{ bulk_pkg.margin_percent|default:'0' }}">
                                         <span class="input-group-text">%</span>
                                     </div>
@@ -483,8 +483,10 @@
         document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
     });
 
-    // Auto-calculate margin for each packaging type
-    function calcPkgMargin(prefix) {
+    // Bidirectional margin <-> sale price calculation
+    // - Edit purchase or sale → recalc margin
+    // - Edit margin → recalc sale price
+    function calcMarginFromPrices(prefix) {
         const purchase = parseFloat(document.getElementById('id_' + prefix + '_purchase').value) || 0;
         const sale = parseFloat(document.getElementById('id_' + prefix + '_sale').value) || 0;
         const marginEl = document.getElementById('id_' + prefix + '_margin');
@@ -495,12 +497,23 @@
         }
     }
 
+    function calcSaleFromMargin(prefix) {
+        const purchase = parseFloat(document.getElementById('id_' + prefix + '_purchase').value) || 0;
+        const margin = parseFloat(document.getElementById('id_' + prefix + '_margin').value) || 0;
+        const saleEl = document.getElementById('id_' + prefix + '_sale');
+        if (purchase > 0) {
+            saleEl.value = (purchase * (1 + margin / 100)).toFixed(2);
+        }
+    }
+
     ['unit', 'display', 'bulk'].forEach(function(prefix) {
         var purchaseEl = document.getElementById('id_' + prefix + '_purchase');
         var saleEl = document.getElementById('id_' + prefix + '_sale');
-        if (purchaseEl) purchaseEl.addEventListener('input', function() { calcPkgMargin(prefix); });
-        if (saleEl) saleEl.addEventListener('input', function() { calcPkgMargin(prefix); });
-        calcPkgMargin(prefix);
+        var marginEl = document.getElementById('id_' + prefix + '_margin');
+        if (purchaseEl) purchaseEl.addEventListener('input', function() { calcMarginFromPrices(prefix); });
+        if (saleEl) saleEl.addEventListener('input', function() { calcMarginFromPrices(prefix); });
+        if (marginEl) marginEl.addEventListener('input', function() { calcSaleFromMargin(prefix); });
+        calcMarginFromPrices(prefix);
     });
 
     // Auto-calculate display & unit purchase prices from bulk
@@ -517,8 +530,8 @@
             document.getElementById('id_display_purchase').value = '0';
             document.getElementById('id_unit_purchase').value = '0';
         }
-        calcPkgMargin('display');
-        calcPkgMargin('unit');
+        calcMarginFromPrices('display');
+        calcMarginFromPrices('unit');
     }
 
     document.getElementById('id_bulk_purchase').addEventListener('input', cascadePurchasePrices);
