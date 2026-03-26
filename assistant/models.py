@@ -109,7 +109,7 @@ class AssistantSettings(models.Model):
     )
     model = models.CharField(
         max_length=50,
-        default='gemini-2.0-flash',
+        default='gemini-2.5-flash',
         verbose_name='Modelo',
         help_text='Modelo de Gemini a usar'
     )

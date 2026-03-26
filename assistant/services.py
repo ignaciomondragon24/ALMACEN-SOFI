@@ -667,7 +667,10 @@ class AssistantService:
             )
             
             # Call Gemini API via SDK
+            VALID_MODELS = {'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'}
             model_name = assistant_settings.model or 'gemini-2.5-flash'
+            if model_name not in VALID_MODELS:
+                model_name = 'gemini-2.5-flash'
             
             response = client.models.generate_content(
                 model=model_name,
