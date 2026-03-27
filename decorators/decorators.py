@@ -55,18 +55,18 @@ def admin_required(view_func):
 
 
 def manager_required(view_func):
-    """Decorator that requires Manager or Admin group."""
-    return group_required('Admin', 'Manager')(view_func)
+    """Decorator that requires Admin or Cajero Manager group."""
+    return group_required('Admin', 'Cajero Manager')(view_func)
 
 
 def cashier_required(view_func):
-    """Decorator that requires Cashier, Manager, or Admin group."""
-    return group_required('Admin', 'Manager', 'Cashier')(view_func)
+    """Decorator that requires Cashier, Cajero Manager, or Admin group."""
+    return group_required('Admin', 'Cajero Manager', 'Cashier')(view_func)
 
 
 def stock_manager_required(view_func):
-    """Decorator that requires Stock Manager, Manager, or Admin group."""
-    return group_required('Admin', 'Manager', 'Stock Manager')(view_func)
+    """Decorator that requires stock access: Cajero Manager or Admin group."""
+    return group_required('Admin', 'Cajero Manager')(view_func)
 
 
 def ajax_login_required(view_func):

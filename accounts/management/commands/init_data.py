@@ -40,9 +40,8 @@ class Command(BaseCommand):
         
         roles = [
             ('Admin', 'Administrador - Acceso total'),
-            ('Manager', 'Gerente - Gestión operativa'),
+            ('Cajero Manager', 'Cajero Manager - POS, Caja, Inventario, Promociones, Cartelería'),
             ('Cashier', 'Cajero - POS y caja'),
-            ('Stock Manager', 'Encargado de Stock - Inventario'),
         ]
         
         for name, description in roles:

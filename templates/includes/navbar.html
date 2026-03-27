@@ -47,7 +47,7 @@
                 </li>
                 {% endif %}
                 
-                <!-- Inventory - Stock Manager, Manager, Admin -->
+                <!-- Inventory - Cajero Manager, Admin -->
                 {% if can_stocks %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="stockDropdown" role="button" data-bs-toggle="dropdown">
@@ -72,7 +72,7 @@
                 </li>
                 {% endif %}
                 
-                <!-- Purchases - Manager, Stock Manager, Admin -->
+                <!-- Purchases - Admin only -->
                 {% if can_purchases %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="purchaseDropdown" role="button" data-bs-toggle="dropdown">
@@ -109,7 +109,7 @@
                 </li>
                 {% endif %}
                 
-                <!-- Signage - Manager, Stock Manager, Admin -->
+                <!-- Signage - Cajero Manager, Admin -->
                 {% if can_signage %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="signageDropdown" role="button" data-bs-toggle="dropdown">
@@ -144,8 +144,8 @@
                 </li>
                 {% endif %}
                 
-                <!-- AI Assistant - Manager, Admin -->
-                {% if is_manager or is_admin %}
+                <!-- AI Assistant - Solo Admin -->
+                {% if can_assistant %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="assistantDropdown" role="button" data-bs-toggle="dropdown" style="color: #ff6b6b;">
                         <i class="fas fa-robot me-1"></i>Asistente IA
@@ -198,12 +198,12 @@
             <ul class="navbar-nav">
                 <!-- Role Badge -->
                 <li class="nav-item d-flex align-items-center me-2">
-                    {% if is_admin %}
+                    {% if is_superadmin %}
+                    <span class="badge bg-dark"><i class="fas fa-shield-alt me-1"></i>SuperAdmin</span>
+                    {% elif is_admin %}
                     <span class="badge bg-danger">Admin</span>
-                    {% elif is_manager %}
-                    <span class="badge bg-warning text-dark">Manager</span>
-                    {% elif is_stock_manager %}
-                    <span class="badge bg-info">Stock</span>
+                    {% elif is_cajero_manager %}
+                    <span class="badge bg-warning text-dark">Cajero Manager</span>
                     {% elif is_cashier %}
                     <span class="badge bg-success">Cajero</span>
                     {% endif %}

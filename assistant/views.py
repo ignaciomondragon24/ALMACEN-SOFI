@@ -260,7 +260,7 @@ def get_insights(request):
 
 
 @login_required
-@group_required('Admin', 'Manager')
+@group_required('Admin')
 def assistant_settings(request):
     """
     Settings page for the assistant (admin only).
@@ -344,7 +344,7 @@ from django.db.models import Count, Avg
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def scan_invoice_page(request):
     """Render the invoice scanning page."""
     from purchase.models import Supplier
@@ -361,7 +361,7 @@ def scan_invoice_page(request):
 
 @login_required
 @require_POST
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def api_scan_invoice(request):
     """
     API endpoint: receive an invoice image and return extracted data.
@@ -434,7 +434,7 @@ def api_scan_invoice(request):
 
 @login_required
 @require_POST
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def api_confirm_invoice(request):
     """
     API endpoint: confirm scanned invoice data.
@@ -490,7 +490,7 @@ def api_confirm_invoice(request):
         registrar_gasto = data.get('registrar_gasto', False)
         actualizar_stock = data.get('actualizar_stock', True)
 
-        if not productos:
+        if not isinstance(productos, list) or not productos:
             return JsonResponse({
                 'success': False,
                 'error': 'No hay productos para registrar.'
@@ -574,6 +574,12 @@ def api_confirm_invoice(request):
                 if not nombre or cantidad <= 0:
                     continue
 
+                # Range validation for AI-sourced data
+                if cantidad > 99999:
+                    continue
+                if precio_unitario < 0 or precio_unitario > Decimal('9999999'):
+                    precio_unitario = Decimal('0')
+
                 # Try to find matching product
                 product = None
 
@@ -616,7 +622,7 @@ def api_confirm_invoice(request):
                         purchase_price=p_cost,
                         cost_price=p_cost,
                         sale_price=p_sale,
-                        is_active=True,
+                        is_active=False,
                     )
                     auto_created_products.append(nombre)
 
@@ -713,7 +719,7 @@ def api_confirm_invoice(request):
 
 @login_required
 @require_POST
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def api_create_product_from_scan(request):
     """
     API endpoint: create a new product from the invoice scan review.

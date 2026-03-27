@@ -245,7 +245,7 @@ class CartService:
                 if item_id and discount > 0:
                     try:
                         item = POSTransactionItem.objects.get(id=item_id)
-                        item.discount = discount
+                        item.discount += discount  # Sum discounts for combinable promos
                         item.promotion_id = applied.get('promotion_id')
                         item.promotion_name = applied.get('promotion_name', '')
                         item.save()
@@ -257,7 +257,6 @@ class CheckoutService:
     """Service for checkout operations."""
     
     @staticmethod
-    @transaction.atomic
     def process_payment(transaction_id, payments):
         """
         Process payment for a transaction.
@@ -279,6 +278,17 @@ class CheckoutService:
             )
         except POSTransaction.DoesNotExist:
             return False, {'error': 'Transacción no encontrada o ya procesada'}
+        
+        try:
+          return CheckoutService._process_payment_atomic(pos_transaction, payments)
+        except ValueError as e:
+            return False, {'error': str(e)}
+    
+    @staticmethod
+    @transaction.atomic
+    def _process_payment_atomic(pos_transaction, payments):
+        from cashregister.models import PaymentMethod, CashMovement
+        from stocks.services import StockManagementService
         
         # Calculate total to pay
         total_to_pay = pos_transaction.total
@@ -331,9 +341,8 @@ class CheckoutService:
         
         # Verify sufficient payment
         if total_paid < total_to_pay:
-            # Rollback payments
-            POSPayment.objects.filter(transaction=pos_transaction).delete()
-            return False, {'error': f'Pago insuficiente. Faltan ${total_to_pay - total_paid}'}
+            # Raise to trigger atomic rollback (reverts POSPayments AND CashMovements)
+            raise ValueError(f'Pago insuficiente. Faltan ${total_to_pay - total_paid}')
         
         # Calculate change
         change = total_paid - total_to_pay
@@ -432,7 +441,6 @@ class CheckoutService:
         return True, 'Transacción reanudada'
     
     @staticmethod
-    @transaction.atomic
     def process_cost_sale(transaction_id, payments, employee_note=''):
         """
         Process a sale at cost price (for employees/owners).
@@ -445,9 +453,6 @@ class CheckoutService:
         Returns:
             tuple (success: bool, result: dict)
         """
-        from cashregister.models import PaymentMethod, CashMovement
-        from stocks.services import StockManagementService
-        
         try:
             pos_transaction = POSTransaction.objects.get(
                 id=transaction_id,
@@ -455,6 +460,17 @@ class CheckoutService:
             )
         except POSTransaction.DoesNotExist:
             return False, {'error': 'Transacción no encontrada o ya procesada'}
+        
+        try:
+            return CheckoutService._process_cost_sale_atomic(pos_transaction, payments, employee_note)
+        except ValueError as e:
+            return False, {'error': str(e)}
+    
+    @staticmethod
+    @transaction.atomic
+    def _process_cost_sale_atomic(pos_transaction, payments, employee_note=''):
+        from cashregister.models import PaymentMethod, CashMovement
+        from stocks.services import StockManagementService
         
         # Update item prices to cost price and recalculate
         for item in pos_transaction.items.all():
@@ -486,9 +502,9 @@ class CheckoutService:
                 elif method_code:
                     method = PaymentMethod.objects.get(code=method_code, is_active=True)
                 else:
-                    return False, {'error': 'Método de pago no especificado'}
+                    raise ValueError('Método de pago no especificado')
             except PaymentMethod.DoesNotExist:
-                return False, {'error': f'Método de pago inválido'}
+                raise ValueError('Método de pago inválido')
             
             POSPayment.objects.create(
                 transaction=pos_transaction,
@@ -515,10 +531,9 @@ class CheckoutService:
             
             total_paid += amount
         
-        # Verify sufficient payment
+        # Verify sufficient payment — raises to trigger full atomic rollback
         if total_paid < total_to_pay:
-            POSPayment.objects.filter(transaction=pos_transaction).delete()
-            return False, {'error': f'Pago insuficiente. Faltan ${total_to_pay - total_paid}'}
+            raise ValueError(f'Pago insuficiente. Faltan ${total_to_pay - total_paid}')
         
         # Calculate change
         change = total_paid - total_to_pay

@@ -18,7 +18,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def reports_dashboard(request):
     """Reports dashboard with overview."""
     today = timezone.localdate()
@@ -81,7 +81,7 @@ def reports_dashboard(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def sale_list(request):
     """List sales/transactions."""
     transactions = POSTransaction.objects.filter(
@@ -110,7 +110,7 @@ def sale_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def daily_report(request):
     """Daily sales report."""
     date = request.GET.get('date', '')
@@ -175,7 +175,7 @@ def daily_report(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def period_report(request):
     """Period sales report."""
     date_from = request.GET.get('date_from', '')
@@ -238,7 +238,7 @@ def period_report(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def products_report(request):
     """Products sales report."""
     date_from = request.GET.get('date_from', '')
@@ -277,7 +277,7 @@ def products_report(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def categories_report(request):
     """Categories sales report."""
     date_from = request.GET.get('date_from', '')
@@ -319,7 +319,7 @@ def categories_report(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def cashiers_report(request):
     """Cashiers performance report."""
     date_from = request.GET.get('date_from', '')
@@ -365,7 +365,7 @@ def cashiers_report(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def export_excel(request):
     """Export sales report to Excel - multi-sheet with full detail."""
     import openpyxl
@@ -692,7 +692,7 @@ def export_excel(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def export_pdf(request):
     """Export sales report to PDF using ReportLab."""
     import io

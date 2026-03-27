@@ -11,7 +11,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'General Manager'])
+@group_required(['Admin'])
 def company_settings(request):
     """View and edit company settings."""
     company = Company.get_company()
@@ -33,7 +33,7 @@ def company_settings(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'General Manager'])
+@group_required(['Admin'])
 def branch_list(request):
     """List all branches."""
     branches = Branch.objects.select_related('company').all()

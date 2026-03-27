@@ -47,17 +47,19 @@
                                 {% for group in user.groups.all %}
                                     {% if group.name == 'Admin' %}
                                         <span class="badge bg-danger">{{ group.name }}</span>
-                                    {% elif group.name == 'Manager' %}
+                                    {% elif group.name == 'Cajero Manager' %}
                                         <span class="badge bg-warning text-dark">{{ group.name }}</span>
                                     {% elif group.name == 'Cashier' %}
-                                        <span class="badge bg-info">{{ group.name }}</span>
-                                    {% elif group.name == 'Stock Manager' %}
-                                        <span class="badge bg-success">{{ group.name }}</span>
+                                        <span class="badge bg-success">Cajero</span>
                                     {% else %}
                                         <span class="badge bg-secondary">{{ group.name }}</span>
                                     {% endif %}
                                 {% empty %}
-                                    <span class="badge bg-light text-dark">Sin rol</span>
+                                    {% if user.is_superuser %}
+                                        <span class="badge bg-dark"><i class="fas fa-shield-alt me-1"></i>SuperAdmin</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">Sin rol</span>
+                                    {% endif %}
                                 {% endfor %}
                             </td>
                             <td>
@@ -106,21 +108,17 @@
         </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <span class="badge bg-danger">Admin</span>
                     <small class="d-block text-muted">Acceso total al sistema</small>
                 </div>
-                <div class="col-md-3">
-                    <span class="badge bg-warning text-dark">Manager</span>
-                    <small class="d-block text-muted">Gestión operativa, reportes</small>
+                <div class="col-md-4">
+                    <span class="badge bg-warning text-dark">Cajero Manager</span>
+                    <small class="d-block text-muted">POS, Caja, Inventario, Promociones, Cartelería</small>
                 </div>
-                <div class="col-md-3">
-                    <span class="badge bg-info">Cashier</span>
-                    <small class="d-block text-muted">Solo POS y caja</small>
-                </div>
-                <div class="col-md-3">
-                    <span class="badge bg-success">Stock Manager</span>
-                    <small class="d-block text-muted">Solo inventario</small>
+                <div class="col-md-4">
+                    <span class="badge bg-success">Cajero</span>
+                    <small class="d-block text-muted">Solo POS y Caja</small>
                 </div>
             </div>
         </div>

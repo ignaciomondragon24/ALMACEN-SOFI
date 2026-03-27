@@ -16,7 +16,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def promotion_list(request):
     """List all promotions."""
     promotions = Promotion.objects.all()
@@ -56,7 +56,7 @@ def promotion_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def promotion_create(request):
     """Create new promotion."""
     if request.method == 'POST':
@@ -146,7 +146,7 @@ def promotion_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def promotion_edit(request, pk):
     """Edit promotion."""
     promotion = get_object_or_404(Promotion, pk=pk)
@@ -220,7 +220,7 @@ def promotion_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def promotion_detail(request, pk):
     """Promotion detail."""
     promotion = get_object_or_404(Promotion, pk=pk)
@@ -233,7 +233,7 @@ def promotion_detail(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def promotion_delete(request, pk):
     """Delete promotion."""
     promotion = get_object_or_404(Promotion, pk=pk)
@@ -250,7 +250,7 @@ def promotion_delete(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 @require_POST
 def promotion_activate(request, pk):
     """Activate promotion."""
@@ -262,7 +262,7 @@ def promotion_activate(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 @require_POST
 def promotion_pause(request, pk):
     """Pause promotion."""

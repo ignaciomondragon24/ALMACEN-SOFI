@@ -124,21 +124,25 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def is_cashier(self):
         """Check if user is a cashier."""
-        return self.has_role('Cashier') or self.is_admin
+        return self.has_role('Cashier') or self.has_role('Cajero Manager') or self.has_role('Admin') or self.is_superuser
+    
+    def is_cajero_manager(self):
+        """Check if user is a cajero manager."""
+        return self.has_role('Cajero Manager') or self.has_role('Admin') or self.is_superuser
     
     def is_manager(self):
-        """Check if user is a manager."""
-        return self.has_role('Manager') or self.is_admin
+        """Check if user is a manager (admin or cajero manager)."""
+        return self.has_role('Admin') or self.has_role('Cajero Manager') or self.is_superuser
     
     def is_stock_manager(self):
-        """Check if user is a stock manager."""
-        return self.has_role('Stock Manager') or self.is_admin
+        """Check if user has stock access."""
+        return self.has_role('Cajero Manager') or self.has_role('Admin') or self.is_superuser
 
 
 class Role(Group):
     """
     Proxy model for Django's Group to add extra functionality.
-    Roles: Admin, Manager, General Manager, Cashier, Stock Manager
+    Roles: Admin, Cajero Manager, Cashier
     """
     
     class Meta:
@@ -148,10 +152,8 @@ class Role(Group):
     
     ROLE_CHOICES = [
         ('Admin', 'Administrador'),
-        ('Manager', 'Gerente'),
-        ('General Manager', 'Gerente General'),
+        ('Cajero Manager', 'Cajero Manager'),
         ('Cashier', 'Cajero'),
-        ('Stock Manager', 'Encargado de Stock'),
     ]
     
     @classmethod

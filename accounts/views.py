@@ -72,9 +72,8 @@ def dashboard_view(request):
     user = request.user
     user_groups = list(user.groups.values_list('name', flat=True))
     is_admin = user.is_superuser or user.is_admin or 'Admin' in user_groups
-    is_manager = is_admin or 'Manager' in user_groups
-    is_cashier = 'Cashier' in user_groups
-    is_stock_manager = 'Stock Manager' in user_groups
+    is_cajero_manager = is_admin or 'Cajero Manager' in user_groups
+    is_cashier = is_cajero_manager or 'Cashier' in user_groups
     
     today = timezone.now().date()
     context = {}
@@ -87,7 +86,7 @@ def dashboard_view(request):
     context['user_shift'] = user_shift
     
     # === DATOS PARA CAJEROS ===
-    if is_cashier or is_manager or is_admin:
+    if is_cashier or is_cajero_manager or is_admin:
         # Mis ventas del día
         if user_shift:
             my_transactions = POSTransaction.objects.filter(
@@ -100,8 +99,8 @@ def dashboard_view(request):
             context['my_sales_today'] = 0
             context['my_transactions_count'] = 0
     
-    # === DATOS PARA STOCK MANAGER ===
-    if is_stock_manager or is_manager or is_admin:
+    # === DATOS PARA CAJERO MANAGER ===
+    if is_cajero_manager or is_admin:
         # Productos con bajo stock
         low_stock_products = Product.objects.filter(
             is_active=True,
@@ -115,8 +114,8 @@ def dashboard_view(request):
         context['total_products'] = Product.objects.filter(is_active=True).count()
         context['total_categories'] = ProductCategory.objects.filter(is_active=True).count()
     
-    # === DATOS PARA MANAGERS Y ADMIN ===
-    if is_manager or is_admin:
+    # === DATOS PARA ADMIN ===
+    if is_admin:
         # Ventas del día (global)
         today_transactions = POSTransaction.objects.filter(
             status='completed',
@@ -142,8 +141,6 @@ def dashboard_view(request):
         # Promociones activas
         context['active_promotions'] = Promotion.objects.filter(status='active').count()
     
-    # === DATOS PARA ADMIN ===
-    if is_admin:
         # Usuarios activos
         context['active_users'] = User.objects.filter(is_active=True).count()
         # Cajas registradas
@@ -154,10 +151,13 @@ def dashboard_view(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def user_list(request):
     """Lista de usuarios."""
     users = User.objects.all().prefetch_related('groups')
+    # SuperAdmins son invisibles para todos excepto otros superadmins
+    if not request.user.is_superuser:
+        users = users.filter(is_superuser=False)
     return render(request, 'accounts/user_list.html', {'users': users})
 
 

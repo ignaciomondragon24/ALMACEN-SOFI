@@ -16,7 +16,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'General Manager'])
+@group_required(['Admin'])
 def expense_list(request):
     """List all expenses."""
     expenses = Expense.objects.select_related('category', 'supplier', 'created_by').all()
@@ -57,7 +57,7 @@ def expense_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'General Manager'])
+@group_required(['Admin'])
 def expense_create(request):
     """Create a new expense."""
     if request.method == 'POST':
@@ -76,7 +76,7 @@ def expense_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def expense_edit(request, pk):
     """Edit an expense."""
     expense = get_object_or_404(Expense, pk=pk)
@@ -99,7 +99,7 @@ def expense_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def expense_delete(request, pk):
     """Delete an expense."""
     expense = get_object_or_404(Expense, pk=pk)
@@ -114,7 +114,7 @@ def expense_delete(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def category_list(request):
     """List expense categories."""
     categories = ExpenseCategory.objects.annotate(
@@ -127,7 +127,7 @@ def category_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def category_create(request):
     """Create expense category."""
     if request.method == 'POST':
@@ -144,7 +144,7 @@ def category_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def category_edit(request, pk):
     """Edit expense category."""
     category = get_object_or_404(ExpenseCategory, pk=pk)
@@ -167,7 +167,7 @@ def category_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def recurring_list(request):
     """List recurring expenses."""
     recurring = RecurringExpense.objects.select_related('category').filter(is_active=True)
@@ -177,7 +177,7 @@ def recurring_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def recurring_create(request):
     """Create recurring expense."""
     if request.method == 'POST':
@@ -194,7 +194,7 @@ def recurring_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def expense_report(request):
     """Generate expense report."""
     # Default to current month

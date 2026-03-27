@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # ==================== DASHBOARD Y CONFIG ====================
 
 @login_required
-@group_required(['Admin', 'Manager', 'General Manager'])
+@group_required(['Admin'])
 def mp_dashboard(request):
     """Dashboard principal de Mercado Pago."""
     credentials = MPCredentials.get_active()
@@ -219,7 +219,7 @@ def device_change_mode(request, device_id):
 # ==================== INTENCIONES DE PAGO ====================
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def payment_intent_list(request):
     """Lista de intenciones de pago."""
     intents = PaymentIntent.objects.select_related(
@@ -232,7 +232,7 @@ def payment_intent_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 def payment_intent_detail(request, intent_id):
     """Detalle de una intención de pago."""
     intent = get_object_or_404(
@@ -246,7 +246,7 @@ def payment_intent_detail(request, intent_id):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 def payment_intent_check_status(request, intent_id):
     """Consulta el estado actual de una intención de pago."""
     intent = get_object_or_404(PaymentIntent, pk=intent_id)
@@ -268,7 +268,7 @@ def payment_intent_check_status(request, intent_id):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier'])
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 def payment_intent_cancel(request, intent_id):
     """Cancela una intención de pago."""
     intent = get_object_or_404(PaymentIntent, pk=intent_id)
@@ -289,6 +289,7 @@ def payment_intent_cancel(request, intent_id):
 # ==================== API PARA POS ====================
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_create_payment_intent(request):
     """
@@ -382,6 +383,7 @@ def api_create_payment_intent(request):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_GET
 def api_check_payment_status(request, intent_id):
     """
@@ -422,6 +424,7 @@ def api_check_payment_status(request, intent_id):
             payment = result.get('payment', {})
             if payment.get('status') == 'approved':
                 intent.mark_approved(payment)
+                complete_pos_transaction(intent)
             else:
                 intent.mark_rejected(payment.get('status_detail', ''))
         elif mp_state == 'CANCELED':
@@ -448,6 +451,7 @@ def api_check_payment_status(request, intent_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST  
 def api_cancel_payment(request, intent_id):
     """
@@ -536,8 +540,11 @@ def webhook_receiver(request):
 
 def verify_webhook_signature(body, signature, secret):
     """Verifica la firma del webhook."""
-    if not signature or not secret:
-        return True  # Si no hay firma configurada, aceptar
+    if not secret:
+        logger.warning("Webhook secret no configurado — rechazando webhook por seguridad")
+        return False
+    if not signature:
+        return False
     
     try:
         # MP usa HMAC-SHA256
@@ -680,6 +687,7 @@ def process_payment_event(payload):
 def complete_pos_transaction(payment_intent):
     """
     Completa la transacción POS cuando el pago es aprobado.
+    Crea el pago, descuenta stock y registra movimiento de caja.
     """
     if not payment_intent.pos_transaction:
         return
@@ -692,7 +700,8 @@ def complete_pos_transaction(payment_intent):
     try:
         with transaction.atomic():
             from pos.models import POSPayment
-            from cashregister.models import PaymentMethod
+            from cashregister.models import PaymentMethod, CashMovement
+            from stocks.services import StockManagementService
             
             # Crear el registro de pago
             mp_method = PaymentMethod.objects.filter(code='mercadopago').first()
@@ -705,6 +714,37 @@ def complete_pos_transaction(payment_intent):
                     reference=payment_intent.mp_payment_id,
                     details=f"Tarjeta: {payment_intent.card_brand} ****{payment_intent.card_last_four}"
                 )
+                
+                # Registrar movimiento de caja
+                CashMovement.objects.create(
+                    cash_shift=pos_transaction.session.cash_shift,
+                    movement_type='income',
+                    amount=payment_intent.amount,
+                    payment_method=mp_method,
+                    description=f'Venta MP {pos_transaction.ticket_number}',
+                    reference=pos_transaction.ticket_number
+                )
+            
+            # Descontar stock para cada item
+            for item in pos_transaction.items.all():
+                units_to_deduct = item.quantity * item.packaging_units
+                pkg_note = ''
+                if item.packaging and item.packaging_units > 1:
+                    pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
+                if item.product.packagings.filter(is_active=True).exists():
+                    StockManagementService.deduct_stock_with_cascade(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Venta MP {pos_transaction.ticket_number}{pkg_note}',
+                        reference_id=pos_transaction.id
+                    )
+                else:
+                    StockManagementService.deduct_stock(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Venta MP {pos_transaction.ticket_number}{pkg_note}',
+                        reference_id=pos_transaction.id
+                    )
             
             # Actualizar totales
             pos_transaction.amount_paid = payment_intent.amount

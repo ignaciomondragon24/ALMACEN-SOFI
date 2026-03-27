@@ -30,7 +30,7 @@ from decorators.decorators import group_required
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Cashier', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 def pos_main(request):
     """Main POS view."""
     # Check if user has an open shift
@@ -317,6 +317,7 @@ def api_calculate_cost_total(request, transaction_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_cart_add(request):
     """Add item to cart."""
@@ -370,6 +371,7 @@ def api_cart_add(request):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_cart_update(request, item_id):
     """Update cart item quantity."""
@@ -403,6 +405,7 @@ def api_cart_update(request, item_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_cart_remove(request, item_id):
     """Remove item from cart."""
@@ -520,6 +523,7 @@ def api_cart_add_by_amount(request):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_cart_clear(request, transaction_id):
     """Clear cart."""
@@ -577,6 +581,7 @@ def api_transaction_detail(request, transaction_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_checkout(request):
     """Process checkout."""
@@ -600,6 +605,7 @@ def api_checkout(request):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager'])
 @require_POST
 def api_checkout_cost_sale(request):
     """Process checkout at cost price for employees/owners."""
@@ -624,6 +630,7 @@ def api_checkout_cost_sale(request):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager'])
 @require_POST
 def api_checkout_internal_consumption(request):
     """Process internal consumption (stock deduction without payment)."""
@@ -647,6 +654,7 @@ def api_checkout_internal_consumption(request):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_transaction_suspend(request, transaction_id):
     """Suspend transaction."""
@@ -656,6 +664,7 @@ def api_transaction_suspend(request, transaction_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_transaction_resume(request, transaction_id):
     """Resume suspended transaction."""
@@ -665,6 +674,7 @@ def api_transaction_resume(request, transaction_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 @require_POST
 def api_transaction_cancel(request, transaction_id):
     """Cancel transaction."""

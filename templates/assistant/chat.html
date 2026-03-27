@@ -485,7 +485,7 @@
                         <span class="badge bg-success ms-2">Online</span>
                     </h5>
                     <div>
-                        {% if request.user.role == 'admin' or request.user.role == 'manager' %}
+                        {% if is_admin %}
                         <a href="{% url 'assistant:settings' %}" class="btn btn-sm btn-outline-light">
                             <i class="fas fa-cog"></i>
                         </a>

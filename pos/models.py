@@ -294,8 +294,8 @@ class POSTransactionItem(models.Model):
         return self.quantity * self.packaging_units
     
     def save(self, *args, **kwargs):
-        # Calculate subtotal
-        self.subtotal = (self.unit_price * self.quantity) - self.discount
+        # Calculate subtotal (never negative)
+        self.subtotal = max((self.unit_price * self.quantity) - self.discount, Decimal('0.00'))
         super().save(*args, **kwargs)
 
 

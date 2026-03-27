@@ -17,7 +17,7 @@ from stocks.services import StockManagementService
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
+@group_required(['Admin'])
 def supplier_list(request):
     """List all suppliers."""
     suppliers = Supplier.objects.filter(is_active=True)
@@ -38,7 +38,7 @@ def supplier_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def supplier_create(request):
     """Create a new supplier."""
     if request.method == 'POST':
@@ -55,7 +55,7 @@ def supplier_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def supplier_edit(request, pk):
     """Edit a supplier."""
     supplier = get_object_or_404(Supplier, pk=pk)
@@ -78,7 +78,7 @@ def supplier_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def supplier_delete(request, pk):
     """Delete a supplier."""
     supplier = get_object_or_404(Supplier, pk=pk)
@@ -94,7 +94,7 @@ def supplier_delete(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
+@group_required(['Admin'])
 def purchase_list(request):
     """List all purchases."""
     purchases = Purchase.objects.select_related('supplier', 'created_by').all()
@@ -139,7 +139,7 @@ def purchase_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def purchase_create(request):
     """Create a new purchase order."""
     if request.method == 'POST':
@@ -164,7 +164,7 @@ def purchase_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def purchase_edit(request, pk):
     """Edit a purchase order."""
     purchase = get_object_or_404(Purchase, pk=pk)
@@ -200,7 +200,7 @@ def purchase_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def purchase_receive(request, pk):
     """Receive a purchase order and update stock."""
     purchase = get_object_or_404(Purchase, pk=pk)
@@ -243,7 +243,7 @@ def purchase_receive(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin'])
 def purchase_cancel(request, pk):
     """Cancel a purchase order."""
     purchase = get_object_or_404(Purchase, pk=pk)
@@ -263,7 +263,7 @@ def purchase_cancel(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def purchase_detail(request, pk):
     """View purchase order details."""
     purchase = get_object_or_404(Purchase, pk=pk)
@@ -276,7 +276,7 @@ def purchase_detail(request, pk):
 
 # API Views
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin'])
 def api_search_products(request):
     """API to search products for purchase form."""
     query = request.GET.get('q', '')

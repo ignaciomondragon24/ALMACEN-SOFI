@@ -71,10 +71,8 @@
                 Bienvenido al sistema de gestión
                 {% if is_admin %}
                 <span class="badge badge-admin ms-2">Administrador</span>
-                {% elif is_manager %}
-                <span class="badge badge-manager ms-2">Gerente</span>
-                {% elif is_stock_manager %}
-                <span class="badge badge-stock ms-2">Enc. Stock</span>
+                {% elif is_cajero_manager %}
+                <span class="badge badge-manager ms-2">Cajero Manager</span>
                 {% elif is_cashier %}
                 <span class="badge badge-cashier ms-2">Cajero</span>
                 {% endif %}

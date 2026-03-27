@@ -213,8 +213,8 @@ class PromotionEngine:
             if qty <= 1:
                 continue
             
-            # Discount applies to all units after the first
-            discounted_qty = qty - 1
+            # Discount applies to one unit per pair ("segunda unidad")
+            discounted_qty = int(qty) // 2
             item_discount = discounted_qty * price * (promo.second_unit_discount / 100)
             
             total_discount += item_discount

@@ -12,7 +12,7 @@ from .services import auto_fill_product_data
 
 
 @login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
+@group_required('Admin', 'Cajero Manager')
 def template_list(request):
     """Catálogo de plantillas pre-armadas."""
     ensure_default_templates()
@@ -53,7 +53,7 @@ def template_list(request):
 
 
 @login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
+@group_required('Admin', 'Cajero Manager')
 def template_delete(request, pk):
     """Eliminar (desactivar) una plantilla."""
     template = get_object_or_404(SignTemplate, pk=pk)
@@ -68,7 +68,7 @@ def template_delete(request, pk):
 
 
 @login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
+@group_required('Admin', 'Cajero Manager')
 def generate(request, pk):
     """Generar carteles a partir de una plantilla."""
     template = get_object_or_404(SignTemplate, pk=pk)
@@ -107,14 +107,14 @@ def api_product_data(request):
 
 
 @login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
+@group_required('Admin', 'Cajero Manager')
 def print_view(request):
     """Vista de impresión optimizada con nesting."""
     return render(request, 'signage/print_preview.html')
 
 
 @login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
+@group_required('Admin', 'Cajero Manager')
 def batch_list(request):
     """Historial de lotes generados."""
     batches = SignBatch.objects.select_related('template', 'created_by')
@@ -158,7 +158,7 @@ def save_batch(request):
 
 
 @login_required
-@group_required('Admin', 'Manager', 'Stock Manager')
+@group_required('Admin', 'Cajero Manager')
 def generate_all(request):
     """Generar TODOS los carteles: precios de inventario + promociones activas."""
     ensure_default_templates()

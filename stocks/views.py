@@ -83,7 +83,7 @@ def _sync_packaging_prices(product, saved_packaging):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'Cashier', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
 def product_list(request):
     """List all products."""
     products = Product.objects.select_related('category', 'unit_of_measure')
@@ -231,7 +231,7 @@ def _save_inline_packaging(request, product):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def product_create(request):
     """Create new product."""
     if request.method == 'POST':
@@ -252,7 +252,7 @@ def product_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
@@ -290,7 +290,7 @@ def product_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def product_delete(request, pk):
     """Delete product (soft delete)."""
     product = get_object_or_404(Product, pk=pk)
@@ -305,7 +305,7 @@ def product_delete(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def product_detail(request, pk):
     """Product detail view."""
     product = get_object_or_404(Product, pk=pk)
@@ -318,7 +318,7 @@ def product_detail(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def stock_adjust(request, pk):
     """Adjust product stock."""
     product = get_object_or_404(Product, pk=pk)
@@ -369,7 +369,7 @@ def stock_adjust(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def category_list(request):
     """List categories."""
     categories = ProductCategory.objects.all()
@@ -377,7 +377,7 @@ def category_list(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def category_create(request):
     """Create category."""
     if request.method == 'POST':
@@ -396,7 +396,7 @@ def category_create(request):
 
 
 @login_required
-@group_required(['Admin', 'Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def category_edit(request, pk):
     """Edit category."""
     category = get_object_or_404(ProductCategory, pk=pk)
@@ -418,7 +418,7 @@ def category_edit(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def low_stock_products(request):
     """List products with low stock."""
     products = StockManagementService.get_low_stock_products()
@@ -505,7 +505,7 @@ def api_generate_barcode(request):
 # ==================== IMPORTAR EXCEL ====================
 
 @login_required
-@group_required(['Admin', 'Manager', 'Stock Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def import_excel(request):
     """Importar productos desde Excel. Cada hoja = una categoría."""
     import openpyxl
@@ -1150,7 +1150,7 @@ def export_products_excel(request):
 
 
 @login_required
-@group_required(['Admin', 'Stock Manager', 'Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def packaging_config(request, product_id):
     """Configurar empaques para un producto."""
     
@@ -1239,7 +1239,7 @@ def api_get_packaging(request, packaging_id):
 
 
 @login_required
-@group_required(['Admin', 'Stock Manager', 'Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def packaging_delete(request, packaging_id):
     """Eliminar un empaque."""
     
@@ -1258,7 +1258,7 @@ def packaging_delete(request, packaging_id):
 # ==================== GESTIÓN DE EMPAQUES ====================
 
 @login_required
-@group_required(['Admin', 'Stock Manager', 'Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def product_packaging_view(request, pk):
     """Vista completa de gestión de empaques con recepción, apertura y ajuste."""
     product = get_object_or_404(Product, pk=pk)
@@ -1400,7 +1400,7 @@ def product_packaging_view(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Stock Manager', 'Manager', 'General Manager'])
+@group_required(['Admin', 'Cajero Manager'])
 def packaging_inventory_view(request):
     """Inventario general de empaques."""
     qs = Product.objects.filter(is_active=True).select_related('category').prefetch_related('packagings')
