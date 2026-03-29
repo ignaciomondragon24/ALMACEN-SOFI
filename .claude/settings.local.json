@@ -5,7 +5,8 @@
       "Bash(python manage.py test tests.test_exhaustive_system_audit -v 2)",
       "Bash(python manage.py makemigrations pos --name add_unit_cost_to_transaction_item)",
       "Bash(python manage.py migrate pos)",
-      "Bash(python manage.py test tests --verbosity=2)"
+      "Bash(python manage.py test tests --verbosity=2)",
+      "Bash(python -c \":*)"
     ]
   }
 }
