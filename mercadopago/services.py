@@ -171,12 +171,7 @@ class MPPointService:
 
         payload = {
             "amount": amount_cents,
-            "description": description[:240] if description else "Venta",
             "additional_info": ai,
-            "payment": {
-                "installments": 1,
-                "type": "credit_card",
-            },
         }
 
         logger.info(
