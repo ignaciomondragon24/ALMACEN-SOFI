@@ -75,12 +75,18 @@ class MPPointService:
             )
             
             logger.info(f"MP API {method} {endpoint} - Status: {response.status_code}")
-            
+
             if response.status_code in [200, 201]:
                 return True, response.json()
             else:
-                error_data = response.json() if response.text else {"error": "Unknown error"}
-                logger.error(f"MP API Error: {error_data}")
+                try:
+                    error_data = response.json()
+                except Exception:
+                    error_data = {"error": response.text or "Unknown error"}
+                logger.error(
+                    f"MP API Error {response.status_code}: {error_data} "
+                    f"| endpoint={endpoint} payload={data}"
+                )
                 return False, error_data
                 
         except requests.exceptions.Timeout:
@@ -136,35 +142,40 @@ class MPPointService:
     
     # ==================== INTENCIONES DE PAGO ====================
     
-    def create_payment_intent(self, device_id, amount, description="Venta", 
+    def create_payment_intent(self, device_id, amount, description="Venta",
                               external_reference=None, additional_info=None):
         """
         Crea una intención de pago y la envía al dispositivo Point.
-        
+
+        Docs: https://www.mercadopago.com.ar/developers/es/docs/mp-point/integration-api/create-payment-intent
+
         Args:
             device_id: ID del dispositivo Point
             amount: Monto a cobrar (Decimal o float)
             description: Descripción del cobro
             external_reference: Referencia externa para rastrear el pago
             additional_info: Información adicional (dict)
-        
+
         Returns:
             tuple: (success, data)
         """
-        # Convertir a centavos (MP usa enteros)
+        # MP Point API espera monto en centavos (entero)
         amount_cents = int(Decimal(str(amount)) * 100)
-        
+
+        # additional_info debe contener external_reference y print_on_terminal
+        ai = additional_info or {}
+        if external_reference:
+            ai["external_reference"] = external_reference
+        ai.setdefault("print_on_terminal", True)
+
         payload = {
             "amount": amount_cents,
-            "description": description[:50],  # MP limita a 50 caracteres
+            "description": description[:240],
+            "additional_info": ai,
         }
-        
-        if external_reference:
-            payload["external_reference"] = external_reference
-        
-        if additional_info:
-            payload["additional_info"] = additional_info
-        
+
+        logger.info(f"Creating payment intent: device={device_id}, amount={amount_cents}, ref={external_reference}")
+
         return self._make_request(
             "POST",
             f"/point/integration-api/devices/{device_id}/payment-intents",
@@ -336,10 +347,10 @@ class PaymentIntentManager:
                 logger.info(f"Payment intent enviado: {payment_intent.external_reference}")
                 return True, payment_intent
             else:
-                # Error al enviar
+                # Error al enviar — include full MP response for debugging
                 error_msg = response.get("message", response.get("error", "Error desconocido"))
-                payment_intent.mark_error(error_msg)
-                logger.error(f"Error al enviar payment intent: {error_msg}")
+                logger.error(f"Error al enviar payment intent: {response}")
+                payment_intent.mark_error(f"{error_msg} | raw: {response}")
                 return False, error_msg
                 
         except Exception as e:
