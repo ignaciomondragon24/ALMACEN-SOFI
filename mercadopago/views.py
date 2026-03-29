@@ -104,21 +104,37 @@ def credentials_form(request):
 @login_required
 @group_required(['Admin'])
 def test_connection(request):
-    """Prueba la conexión con Mercado Pago."""
+    """Prueba la conexión con Mercado Pago y muestra diagnóstico."""
     try:
         service = MPPointService()
         success, response = service.get_devices()
-        
+
         if success:
+            devices_raw = response.get('devices', [])
+            devices_info = [
+                {
+                    'id': d.get('id'),
+                    'operating_mode': d.get('operating_mode'),
+                    'store_name': d.get('store_name'),
+                }
+                for d in devices_raw
+            ]
+            # Local DB state
+            local_devices = list(PointDevice.objects.values(
+                'device_id', 'device_name', 'operating_mode', 'status',
+                'cash_register__name',
+            ))
             return JsonResponse({
                 'success': True,
                 'message': 'Conexión exitosa con Mercado Pago',
-                'devices_count': len(response.get('devices', []))
+                'devices_count': len(devices_raw),
+                'devices_mp': devices_info,
+                'devices_local': local_devices,
             })
         else:
             return JsonResponse({
                 'success': False,
-                'message': f"Error: {response.get('message', 'Error desconocido')}"
+                'message': f"Error: {response}"
             })
     except Exception as e:
         return JsonResponse({

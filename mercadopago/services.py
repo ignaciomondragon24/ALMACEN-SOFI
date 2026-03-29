@@ -451,7 +451,18 @@ class PaymentIntentManager:
                     }
                 )
                 synced.append(device)
-                logger.info(f"Dispositivo sincronizado: {device.device_id}")
+                logger.info(f"Dispositivo sincronizado: {device.device_id} modo={device.operating_mode}")
+
+                # Auto-switch to PDV mode if device is in STANDALONE
+                if device.operating_mode != "PDV":
+                    try:
+                        ok, resp = service.change_device_mode(device.device_id, "PDV")
+                        if ok:
+                            device.operating_mode = "PDV"
+                            device.save(update_fields=["operating_mode"])
+                            logger.info(f"Dispositivo {device.device_id} cambiado a modo PDV")
+                    except Exception as mode_err:
+                        logger.warning(f"No se pudo cambiar modo del dispositivo: {mode_err}")
 
             # Auto-assign: if there are unassigned devices, try to pair them
             # with available cash registers
