@@ -1865,6 +1865,15 @@
             const cards = getCards();
             selIdx = Math.max(0, Math.min(cards.length - 1, idx));
             cards.forEach((c, i) => c.classList.toggle('selected', i === selIdx));
+            // Update confirm button label for MercadoPago
+            const selectedCard = cards[selIdx];
+            if (selectedCard && confirmBtn && !confirmBtn.disabled) {
+                if (selectedCard.dataset.methodCode === 'mercadopago') {
+                    confirmBtn.innerHTML = '<i class="fas fa-mobile-alt me-2"></i>ENVIAR A POINT';
+                } else {
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
+                }
+            }
         }
 
         function updateChange() {
@@ -1905,6 +1914,21 @@
                 return;
             }
 
+            // MercadoPago Point: enviar al dispositivo y esperar aprobación
+            if (card.dataset.methodCode === 'mercadopago') {
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fas fa-mobile-alt fa-beat me-2"></i>Enviando a Point...';
+                try {
+                    await handleFcoMercadoPago(paid, parseInt(card.dataset.methodId));
+                } catch (err) {
+                    console.error('MP Point FCO error:', err);
+                    showToast(err.message || 'Error al conectar con MercadoPago Point', 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
+                }
+                return;
+            }
+
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
 
@@ -1936,6 +1960,94 @@
                 confirmBtn.disabled = false;
                 confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
             }
+        }
+
+        // ── MercadoPago Point flow within Fast Checkout ──────────────────────
+        async function handleFcoMercadoPago(amount, methodId) {
+            // 1. Create payment intent → send to Point device
+            const intentResp = await fetch('/mercadopago/api/create-intent/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                body: JSON.stringify({
+                    amount: amount,
+                    transaction_id: TRANSACTION_ID,
+                    description: `Venta POS - ${cart.itemCount} items`
+                })
+            });
+            const intentData = await intentResp.json();
+            if (!intentData.success) {
+                throw new Error(intentData.error || 'Error al enviar a Point');
+            }
+
+            const paymentIntentId = intentData.payment_intent?.id;
+            if (!paymentIntentId) throw new Error('No se recibió ID de pago');
+
+            showToast('Pago enviado al Point. Esperando pago del cliente...', 'info');
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Esperando Point...';
+
+            // 2. Poll for payment status
+            const maxAttempts = 90;  // 3 minutes
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                await new Promise(r => setTimeout(r, 2000));
+
+                // Check if overlay was closed (user cancelled)
+                if (!fcoActive) {
+                    // Try to cancel the intent
+                    fetch(`/mercadopago/api/cancel/${paymentIntentId}/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF_TOKEN }
+                    }).catch(() => {});
+                    return;
+                }
+
+                try {
+                    const statusResp = await fetch(`/mercadopago/api/status/${paymentIntentId}/`);
+                    const statusData = await statusResp.json();
+
+                    if (statusData.status === 'approved') {
+                        // Payment approved by Point → complete the transaction
+                        confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Aprobado! Finalizando...';
+                        showToast('¡Pago con MercadoPago aprobado!', 'success');
+
+                        // The webhook may have already completed the transaction.
+                        // Try normal checkout; if already completed, fetch result.
+                        const checkoutResp = await fetch(API_URLS.checkout, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                            body: JSON.stringify({
+                                transaction_id: TRANSACTION_ID,
+                                payments: [{ method_id: methodId, amount: amount }]
+                            })
+                        });
+                        const checkoutData = await checkoutResp.json();
+                        closeOverlay(true);
+                        if (checkoutData.success) {
+                            showSaleSuccessModal(checkoutData);
+                        } else {
+                            // Webhook already completed it — reload to next transaction
+                            showToast('Venta completada por MercadoPago', 'success');
+                            setTimeout(() => window.location.reload(), 1200);
+                        }
+                        return;
+                    }
+
+                    if (statusData.status === 'rejected' || statusData.status === 'cancelled' || statusData.status === 'error') {
+                        throw new Error(
+                            statusData.status === 'rejected' ? 'Pago rechazado en el Point' :
+                            statusData.status === 'cancelled' ? 'Pago cancelado' :
+                            'Error en el dispositivo Point'
+                        );
+                    }
+                    // Still processing — continue polling
+                } catch (pollErr) {
+                    if (pollErr.message.includes('rechazado') || pollErr.message.includes('cancelado') || pollErr.message.includes('Error en el')) {
+                        throw pollErr;
+                    }
+                    // Network error during poll — keep trying
+                    console.warn('Poll error, retrying...', pollErr);
+                }
+            }
+            throw new Error('Tiempo de espera agotado. Verificá el estado del pago en el Point.');
         }
 
         function onKey(e) {

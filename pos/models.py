@@ -250,6 +250,13 @@ class POSTransactionItem(models.Model):
         decimal_places=2,
         help_text='Precio al momento de la venta'
     )
+    unit_cost = models.DecimalField(
+        'Costo Unitario',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Costo del producto al momento de la venta (para cálculo de ganancia)'
+    )
     discount = models.DecimalField(
         'Descuento',
         max_digits=10,

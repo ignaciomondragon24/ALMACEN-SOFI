@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Q, Sum
+from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
 
@@ -210,31 +211,27 @@ def purchase_receive(request, pk):
         return redirect('purchase:purchase_list')
     
     if request.method == 'POST':
-        
-        for item in purchase.items.all():
-            # Update stock
-            StockManagementService.add_stock(
-                product=item.product,
-                quantity=item.quantity,
-                cost=item.unit_cost,
-                user=request.user,
-                notes=f'Recepción de compra {purchase.order_number}',
-                reference=purchase.order_number
-            )
-            
-            # Update received quantity
-            item.received_quantity = item.quantity
-            item.save()
-            
-            # Update product cost
-            item.product.cost_price = item.unit_cost
-            item.product.save()
-        
-        # Update purchase status
-        purchase.status = 'received'
-        purchase.received_date = timezone.now().date()
-        purchase.save()
-        
+        with transaction.atomic():
+            for item in purchase.items.all():
+                # Update stock (also calculates weighted average cost_price)
+                StockManagementService.add_stock(
+                    product=item.product,
+                    quantity=item.quantity,
+                    cost=item.unit_cost,
+                    user=request.user,
+                    notes=f'Recepción de compra {purchase.order_number}',
+                    reference=purchase.order_number
+                )
+
+                # Update received quantity
+                item.received_quantity = item.quantity
+                item.save()
+
+            # Update purchase status
+            purchase.status = 'received'
+            purchase.received_date = timezone.now().date()
+            purchase.save()
+
         messages.success(request, 'Compra recibida y stock actualizado.')
         return redirect('purchase:purchase_list')
     
@@ -251,7 +248,11 @@ def purchase_cancel(request, pk):
     if purchase.status == 'received':
         messages.error(request, 'No se puede cancelar una orden ya recibida.')
         return redirect('purchase:purchase_list')
-    
+
+    if purchase.status == 'cancelled':
+        messages.warning(request, 'Esta orden ya fue cancelada.')
+        return redirect('purchase:purchase_list')
+
     if request.method == 'POST':
         purchase.status = 'cancelled'
         purchase.save()

@@ -14,7 +14,7 @@ class StockManagementService:
     def add_stock(product, quantity, cost=None, reference='', reference_id=None, notes='', user=None):
         """
         Add stock to a product.
-        
+
         Args:
             product: Product instance
             quantity: Quantity to add (positive)
@@ -23,13 +23,16 @@ class StockManagementService:
             reference_id: Reference ID
             notes: Additional notes
             user: User performing the action
-        
+
         Returns:
             StockMovement instance
         """
+        # Lock the product row to prevent concurrent modifications
+        product = Product.objects.select_for_update().get(pk=product.pk)
+
         quantity = Decimal(str(quantity))
         cost = Decimal(str(cost)) if cost else product.cost_price
-        
+
         stock_before = product.current_stock
         stock_after = stock_before + quantity
         
@@ -65,7 +68,7 @@ class StockManagementService:
     def deduct_stock(product, quantity, reference='', reference_id=None, notes='', user=None):
         """
         Deduct stock from a product (for sales).
-        
+
         Args:
             product: Product instance
             quantity: Quantity to deduct (positive)
@@ -73,10 +76,13 @@ class StockManagementService:
             reference_id: Reference ID
             notes: Additional notes
             user: User performing the action
-        
+
         Returns:
             tuple (success: bool, message: str, movement: StockMovement or None)
         """
+        # Lock the product row to prevent concurrent modifications
+        product = Product.objects.select_for_update().get(pk=product.pk)
+
         quantity = Decimal(str(quantity))
         stock_before = product.current_stock
         stock_after = stock_before - quantity
@@ -105,7 +111,7 @@ class StockManagementService:
         
         # Auto-deduct from parent product (e.g., 20 cigarettes sold = 1 pack deducted)
         if product.parent_product and product.parent_product.units_per_package > 0:
-            parent = product.parent_product
+            parent = Product.objects.select_for_update().get(pk=product.parent_product_id)
             parent_qty = quantity / Decimal(str(parent.units_per_package))
             parent_stock_before = parent.current_stock
             parent_stock_after = parent_stock_before - parent_qty
@@ -147,6 +153,9 @@ class StockManagementService:
         Returns:
             StockMovement instance
         """
+        # Lock the product row to prevent concurrent modifications
+        product = Product.objects.select_for_update().get(pk=product.pk)
+
         new_quantity = Decimal(str(new_quantity))
         stock_before = product.current_stock
         difference = new_quantity - stock_before
@@ -251,6 +260,9 @@ class StockManagementService:
         """
         quantity = Decimal(str(quantity))
 
+        # Lock the product row to prevent concurrent modifications
+        product = Product.objects.select_for_update().get(pk=product.pk)
+
         packagings = {
             p.packaging_type: p
             for p in product.packagings.filter(is_active=True).select_for_update()
@@ -319,7 +331,9 @@ class StockManagementService:
         Cuando recibís 5 bultos, tenés 5 bultos, 60 displays y 1440 unidades.
         """
         quantity = Decimal(str(quantity))
-        product = packaging_record.product
+        # Lock product row to prevent concurrent stock modifications
+        product = Product.objects.select_for_update().get(pk=packaging_record.product_id)
+        packaging_record = ProductPackaging.objects.select_for_update().get(pk=packaging_record.pk)
 
         # 1) Sumar al packaging recibido
         pkg_before = packaging_record.current_stock
@@ -350,7 +364,7 @@ class StockManagementService:
         product.save()
 
         # 5) Actualizar OTROS niveles de packaging proporcionalmente
-        other_pkgs = product.packagings.filter(
+        other_pkgs = product.packagings.select_for_update().filter(
             is_active=True
         ).exclude(pk=packaging_record.pk)
 
@@ -388,12 +402,14 @@ class StockManagementService:
         Product.current_stock NO cambia (las unidades ya estaban contadas).
         """
         quantity = Decimal(str(quantity))
-        product = packaging_record.product
+        # Lock product and packaging rows to prevent concurrent modifications
+        product = Product.objects.select_for_update().get(pk=packaging_record.product_id)
+        packaging_record = ProductPackaging.objects.select_for_update().get(pk=packaging_record.pk)
         pkg_type = packaging_record.packaging_type
 
         if pkg_type == 'bulk':
             # Bulto → Displays
-            target = product.packagings.filter(packaging_type='display', is_active=True).first()
+            target = product.packagings.select_for_update().filter(packaging_type='display', is_active=True).first()
             if not target:
                 raise ValueError('No existe empaque Display para abrir el bulto')
             convert_qty = quantity * Decimal(str(packaging_record.displays_per_bulk))
@@ -407,7 +423,7 @@ class StockManagementService:
 
         elif pkg_type == 'display':
             # Display → Unidades
-            target = product.packagings.filter(packaging_type='unit', is_active=True).first()
+            target = product.packagings.select_for_update().filter(packaging_type='unit', is_active=True).first()
             if not target:
                 raise ValueError('No existe empaque Unidad para abrir el display')
             convert_qty = quantity * Decimal(str(packaging_record.units_per_display))

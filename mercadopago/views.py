@@ -688,21 +688,27 @@ def complete_pos_transaction(payment_intent):
     """
     Completa la transacción POS cuando el pago es aprobado.
     Crea el pago, descuenta stock y registra movimiento de caja.
+
+    Usa select_for_update() para prevenir doble-completación cuando
+    el webhook y el polling llegan al mismo tiempo.
     """
     if not payment_intent.pos_transaction:
         return
-    
-    pos_transaction = payment_intent.pos_transaction
-    
-    if pos_transaction.status != 'pending':
-        return
-    
+
     try:
         with transaction.atomic():
-            from pos.models import POSPayment
+            from pos.models import POSTransaction, POSPayment
             from cashregister.models import PaymentMethod, CashMovement
             from stocks.services import StockManagementService
-            
+
+            # Lock the transaction row to prevent race condition
+            pos_transaction = POSTransaction.objects.select_for_update().get(
+                pk=payment_intent.pos_transaction_id
+            )
+
+            if pos_transaction.status != 'pending':
+                return  # Already completed by other thread
+
             # Crear el registro de pago
             mp_method = PaymentMethod.objects.filter(code='mercadopago').first()
             

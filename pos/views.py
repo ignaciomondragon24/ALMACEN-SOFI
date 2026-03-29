@@ -690,6 +690,7 @@ def api_transaction_cancel(request, transaction_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager'])
 @require_POST
 def api_cart_item_discount(request, item_id):
     """Apply or remove a discount on a specific cart item."""
@@ -748,6 +749,7 @@ def api_cart_item_discount(request, item_id):
 
 
 @login_required
+@group_required(['Admin', 'Cajero Manager'])
 @require_POST
 def api_apply_discount(request, transaction_id):
     """Apply discount to transaction."""

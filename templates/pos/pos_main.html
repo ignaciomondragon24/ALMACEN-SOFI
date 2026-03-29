@@ -747,7 +747,14 @@
 
         <!-- Tab 3: Productos sin código de barras -->
         <div class="sidebar-pane" id="pane-products">
-            <input type="text" id="quick-products-search" placeholder="Filtrar productos..." autocomplete="off" tabindex="-1">
+            <div class="d-flex gap-1 mb-2">
+                <input type="text" id="quick-products-search" placeholder="Filtrar por nombre o código..." autocomplete="off" tabindex="-1" style="flex:1;">
+                <button type="button" class="btn btn-sm" id="toggle-no-barcode"
+                        style="white-space:nowrap;font-size:0.68rem;padding:4px 8px;border:1px solid rgba(0,210,211,0.3);color:#00d2d3;background:rgba(0,210,211,0.1);border-radius:4px;"
+                        title="Mostrar solo productos sin código de barras">
+                    <i class="fas fa-barcode me-1"></i>Sin código
+                </button>
+            </div>
             <div id="quick-products-list">
                 <!-- Populated by JS -->
                 <p class="text-muted" style="font-size:0.8rem;text-align:center;padding:20px 0" id="products-loading">

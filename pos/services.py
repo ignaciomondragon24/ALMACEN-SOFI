@@ -127,8 +127,12 @@ class CartService:
             packaging=packaging
         ).first()
         
+        # Capture cost at time of sale
+        unit_cost = product.cost_price or product.purchase_price or Decimal('0.00')
+
         if existing_item:
             existing_item.quantity += quantity
+            existing_item.unit_cost = unit_cost  # Refresh cost on quantity update
             existing_item.save()
             item = existing_item
             pkg_label = f' ({packaging.name})' if packaging else ''
@@ -140,7 +144,8 @@ class CartService:
                 packaging=packaging,
                 packaging_units=packaging_units,
                 quantity=quantity,
-                unit_price=unit_price
+                unit_price=unit_price,
+                unit_cost=unit_cost,
             )
             pkg_label = f' ({packaging.name})' if packaging else ''
             message = f'{product.name}{pkg_label} agregado'

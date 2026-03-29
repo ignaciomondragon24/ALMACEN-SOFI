@@ -6,13 +6,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Sum, Q, Count
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from datetime import timedelta
 
 from .models import ExpenseCategory, Expense, RecurringExpense
 from .forms import ExpenseCategoryForm, ExpenseForm, RecurringExpenseForm
 from decorators.decorators import group_required
+from cashregister.models import CashShift, CashMovement, PaymentMethod
 
 
 @login_required
@@ -63,9 +64,40 @@ def expense_create(request):
     if request.method == 'POST':
         form = ExpenseForm(request.POST, request.FILES)
         if form.is_valid():
-            expense = form.save(commit=False)
-            expense.created_by = request.user
-            expense.save()
+            # Block cash expenses when no shift is open
+            if form.cleaned_data.get('payment_method') == 'cash':
+                active_shift = CashShift.objects.filter(status='open').first()
+                if not active_shift:
+                    messages.error(
+                        request,
+                        'No se puede registrar un gasto en efectivo sin un turno de caja abierto. '
+                        'Abra un turno primero o seleccione otro método de pago.'
+                    )
+                    context = {'form': form, 'title': 'Nuevo Gasto'}
+                    return render(request, 'expenses/expense_form.html', context)
+
+            with transaction.atomic():
+                expense = form.save(commit=False)
+                expense.created_by = request.user
+                expense.save()
+
+                # If cash expense, create CashMovement on the active shift
+                if expense.payment_method == 'cash':
+                    active_shift = CashShift.objects.filter(
+                        status='open'
+                    ).first()
+                    cash_pm = PaymentMethod.objects.filter(is_cash=True).first()
+                    if active_shift and cash_pm:
+                        CashMovement.objects.create(
+                            cash_shift=active_shift,
+                            movement_type='expense',
+                            amount=expense.amount,
+                            payment_method=cash_pm,
+                            description=f'Gasto: {expense.description}',
+                            reference=f'EXP-{expense.id}',
+                            created_by=request.user,
+                        )
+
             messages.success(request, 'Gasto registrado exitosamente.')
             return redirect('expenses:expense_list')
     else:
@@ -80,11 +112,53 @@ def expense_create(request):
 def expense_edit(request, pk):
     """Edit an expense."""
     expense = get_object_or_404(Expense, pk=pk)
-    
+
     if request.method == 'POST':
         form = ExpenseForm(request.POST, request.FILES, instance=expense)
         if form.is_valid():
-            form.save()
+            # Block switching to cash when no shift is open and no existing movement
+            ref = f'EXP-{expense.id}'
+            existing_mov = CashMovement.objects.filter(reference=ref).first()
+            if form.cleaned_data.get('payment_method') == 'cash' and not existing_mov:
+                active_shift = CashShift.objects.filter(status='open').first()
+                if not active_shift:
+                    messages.error(
+                        request,
+                        'No se puede cambiar a efectivo sin un turno de caja abierto. '
+                        'Abra un turno primero o seleccione otro método de pago.'
+                    )
+                    context = {
+                        'form': form, 'expense': expense,
+                        'title': 'Editar Gasto'
+                    }
+                    return render(request, 'expenses/expense_form.html', context)
+
+            with transaction.atomic():
+                form.save()
+
+                # Update linked CashMovement
+                existing_mov = CashMovement.objects.filter(reference=ref).first()
+                if expense.payment_method == 'cash':
+                    active_shift = CashShift.objects.filter(status='open').first()
+                    cash_pm = PaymentMethod.objects.filter(is_cash=True).first()
+                    if existing_mov:
+                        existing_mov.amount = expense.amount
+                        existing_mov.description = f'Gasto: {expense.description}'
+                        existing_mov.save()
+                    elif active_shift and cash_pm:
+                        CashMovement.objects.create(
+                            cash_shift=active_shift,
+                            movement_type='expense',
+                            amount=expense.amount,
+                            payment_method=cash_pm,
+                            description=f'Gasto: {expense.description}',
+                            reference=ref,
+                            created_by=request.user,
+                        )
+                elif existing_mov:
+                    # Changed from cash to non-cash: remove the CashMovement
+                    existing_mov.delete()
+
             messages.success(request, 'Gasto actualizado exitosamente.')
             return redirect('expenses:expense_list')
     else:
@@ -105,7 +179,10 @@ def expense_delete(request, pk):
     expense = get_object_or_404(Expense, pk=pk)
     
     if request.method == 'POST':
-        expense.delete()
+        with transaction.atomic():
+            # Remove linked CashMovement if exists
+            CashMovement.objects.filter(reference=f'EXP-{expense.id}').delete()
+            expense.delete()
         messages.success(request, 'Gasto eliminado exitosamente.')
         return redirect('expenses:expense_list')
     

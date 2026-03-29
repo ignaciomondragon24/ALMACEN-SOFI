@@ -6,6 +6,7 @@
     let sidebarOpen = true;
     let quickProductsCache = null;   // all products loaded once
     let historyLoaded = false;
+    let filterNoBarcodeOnly = true;  // default: show only products without barcode
 
     // ─── Elementos ─────────────────────────────────────────────────────────────
     const sidebar      = document.getElementById('pos-sidebar');
@@ -198,6 +199,30 @@
     function initProductsPane() {
         if (!qpSearch) return;
         qpSearch.addEventListener('input', () => renderProducts(qpSearch.value.trim().toLowerCase()));
+
+        const toggleBtn = document.getElementById('toggle-no-barcode');
+        if (toggleBtn) {
+            updateToggleBtnStyle(toggleBtn);
+            toggleBtn.addEventListener('click', () => {
+                filterNoBarcodeOnly = !filterNoBarcodeOnly;
+                updateToggleBtnStyle(toggleBtn);
+                renderProducts(qpSearch.value.trim().toLowerCase());
+            });
+        }
+    }
+
+    function updateToggleBtnStyle(btn) {
+        if (filterNoBarcodeOnly) {
+            btn.style.background = 'rgba(0,210,211,0.25)';
+            btn.style.borderColor = '#00d2d3';
+            btn.style.color = '#fff';
+            btn.title = 'Mostrando solo sin código — click para ver todos';
+        } else {
+            btn.style.background = 'rgba(0,210,211,0.06)';
+            btn.style.borderColor = 'rgba(0,210,211,0.2)';
+            btn.style.color = '#00d2d3';
+            btn.title = 'Mostrando todos — click para filtrar sin código';
+        }
     }
 
     async function loadQuickProducts() {
@@ -220,17 +245,28 @@
     function renderProducts(filter) {
         if (!qpList || quickProductsCache === null) return;
 
-        const list = filter
-            ? quickProductsCache.filter(p =>
+        let list = quickProductsCache;
+
+        // Filter: only products without barcode
+        if (filterNoBarcodeOnly) {
+            list = list.filter(p => !p.barcode);
+        }
+
+        // Text filter
+        if (filter) {
+            list = list.filter(p =>
                 p.name.toLowerCase().includes(filter) ||
                 (p.barcode || '').includes(filter) ||
                 (p.sku || '').toLowerCase().includes(filter) ||
                 (p.category || '').toLowerCase().includes(filter)
-            )
-            : quickProductsCache;
+            );
+        }
 
         if (list.length === 0) {
-            qpList.innerHTML = '<p style="color:#888;text-align:center;padding:16px">Sin resultados.</p>';
+            const msg = filterNoBarcodeOnly
+                ? 'Todos los productos tienen código de barras.'
+                : 'Sin resultados.';
+            qpList.innerHTML = `<p style="color:#888;text-align:center;padding:16px">${msg}</p>`;
             return;
         }
 
@@ -261,14 +297,24 @@
                 const stockColor = p.stock <= 0 ? '#e74c3c' : p.stock <= 5 ? '#f0c040' : '#2ecc71';
                 const starClass = p.is_quick ? 'fas' : 'far';
                 const starColor = p.is_quick ? '#F5D000' : '#555';
+                const hasBarcode = !!p.barcode;
+                // SKU badge: prominent for products without barcode
+                const codeBadge = hasBarcode
+                    ? `<span style="font-size:0.6rem;color:#777;">${p.barcode}</span>`
+                    : `<span style="display:inline-block;font-size:0.7rem;font-weight:700;color:#00d2d3;
+                            background:rgba(0,210,211,0.12);padding:1px 6px;border-radius:3px;
+                            border:1px solid rgba(0,210,211,0.25);font-family:monospace;letter-spacing:0.05em;">
+                        ${p.sku || '—'}
+                       </span>`;
+
                 html += `
                     <div class="quick-product-item" tabindex="0"
                          data-product-id="${p.id}" data-is-bulk="${p.is_bulk}"
-                         role="button" title="${p.name}&#10;Venta: $${p.unit_price}&#10;Costo: $${p.cost_price || 0}&#10;Stock: ${p.stock}">
+                         role="button" title="${p.name}&#10;Código: ${p.sku || '—'}&#10;Venta: $${p.unit_price}&#10;Stock: ${p.stock}">
                         <span class="quick-product-name" style="flex:1;min-width:0;">
                             ${p.name}
-                            <span style="display:block;font-size:0.62rem;color:#777;margin-top:1px;">
-                                ${p.barcode || p.sku || '—'}
+                            <span style="display:block;margin-top:2px;">
+                                ${codeBadge}
                             </span>
                         </span>
                         <span style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;gap:1px;">
@@ -277,7 +323,6 @@
                                 <i class="${starClass} fa-star btn-toggle-quick" data-pid="${p.id}"
                                    style="color:${starColor};cursor:pointer;font-size:0.78rem;" title="Acceso rápido"></i>
                             </span>
-                            <span style="font-size:0.6rem;color:#888;">costo: ${window.POS_formatCurrency?.(p.cost_price || 0) || '$0'}</span>
                             <span style="font-size:0.58rem;color:${stockColor};font-weight:600;">stk: ${p.stock}</span>
                         </span>
                     </div>
