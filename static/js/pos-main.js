@@ -386,13 +386,17 @@
         if (!searchResultsList || !searchResults) return;
         
         searchResultsList.innerHTML = products.map(product => {
-            const pkgBadge = product.packaging_type 
+            const pkgBadge = product.packaging_type
                 ? `<span class="badge bg-${product.packaging_type === 'bulk' ? 'primary' : product.packaging_type === 'display' ? 'info' : 'success'} ms-1">${product.packaging_name || product.packaging_type}</span>`
                 : '';
             const stockDisplay = product.stock_in_packaging !== undefined
                 ? `Stock: ${product.stock_in_packaging} ${product.packaging_name || 'uds'} (${product.stock} uds)`
                 : `Stock: ${product.stock} ${product.unit}`;
-            
+            // SKU badge: prominent for products without barcode
+            const codeLine = product.barcode
+                ? `${product.barcode}`
+                : `<span style="font-weight:700;color:#00d2d3;background:rgba(0,210,211,0.15);padding:1px 6px;border-radius:3px;font-family:monospace;border:1px solid rgba(0,210,211,0.3);">${product.sku || '—'}</span>`;
+
             return `
             <div class="search-result-item" data-product='${JSON.stringify(product)}'>
                 <div class="d-flex justify-content-between align-items-center">
@@ -404,7 +408,7 @@
                             ${product.allow_sell_by_amount ? '<span class="badge bg-warning ms-1">$ Monto</span>' : ''}
                         </div>
                         <div class="search-result-info">
-                            ${product.barcode || 'Sin código'} | ${stockDisplay}
+                            ${codeLine} | ${stockDisplay}
                             ${product.is_bulk ? `| $${product.unit_price}/${product.unit}` : ''}
                         </div>
                     </div>

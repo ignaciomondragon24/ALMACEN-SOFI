@@ -196,6 +196,13 @@
             
             <!-- User Menu -->
             <ul class="navbar-nav">
+                <!-- Dark Mode Toggle -->
+                <li class="nav-item d-flex align-items-center me-2">
+                    <button class="dark-mode-toggle" id="darkModeToggle" title="Modo oscuro/claro"
+                            aria-label="Alternar modo oscuro">
+                        <i class="fas fa-moon" id="darkModeIcon"></i>
+                    </button>
+                </li>
                 <!-- Role Badge -->
                 <li class="nav-item d-flex align-items-center me-2">
                     {% if is_superadmin %}

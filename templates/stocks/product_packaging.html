@@ -81,8 +81,8 @@
                             <i class="fas fa-edit me-1"></i>Editar
                         </button>
                         {% if type_key == 'bulk' or type_key == 'display' %}
-                        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalOpen" 
-                                onclick="setOpen({{ pkg.id }},'{{ pkg.get_packaging_type_display }}',{% if type_key == 'bulk' %}{{ pkg.displays_per_bulk }},'displays'{% else %}{{ pkg.units_per_display }},'unidades'{% endif %})">
+                        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalOpen"
+                                onclick="setOpen({{ pkg.id }},'{{ pkg.get_packaging_type_display }}',{% if type_key == 'bulk' %}{% if display_pkg %}{{ pkg.displays_per_bulk }},'displays'{% else %}{{ pkg.units_quantity }},'unidades'{% endif %}{% else %}{{ pkg.units_per_display }},'unidades'{% endif %})">
                             <i class="fas fa-box-open me-1"></i>Abrir
                         </button>
                         {% endif %}

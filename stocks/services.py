@@ -408,18 +408,26 @@ class StockManagementService:
         pkg_type = packaging_record.packaging_type
 
         if pkg_type == 'bulk':
-            # Bulto → Displays
+            # Bulto → Displays (preferred) or Bulto → Unidades (fallback)
             target = product.packagings.select_for_update().filter(packaging_type='display', is_active=True).first()
-            if not target:
-                raise ValueError('No existe empaque Display para abrir el bulto')
-            convert_qty = quantity * Decimal(str(packaging_record.displays_per_bulk))
-
-            packaging_record.current_stock -= quantity
-            packaging_record.save()
-            target.current_stock += convert_qty
-            target.save()
-
-            ref = f'Apertura Bulto x{quantity} → {convert_qty} displays'
+            if target:
+                convert_qty = quantity * Decimal(str(packaging_record.displays_per_bulk))
+                packaging_record.current_stock -= quantity
+                packaging_record.save()
+                target.current_stock += convert_qty
+                target.save()
+                ref = f'Apertura Bulto x{quantity} → {convert_qty} displays'
+            else:
+                # No display — convert directly to units
+                target = product.packagings.select_for_update().filter(packaging_type='unit', is_active=True).first()
+                if not target:
+                    raise ValueError('No existe empaque Display ni Unidad para abrir el bulto')
+                convert_qty = quantity * Decimal(str(packaging_record.units_quantity))
+                packaging_record.current_stock -= quantity
+                packaging_record.save()
+                target.current_stock += convert_qty
+                target.save()
+                ref = f'Apertura Bulto x{quantity} → {convert_qty} unidades'
 
         elif pkg_type == 'display':
             # Display → Unidades

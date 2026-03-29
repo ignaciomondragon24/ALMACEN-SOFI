@@ -246,6 +246,36 @@
         };
     };
 
+    // ─── Dark Mode Toggle ─────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggle = document.getElementById('darkModeToggle');
+        const icon = document.getElementById('darkModeIcon');
+        if (!toggle || !icon) return;
+
+        function applyTheme(dark) {
+            if (dark) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+                toggle.title = 'Cambiar a modo claro';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                icon.className = 'fas fa-moon';
+                toggle.title = 'Cambiar a modo oscuro';
+            }
+        }
+
+        // Init from localStorage (already applied in <head>, but sync icon)
+        const isDark = localStorage.getItem('che-darkmode') === 'true';
+        applyTheme(isDark);
+
+        toggle.addEventListener('click', function() {
+            const nowDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const next = !nowDark;
+            localStorage.setItem('che-darkmode', next);
+            applyTheme(next);
+        });
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
         // F1 - Help
