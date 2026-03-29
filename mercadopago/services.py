@@ -2,6 +2,7 @@
 MercadoPago Point API Service
 Servicio para comunicarse con la API de Mercado Pago Point.
 """
+import uuid
 import requests
 import logging
 from decimal import Decimal
@@ -46,7 +47,7 @@ class MPPointService:
         return {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
-            "X-Idempotency-Key": str(timezone.now().timestamp())
+            "X-Idempotency-Key": str(uuid.uuid4()),
         }
     
     def _make_request(self, method, endpoint, data=None, params=None):
@@ -159,7 +160,7 @@ class MPPointService:
         Returns:
             tuple: (success, data)
         """
-        # MP Point API espera monto en centavos (entero)
+        # MP Point API espera monto en centavos (entero sin decimales)
         amount_cents = int(Decimal(str(amount)) * 100)
 
         # additional_info debe contener external_reference y print_on_terminal
@@ -170,11 +171,19 @@ class MPPointService:
 
         payload = {
             "amount": amount_cents,
-            "description": description[:240],
+            "description": description[:240] if description else "Venta",
             "additional_info": ai,
+            "payment": {
+                "installments": 1,
+                "type": "credit_card",
+            },
         }
 
-        logger.info(f"Creating payment intent: device={device_id}, amount={amount_cents}, ref={external_reference}")
+        logger.info(
+            f"Creating payment intent: device={device_id}, "
+            f"amount_cents={amount_cents}, ref={external_reference}, "
+            f"payload={payload}"
+        )
 
         return self._make_request(
             "POST",
@@ -290,15 +299,10 @@ class PaymentIntentManager:
     """
     Manager para manejar el flujo de intenciones de pago.
     """
-    
-    def __init__(self):
-        self.service = None
-    
+
     def _get_service(self):
-        """Obtiene o inicializa el servicio."""
-        if self.service is None:
-            self.service = MPPointService()
-        return self.service
+        """Creates a fresh service each time to pick up credential changes."""
+        return MPPointService()
     
     def create_and_send(self, device, amount, pos_transaction=None, user=None, description=None):
         """
@@ -349,9 +353,14 @@ class PaymentIntentManager:
             else:
                 # Error al enviar — include full MP response for debugging
                 error_msg = response.get("message", response.get("error", "Error desconocido"))
+                status_code = response.get("status", "")
+                cause = response.get("cause", "")
+                full_error = f"{error_msg}"
+                if cause:
+                    full_error += f" (causa: {cause})"
                 logger.error(f"Error al enviar payment intent: {response}")
-                payment_intent.mark_error(f"{error_msg} | raw: {response}")
-                return False, error_msg
+                payment_intent.mark_error(f"{full_error} | raw: {response}")
+                return False, full_error
                 
         except Exception as e:
             payment_intent.mark_error(str(e))
