@@ -1241,7 +1241,11 @@ class MercadoPagoPointAudit(ExhaustiveBaseTestCase):
         self.assertIn('turno', data['error'].lower())
 
     def test_create_intent_requires_linked_device(self):
-        """Si la caja no tiene Point asociado, devuelve error."""
+        """Si no hay ningun dispositivo Point activo, devuelve error."""
+        # Deactivate the existing device so fallback also fails
+        self.device.status = 'inactive'
+        self.device.save()
+
         # Create shift on a register WITHOUT a Point device
         other_register = CashRegister.objects.create(code='CAJA-SIN', name='Sin Point')
         CashShift.objects.create(

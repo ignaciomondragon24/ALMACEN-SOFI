@@ -144,12 +144,21 @@ def device_list(request):
 def sync_devices(request):
     """Sincroniza dispositivos desde Mercado Pago."""
     success, result = payment_manager.sync_devices()
-    
+
     if success:
-        messages.success(request, f'Se sincronizaron {len(result)} dispositivos')
+        count = len(result)
+        messages.success(request, f'Se sincronizaron {count} dispositivo(s)')
+        # Check if any device still has no register
+        unassigned = PointDevice.objects.filter(cash_register__isnull=True, status='active')
+        if unassigned.exists():
+            messages.warning(
+                request,
+                'Hay dispositivos sin caja asignada. '
+                'Asigne cada dispositivo a una caja para poder cobrar desde el POS.'
+            )
     else:
         messages.error(request, f'Error al sincronizar: {result}')
-    
+
     return redirect('mercadopago:device_list')
 
 
@@ -341,11 +350,21 @@ def api_create_payment_intent(request):
         cash_register=active_shift.cash_register,
         status='active'
     ).first()
-    
+
+    # Fallback: if no device assigned to this register, use any active device
+    if not device:
+        device = PointDevice.objects.filter(status='active').first()
+
     if not device:
         return JsonResponse({
-            'success': False, 
-            'error': 'No hay dispositivo Point asociado a esta caja'
+            'success': False,
+            'error': 'No hay dispositivo Point activo. Sincronice los dispositivos desde Admin > Mercado Pago.'
+        }, status=400)
+
+    if device.operating_mode != 'PDV':
+        return JsonResponse({
+            'success': False,
+            'error': f'El dispositivo Point está en modo {device.operating_mode}. Debe estar en modo PDV para recibir cobros desde el POS.'
         }, status=400)
     
     # Obtener transacción POS si se proporcionó

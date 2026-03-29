@@ -412,22 +412,23 @@ class PaymentIntentManager:
     def sync_devices(self):
         """
         Sincroniza los dispositivos desde Mercado Pago.
-        
+        Auto-asigna dispositivo a caja registradora si hay uno solo sin asignar.
+
         Returns:
             tuple: (success, devices_synced or error)
         """
         from .models import PointDevice
-        
+
         try:
             service = self._get_service()
             success, response = service.get_devices()
-            
+
             if not success:
                 return False, response.get("error", "Error al obtener dispositivos")
-            
+
             devices = response.get("devices", [])
             synced = []
-            
+
             for device_data in devices:
                 device, created = PointDevice.objects.update_or_create(
                     device_id=device_data["id"],
@@ -440,12 +441,46 @@ class PaymentIntentManager:
                 )
                 synced.append(device)
                 logger.info(f"Dispositivo sincronizado: {device.device_id}")
-            
+
+            # Auto-assign: if there are unassigned devices, try to pair them
+            # with available cash registers
+            self._auto_assign_devices()
+
             return True, synced
             
         except Exception as e:
             logger.exception(f"Error al sincronizar dispositivos: {e}")
             return False, str(e)
+
+    def _auto_assign_devices(self):
+        """
+        Auto-assign unassigned devices to available cash registers.
+        Only acts when exactly one unassigned device exists and there are
+        cash registers without a device.
+        """
+        from .models import PointDevice
+        from cashregister.models import CashRegister
+
+        unassigned = list(PointDevice.objects.filter(cash_register__isnull=True, status='active'))
+        if not unassigned:
+            return
+
+        # Registers that don't already have a device
+        assigned_register_ids = PointDevice.objects.filter(
+            cash_register__isnull=False
+        ).values_list('cash_register_id', flat=True)
+        free_registers = list(
+            CashRegister.objects.filter(is_active=True).exclude(pk__in=assigned_register_ids)
+        )
+
+        if not free_registers:
+            return
+
+        # Pair them in order (most common case: 1 device, 1 register)
+        for device, register in zip(unassigned, free_registers):
+            device.cash_register = register
+            device.save(update_fields=['cash_register'])
+            logger.info(f"Auto-asignado dispositivo {device.device_id} a caja {register.name}")
 
 
 # Instancia global del manager
