@@ -15,9 +15,12 @@ python manage.py migrate --noinput || echo "WARNING: Migration failed, continuin
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."
 
-# Load kiosko products (idempotente - usa get_or_create, seguro de correr siempre)
-echo "Loading kiosko products..."
-python manage.py load_kiosko_products || echo "WARNING: load_kiosko_products failed, continuing..."
+# Flush business data if requested (set FLUSH_ON_DEPLOY=true in Railway env vars, then remove it after deploy)
+if [ "$FLUSH_ON_DEPLOY" = "true" ]; then
+    echo "*** FLUSH_ON_DEPLOY detected — wiping all business data (keeping users)... ***"
+    python manage.py flush_data --yes || echo "WARNING: flush_data failed, continuing..."
+    echo "*** Flush complete. REMOVE the FLUSH_ON_DEPLOY env var now to prevent re-flush. ***"
+fi
 
 # Collect static files
 echo "Collecting static files..."
