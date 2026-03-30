@@ -264,6 +264,32 @@ class Product(models.Model):
         default='kg',
         blank=True
     )
+
+    # Granel (candy jar / caramelera) fields
+    is_granel = models.BooleanField(
+        'Producto Comodín Granel',
+        default=False,
+        help_text='Producto comodín que recibe stock de bultos abiertos (ej: Gomitas Surtidas)'
+    )
+    granel_price_weight_grams = models.PositiveIntegerField(
+        'Precio por X gramos',
+        default=100,
+        help_text='El sale_price es "por cada X gramos" (ej: 100 = $2500/100g)'
+    )
+    weighted_avg_cost_per_gram = models.DecimalField(
+        'Costo Ponderado por Gramo',
+        max_digits=12,
+        decimal_places=4,
+        default=Decimal('0.0000'),
+        help_text='Costo promedio ponderado por gramo, calculado automáticamente'
+    )
+    weight_per_unit_grams = models.DecimalField(
+        'Peso por Unidad (gramos)',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Para bultos: gramos que contiene cada unidad (ej: 2000 para bolsa de 2kg)'
+    )
     
     # Parent-child relationship for presentations
     parent_product = models.ForeignKey(

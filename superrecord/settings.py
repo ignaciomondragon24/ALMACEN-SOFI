@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'mercadopago.apps.MercadopagoConfig',
     'assistant.apps.AssistantConfig',
     'signage.apps.SignageConfig',
+    'granel.apps.GranelConfig',
 ]
 
 MIDDLEWARE = [

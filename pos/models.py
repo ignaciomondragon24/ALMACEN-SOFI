@@ -239,10 +239,12 @@ class POSTransactionItem(models.Model):
         default=1,
         help_text='Cuántas unidades base se descuentan por cada unidad vendida de este empaque'
     )
-    quantity = models.PositiveIntegerField(
+    quantity = models.DecimalField(
         'Cantidad',
-        default=1,
-        validators=[MinValueValidator(1)]
+        max_digits=10,
+        decimal_places=3,
+        default=Decimal('1.000'),
+        validators=[MinValueValidator(Decimal('0.001'))]
     )
     unit_price = models.DecimalField(
         'Precio Unitario',

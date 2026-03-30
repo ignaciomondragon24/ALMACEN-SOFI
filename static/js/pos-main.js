@@ -464,6 +464,24 @@
     }
     
     function showBulkQuantityModal(product) {
+        // Granel products: price per X grams (e.g., $2500/100g)
+        const isGranel = product.is_granel && product.granel_price_weight_grams;
+        const priceWeight = isGranel ? product.granel_price_weight_grams : null;
+        const unitLabel = isGranel ? 'gramos' : product.unit;
+        const priceLabel = isGranel
+            ? `${formatCurrency(product.unit_price)}/${priceWeight}g`
+            : `${formatCurrency(product.unit_price)}/${product.unit}`;
+        const defaultVal = isGranel ? '100' : '0.500';
+        const stepVal = isGranel ? '1' : '0.001';
+        const minVal = isGranel ? '1' : '0.001';
+
+        function calcTotal(qty) {
+            if (isGranel) {
+                return (qty / priceWeight) * product.unit_price;
+            }
+            return qty * product.unit_price;
+        }
+
         const modalHtml = `
             <div class="modal fade" id="bulkQuantityModal" tabindex="-1">
                 <div class="modal-dialog modal-sm">
@@ -473,17 +491,17 @@
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted mb-2">Precio: ${formatCurrency(product.unit_price)}/${product.unit}</p>
-                            <label class="form-label">Cantidad (${product.unit})</label>
-                            <input type="number" 
-                                   class="form-control form-control-lg bg-secondary text-white text-center" 
+                            <p class="text-muted mb-2">Precio: ${priceLabel}</p>
+                            <label class="form-label">Cantidad (${unitLabel})</label>
+                            <input type="number"
+                                   class="form-control form-control-lg bg-secondary text-white text-center"
                                    id="bulk-quantity-input"
-                                   min="0.001"
-                                   step="0.001"
-                                   value="0.500"
+                                   min="${minVal}"
+                                   step="${stepVal}"
+                                   value="${defaultVal}"
                                    autofocus>
                             <div class="mt-3 text-center">
-                                <span class="fs-4">Total: <strong id="bulk-total-preview">${formatCurrency(0.5 * product.unit_price)}</strong></span>
+                                <span class="fs-4">Total: <strong id="bulk-total-preview">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</strong></span>
                             </div>
                         </div>
                         <div class="modal-footer border-secondary">
@@ -494,20 +512,20 @@
                 </div>
             </div>
         `;
-        
+
         document.getElementById('bulkQuantityModal')?.remove();
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
+
         const modal = new bootstrap.Modal(document.getElementById('bulkQuantityModal'));
         const input = document.getElementById('bulk-quantity-input');
         const preview = document.getElementById('bulk-total-preview');
         const confirmBtn = document.getElementById('confirm-bulk-quantity');
-        
+
         input.addEventListener('input', () => {
             const qty = parseFloat(input.value) || 0;
-            preview.textContent = formatCurrency(qty * product.unit_price);
+            preview.textContent = formatCurrency(calcTotal(qty));
         });
-        
+
         confirmBtn.addEventListener('click', () => {
             const qty = parseFloat(input.value) || 0;
             if (qty > 0) {
@@ -518,14 +536,14 @@
                 productSearch.focus();
             }
         });
-        
+
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 confirmBtn.click();
             }
         });
-        
+
         modal.show();
         setTimeout(() => input.select(), 200);
     }
