@@ -15,7 +15,9 @@ class ProductForm(forms.ModelForm):
             'sku', 'barcode', 'name', 'description', 'category', 'unit_of_measure',
             'cost_price', 'sale_price', 'current_stock', 'min_stock', 'max_stock',
             'location', 'image', 'is_active', 'is_quick_access', 'quick_access_color',
-            'quick_access_icon', 'quick_access_position'
+            'quick_access_icon', 'quick_access_position',
+            'is_bulk', 'bulk_unit', 'allow_sell_by_amount',
+            'is_granel', 'granel_price_weight_grams', 'weight_per_unit_grams',
         ]
         widgets = {
             'sku': forms.TextInput(attrs={'class': 'form-control'}),
@@ -36,6 +38,12 @@ class ProductForm(forms.ModelForm):
             'quick_access_color': forms.TextInput(attrs={'class': 'form-control', 'type': 'color'}),
             'quick_access_icon': forms.TextInput(attrs={'class': 'form-control'}),
             'quick_access_position': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_bulk': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'bulk_unit': forms.Select(attrs={'class': 'form-select'}),
+            'allow_sell_by_amount': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_granel': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'granel_price_weight_grams': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'weight_per_unit_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -79,10 +87,11 @@ class UnitForm(forms.ModelForm):
 class StockAdjustmentForm(forms.Form):
     """Form for stock adjustments."""
     
-    new_quantity = forms.IntegerField(
+    new_quantity = forms.DecimalField(
         label='Nueva Cantidad',
-        min_value=0,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'})
+        min_value=Decimal('0'),
+        decimal_places=3,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001', 'min': '0'})
     )
     reason = forms.CharField(
         label='Motivo del Ajuste',
