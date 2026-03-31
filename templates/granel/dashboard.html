@@ -68,7 +68,7 @@
 
                         {% if item.components %}
                             {% for comp in item.components %}
-                            <div class="d-flex align-items-center gap-2 mb-1 p-1 rounded" style="background:#f8f9fa;">
+                            <div class="d-flex align-items-center gap-2 mb-1 p-1 rounded component-row">
                                 <div class="flex-grow-1 small">
                                     <span class="fw-semibold">{{ comp.bulk_product.name }}</span>
                                     <span class="text-muted ms-1">({{ comp.bulk_product.weight_per_unit_grams|floatformat:0 }}g)</span>

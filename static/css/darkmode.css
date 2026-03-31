@@ -436,6 +436,38 @@
     color: white;
 }
 
+/* ─── Small / inline text ──────────────────────────── */
+[data-theme="dark"] small,
+[data-theme="dark"] .small {
+    color: var(--dm-text-muted);
+}
+
+/* Only force heading color on fw-semibold/bold inside cards, not inheriting muted context */
+[data-theme="dark"] .card-body .fw-semibold,
+[data-theme="dark"] .card-body .fw-bold,
+[data-theme="dark"] td.fw-semibold,
+[data-theme="dark"] td.fw-bold {
+    color: var(--dm-text-heading);
+}
+
+/* ─── Component rows (caramelera) ───────────────────── */
+.component-row {
+    background: #f8f9fa;
+}
+[data-theme="dark"] .component-row {
+    background: var(--dm-bg-secondary) !important;
+}
+
+/* ─── Table borderless text ─────────────────────────── */
+[data-theme="dark"] .table-borderless td {
+    color: var(--dm-text) !important;
+}
+
+/* ─── Close button ──────────────────────────────────── */
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(1);
+}
+
 /* ─── Print: always use light mode ─────────────────── */
 @media print {
     [data-theme="dark"] body {

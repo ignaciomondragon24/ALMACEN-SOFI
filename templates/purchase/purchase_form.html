@@ -113,10 +113,11 @@
 {% endblock %}
 
 {% block extra_js %}
+{% load l10n %}
 <script>
 const PRODUCTS = [
     {% for p in products %}
-    {id: {{ p.pk }}, name: "{{ p.name|escapejs }}", cost: {{ p.cost_price }}, sale: {{ p.sale_price }}},
+    {id: {{ p.pk }}, name: "{{ p.name|escapejs }}", cost: {{ p.cost_price|unlocalize }}, sale: {{ p.sale_price|unlocalize }}},
     {% endfor %}
 ];
 
