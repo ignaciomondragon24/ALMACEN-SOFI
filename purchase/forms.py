@@ -57,23 +57,12 @@ class PurchaseForm(forms.ModelForm):
     
     class Meta:
         model = Purchase
-        fields = ['supplier', 'order_date', 'notes', 'tax']
+        fields = ['supplier', 'order_date', 'tax_percent', 'notes']
         widgets = {
-            'supplier': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'order_date': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date'
-            }),
-            'notes': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3
-            }),
-            'tax': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '1'
-            }),
+            'supplier': forms.Select(attrs={'class': 'form-select'}),
+            'order_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'tax_percent': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -86,21 +75,12 @@ class PurchaseItemForm(forms.ModelForm):
     
     class Meta:
         model = PurchaseItem
-        fields = ['product', 'quantity', 'unit_cost']
+        fields = ['product', 'quantity', 'unit_cost', 'sale_price']
         widgets = {
-            'product': forms.Select(attrs={
-                'class': 'form-select product-select'
-            }),
-            'quantity': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '1',
-                'min': '1'
-            }),
-            'unit_cost': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '1',
-                'min': '1'
-            }),
+            'product': forms.Select(attrs={'class': 'form-select product-select'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '1'}),
+            'unit_cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': 'Opcional'}),
         }
 
 
@@ -110,5 +90,6 @@ PurchaseItemFormSet = inlineformset_factory(
     PurchaseItem,
     form=PurchaseItemForm,
     extra=1,
-    can_delete=True
+    can_delete=True,
+    fields=['product', 'quantity', 'unit_cost', 'sale_price'],
 )

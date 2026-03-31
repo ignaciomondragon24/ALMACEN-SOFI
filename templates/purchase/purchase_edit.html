@@ -89,10 +89,14 @@
                                 <td class="text-end">{{ purchase.subtotal|currency }}</td>
                             </tr>
                             <tr>
-                                <td>IVA:</td>
+                                <td>IVA (%):</td>
                                 <td class="text-end">
-                                    <input type="number" name="tax" class="form-control form-control-sm text-end" 
-                                           step="0.01" value="{{ purchase.tax }}" style="width: 100px; display: inline-block;">
+                                    <div class="input-group input-group-sm justify-content-end" style="max-width:130px;margin-left:auto;">
+                                        <input type="number" name="tax_percent" class="form-control text-end"
+                                               step="0.01" min="0" value="{{ purchase.tax_percent }}">
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                    <small class="text-muted">= {{ purchase.tax|currency }}</small>
                                 </td>
                             </tr>
                             <tr class="fw-bold">
@@ -117,9 +121,10 @@
                             <thead>
                                 <tr>
                                     <th>Producto</th>
-                                    <th class="text-center" style="width: 100px;">Cantidad</th>
-                                    <th class="text-end" style="width: 120px;">Costo Unit.</th>
-                                    <th class="text-end" style="width: 120px;">Subtotal</th>
+                                    <th class="text-center" style="width: 80px;">Cant.</th>
+                                    <th class="text-end" style="width: 110px;">Costo Unit.</th>
+                                    <th class="text-end" style="width: 110px;">Precio Venta</th>
+                                    <th class="text-end" style="width: 110px;">Subtotal</th>
                                     <th style="width: 50px;"></th>
                                 </tr>
                             </thead>
@@ -130,11 +135,12 @@
                                     <td>{{ item_form.product }}</td>
                                     <td>{{ item_form.quantity }}</td>
                                     <td>{{ item_form.unit_cost }}</td>
+                                    <td>{{ item_form.sale_price }}</td>
                                     <td class="text-end">
                                         {% if item_form.instance.pk %}
                                             {{ item_form.instance.subtotal|currency }}
                                         {% else %}
-                                            $0,00
+                                            $0
                                         {% endif %}
                                     </td>
                                     <td>{{ item_form.DELETE }}</td>

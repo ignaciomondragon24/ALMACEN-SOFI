@@ -81,6 +81,38 @@ class BulkToGranelTransfer(models.Model):
                 f'({self.grams_transferred}g)')
 
 
+class CarameleraComponent(models.Model):
+    """
+    Define qué productos bulto componen una caramelera.
+    Permite el botón "Abrir Paquete" desde el dashboard sin tener que
+    seleccionar origen y destino cada vez.
+    """
+    caramelera = models.ForeignKey(
+        'stocks.Product',
+        on_delete=models.CASCADE,
+        related_name='components',
+        limit_choices_to={'is_granel': True},
+        verbose_name='Caramelera',
+    )
+    bulk_product = models.ForeignKey(
+        'stocks.Product',
+        on_delete=models.CASCADE,
+        related_name='used_in_carameleras',
+        verbose_name='Producto Bulto (gomitas/caramelos)',
+    )
+    notes = models.CharField('Notas', max_length=200, blank=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Componente de Caramelera'
+        verbose_name_plural = 'Componentes de Caramelera'
+        unique_together = ('caramelera', 'bulk_product')
+        ordering = ['bulk_product__name']
+
+    def __str__(self):
+        return f'{self.bulk_product.name} → {self.caramelera.name}'
+
+
 class ShrinkageAudit(models.Model):
     """Auditoría de mermas por pesaje."""
     REASON_CHOICES = [

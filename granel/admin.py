@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import StockBatch, BulkToGranelTransfer, ShrinkageAudit
+from .models import StockBatch, BulkToGranelTransfer, ShrinkageAudit, CarameleraComponent
 
 
 @admin.register(StockBatch)
@@ -17,6 +17,13 @@ class BulkToGranelTransferAdmin(admin.ModelAdmin):
                     'granel_weighted_cost_after', 'transferred_by', 'transferred_at')
     list_filter = ('granel_product', 'transferred_at')
     readonly_fields = ('transferred_at',)
+
+
+@admin.register(CarameleraComponent)
+class CarameleraComponentAdmin(admin.ModelAdmin):
+    list_display = ('caramelera', 'bulk_product', 'notes', 'added_at')
+    list_filter = ('caramelera',)
+    search_fields = ('caramelera__name', 'bulk_product__name')
 
 
 @admin.register(ShrinkageAudit)

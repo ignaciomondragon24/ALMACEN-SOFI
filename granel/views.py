@@ -10,14 +10,14 @@ import json
 
 from stocks.models import Product
 from decorators.decorators import stock_manager_required
-from .models import StockBatch, BulkToGranelTransfer, ShrinkageAudit
+from .models import StockBatch, BulkToGranelTransfer, ShrinkageAudit, CarameleraComponent
 from .services import GranelService, BatchService
 
 
 @login_required
 @stock_manager_required
 def dashboard(request):
-    """Dashboard de la caramelera: productos granel activos."""
+    """Dashboard de la caramelera: productos granel activos con sus componentes."""
     granel_products = Product.objects.filter(
         is_active=True, is_granel=True
     ).order_by('name')
@@ -30,29 +30,19 @@ def dashboard(request):
             if cost_per_unit > 0:
                 margin = ((p.sale_price - cost_per_unit) / cost_per_unit * 100).quantize(Decimal('0.1'))
 
-        last_transfer = BulkToGranelTransfer.objects.filter(
-            granel_product=p
-        ).first()
+        last_transfer = BulkToGranelTransfer.objects.filter(granel_product=p).first()
+        last_audit = ShrinkageAudit.objects.filter(granel_product=p).first()
 
-        last_audit = ShrinkageAudit.objects.filter(
-            granel_product=p
-        ).first()
-
-        # Check for missing critical configuration
-        config_warnings = []
-        if not p.is_bulk:
-            config_warnings.append('No marcado como "Producto a Granel" (is_bulk)')
-        if p.granel_price_weight_grams == 0:
-            config_warnings.append('granel_price_weight_grams = 0')
-        if p.weighted_avg_cost_per_gram == 0 and p.current_stock > 0:
-            config_warnings.append('Costo ponderado = $0 (sin transferencias)')
+        components = CarameleraComponent.objects.filter(
+            caramelera=p
+        ).select_related('bulk_product')
 
         products_data.append({
             'product': p,
             'margin': margin,
             'last_transfer': last_transfer,
             'last_audit': last_audit,
-            'config_warnings': config_warnings,
+            'components': components,
         })
 
     return render(request, 'granel/dashboard.html', {
@@ -159,7 +149,7 @@ def audit_history(request):
 def batch_list(request):
     """Lista de productos con lotes activos."""
     products_with_batches = Product.objects.filter(
-        stock_batches__quantity_remaining__gt=0
+        batches__quantity_remaining__gt=0
     ).distinct().order_by('name')
 
     return render(request, 'granel/batch_list.html', {
@@ -259,6 +249,86 @@ def api_audit(request):
         return JsonResponse({'error': str(e)}, status=400)
     except Product.DoesNotExist:
         return JsonResponse({'error': 'Producto no encontrado'}, status=404)
+
+
+@login_required
+@stock_manager_required
+def manage_components(request, product_id):
+    """Ver y gestionar qué bultos componen una caramelera."""
+    caramelera = get_object_or_404(Product, pk=product_id, is_granel=True)
+    components = CarameleraComponent.objects.filter(
+        caramelera=caramelera
+    ).select_related('bulk_product')
+
+    # Productos bulto candidatos (tienen peso configurado y están activos)
+    existing_ids = components.values_list('bulk_product_id', flat=True)
+    available_bulk = Product.objects.filter(
+        is_active=True,
+        weight_per_unit_grams__gt=0,
+    ).exclude(pk__in=existing_ids).order_by('name')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'add':
+            bulk_id = request.POST.get('bulk_product_id')
+            notes = request.POST.get('notes', '')
+            if bulk_id:
+                CarameleraComponent.objects.get_or_create(
+                    caramelera=caramelera,
+                    bulk_product_id=bulk_id,
+                    defaults={'notes': notes},
+                )
+        elif action == 'remove':
+            component_id = request.POST.get('component_id')
+            CarameleraComponent.objects.filter(pk=component_id, caramelera=caramelera).delete()
+        from django.shortcuts import redirect
+        return redirect('granel:manage_components', product_id=product_id)
+
+    return render(request, 'granel/manage_components.html', {
+        'caramelera': caramelera,
+        'components': components,
+        'available_bulk': available_bulk,
+    })
+
+
+@login_required
+@stock_manager_required
+@require_POST
+def api_quick_transfer(request, component_id):
+    """API: abrir un paquete de golmitas para una caramelera (un solo click)."""
+    try:
+        component = CarameleraComponent.objects.select_related(
+            'caramelera', 'bulk_product'
+        ).get(pk=component_id)
+
+        if component.bulk_product.current_stock < 1:
+            return JsonResponse({
+                'error': f'Sin stock de {component.bulk_product.name}'
+            }, status=400)
+
+        notes = json.loads(request.body).get('notes', '') if request.body else ''
+        transfer = GranelService.transfer_bulk_to_granel(
+            bulk_product_id=component.bulk_product_id,
+            granel_product_id=component.caramelera_id,
+            user=request.user,
+            notes=notes,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'transfer': {
+                'id': transfer.pk,
+                'grams': float(transfer.grams_transferred),
+                'cost_per_gram': float(transfer.bulk_cost_per_gram),
+                'new_stock': float(transfer.granel_stock_after),
+                'new_avg_cost': float(transfer.granel_weighted_cost_after),
+                'bulk_stock_remaining': float(component.bulk_product.current_stock),
+            }
+        })
+    except CarameleraComponent.DoesNotExist:
+        return JsonResponse({'error': 'Componente no encontrado'}, status=404)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 
 @login_required

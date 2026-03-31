@@ -102,8 +102,15 @@ class Purchase(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
+    tax_percent = models.DecimalField(
+        'IVA (%)',
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('21.00'),
+        validators=[MinValueValidator(Decimal('0'))]
+    )
     tax = models.DecimalField(
-        'Impuestos',
+        'IVA ($)',
         max_digits=12,
         decimal_places=2,
         default=Decimal('0.00')
@@ -167,6 +174,14 @@ class PurchaseItem(models.Model):
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    sale_price = models.DecimalField(
+        'Precio de Venta',
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Si se completa, actualiza el precio de venta del producto al recibir'
     )
     subtotal = models.DecimalField(
         'Subtotal',

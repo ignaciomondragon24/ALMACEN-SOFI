@@ -1,96 +1,275 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Nueva Orden de Compra{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <!-- Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-file-invoice me-2"></i>{{ title }}
-                    </h1>
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb mb-0">
-                            <li class="breadcrumb-item"><a href="{% url 'purchase:purchase_list' %}">Compras</a></li>
-                            <li class="breadcrumb-item active">{{ title }}</li>
-                        </ol>
-                    </nav>
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-file-invoice me-2" style="color:var(--che-primary,#E91E8C);"></i>Nueva Orden de Compra
+        </h1>
+        <a href="{% url 'purchase:purchase_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Datos de la orden -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Datos de la Orden</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
+                        <select id="supplier-select" class="form-select" required>
+                            <option value="">-- Seleccionar --</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s.pk }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Fecha</label>
+                        <input type="date" id="order-date" class="form-control" value="{% now 'Y-m-d' %}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">IVA (%)</label>
+                        <div class="input-group">
+                            <input type="number" id="tax-percent" class="form-control" step="0.01" min="0" value="21">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notas</label>
+                        <textarea id="order-notes" class="form-control" rows="2" placeholder="Opcional..."></textarea>
+                    </div>
                 </div>
             </div>
 
-            <!-- Form Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>Datos de la Orden
-                    </h5>
-                </div>
+            <!-- Totales -->
+            <div class="card shadow-sm mt-3">
                 <div class="card-body">
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="id_supplier" class="form-label">Proveedor <span class="text-danger">*</span></label>
-                                <select name="supplier" id="id_supplier" class="form-select" required>
-                                    <option value="">Seleccionar proveedor...</option>
-                                    {% for supplier in form.supplier.field.queryset %}
-                                    <option value="{{ supplier.pk }}" {% if form.supplier.value == supplier.pk|stringformat:"i" %}selected{% endif %}>
-                                        {{ supplier.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                {% if form.supplier.errors %}
-                                <div class="text-danger small">{{ form.supplier.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="col-md-6 mb-3">
-                                <label for="id_order_date" class="form-label">Fecha de Orden</label>
-                                <input type="date" name="order_date" id="id_order_date" class="form-control" 
-                                       value="{{ form.order_date.value|date:'Y-m-d'|default:'' }}">
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="id_tax" class="form-label">IVA / Impuestos</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" name="tax" id="id_tax" class="form-control" 
-                                           step="0.01" min="0" value="{{ form.tax.value|default:'0' }}">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="id_notes" class="form-label">Notas</label>
-                            <textarea name="notes" id="id_notes" class="form-control" rows="3" 
-                                      placeholder="Notas adicionales...">{{ form.notes.value|default:'' }}</textarea>
-                        </div>
-                        
-                        <hr>
-                        
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> Crear Orden
-                            </button>
-                            <a href="{% url 'purchase:purchase_list' %}" class="btn btn-secondary">
-                                <i class="fas fa-times me-1"></i> Cancelar
-                            </a>
-                        </div>
-                    </form>
+                    <table class="table table-borderless mb-0">
+                        <tr>
+                            <td class="text-muted">Subtotal:</td>
+                            <td class="text-end fw-semibold" id="total-subtotal">$0</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">IVA (<span id="tax-label">21</span>%):</td>
+                            <td class="text-end fw-semibold" id="total-tax">$0</td>
+                        </tr>
+                        <tr class="border-top">
+                            <td class="fw-bold fs-5">TOTAL:</td>
+                            <td class="text-end fw-bold fs-5" id="total-final" style="color:var(--che-primary,#E91E8C);">$0</td>
+                        </tr>
+                    </table>
                 </div>
             </div>
-            
-            <div class="alert alert-info mt-3">
-                <i class="fas fa-info-circle me-2"></i>
-                Después de crear la orden, podrás agregar los productos.
+
+            <button id="btn-submit" class="btn w-100 mt-3" style="background:var(--che-primary,#E91E8C);color:#fff;" disabled>
+                <i class="fas fa-save me-2"></i>Crear Orden de Compra
+            </button>
+            <div id="submit-error" class="alert alert-danger mt-2 d-none"></div>
+        </div>
+
+        <!-- Tabla de productos -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Productos</h6>
+                    <button type="button" id="btn-add-row" class="btn btn-sm btn-light">
+                        <i class="fas fa-plus me-1"></i>Agregar fila
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="items-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="min-width:200px;">Producto</th>
+                                    <th style="width:90px;">Cantidad</th>
+                                    <th style="width:120px;">Costo unit.</th>
+                                    <th style="width:120px;">Precio venta</th>
+                                    <th style="width:110px;" class="text-end">Subtotal</th>
+                                    <th style="width:40px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="items-body">
+                                <!-- rows added by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="text-muted small mt-2">
+                <i class="fas fa-info-circle me-1"></i>
+                El <strong>Precio de venta</strong> es opcional — si lo completás, se actualiza en el producto al recibir la compra.
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PRODUCTS = [
+    {% for p in products %}
+    {id: {{ p.pk }}, name: "{{ p.name|escapejs }}", cost: {{ p.cost_price }}, sale: {{ p.sale_price }}},
+    {% endfor %}
+];
+
+let rowCount = 0;
+
+function fmt(n) {
+    return '$' + parseFloat(n).toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+
+function buildProductOptions(selected) {
+    return PRODUCTS.map(p =>
+        `<option value="${p.id}" data-cost="${p.cost}" data-sale="${p.sale}" ${selected == p.id ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+}
+
+function addRow(productId='', qty=1, cost='', saleP='') {
+    rowCount++;
+    const id = rowCount;
+    const tr = document.createElement('tr');
+    tr.dataset.row = id;
+    tr.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm sel-product" data-row="${id}">
+                <option value="">-- Producto --</option>
+                ${buildProductOptions(productId)}
+            </select>
+        </td>
+        <td><input type="number" class="form-control form-control-sm inp-qty" data-row="${id}" min="1" step="1" value="${qty}"></td>
+        <td><input type="number" class="form-control form-control-sm inp-cost" data-row="${id}" min="0.01" step="0.01" value="${cost}" placeholder="0"></td>
+        <td><input type="number" class="form-control form-control-sm inp-sale" data-row="${id}" min="0" step="0.01" value="${saleP}" placeholder="Opcional"></td>
+        <td class="text-end row-subtotal fw-semibold align-middle">$0</td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger py-0 btn-remove" data-row="${id}"><i class="fas fa-trash"></i></button></td>
+    `;
+    document.getElementById('items-body').appendChild(tr);
+    updateTotals();
+}
+
+function updateTotals() {
+    let subtotal = 0;
+    document.querySelectorAll('#items-body tr').forEach(tr => {
+        const qty = parseFloat(tr.querySelector('.inp-qty')?.value) || 0;
+        const cost = parseFloat(tr.querySelector('.inp-cost')?.value) || 0;
+        const rowSub = qty * cost;
+        tr.querySelector('.row-subtotal').textContent = fmt(rowSub);
+        subtotal += rowSub;
+    });
+    const taxPct = parseFloat(document.getElementById('tax-percent').value) || 0;
+    const tax = subtotal * taxPct / 100;
+    const total = subtotal + tax;
+
+    document.getElementById('total-subtotal').textContent = fmt(subtotal);
+    document.getElementById('total-tax').textContent = fmt(tax);
+    document.getElementById('total-final').textContent = fmt(total);
+    document.getElementById('tax-label').textContent = taxPct.toFixed(2).replace(/\.?0+$/, '') || '0';
+
+    const hasRows = document.querySelectorAll('#items-body tr').length > 0;
+    const hasSupplier = document.getElementById('supplier-select').value !== '';
+    document.getElementById('btn-submit').disabled = !(hasRows && hasSupplier);
+}
+
+// Event delegation for dynamic rows
+document.getElementById('items-body').addEventListener('change', e => {
+    const row = e.target.dataset.row;
+    if (e.target.classList.contains('sel-product')) {
+        const opt = e.target.selectedOptions[0];
+        if (opt && opt.dataset.cost) {
+            const tr = document.querySelector(`tr[data-row="${row}"]`);
+            const costInp = tr.querySelector('.inp-cost');
+            const saleInp = tr.querySelector('.inp-sale');
+            if (!costInp.value) costInp.value = opt.dataset.cost;
+            if (!saleInp.value) saleInp.value = opt.dataset.sale;
+        }
+    }
+    updateTotals();
+});
+document.getElementById('items-body').addEventListener('input', e => {
+    if (e.target.classList.contains('inp-qty') || e.target.classList.contains('inp-cost')) {
+        updateTotals();
+    }
+});
+document.getElementById('items-body').addEventListener('click', e => {
+    if (e.target.closest('.btn-remove')) {
+        e.target.closest('tr').remove();
+        updateTotals();
+    }
+});
+
+document.getElementById('btn-add-row').addEventListener('click', () => addRow());
+document.getElementById('tax-percent').addEventListener('input', updateTotals);
+document.getElementById('supplier-select').addEventListener('change', updateTotals);
+
+document.getElementById('btn-submit').addEventListener('click', function() {
+    const supplierId = document.getElementById('supplier-select').value;
+    if (!supplierId) { return; }
+
+    const items = [];
+    let valid = true;
+    document.querySelectorAll('#items-body tr').forEach(tr => {
+        const productId = tr.querySelector('.sel-product').value;
+        const qty = parseInt(tr.querySelector('.inp-qty').value);
+        const cost = parseFloat(tr.querySelector('.inp-cost').value);
+        const saleP = tr.querySelector('.inp-sale').value;
+
+        if (!productId || !qty || !cost) { valid = false; return; }
+        items.push({
+            product_id: parseInt(productId),
+            quantity: qty,
+            unit_cost: cost,
+            sale_price: saleP ? parseFloat(saleP) : null,
+        });
+    });
+
+    if (!valid || items.length === 0) {
+        document.getElementById('submit-error').textContent = 'Completá producto, cantidad y costo en todas las filas.';
+        document.getElementById('submit-error').classList.remove('d-none');
+        return;
+    }
+    document.getElementById('submit-error').classList.add('d-none');
+
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+
+    fetch('{% url "purchase:purchase_create" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+        body: JSON.stringify({
+            supplier_id: parseInt(supplierId),
+            order_date: document.getElementById('order-date').value || null,
+            tax_percent: parseFloat(document.getElementById('tax-percent').value) || 0,
+            notes: document.getElementById('order-notes').value,
+            items,
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{% url "purchase:purchase_list" %}';
+        } else {
+            document.getElementById('submit-error').textContent = data.error || 'Error al guardar';
+            document.getElementById('submit-error').classList.remove('d-none');
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
+        }
+    })
+    .catch(() => {
+        document.getElementById('submit-error').textContent = 'Error de conexión';
+        document.getElementById('submit-error').classList.remove('d-none');
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
+    });
+});
+
+// Start with one empty row
+addRow();
+</script>
 {% endblock %}

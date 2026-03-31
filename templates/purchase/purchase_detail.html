@@ -58,7 +58,7 @@
                             <td class="text-end">{{ purchase.subtotal|currency }}</td>
                         </tr>
                         <tr>
-                            <td>IVA:</td>
+                            <td>IVA ({{ purchase.tax_percent }}%):</td>
                             <td class="text-end">{{ purchase.tax|currency }}</td>
                         </tr>
                         <tr class="fw-bold">
@@ -81,6 +81,7 @@
                                 <th>Producto</th>
                                 <th class="text-center">Cantidad</th>
                                 <th class="text-end">Costo Unit.</th>
+                                <th class="text-end">Precio Venta</th>
                                 <th class="text-end">Subtotal</th>
                             </tr>
                         </thead>
@@ -90,11 +91,12 @@
                                 <td>{{ item.product.name }}</td>
                                 <td class="text-center">{{ item.quantity }}</td>
                                 <td class="text-end">{{ item.unit_cost|currency }}</td>
+                                <td class="text-end">{% if item.sale_price %}{{ item.sale_price|currency }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
                                 <td class="text-end">{{ item.subtotal|currency }}</td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="4" class="text-center text-muted">No hay productos en esta orden</td>
+                                <td colspan="5" class="text-center text-muted">No hay productos en esta orden</td>
                             </tr>
                             {% endfor %}
                         </tbody>

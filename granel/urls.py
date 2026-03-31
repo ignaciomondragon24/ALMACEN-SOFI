@@ -11,8 +11,10 @@ urlpatterns = [
     path('audit/history/', views.audit_history, name='audit_history'),
     path('batches/', views.batch_list, name='batch_list'),
     path('batches/<int:product_id>/', views.batch_detail, name='batch_detail'),
+    path('<int:product_id>/components/', views.manage_components, name='manage_components'),
     # API
     path('api/transfer/', views.api_transfer, name='api_transfer'),
     path('api/audit/', views.api_audit, name='api_audit'),
     path('api/bulk-products/', views.api_bulk_products, name='api_bulk_products'),
+    path('api/quick-transfer/<int:component_id>/', views.api_quick_transfer, name='api_quick_transfer'),
 ]

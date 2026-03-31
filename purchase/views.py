@@ -1,6 +1,7 @@
 """
 Purchase Views
 """
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -13,7 +14,7 @@ from decimal import Decimal
 from decorators.decorators import group_required
 from .models import Supplier, Purchase, PurchaseItem
 from .forms import SupplierForm, PurchaseForm, PurchaseItemFormSet
-from stocks.models import Product
+from stocks.models import Product, StockBatch
 from stocks.services import StockManagementService
 
 
@@ -142,26 +143,81 @@ def purchase_list(request):
 @login_required
 @group_required(['Admin'])
 def purchase_create(request):
-    """Create a new purchase order."""
+    """Create a new purchase order with items in one step (JSON POST)."""
     if request.method == 'POST':
-        form = PurchaseForm(request.POST)
-        if form.is_valid():
-            purchase = form.save(commit=False)
-            purchase.created_by = request.user
-            # Generate order number
-            today = timezone.now().strftime('%Y%m%d')
-            count = Purchase.objects.filter(
-                order_number__startswith=f'OC-{today}'
-            ).count() + 1
-            purchase.order_number = f'OC-{today}-{count:04d}'
-            purchase.save()
-            messages.success(request, 'Orden de compra creada exitosamente.')
-            return redirect('purchase:purchase_edit', pk=purchase.pk)
-    else:
-        form = PurchaseForm()
-    
-    context = {'form': form, 'title': 'Nueva Orden de Compra'}
-    return render(request, 'purchase/purchase_form.html', context)
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'JSON inválido'}, status=400)
+
+        supplier_id = data.get('supplier_id')
+        order_date = data.get('order_date') or None
+        tax_percent = Decimal(str(data.get('tax_percent', '0')))
+        notes = data.get('notes', '')
+        items = data.get('items', [])
+
+        if not supplier_id:
+            return JsonResponse({'error': 'Proveedor requerido'}, status=400)
+        if not items:
+            return JsonResponse({'error': 'Agregá al menos un producto'}, status=400)
+
+        try:
+            with transaction.atomic():
+                today = timezone.now().strftime('%Y%m%d')
+                count = Purchase.objects.filter(
+                    order_number__startswith=f'OC-{today}'
+                ).count() + 1
+
+                purchase = Purchase.objects.create(
+                    supplier_id=supplier_id,
+                    order_number=f'OC-{today}-{count:04d}',
+                    order_date=order_date,
+                    tax_percent=tax_percent,
+                    notes=notes,
+                    created_by=request.user,
+                )
+
+                subtotal = Decimal('0')
+                for row in items:
+                    product_id = row.get('product_id')
+                    quantity = int(row.get('quantity', 0))
+                    unit_cost = Decimal(str(row.get('unit_cost', '0')))
+                    sale_price_val = row.get('sale_price')
+                    sale_price = Decimal(str(sale_price_val)) if sale_price_val else None
+
+                    if not product_id or quantity < 1 or unit_cost <= 0:
+                        raise ValueError(f'Datos inválidos en fila: {row}')
+
+                    item_subtotal = unit_cost * quantity
+                    PurchaseItem.objects.create(
+                        purchase=purchase,
+                        product_id=product_id,
+                        quantity=quantity,
+                        unit_cost=unit_cost,
+                        sale_price=sale_price,
+                        subtotal=item_subtotal,
+                    )
+                    subtotal += item_subtotal
+
+                tax_amount = (subtotal * tax_percent / 100).quantize(Decimal('0.01'))
+                purchase.subtotal = subtotal
+                purchase.tax = tax_amount
+                purchase.total = subtotal + tax_amount
+                purchase.save()
+
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        return JsonResponse({'success': True, 'pk': purchase.pk, 'order_number': purchase.order_number})
+
+    # GET: render form
+    suppliers = Supplier.objects.filter(is_active=True).order_by('name')
+    products = Product.objects.filter(is_active=True).order_by('name')
+    return render(request, 'purchase/purchase_form.html', {
+        'suppliers': suppliers,
+        'products': products,
+        'title': 'Nueva Orden de Compra',
+    })
 
 
 @login_required
@@ -177,11 +233,11 @@ def purchase_edit(request, pk):
         if form.is_valid() and formset.is_valid():
             form.save()
             formset.save()
-            
-            # Recalculate totals
-            purchase.subtotal = sum(
-                item.subtotal for item in purchase.items.all()
-            )
+
+            # Recalculate totals using tax_percent
+            purchase.refresh_from_db()
+            purchase.subtotal = sum(item.subtotal for item in purchase.items.all())
+            purchase.tax = (purchase.subtotal * purchase.tax_percent / 100).quantize(Decimal('0.01'))
             purchase.total = purchase.subtotal + purchase.tax
             purchase.save()
             
@@ -213,7 +269,7 @@ def purchase_receive(request, pk):
     if request.method == 'POST':
         with transaction.atomic():
             for item in purchase.items.all():
-                # Update stock (also calculates weighted average cost_price)
+                # Update stock and weighted average cost
                 StockManagementService.add_stock(
                     product=item.product,
                     quantity=item.quantity,
@@ -223,16 +279,37 @@ def purchase_receive(request, pk):
                     reference=purchase.order_number
                 )
 
-                # Update received quantity
+                # Create stock batch for FIFO tracking
+                from datetime import datetime
+                batch_date = (
+                    datetime.combine(purchase.received_date, datetime.min.time())
+                    if purchase.received_date else timezone.now()
+                )
+                StockBatch.objects.create(
+                    product=item.product,
+                    purchase=purchase,
+                    supplier_name=purchase.supplier.name,
+                    quantity_purchased=item.quantity,
+                    quantity_remaining=item.quantity,
+                    purchase_price=item.unit_cost,
+                    purchased_at=batch_date,
+                    created_by=request.user,
+                    notes=f'OC {purchase.order_number}',
+                )
+
+                # Update product sale_price if specified
+                if item.sale_price:
+                    item.product.sale_price = item.sale_price
+                    item.product.save(update_fields=['sale_price'])
+
                 item.received_quantity = item.quantity
                 item.save()
 
-            # Update purchase status
             purchase.status = 'received'
             purchase.received_date = timezone.now().date()
             purchase.save()
 
-        messages.success(request, 'Compra recibida y stock actualizado.')
+        messages.success(request, 'Compra recibida, stock y lotes actualizados.')
         return redirect('purchase:purchase_list')
     
     context = {'purchase': purchase}
