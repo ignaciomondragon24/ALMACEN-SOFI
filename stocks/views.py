@@ -256,36 +256,20 @@ def product_create(request):
 def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
-    
+
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, instance=product)
         if form.is_valid():
             form.save()
-            # Process inline packaging if provided
-            _save_inline_packaging(request, product)
             messages.success(request, f'Producto "{product.name}" actualizado correctamente.')
             return redirect('stocks:product_list')
     else:
         form = ProductForm(instance=product)
-    
-    # Load existing packagings for the form
-    existing_packagings = {}
-    for pkg in product.packagings.filter(is_active=True):
-        existing_packagings[pkg.packaging_type] = {
-            'barcode': pkg.barcode or '',
-            'name': pkg.name or '',
-            'units_per_display': pkg.units_per_display,
-            'displays_per_bulk': pkg.displays_per_bulk,
-            'purchase_price': str(pkg.purchase_price),
-            'sale_price': str(pkg.sale_price),
-            'margin_percent': str(pkg.margin_percent),
-        }
-    
+
     return render(request, 'stocks/product_form.html', {
         'form': form,
         'title': 'Editar Producto',
         'product': product,
-        'existing_packagings': existing_packagings,
     })
 
 
@@ -365,6 +349,57 @@ def stock_adjust(request, pk):
     return render(request, 'stocks/stock_adjust.html', {
         'form': form,
         'product': product
+    })
+
+
+@login_required
+@group_required(['Admin', 'Cajero Manager'])
+def product_movement_list(request, pk=None):
+    """
+    Kardex: historial de movimientos de stock.
+    Si pk tiene valor, filtra por producto. Si no, muestra todos.
+    """
+    product = None
+    movements = StockMovement.objects.select_related('product', 'created_by').all()
+
+    if pk:
+        product = get_object_or_404(Product, pk=pk)
+        movements = movements.filter(product=product)
+
+    # Filters
+    search = request.GET.get('search', '')
+    movement_type = request.GET.get('type', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    if search and not pk:
+        movements = movements.filter(
+            Q(product__name__icontains=search) |
+            Q(product__sku__icontains=search) |
+            Q(product__barcode__icontains=search)
+        )
+
+    if movement_type:
+        movements = movements.filter(movement_type=movement_type)
+
+    if date_from:
+        movements = movements.filter(created_at__date__gte=date_from)
+
+    if date_to:
+        movements = movements.filter(created_at__date__lte=date_to)
+
+    paginator = Paginator(movements, 50)
+    page = request.GET.get('page', 1)
+    movements_page = paginator.get_page(page)
+
+    return render(request, 'stocks/movement_list.html', {
+        'movements': movements_page,
+        'product': product,
+        'search': search,
+        'selected_type': movement_type,
+        'date_from': date_from,
+        'date_to': date_to,
+        'movement_types': StockMovement.MOVEMENT_TYPES,
     })
 
 
@@ -1150,71 +1185,6 @@ def export_products_excel(request):
 
 
 @login_required
-@group_required(['Admin', 'Cajero Manager'])
-def packaging_config(request, product_id):
-    """Configurar empaques para un producto."""
-    
-    product = get_object_or_404(Product, pk=product_id)
-    
-    if request.method == 'POST':
-        packaging_type = request.POST.get('packaging_type')
-        
-        if packaging_type:
-            # Verificar si ya existe este tipo de empaque
-            existing = ProductPackaging.objects.filter(
-                product=product, 
-                packaging_type=packaging_type
-            ).first()
-            
-            if existing:
-                form = ProductPackagingForm(request.POST, instance=existing)
-            else:
-                form = ProductPackagingForm(request.POST)
-            
-            if form.is_valid():
-                packaging = form.save(commit=False)
-                packaging.product = product
-                
-                # Check if user provided a direct sale price
-                direct_sale_price = request.POST.get('direct_sale_price', '').strip()
-                if direct_sale_price:
-                    try:
-                        packaging.sale_price = Decimal(direct_sale_price)
-                        # Auto-calculate margin from sale price
-                        if packaging.purchase_price > 0:
-                            packaging.margin_percent = ((packaging.sale_price - packaging.purchase_price) / packaging.purchase_price) * 100
-                    except (ValueError, InvalidOperation):
-                        pass
-                elif packaging.purchase_price > 0:
-                    # Calculate sale price from margin
-                    packaging.sale_price = packaging.purchase_price * (1 + packaging.margin_percent / 100)
-                
-                packaging.save()
-                
-                # Auto-update sibling packaging prices and the product itself
-                _sync_packaging_prices(product, packaging)
-                
-                messages.success(request, f'Empaque {packaging.get_packaging_type_display()} guardado correctamente')
-                return redirect('stocks:packaging_config', product_id=product.id)
-            else:
-                messages.error(request, 'Error en el formulario. Verifique los datos.')
-    
-    # Obtener empaques existentes
-    unit_pkg = ProductPackaging.objects.filter(product=product, packaging_type='unit').first()
-    display_pkg = ProductPackaging.objects.filter(product=product, packaging_type='display').first()
-    bulk_pkg = ProductPackaging.objects.filter(product=product, packaging_type='bulk').first()
-    
-    context = {
-        'product': product,
-        'unit_pkg': unit_pkg,
-        'display_pkg': display_pkg,
-        'bulk_pkg': bulk_pkg,
-        'form': ProductPackagingForm(),
-    }
-    return render(request, 'stocks/packaging_config.html', context)
-
-
-@login_required
 def api_get_packaging(request, packaging_id):
     """API para obtener datos de un empaque por ID (para edición)."""
     try:
@@ -1242,17 +1212,17 @@ def api_get_packaging(request, packaging_id):
 @group_required(['Admin', 'Cajero Manager'])
 def packaging_delete(request, packaging_id):
     """Eliminar un empaque."""
-    
+
     packaging = get_object_or_404(ProductPackaging, pk=packaging_id)
     product_id = packaging.product.id
     packaging_name = str(packaging)
-    
+
     if request.method == 'POST':
         packaging.delete()
         messages.success(request, f'Empaque "{packaging_name}" eliminado.')
-        return redirect('stocks:packaging_config', product_id=product_id)
-    
-    return redirect('stocks:packaging_config', product_id=product_id)
+        return redirect('stocks:product_packaging', pk=product_id)
+
+    return redirect('stocks:product_packaging', pk=product_id)
 
 
 # ==================== GESTIÓN DE EMPAQUES ====================

@@ -38,11 +38,21 @@ def dashboard(request):
             granel_product=p
         ).first()
 
+        # Check for missing critical configuration
+        config_warnings = []
+        if not p.is_bulk:
+            config_warnings.append('No marcado como "Producto a Granel" (is_bulk)')
+        if p.granel_price_weight_grams == 0:
+            config_warnings.append('granel_price_weight_grams = 0')
+        if p.weighted_avg_cost_per_gram == 0 and p.current_stock > 0:
+            config_warnings.append('Costo ponderado = $0 (sin transferencias)')
+
         products_data.append({
             'product': p,
             'margin': margin,
             'last_transfer': last_transfer,
             'last_audit': last_audit,
+            'config_warnings': config_warnings,
         })
 
     return render(request, 'granel/dashboard.html', {
@@ -64,9 +74,23 @@ def transfer_form(request):
         current_stock__gt=0,
     ).order_by('name')
 
+    # Prerequisite warnings
+    warnings = []
+    if not granel_products.exists():
+        warnings.append(
+            'No hay productos granel configurados. '
+            'Edita un producto y activa "Producto Comodin Granel" para que aparezca como destino.'
+        )
+    if not bulk_products.exists():
+        warnings.append(
+            'No hay bultos disponibles para transferir. '
+            'Asegurate de que al menos un producto tenga "Peso por Unidad (g)" > 0 y stock > 0.'
+        )
+
     return render(request, 'granel/transfer_form.html', {
         'granel_products': granel_products,
         'bulk_products': bulk_products,
+        'warnings': warnings,
     })
 
 
@@ -96,9 +120,18 @@ def shrinkage_audit_form(request):
     granel_products = Product.objects.filter(
         is_active=True, is_granel=True
     ).order_by('name')
+
+    warnings = []
+    if not granel_products.filter(current_stock__gt=0).exists():
+        warnings.append(
+            'No hay carameleras con stock para auditar. '
+            'Primero transfiere stock abriendo un bulto.'
+        )
+
     return render(request, 'granel/shrinkage_audit_form.html', {
         'granel_products': granel_products,
         'reason_choices': ShrinkageAudit.REASON_CHOICES,
+        'warnings': warnings,
     })
 
 

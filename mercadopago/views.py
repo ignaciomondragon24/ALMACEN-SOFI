@@ -335,6 +335,7 @@ def api_create_payment_intent(request):
     amount = data.get('amount')
     transaction_id = data.get('transaction_id')
     description = data.get('description', 'Venta CHE GOLOSO')
+    payment_type = data.get('payment_type', 'qr')  # "qr" por defecto, "credit_card"/"debit_card" para tarjeta
     
     if not amount:
         return JsonResponse({'success': False, 'error': 'Monto requerido'}, status=400)
@@ -395,7 +396,8 @@ def api_create_payment_intent(request):
         amount=amount,
         pos_transaction=pos_transaction,
         user=request.user,
-        description=description
+        description=description,
+        payment_type=payment_type
     )
     
     if success:
@@ -408,7 +410,7 @@ def api_create_payment_intent(request):
                 'status': result.status,
                 'device_name': device.device_name,
             },
-            'message': 'Pago enviado al dispositivo Point. Esperando pago del cliente.'
+            'message': 'QR enviado al dispositivo Point. Esperando pago del cliente.' if payment_type == 'qr' else 'Pago enviado al dispositivo Point. Esperando pago del cliente.'
         })
     else:
         return JsonResponse({

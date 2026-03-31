@@ -20,6 +20,10 @@ urlpatterns = [
     path('categories/add/', views.category_create, name='category_create'),
     path('categories/<int:pk>/edit/', views.category_edit, name='category_edit'),
     
+    # Movements / Kardex
+    path('movements/', views.product_movement_list, name='movement_list'),
+    path('<int:pk>/movements/', views.product_movement_list, name='product_movements'),
+
     # Reports
     path('low-stock/', views.low_stock_products, name='low_stock'),
     path('price-list/', views.price_list, name='price_list'),
@@ -27,7 +31,6 @@ urlpatterns = [
     path('import/excel/', views.import_excel, name='import_excel'),
     
     # Packaging
-    path('packaging/<int:product_id>/', views.packaging_config, name='packaging_config'),
     path('packaging/delete/<int:packaging_id>/', views.packaging_delete, name='packaging_delete'),
     
     # Packaging management

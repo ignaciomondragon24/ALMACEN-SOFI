@@ -55,18 +55,20 @@
                     </a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="{% url 'stocks:product_list' %}">Productos</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stocks:category_list' %}">Categorías</a></li>
+                        <li><a class="dropdown-item" href="{% url 'stocks:category_list' %}">Categorias</a></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'stocks:movement_list' %}">
+                            <i class="fas fa-exchange-alt me-1"></i>Movimientos / Kardex
+                        </a></li>
                         <li><a class="dropdown-item" href="{% url 'stocks:low_stock' %}">
                             <i class="fas fa-exclamation-triangle text-warning me-1"></i>Stock Bajo
                         </a></li>
-                        <li><a class="dropdown-item" href="{% url 'stocks:price_list' %}">Lista de Precios</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stocks:import_excel' %}">
-                            <i class="fas fa-file-excel text-success me-1"></i>Importar Excel
-                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'stocks:packaging_inventory' %}">
-                            <i class="fas fa-boxes-stacked text-info me-1"></i>Inventario Empaques
+                            <i class="fas fa-boxes-stacked text-info me-1"></i>Empaques
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'stocks:import_excel' %}">
+                            <i class="fas fa-file-excel text-success me-1"></i>Importar Excel
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'granel:dashboard' %}">

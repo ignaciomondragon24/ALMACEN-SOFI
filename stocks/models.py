@@ -242,6 +242,11 @@ class Product(models.Model):
     )
     
     # Bulk / Weight selling options
+    # is_bulk: producto que se VENDE por peso (ej: fiambre, queso, gomitas)
+    # is_granel: producto COMODÍN que RECIBE stock de bultos abiertos (ej: caramelera)
+    # Un producto puede tener ambos en True (caramelera que se vende por peso)
+    # weight_per_unit_grams: para BULTOS (cuántos gramos tiene cada unidad del bulto cerrado)
+    # granel_price_weight_grams: para CARAMELERAS (el sale_price es "cada X gramos")
     is_bulk = models.BooleanField(
         'Producto a Granel',
         default=False,
@@ -523,7 +528,11 @@ class StockMovement(models.Model):
 
 
 class ProductPresentation(models.Model):
-    """Product presentation (different packaging)."""
+    """Product presentation (different packaging).
+    # TODO: evaluar consolidación con ProductPackaging tipo 'unit'.
+    # Este modelo se usa activamente en services.py (barcode lookup).
+    # No eliminar sin migrar esa lógica primero.
+    """
     
     product = models.ForeignKey(
         Product,

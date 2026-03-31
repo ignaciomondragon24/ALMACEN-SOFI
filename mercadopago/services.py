@@ -144,7 +144,8 @@ class MPPointService:
     # ==================== INTENCIONES DE PAGO ====================
     
     def create_payment_intent(self, device_id, amount, description="Venta",
-                              external_reference=None, additional_info=None):
+                              external_reference=None, additional_info=None,
+                              payment_type="qr"):
         """
         Crea una intención de pago y la envía al dispositivo Point.
 
@@ -156,6 +157,8 @@ class MPPointService:
             description: Descripción del cobro
             external_reference: Referencia externa para rastrear el pago
             additional_info: Información adicional (dict)
+            payment_type: Tipo de pago - "qr" muestra QR en el Point,
+                          "credit_card"/"debit_card" para tarjeta
 
         Returns:
             tuple: (success, data)
@@ -174,10 +177,14 @@ class MPPointService:
             "additional_info": ai,
         }
 
+        # Agregar tipo de pago para que el Point muestre QR o pida tarjeta
+        if payment_type:
+            payload["payment"] = {"type": payment_type}
+
         logger.info(
             f"Creating payment intent: device={device_id}, "
             f"amount_cents={amount_cents}, ref={external_reference}, "
-            f"payload={payload}"
+            f"type={payment_type}, payload={payload}"
         )
 
         return self._make_request(
@@ -299,17 +306,19 @@ class PaymentIntentManager:
         """Creates a fresh service each time to pick up credential changes."""
         return MPPointService()
     
-    def create_and_send(self, device, amount, pos_transaction=None, user=None, description=None):
+    def create_and_send(self, device, amount, pos_transaction=None, user=None,
+                        description=None, payment_type="qr"):
         """
         Crea una intención de pago y la envía al dispositivo.
-        
+
         Args:
             device: PointDevice instance
             amount: Monto a cobrar
             pos_transaction: POSTransaction relacionada (opcional)
             user: Usuario que crea el pago
             description: Descripción personalizada
-        
+            payment_type: "qr" para QR en pantalla, "credit_card"/"debit_card" para tarjeta
+
         Returns:
             tuple: (success, PaymentIntent or error_message)
         """
@@ -333,7 +342,8 @@ class PaymentIntentManager:
                 device_id=device.device_id,
                 amount=amount,
                 description=payment_intent.description,
-                external_reference=payment_intent.external_reference
+                external_reference=payment_intent.external_reference,
+                payment_type=payment_type
             )
             
             if success:
