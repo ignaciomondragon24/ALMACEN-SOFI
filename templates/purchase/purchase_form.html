@@ -13,380 +13,314 @@
         </a>
     </div>
 
-    <div class="row g-4">
-        <!-- Datos de la orden -->
-        <div class="col-lg-4">
-            <div class="card shadow-sm">
-                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
-                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Datos de la Orden</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
-                        <select id="supplier-select" class="form-select">
-                            <option value="">-- Seleccionar --</option>
-                            {% for s in suppliers %}
-                            <option value="{{ s.pk }}">{{ s.name }}</option>
-                            {% endfor %}
-                        </select>
+    {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Real form: submits hidden JSON field -->
+    <form method="post" id="oc-form">
+        {% csrf_token %}
+        <input type="hidden" name="order_data" id="order-data-field">
+
+        <div class="row g-4">
+            <!-- Datos de la orden -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Datos de la Orden</h6>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Fecha</label>
-                        <input type="date" id="order-date" class="form-control" value="{% now 'Y-m-d' %}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">IVA (%)</label>
-                        <div class="input-group">
-                            <input type="number" id="tax-percent" class="form-control" step="0.01" min="0" value="21">
-                            <span class="input-group-text">%</span>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
+                            <select id="supplier-select" class="form-select">
+                                <option value="">-- Seleccionar --</option>
+                                {% for s in suppliers %}
+                                <option value="{{ s.pk }}">{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Fecha</label>
+                            <input type="date" id="order-date" class="form-control" value="{% now 'Y-m-d' %}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">IVA (%)</label>
+                            <div class="input-group">
+                                <input type="number" id="tax-percent" class="form-control" step="0.01" min="0" value="21">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notas</label>
+                            <textarea id="order-notes" class="form-control" rows="2" placeholder="Opcional..."></textarea>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Notas</label>
-                        <textarea id="order-notes" class="form-control" rows="2" placeholder="Opcional..."></textarea>
-                    </div>
                 </div>
-            </div>
 
-            <!-- Totales -->
-            <div class="card shadow-sm mt-3">
-                <div class="card-body">
-                    <table class="table table-borderless mb-0">
-                        <tr>
-                            <td class="text-muted">Subtotal:</td>
-                            <td class="text-end fw-semibold" id="lbl-subtotal">$0</td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted">IVA (<span id="lbl-tax-pct">21</span>%):</td>
-                            <td class="text-end fw-semibold" id="lbl-tax">$0</td>
-                        </tr>
-                        <tr class="border-top">
-                            <td class="fw-bold fs-5">TOTAL:</td>
-                            <td class="text-end fw-bold fs-5" id="lbl-total" style="color:var(--che-primary,#E91E8C);">$0</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-
-            <div id="submit-error" class="alert alert-danger mt-3 d-none"></div>
-
-            <button id="btn-submit" class="btn w-100 mt-2" style="background:var(--che-primary,#E91E8C);color:#fff;">
-                <i class="fas fa-save me-2"></i>Crear Orden de Compra
-            </button>
-        </div>
-
-        <!-- Tabla de productos -->
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header d-flex justify-content-between align-items-center" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
-                    <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Productos</h6>
-                    <button type="button" id="btn-add-row" class="btn btn-sm btn-light">
-                        <i class="fas fa-plus me-1"></i>Agregar fila
-                    </button>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="min-width:220px;">Producto</th>
-                                    <th style="width:90px;">Cantidad</th>
-                                    <th style="width:120px;">Costo unit.</th>
-                                    <th style="width:120px;">Precio venta</th>
-                                    <th style="width:110px;" class="text-end">Subtotal</th>
-                                    <th style="width:40px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="items-body"></tbody>
+                <!-- Totales -->
+                <div class="card shadow-sm mt-3">
+                    <div class="card-body">
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <td class="text-muted">Subtotal:</td>
+                                <td class="text-end fw-semibold" id="lbl-subtotal">$0</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">IVA (<span id="lbl-tax-pct">21</span>%):</td>
+                                <td class="text-end fw-semibold" id="lbl-tax">$0</td>
+                            </tr>
+                            <tr class="border-top">
+                                <td class="fw-bold fs-5">TOTAL:</td>
+                                <td class="text-end fw-bold fs-5" id="lbl-total" style="color:var(--che-primary,#E91E8C);">$0</td>
+                            </tr>
                         </table>
                     </div>
-                    <div id="no-rows-msg" class="text-center text-muted py-4">
-                        <i class="fas fa-box-open fa-2x mb-2 d-block opacity-50"></i>
-                        Presioná <strong>Agregar fila</strong> para sumar productos
+                </div>
+
+                <div id="form-error" class="alert alert-danger mt-3" style="display:none;"></div>
+
+                <button type="submit" class="btn w-100 mt-2" style="background:var(--che-primary,#E91E8C);color:#fff;">
+                    <i class="fas fa-save me-2"></i>Crear Orden de Compra
+                </button>
+            </div>
+
+            <!-- Tabla de productos -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                        <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Productos</h6>
+                        <button type="button" id="btn-add-row" class="btn btn-sm btn-light">
+                            <i class="fas fa-plus me-1"></i>Agregar fila
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th style="width:90px;">Cant.</th>
+                                        <th style="width:120px;">Costo unit.</th>
+                                        <th style="width:120px;">P. Venta</th>
+                                        <th style="width:110px;" class="text-end">Subtotal</th>
+                                        <th style="width:40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-body"></tbody>
+                            </table>
+                        </div>
+                        <div id="no-rows-msg" class="text-center text-muted py-4">
+                            <i class="fas fa-box-open fa-2x mb-2 d-block opacity-50"></i>
+                            Usá <strong>Agregar fila</strong> para sumar productos
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="text-muted small mt-2">
-                <i class="fas fa-info-circle me-1"></i>
-                <strong>Precio de venta</strong> es opcional — si lo completás, actualiza el precio del producto al recibir la compra.
+                <p class="text-muted small mt-2">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>P. Venta</strong> es opcional — actualiza el precio del producto al recibir la compra.
+                </p>
             </div>
         </div>
-    </div>
+    </form>
 </div>
 
-<!-- Autocomplete dropdown (shared, moved around via JS) -->
-<div id="ac-dropdown" class="shadow border rounded bg-white" style="position:absolute;z-index:9999;width:320px;max-height:240px;overflow-y:auto;display:none;"></div>
+<!-- Autocomplete dropdown -->
+<ul id="ac-drop" class="list-group shadow" style="position:fixed;z-index:9999;display:none;min-width:300px;max-height:260px;overflow-y:auto;"></ul>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const SEARCH_URL = '{% url "purchase:api_search_products" %}';
-const CREATE_URL = '{% url "purchase:purchase_create" %}';
-const LIST_URL   = '{% url "purchase:purchase_list" %}';
-const CSRF       = '{{ csrf_token }}';
-
 let rowCount = 0;
-// Map rowId -> {id, name, cost, sale}
-const rowData  = {};
+const rowProducts = {}; // rowId -> {id, name, cost_price, sale_price}
 
-/* ── Formatting ─────────────────────────────────────── */
-function fmtARS(n) {
-    n = parseFloat(n) || 0;
-    return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0});
+/* ─── Format ─────────────────────────────── */
+function ars(n) {
+    return '$' + (parseFloat(n)||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});
 }
 
-/* ── Row management ─────────────────────────────────── */
-function addRow() {
-    rowCount++;
-    const id = rowCount;
-    rowData[id] = {id: null, name: '', cost: '', sale: ''};
+/* ─── Totals ─────────────────────────────── */
+function recalc() {
+    let sub = 0;
+    document.querySelectorAll('#items-body tr').forEach(tr => {
+        const q  = parseFloat(tr.querySelector('.r-qty').value)  || 0;
+        const c  = parseFloat(tr.querySelector('.r-cost').value) || 0;
+        const rs = tr.querySelector('.r-sub');
+        if (rs) { rs.textContent = ars(q*c); }
+        sub += q * c;
+    });
+    const pct = parseFloat(document.getElementById('tax-percent').value) || 0;
+    const tax = sub * pct / 100;
+    document.getElementById('lbl-subtotal').textContent = ars(sub);
+    document.getElementById('lbl-tax').textContent      = ars(tax);
+    document.getElementById('lbl-total').textContent    = ars(sub + tax);
+    document.getElementById('lbl-tax-pct').textContent  = pct % 1 === 0 ? pct.toFixed(0) : String(pct);
+}
 
+/* ─── Rows ───────────────────────────────── */
+function addRow() {
+    const id = ++rowCount;
+    rowProducts[id] = null;
     const tr = document.createElement('tr');
-    tr.id = `row-${id}`;
-    tr.innerHTML = `
-        <td class="position-relative">
-            <input type="text" class="form-control form-control-sm inp-search"
-                   data-row="${id}" placeholder="Buscar producto..." autocomplete="off">
-            <input type="hidden" class="inp-product-id" data-row="${id}">
-            <small class="inp-product-name text-muted d-block" data-row="${id}" style="font-size:.75rem;"></small>
-        </td>
-        <td><input type="number" class="form-control form-control-sm inp-qty" data-row="${id}"
-                   min="1" step="1" value="1"></td>
-        <td><input type="number" class="form-control form-control-sm inp-cost" data-row="${id}"
-                   min="0" step="0.01" placeholder="0"></td>
-        <td><input type="number" class="form-control form-control-sm inp-sale" data-row="${id}"
-                   min="0" step="0.01" placeholder="Opcional"></td>
-        <td class="text-end align-middle fw-semibold row-subtotal" data-row="${id}">$0</td>
-        <td class="align-middle">
-            <button type="button" class="btn btn-sm btn-outline-danger py-0 btn-remove" data-row="${id}">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
+    tr.id = 'r' + id;
+    tr.innerHTML =
+        '<td>' +
+            '<input class="form-control form-control-sm r-search" data-row="'+id+'" placeholder="Buscar..." autocomplete="off">' +
+            '<input type="hidden" class="r-pid" data-row="'+id+'">' +
+            '<small class="r-pname text-muted" data-row="'+id+'"></small>' +
+        '</td>' +
+        '<td><input class="form-control form-control-sm r-qty" data-row="'+id+'" type="number" min="1" step="1" value="1"></td>' +
+        '<td><input class="form-control form-control-sm r-cost" data-row="'+id+'" type="number" min="0" step="0.01" placeholder="0"></td>' +
+        '<td><input class="form-control form-control-sm r-sale" data-row="'+id+'" type="number" min="0" step="0.01" placeholder="Opcional"></td>' +
+        '<td class="text-end align-middle r-sub" data-row="'+id+'">$0</td>' +
+        '<td class="align-middle">' +
+            '<button type="button" class="btn btn-sm btn-outline-danger py-0 r-del" data-row="'+id+'">'+
+                '<i class="fas fa-trash"></i>' +
+            '</button>' +
+        '</td>';
     document.getElementById('items-body').appendChild(tr);
     document.getElementById('no-rows-msg').style.display = 'none';
-    updateTotals();
-    // Focus search input
-    tr.querySelector('.inp-search').focus();
+    tr.querySelector('.r-search').focus();
+    recalc();
 }
 
-function removeRow(id) {
-    const tr = document.getElementById(`row-${id}`);
+function delRow(id) {
+    const tr = document.getElementById('r'+id);
     if (tr) tr.remove();
-    delete rowData[id];
-    const rows = document.querySelectorAll('#items-body tr');
-    document.getElementById('no-rows-msg').style.display = rows.length === 0 ? '' : 'none';
-    updateTotals();
+    delete rowProducts[id];
+    if (!document.querySelector('#items-body tr')) {
+        document.getElementById('no-rows-msg').style.display = '';
+    }
+    recalc();
 }
 
-/* ── Totals ─────────────────────────────────────────── */
-function updateTotals() {
-    let subtotal = 0;
-    document.querySelectorAll('#items-body tr').forEach(tr => {
-        const rowId = tr.id.replace('row-', '');
-        const qty  = parseFloat(tr.querySelector('.inp-qty')?.value) || 0;
-        const cost = parseFloat(tr.querySelector('.inp-cost')?.value) || 0;
-        const sub  = qty * cost;
-        const subEl = tr.querySelector('.row-subtotal');
-        if (subEl) subEl.textContent = fmtARS(sub);
-        subtotal += sub;
-    });
-    const taxPct = parseFloat(document.getElementById('tax-percent').value) || 0;
-    const tax    = subtotal * taxPct / 100;
-    document.getElementById('lbl-subtotal').textContent = fmtARS(subtotal);
-    document.getElementById('lbl-tax').textContent      = fmtARS(tax);
-    document.getElementById('lbl-total').textContent    = fmtARS(subtotal + tax);
-    document.getElementById('lbl-tax-pct').textContent  = taxPct % 1 === 0 ? taxPct.toFixed(0) : taxPct.toString();
-}
+/* ─── Autocomplete ───────────────────────── */
+const drop = document.getElementById('ac-drop');
+let activeSearch = null, searchTimer = null;
 
-/* ── Autocomplete ───────────────────────────────────── */
-const acDropdown = document.getElementById('ac-dropdown');
-let acActiveRow  = null;
-let acTimer      = null;
+function closeDrop() { drop.style.display = 'none'; activeSearch = null; }
 
-function closeDropdown() {
-    acDropdown.style.display = 'none';
-    acActiveRow = null;
-}
-
-function openDropdown(inputEl, results) {
-    acActiveRow = inputEl.dataset.row;
-    acDropdown.innerHTML = '';
-
-    if (results.length === 0) {
-        acDropdown.innerHTML = '<div class="px-3 py-2 text-muted small">Sin resultados</div>';
+function showDrop(input, results) {
+    activeSearch = input;
+    drop.innerHTML = '';
+    if (!results.length) {
+        drop.innerHTML = '<li class="list-group-item text-muted small">Sin resultados</li>';
     } else {
         results.forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'px-3 py-2 ac-item';
-            div.style.cursor = 'pointer';
-            div.style.borderBottom = '1px solid #eee';
-            div.innerHTML = `<strong>${p.name}</strong>
-                <span class="text-muted ms-2 small">${p.barcode ? '| ' + p.barcode : ''}</span>
-                <br><small class="text-success">Costo: $${parseFloat(p.cost_price).toLocaleString('es-AR')}</small>
-                <small class="text-muted ms-2">Venta: $${parseFloat(p.sale_price).toLocaleString('es-AR')}</small>`;
-            div.addEventListener('mousedown', e => {
-                e.preventDefault(); // prevent blur firing first
-                selectProduct(acActiveRow, p);
-                closeDropdown();
+            const li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action py-2 px-3';
+            li.style.cursor = 'pointer';
+            li.innerHTML =
+                '<div class="fw-semibold">' + p.name + (p.barcode ? ' <small class="text-muted">'+p.barcode+'</small>' : '') + '</div>' +
+                '<small class="text-success">Costo: $' + parseFloat(p.cost_price).toLocaleString('es-AR') + '</small>' +
+                '<small class="text-muted ms-2">Venta: $' + parseFloat(p.sale_price).toLocaleString('es-AR') + '</small>';
+            li.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                const row = input.dataset.row;
+                rowProducts[row] = p;
+                input.value = p.name;
+                document.querySelector('.r-pid[data-row="'+row+'"]').value = p.id;
+                document.querySelector('.r-pname[data-row="'+row+'"]').textContent = '';
+                const costEl = document.querySelector('.r-cost[data-row="'+row+'"]');
+                const saleEl = document.querySelector('.r-sale[data-row="'+row+'"]');
+                if (!costEl.value) costEl.value = parseFloat(p.cost_price) || '';
+                if (!saleEl.value) saleEl.value = parseFloat(p.sale_price) || '';
+                recalc();
+                closeDrop();
             });
-            div.addEventListener('mouseover', () => div.style.background = '#f8f9fa');
-            div.addEventListener('mouseout',  () => div.style.background = '');
-            acDropdown.appendChild(div);
+            drop.appendChild(li);
         });
     }
-
-    // Position dropdown below the input
-    const rect = inputEl.getBoundingClientRect();
-    acDropdown.style.top    = (rect.bottom + window.scrollY) + 'px';
-    acDropdown.style.left   = (rect.left + window.scrollX) + 'px';
-    acDropdown.style.width  = Math.max(320, rect.width) + 'px';
-    acDropdown.style.display = 'block';
+    const r = input.getBoundingClientRect();
+    drop.style.top    = (r.bottom + 2) + 'px';
+    drop.style.left   = r.left + 'px';
+    drop.style.width  = Math.max(300, r.width) + 'px';
+    drop.style.display = 'block';
 }
 
-function selectProduct(rowId, p) {
-    const tr = document.getElementById(`row-${rowId}`);
-    if (!tr) return;
-    rowData[rowId] = {id: p.id, name: p.name};
-    tr.querySelector('.inp-search').value      = p.name;
-    tr.querySelector('.inp-product-id').value  = p.id;
-    tr.querySelector('.inp-product-name').textContent = '';
-    // Auto-fill cost if empty
-    const costEl = tr.querySelector('.inp-cost');
-    const saleEl = tr.querySelector('.inp-sale');
-    if (!costEl.value) costEl.value = parseFloat(p.cost_price) || '';
-    if (!saleEl.value) saleEl.value = parseFloat(p.sale_price) || '';
-    updateTotals();
+function doSearch(input) {
+    const q = input.value.trim();
+    if (q.length < 2) { closeDrop(); return; }
+    fetch(SEARCH_URL + '?q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (input.value.trim() === q) showDrop(input, d.results||[]); })
+        .catch(function(){ closeDrop(); });
 }
 
-function doSearch(inputEl) {
-    const q = inputEl.value.trim();
-    if (q.length < 2) { closeDropdown(); return; }
-    fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`)
-        .then(r => r.json())
-        .then(data => {
-            if (inputEl.value.trim() === q) {
-                openDropdown(inputEl, data.results || []);
-            }
-        })
-        .catch(() => closeDropdown());
-}
-
-/* ── Event delegation ───────────────────────────────── */
-document.getElementById('items-body').addEventListener('input', e => {
-    const t = e.target;
-    if (t.classList.contains('inp-search')) {
-        const rowId = t.dataset.row;
-        // Clear previously selected product if user is typing again
-        document.querySelector(`.inp-product-id[data-row="${rowId}"]`).value = '';
-        clearTimeout(acTimer);
-        acTimer = setTimeout(() => doSearch(t), 280);
+/* ─── Event delegation ───────────────────── */
+document.getElementById('items-body').addEventListener('input', function(e) {
+    if (e.target.classList.contains('r-search')) {
+        document.querySelector('.r-pid[data-row="'+e.target.dataset.row+'"]').value = '';
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function(){ doSearch(e.target); }, 300);
     }
-    if (t.classList.contains('inp-qty') || t.classList.contains('inp-cost')) {
-        updateTotals();
-    }
+    if (e.target.classList.contains('r-qty') || e.target.classList.contains('r-cost')) recalc();
 });
-
-document.getElementById('items-body').addEventListener('focusout', e => {
-    if (e.target.classList.contains('inp-search')) {
-        setTimeout(closeDropdown, 200);
-    }
+document.getElementById('items-body').addEventListener('focusout', function(e) {
+    if (e.target.classList.contains('r-search')) setTimeout(closeDrop, 200);
 });
-
-document.getElementById('items-body').addEventListener('click', e => {
-    if (e.target.closest('.btn-remove')) {
-        removeRow(e.target.closest('.btn-remove').dataset.row);
-    }
+document.getElementById('items-body').addEventListener('click', function(e) {
+    var btn = e.target.closest('.r-del');
+    if (btn) delRow(btn.dataset.row);
 });
-
 document.getElementById('btn-add-row').addEventListener('click', addRow);
-document.getElementById('tax-percent').addEventListener('input', updateTotals);
+document.getElementById('tax-percent').addEventListener('input', recalc);
+document.addEventListener('click', function(e){ if (!drop.contains(e.target)) closeDrop(); });
 
-/* ── Submit ─────────────────────────────────────────── */
-document.getElementById('btn-submit').addEventListener('click', function() {
-    const errDiv    = document.getElementById('submit-error');
-    const supplierId = document.getElementById('supplier-select').value;
+/* ─── Form submit ────────────────────────── */
+document.getElementById('oc-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var errDiv = document.getElementById('form-error');
+    errDiv.style.display = 'none';
 
-    function showErr(msg) {
+    function err(msg) {
         errDiv.textContent = msg;
-        errDiv.classList.remove('d-none');
+        errDiv.style.display = '';
         errDiv.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
 
-    errDiv.classList.add('d-none');
+    var supplierId = document.getElementById('supplier-select').value;
+    if (!supplierId) { err('Seleccioná un proveedor.'); return; }
 
-    if (!supplierId) {
-        showErr('Seleccioná un proveedor.');
-        return;
-    }
+    var rows = document.querySelectorAll('#items-body tr');
+    if (!rows.length) { err('Agregá al menos un producto.'); return; }
 
-    const rows = document.querySelectorAll('#items-body tr');
-    if (rows.length === 0) {
-        showErr('Agregá al menos un producto.');
-        return;
-    }
-
-    const items = [];
-    let errMsg = '';
-    rows.forEach((tr, idx) => {
-        const productId = tr.querySelector('.inp-product-id').value;
-        const qty       = parseFloat(tr.querySelector('.inp-qty').value);
-        const cost      = parseFloat(tr.querySelector('.inp-cost').value);
-        const saleRaw   = tr.querySelector('.inp-sale').value;
-
-        if (!productId) { errMsg = `Fila ${idx+1}: seleccioná un producto de la lista.`; return; }
-        if (!qty || qty < 1) { errMsg = `Fila ${idx+1}: cantidad debe ser ≥ 1.`; return; }
-        if (!cost || cost <= 0) { errMsg = `Fila ${idx+1}: ingresá el costo unitario.`; return; }
-
+    var items = [];
+    var rowErr = '';
+    rows.forEach(function(tr, i) {
+        if (rowErr) return;
+        var pid  = tr.querySelector('.r-pid').value;
+        var qty  = parseFloat(tr.querySelector('.r-qty').value);
+        var cost = parseFloat(tr.querySelector('.r-cost').value);
+        var sale = tr.querySelector('.r-sale').value;
+        if (!pid)            { rowErr = 'Fila '+(i+1)+': elegí un producto del buscador.'; return; }
+        if (!qty || qty < 1) { rowErr = 'Fila '+(i+1)+': la cantidad debe ser mayor a 0.'; return; }
+        if (!cost || cost<=0){ rowErr = 'Fila '+(i+1)+': ingresá el costo unitario.'; return; }
         items.push({
-            product_id: parseInt(productId),
-            quantity: qty,
-            unit_cost: cost,
-            sale_price: saleRaw ? parseFloat(saleRaw) : null,
+            product_id: parseInt(pid),
+            quantity:   qty,
+            unit_cost:  cost,
+            sale_price: sale ? parseFloat(sale) : null
         });
     });
 
-    if (errMsg) { showErr(errMsg); return; }
-    if (items.length === 0) { showErr('Agregá al menos un producto.'); return; }
+    if (rowErr) { err(rowErr); return; }
+    if (!items.length) { err('Agregá al menos un producto válido.'); return; }
 
-    this.disabled = true;
-    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+    var payload = {
+        supplier_id: parseInt(supplierId),
+        order_date:  document.getElementById('order-date').value || null,
+        tax_percent: parseFloat(document.getElementById('tax-percent').value) || 0,
+        notes:       document.getElementById('order-notes').value,
+        items:       items
+    };
 
-    fetch(CREATE_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-        body: JSON.stringify({
-            supplier_id: parseInt(supplierId),
-            order_date:  document.getElementById('order-date').value || null,
-            tax_percent: parseFloat(document.getElementById('tax-percent').value) || 0,
-            notes:       document.getElementById('order-notes').value,
-            items,
-        })
-    })
-    .then(r => {
-        if (!r.ok && r.status !== 400) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-    })
-    .then(data => {
-        if (data.success) {
-            window.location.href = LIST_URL;
-        } else {
-            showErr(data.error || 'Error al guardar.');
-            this.disabled = false;
-            this.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
-        }
-    })
-    .catch(err => {
-        showErr('Error de conexión: ' + err.message);
-        this.disabled = false;
-        this.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
-    });
+    document.getElementById('order-data-field').value = JSON.stringify(payload);
+    this.submit(); // native submit — no fetch
 });
-
-// Close dropdown on scroll / click outside
-document.addEventListener('click', e => {
-    if (!acDropdown.contains(e.target)) closeDropdown();
-});
-document.addEventListener('scroll', closeDropdown, true);
 </script>
 {% endblock %}

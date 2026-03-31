@@ -145,10 +145,20 @@ def purchase_list(request):
 def purchase_create(request):
     """Create a new purchase order with items in one step (JSON POST)."""
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-        except (json.JSONDecodeError, AttributeError):
-            return JsonResponse({'error': 'JSON inválido'}, status=400)
+        # Accept both JSON (fetch) and form POST (hidden field)
+        content_type = request.content_type or ''
+        if 'application/json' in content_type:
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, AttributeError):
+                return JsonResponse({'error': 'JSON inválido'}, status=400)
+        else:
+            raw = request.POST.get('order_data', '')
+            try:
+                data = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                messages.error(request, 'Error procesando el formulario.')
+                return redirect('purchase:purchase_create')
 
         supplier_id = data.get('supplier_id')
         order_date = data.get('order_date') or None
@@ -156,10 +166,17 @@ def purchase_create(request):
         notes = data.get('notes', '')
         items = data.get('items', [])
 
+        error = None
         if not supplier_id:
-            return JsonResponse({'error': 'Proveedor requerido'}, status=400)
-        if not items:
-            return JsonResponse({'error': 'Agregá al menos un producto'}, status=400)
+            error = 'Seleccioná un proveedor.'
+        elif not items:
+            error = 'Agregá al menos un producto.'
+
+        if error:
+            if 'application/json' in content_type:
+                return JsonResponse({'error': error}, status=400)
+            messages.error(request, error)
+            return redirect('purchase:purchase_create')
 
         try:
             with transaction.atomic():
@@ -186,7 +203,7 @@ def purchase_create(request):
                     sale_price = Decimal(str(sale_price_val)) if sale_price_val else None
 
                     if not product_id or quantity < 1 or unit_cost <= 0:
-                        raise ValueError(f'Datos inválidos en fila: {row}')
+                        raise ValueError(f'Datos inválidos: producto={product_id} qty={quantity} cost={unit_cost}')
 
                     item_subtotal = unit_cost * quantity
                     PurchaseItem.objects.create(
@@ -206,16 +223,21 @@ def purchase_create(request):
                 purchase.save()
 
         except ValueError as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            if 'application/json' in content_type:
+                return JsonResponse({'error': str(e)}, status=400)
+            messages.error(request, str(e))
+            return redirect('purchase:purchase_create')
 
-        return JsonResponse({'success': True, 'pk': purchase.pk, 'order_number': purchase.order_number})
+        if 'application/json' in content_type:
+            return JsonResponse({'success': True, 'pk': purchase.pk, 'order_number': purchase.order_number})
+
+        messages.success(request, f'Orden {purchase.order_number} creada exitosamente.')
+        return redirect('purchase:purchase_list')
 
     # GET: render form
     suppliers = Supplier.objects.filter(is_active=True).order_by('name')
-    products = Product.objects.filter(is_active=True).order_by('name')
     return render(request, 'purchase/purchase_form.html', {
         'suppliers': suppliers,
-        'products': products,
         'title': 'Nueva Orden de Compra',
     })
 
