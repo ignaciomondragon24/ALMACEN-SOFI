@@ -527,6 +527,100 @@ class StockMovement(models.Model):
         return f'{self.get_movement_type_display()} - {self.product.name} ({self.quantity})'
 
 
+class StockBatch(models.Model):
+    """
+    Lote de compra individual para cualquier producto.
+    Cada ingreso de stock (compra, ajuste de entrada) puede generar un batch.
+    Se consume por FIFO (el más antiguo primero).
+    """
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='batches',
+        verbose_name='Producto'
+    )
+    purchase = models.ForeignKey(
+        'purchase.Purchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stock_batches',
+        verbose_name='Compra'
+    )
+    supplier_name = models.CharField(
+        'Proveedor',
+        max_length=200,
+        blank=True,
+    )
+    quantity_purchased = models.DecimalField(
+        'Cantidad Comprada',
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+    quantity_remaining = models.DecimalField(
+        'Cantidad Restante',
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0'))]
+    )
+    purchase_price = models.DecimalField(
+        'Costo Unitario',
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0'))]
+    )
+    purchased_at = models.DateTimeField(
+        'Fecha de Compra',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='created_stock_batches',
+        verbose_name='Creado por'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField('Notas', blank=True)
+
+    class Meta:
+        verbose_name = 'Lote de Stock'
+        verbose_name_plural = 'Lotes de Stock'
+        ordering = ['purchased_at', 'created_at']  # FIFO order
+
+    def __str__(self):
+        return f'Lote {self.pk} - {self.product.name} ({self.quantity_remaining}/{self.quantity_purchased})'
+
+    @property
+    def is_depleted(self):
+        return self.quantity_remaining <= 0
+
+    @property
+    def total_cost(self):
+        return self.quantity_purchased * self.purchase_price
+
+    @property
+    def remaining_cost(self):
+        """Costo del stock restante en este lote."""
+        return self.quantity_remaining * self.purchase_price
+
+    @property
+    def unit_cost(self):
+        """Alias para compatibilidad con código granel existente."""
+        return self.purchase_price
+
+    @unit_cost.setter
+    def unit_cost(self, value):
+        self.purchase_price = value
+
+    @property
+    def margin_if_sold_at_list(self):
+        """Margen porcentual si se vendiera al precio de lista del producto."""
+        if self.purchase_price and self.purchase_price > 0 and self.product.sale_price:
+            return ((self.product.sale_price - self.purchase_price) / self.purchase_price * 100).quantize(Decimal('0.01'))
+        return None
+
+
 class ProductPresentation(models.Model):
     """Product presentation (different packaging).
     # TODO: evaluar consolidación con ProductPackaging tipo 'unit'.

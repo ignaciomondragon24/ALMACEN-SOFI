@@ -5,11 +5,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Q, F
+from django.db import models
+from django.db.models import Q, F, Sum
 from django.core.paginator import Paginator
 from decimal import Decimal, InvalidOperation
 
-from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, ProductPackaging
+from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, StockBatch, ProductPackaging
 from .forms import ProductForm, CategoryForm, UnitForm, StockAdjustmentForm, ProductPackagingForm
 from .services import StockManagementService, BarcodeService
 from decorators.decorators import group_required
@@ -294,10 +295,12 @@ def product_detail(request, pk):
     """Product detail view."""
     product = get_object_or_404(Product, pk=pk)
     movements = product.stock_movements.order_by('-created_at')[:20]
-    
+    active_batches = product.batches.filter(quantity_remaining__gt=0).order_by('-purchased_at')[:5]
+
     return render(request, 'stocks/product_detail.html', {
         'product': product,
-        'movements': movements
+        'movements': movements,
+        'active_batches': active_batches,
     })
 
 
@@ -311,7 +314,9 @@ def stock_adjust(request, pk):
         new_quantity = request.POST.get('new_quantity')
         reason = request.POST.get('reason', '')
         notes = request.POST.get('notes', '')
-        
+        batch_purchase_price = request.POST.get('purchase_price', '')
+        batch_supplier = request.POST.get('supplier_name', '')
+
         # Mapear motivos a texto legible
         reason_map = {
             'conteo_fisico': 'Conteo Físico / Inventario',
@@ -323,22 +328,38 @@ def stock_adjust(request, pk):
             'consumo_interno': 'Consumo Interno',
             'otro': 'Otro',
         }
-        
+
         reason_text = reason_map.get(reason, reason)
         if notes:
             reason_text = f"{reason_text}: {notes}"
-        
+
         try:
             from decimal import Decimal
             new_quantity = Decimal(new_quantity)
-            
+            old_quantity = product.current_stock
+            diff = new_quantity - old_quantity
+
             StockManagementService.adjust_stock(
                 product=product,
                 new_quantity=new_quantity,
                 reason=reason_text,
                 user=request.user
             )
-            
+
+            # Create StockBatch for entry adjustments (stock increase)
+            if diff > 0 and batch_purchase_price:
+                from django.utils import timezone as tz
+                StockBatch.objects.create(
+                    product=product,
+                    supplier_name=batch_supplier or '',
+                    quantity_purchased=diff,
+                    quantity_remaining=diff,
+                    purchase_price=Decimal(batch_purchase_price),
+                    purchased_at=tz.now(),
+                    created_by=request.user,
+                    notes=f'Ajuste de stock: {reason_text}',
+                )
+
             messages.success(request, f'Stock de "{product.name}" ajustado correctamente.')
             return redirect('stocks:product_detail', pk=pk)
         except Exception as e:
@@ -400,6 +421,75 @@ def product_movement_list(request, pk=None):
         'date_from': date_from,
         'date_to': date_to,
         'movement_types': StockMovement.MOVEMENT_TYPES,
+    })
+
+
+@login_required
+@group_required(['Admin', 'Cajero Manager'])
+def batch_history(request, pk=None):
+    """
+    Historial de lotes de compra.
+    Si pk tiene valor, filtra por producto. Si no, muestra todos.
+    """
+    from django.db.models import Sum
+
+    product = None
+    batches = StockBatch.objects.select_related('product', 'created_by', 'purchase').all()
+
+    if pk:
+        product = get_object_or_404(Product, pk=pk)
+        batches = batches.filter(product=product)
+
+    # Filters
+    search = request.GET.get('search', '')
+    show_depleted = request.GET.get('depleted', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    if search and not pk:
+        batches = batches.filter(
+            Q(product__name__icontains=search) |
+            Q(product__sku__icontains=search) |
+            Q(supplier_name__icontains=search)
+        )
+
+    if not show_depleted:
+        batches = batches.filter(quantity_remaining__gt=0)
+
+    if date_from:
+        batches = batches.filter(purchased_at__date__gte=date_from)
+
+    if date_to:
+        batches = batches.filter(purchased_at__date__lte=date_to)
+
+    # Summary metrics
+    active_batches = batches.filter(quantity_remaining__gt=0)
+    agg = active_batches.aggregate(
+        total_invested=Sum(
+            F('quantity_purchased') * F('purchase_price'),
+            output_field=models.DecimalField()
+        ),
+        total_remaining_cost=Sum(
+            F('quantity_remaining') * F('purchase_price'),
+            output_field=models.DecimalField()
+        ),
+    )
+    total_invested = agg['total_invested'] or Decimal('0')
+    total_remaining_cost = agg['total_remaining_cost'] or Decimal('0')
+
+    paginator = Paginator(batches, 50)
+    page = request.GET.get('page', 1)
+    batches_page = paginator.get_page(page)
+
+    return render(request, 'stocks/batch_history.html', {
+        'batches': batches_page,
+        'product': product,
+        'search': search,
+        'show_depleted': show_depleted,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_invested': total_invested,
+        'total_remaining_cost': total_remaining_cost,
     })
 
 

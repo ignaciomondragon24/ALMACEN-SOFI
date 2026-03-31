@@ -24,6 +24,10 @@ urlpatterns = [
     path('movements/', views.product_movement_list, name='movement_list'),
     path('<int:pk>/movements/', views.product_movement_list, name='product_movements'),
 
+    # Batches
+    path('batches/', views.batch_history, name='batch_history'),
+    path('<int:pk>/batches/', views.batch_history, name='product_batches'),
+
     # Reports
     path('low-stock/', views.low_stock_products, name='low_stock'),
     path('price-list/', views.price_list, name='price_list'),

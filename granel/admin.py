@@ -5,7 +5,7 @@ from .models import StockBatch, BulkToGranelTransfer, ShrinkageAudit
 @admin.register(StockBatch)
 class StockBatchAdmin(admin.ModelAdmin):
     list_display = ('product', 'supplier_name', 'quantity_purchased', 'quantity_remaining',
-                    'unit_cost', 'purchased_at')
+                    'purchase_price', 'purchased_at')
     list_filter = ('product', 'purchased_at')
     search_fields = ('product__name', 'supplier_name')
     readonly_fields = ('created_at',)

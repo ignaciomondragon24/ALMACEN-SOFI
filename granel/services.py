@@ -178,7 +178,7 @@ class BatchService:
             supplier_name=supplier_name,
             quantity_purchased=Decimal(str(quantity)),
             quantity_remaining=Decimal(str(quantity)),
-            unit_cost=Decimal(str(unit_cost)),
+            purchase_price=Decimal(str(unit_cost)),
             purchased_at=purchased_at,
             created_by=user,
             notes=notes,

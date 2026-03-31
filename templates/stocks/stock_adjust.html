@@ -101,6 +101,31 @@
                             <textarea class="form-control" id="id_notes" name="notes" rows="3" placeholder="Detalles adicionales del ajuste..."></textarea>
                         </div>
 
+                        <!-- Batch cost fields (shown only when stock increases) -->
+                        <div id="batch-fields" style="display: none;">
+                            <hr>
+                            <h6 class="text-muted mb-3">
+                                <i class="fas fa-layer-group me-1"></i>Datos del Lote (opcional)
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_purchase_price" class="form-label">Costo Unitario</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="id_purchase_price"
+                                               name="purchase_price" step="0.01" min="0"
+                                               placeholder="Precio por unidad">
+                                    </div>
+                                    <small class="text-muted">Si se completa, se registra un lote de compra</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="id_supplier_name" class="form-label">Proveedor</label>
+                                    <input type="text" class="form-control" id="id_supplier_name"
+                                           name="supplier_name" placeholder="Nombre del proveedor">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Preview -->
                         <div class="alert alert-info" id="preview-alert" style="display: none;">
                             <div class="d-flex justify-content-between align-items-center">
@@ -137,20 +162,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const previewAlert = document.getElementById('preview-alert');
     const diffValue = document.getElementById('diff-value');
     const finalValue = document.getElementById('final-value');
+    const batchFields = document.getElementById('batch-fields');
 
     function updatePreview() {
         const newQuantity = parseFloat(quantityInput.value) || 0;
         const difference = newQuantity - currentStock;
-        
+
+        // Show batch fields only when stock increases
+        batchFields.style.display = difference > 0 ? 'block' : 'none';
+
         if (newQuantity !== currentStock) {
             previewAlert.style.display = 'block';
-            
+
             if (difference > 0) {
                 diffValue.innerHTML = `<span class="text-success">+${difference.toFixed(2)}</span>`;
             } else {
                 diffValue.innerHTML = `<span class="text-danger">${difference.toFixed(2)}</span>`;
             }
-            
+
             finalValue.textContent = newQuantity.toFixed(2);
         } else {
             previewAlert.style.display = 'none';

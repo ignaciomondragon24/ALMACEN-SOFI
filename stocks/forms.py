@@ -86,7 +86,7 @@ class UnitForm(forms.ModelForm):
 
 class StockAdjustmentForm(forms.Form):
     """Form for stock adjustments."""
-    
+
     new_quantity = forms.DecimalField(
         label='Nueva Cantidad',
         min_value=Decimal('0'),
@@ -97,6 +97,27 @@ class StockAdjustmentForm(forms.Form):
         label='Motivo del Ajuste',
         max_length=500,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3})
+    )
+    purchase_price = forms.DecimalField(
+        label='Costo Unitario de Compra',
+        min_value=Decimal('0'),
+        decimal_places=2,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0',
+            'placeholder': 'Precio por unidad'
+        })
+    )
+    supplier_name = forms.CharField(
+        label='Proveedor',
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Nombre del proveedor'
+        })
     )
 
 
