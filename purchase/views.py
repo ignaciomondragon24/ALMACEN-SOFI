@@ -374,6 +374,7 @@ def api_search_products(request):
         'name': p.name,
         'barcode': p.barcode or '',
         'cost_price': str(p.cost_price),
+        'sale_price': str(p.sale_price),
     } for p in products]
     
     return JsonResponse({'results': results})
