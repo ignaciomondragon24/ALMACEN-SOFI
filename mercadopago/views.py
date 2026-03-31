@@ -754,8 +754,7 @@ def complete_pos_transaction(payment_intent):
                     transaction=pos_transaction,
                     payment_method=mp_method,
                     amount=payment_intent.amount,
-                    reference=payment_intent.mp_payment_id,
-                    details=f"Tarjeta: {payment_intent.card_brand} ****{payment_intent.card_last_four}"
+                    reference=f"MP:{payment_intent.mp_payment_id} {payment_intent.card_brand} ****{payment_intent.card_last_four}".strip(),
                 )
                 
                 # Registrar movimiento de caja

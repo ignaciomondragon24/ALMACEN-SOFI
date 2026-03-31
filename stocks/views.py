@@ -335,30 +335,33 @@ def stock_adjust(request, pk):
 
         try:
             from decimal import Decimal
+            from django.db import transaction
+            from django.utils import timezone as tz
+
             new_quantity = Decimal(new_quantity)
             old_quantity = product.current_stock
             diff = new_quantity - old_quantity
 
-            StockManagementService.adjust_stock(
-                product=product,
-                new_quantity=new_quantity,
-                reason=reason_text,
-                user=request.user
-            )
-
-            # Create StockBatch for entry adjustments (stock increase)
-            if diff > 0 and batch_purchase_price:
-                from django.utils import timezone as tz
-                StockBatch.objects.create(
+            with transaction.atomic():
+                StockManagementService.adjust_stock(
                     product=product,
-                    supplier_name=batch_supplier or '',
-                    quantity_purchased=diff,
-                    quantity_remaining=diff,
-                    purchase_price=Decimal(batch_purchase_price),
-                    purchased_at=tz.now(),
-                    created_by=request.user,
-                    notes=f'Ajuste de stock: {reason_text}',
+                    new_quantity=new_quantity,
+                    reason=reason_text,
+                    user=request.user
                 )
+
+                # Create StockBatch for entry adjustments (stock increase)
+                if diff > 0 and batch_purchase_price:
+                    StockBatch.objects.create(
+                        product=product,
+                        supplier_name=batch_supplier or '',
+                        quantity_purchased=diff,
+                        quantity_remaining=diff,
+                        purchase_price=Decimal(batch_purchase_price),
+                        purchased_at=tz.now(),
+                        created_by=request.user,
+                        notes=f'Ajuste de stock: {reason_text}',
+                    )
 
             messages.success(request, f'Stock de "{product.name}" ajustado correctamente.')
             return redirect('stocks:product_detail', pk=pk)
@@ -426,12 +429,12 @@ def product_movement_list(request, pk=None):
 
 @login_required
 @group_required(['Admin', 'Cajero Manager'])
-def batch_history(request, pk=None):
+def cost_history(request, pk=None):
     """
-    Historial de lotes de compra.
+    Historial de costos de compra — tracking de márgenes por proveedor.
     Si pk tiene valor, filtra por producto. Si no, muestra todos.
     """
-    from django.db.models import Sum
+    from django.db.models import Sum, Avg, Min, Max, Count
 
     product = None
     batches = StockBatch.objects.select_related('product', 'created_by', 'purchase').all()
@@ -442,6 +445,7 @@ def batch_history(request, pk=None):
 
     # Filters
     search = request.GET.get('search', '')
+    supplier = request.GET.get('supplier', '')
     show_depleted = request.GET.get('depleted', '')
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
@@ -453,6 +457,9 @@ def batch_history(request, pk=None):
             Q(supplier_name__icontains=search)
         )
 
+    if supplier:
+        batches = batches.filter(supplier_name__icontains=supplier)
+
     if not show_depleted:
         batches = batches.filter(quantity_remaining__gt=0)
 
@@ -462,9 +469,9 @@ def batch_history(request, pk=None):
     if date_to:
         batches = batches.filter(purchased_at__date__lte=date_to)
 
-    # Summary metrics
-    active_batches = batches.filter(quantity_remaining__gt=0)
-    agg = active_batches.aggregate(
+    # Summary metrics (only active stock)
+    active_qs = batches.filter(quantity_remaining__gt=0)
+    agg = active_qs.aggregate(
         total_invested=Sum(
             F('quantity_purchased') * F('purchase_price'),
             output_field=models.DecimalField()
@@ -473,23 +480,79 @@ def batch_history(request, pk=None):
             F('quantity_remaining') * F('purchase_price'),
             output_field=models.DecimalField()
         ),
+        total_remaining_qty=Sum('quantity_remaining'),
+        avg_purchase_price=Avg('purchase_price'),
+        min_purchase_price=Min('purchase_price'),
+        max_purchase_price=Max('purchase_price'),
+        entry_count=Count('id'),
     )
     total_invested = agg['total_invested'] or Decimal('0')
     total_remaining_cost = agg['total_remaining_cost'] or Decimal('0')
+    total_remaining_qty = agg['total_remaining_qty'] or Decimal('0')
+    avg_purchase_price = agg['avg_purchase_price'] or Decimal('0')
+    min_purchase_price = agg['min_purchase_price'] or Decimal('0')
+    max_purchase_price = agg['max_purchase_price'] or Decimal('0')
+    entry_count = agg['entry_count'] or 0
+
+    # Weighted average purchase price (more accurate than simple avg)
+    if total_remaining_qty > 0:
+        weighted_avg_cost = (total_remaining_cost / total_remaining_qty).quantize(Decimal('0.01'))
+    else:
+        weighted_avg_cost = Decimal('0')
+
+    # Potential revenue if all remaining stock sold at current list price
+    potential_revenue = Decimal('0')
+    if product and product.sale_price:
+        potential_revenue = total_remaining_qty * product.sale_price
+    potential_profit = potential_revenue - total_remaining_cost
+
+    # Per-supplier breakdown (for the filtered product if pk, else all)
+    supplier_stats = (
+        active_qs
+        .values('supplier_name')
+        .annotate(
+            qty=Sum('quantity_remaining'),
+            total_cost=Sum(F('quantity_remaining') * F('purchase_price'), output_field=models.DecimalField()),
+            avg_cost=Avg('purchase_price'),
+            min_cost=Min('purchase_price'),
+            max_cost=Max('purchase_price'),
+            entries=Count('id'),
+        )
+        .order_by('-total_cost')
+    )
+
+    # Available supplier names for filter dropdown
+    all_suppliers = (
+        StockBatch.objects
+        .exclude(supplier_name='')
+        .values_list('supplier_name', flat=True)
+        .distinct()
+        .order_by('supplier_name')
+    )
 
     paginator = Paginator(batches, 50)
     page = request.GET.get('page', 1)
     batches_page = paginator.get_page(page)
 
-    return render(request, 'stocks/batch_history.html', {
+    return render(request, 'stocks/cost_history.html', {
         'batches': batches_page,
         'product': product,
         'search': search,
+        'supplier': supplier,
         'show_depleted': show_depleted,
         'date_from': date_from,
         'date_to': date_to,
         'total_invested': total_invested,
         'total_remaining_cost': total_remaining_cost,
+        'total_remaining_qty': total_remaining_qty,
+        'weighted_avg_cost': weighted_avg_cost,
+        'min_purchase_price': min_purchase_price,
+        'max_purchase_price': max_purchase_price,
+        'entry_count': entry_count,
+        'potential_revenue': potential_revenue,
+        'potential_profit': potential_profit,
+        'supplier_stats': supplier_stats,
+        'all_suppliers': all_suppliers,
     })
 
 

@@ -620,6 +620,22 @@ class StockBatch(models.Model):
             return ((self.product.sale_price - self.purchase_price) / self.purchase_price * 100).quantize(Decimal('0.01'))
         return None
 
+    @property
+    def profit_per_unit(self):
+        """Ganancia por unidad vs precio de venta."""
+        if self.purchase_price and self.product.sale_price:
+            diff = self.product.sale_price - self.purchase_price
+            return diff.quantize(Decimal('0.01')) if diff >= 0 else Decimal('0')
+        return Decimal('0')
+
+    @property
+    def loss_per_unit(self):
+        """Pérdida por unidad vs precio de venta."""
+        if self.purchase_price and self.product.sale_price:
+            diff = self.purchase_price - self.product.sale_price
+            return diff.quantize(Decimal('0.01')) if diff > 0 else Decimal('0')
+        return Decimal('0')
+
 
 class ProductPresentation(models.Model):
     """Product presentation (different packaging).

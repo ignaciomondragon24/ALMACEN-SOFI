@@ -24,9 +24,9 @@ urlpatterns = [
     path('movements/', views.product_movement_list, name='movement_list'),
     path('<int:pk>/movements/', views.product_movement_list, name='product_movements'),
 
-    # Batches
-    path('batches/', views.batch_history, name='batch_history'),
-    path('<int:pk>/batches/', views.batch_history, name='product_batches'),
+    # Cost History
+    path('costos/', views.cost_history, name='cost_history'),
+    path('<int:pk>/costos/', views.cost_history, name='product_costs'),
 
     # Reports
     path('low-stock/', views.low_stock_products, name='low_stock'),
