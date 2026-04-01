@@ -462,6 +462,36 @@ class PurchaseConfirmationStockTest(TestCase):
         self.assertIsNotNone(movement)
         self.assertEqual(movement.quantity, Decimal('8'))
 
+    def test_create_purchase_via_json_fetch(self):
+        """El frontend usa fetch+JSON para crear OC — debe retornar success:True."""
+        product = self._make_product(name='Prod JSON')
+        c = Client()
+        c.login(username='admin_purchase', password='pass123')
+
+        import json
+        payload = {
+            'supplier_id': self.supplier.pk,
+            'order_date': '2026-04-01',
+            'tax_percent': 21,
+            'notes': 'Test fetch',
+            'items': [{'product_id': product.pk, 'quantity': 3, 'unit_cost': 150, 'sale_price': None}]
+        }
+        resp = c.post(
+            reverse('purchase:purchase_create'),
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get('success'), f'No success en respuesta: {data}')
+        self.assertIn('order_number', data)
+
+        # Verificar que la compra existe en DB
+        from purchase.models import Purchase
+        oc = Purchase.objects.get(pk=data['pk'])
+        self.assertEqual(oc.supplier, self.supplier)
+        self.assertEqual(oc.items.count(), 1)
+
     def test_cannot_receive_same_purchase_twice(self):
         """Una compra ya recibida no se puede recibir de nuevo."""
         product = self._make_product(stock=0)

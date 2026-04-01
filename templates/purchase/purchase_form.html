@@ -393,12 +393,15 @@ document.addEventListener('click', function(e){ if (!drop.contains(e.target)) cl
 document.getElementById('oc-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var errDiv = document.getElementById('form-error');
+    var submitBtn = document.querySelector('#oc-form button[type=submit]');
     errDiv.style.display = 'none';
 
     function err(msg) {
         errDiv.textContent = msg;
         errDiv.style.display = '';
         errDiv.scrollIntoView({behavior:'smooth', block:'nearest'});
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
     }
 
     var supplierId = document.getElementById('supplier-select').value;
@@ -437,8 +440,33 @@ document.getElementById('oc-form').addEventListener('submit', function(e) {
         items:       items
     };
 
-    document.getElementById('order-data-field').value = JSON.stringify(payload);
-    this.submit(); // native submit — no fetch
+    // Deshabilitar botón mientras procesa
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando…';
+
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch(window.location.pathname, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) {
+        if (!r.ok) return r.json().then(function(d){ throw new Error(d.error || 'Error del servidor'); });
+        return r.json();
+    })
+    .then(function(data) {
+        if (data.success) {
+            window.location.href = '{% url "purchase:purchase_list" %}';
+        } else {
+            err(data.error || 'Error al crear la orden');
+        }
+    })
+    .catch(function(e) {
+        err(e.message || 'Error de conexión. Intentá de nuevo.');
+    });
 });
 </script>
 {% endblock %}
