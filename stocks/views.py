@@ -351,17 +351,23 @@ def stock_adjust(request, pk):
                 )
 
                 # Create StockBatch for entry adjustments (stock increase)
-                if diff > 0 and batch_purchase_price:
+                if diff > 0:
+                    cost = Decimal(batch_purchase_price) if batch_purchase_price else product.cost_price
                     StockBatch.objects.create(
                         product=product,
                         supplier_name=batch_supplier or '',
                         quantity_purchased=diff,
                         quantity_remaining=diff,
-                        purchase_price=Decimal(batch_purchase_price),
+                        purchase_price=cost,
                         purchased_at=tz.now(),
                         created_by=request.user,
                         notes=f'Ajuste de stock: {reason_text}',
                     )
+
+                # FIFO deduction for stock decreases
+                if diff < 0:
+                    from granel.services import BatchService
+                    BatchService.deduct_fifo(product.pk, abs(diff))
 
             messages.success(request, f'Stock de "{product.name}" ajustado correctamente.')
             return redirect('stocks:product_detail', pk=pk)
