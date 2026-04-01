@@ -378,19 +378,29 @@ def purchase_detail(request, pk):
 @login_required
 @group_required(['Admin'])
 def api_search_products(request):
-    """API to search products for purchase form."""
+    """API to search products for purchase form. Supports exact barcode lookup."""
     query = request.GET.get('q', '')
-    
+    is_barcode_scan = request.GET.get('barcode') == '1'
+
     if len(query) < 2:
         return JsonResponse({'results': []})
-    
-    products = Product.objects.filter(
-        Q(name__icontains=query) |
-        Q(barcode__icontains=query) |
-        Q(sku__icontains=query),
-        is_active=True
-    )[:20]
-    
+
+    if is_barcode_scan:
+        # Exact barcode match first, then fallback to contains
+        products = list(Product.objects.filter(barcode=query, is_active=True)[:1])
+        if not products:
+            products = list(Product.objects.filter(
+                Q(barcode__icontains=query) | Q(sku__icontains=query) | Q(name__icontains=query),
+                is_active=True
+            )[:10])
+    else:
+        products = list(Product.objects.filter(
+            Q(name__icontains=query) |
+            Q(barcode__icontains=query) |
+            Q(sku__icontains=query),
+            is_active=True
+        )[:20])
+
     results = [{
         'id': p.id,
         'name': p.name,
@@ -398,5 +408,5 @@ def api_search_products(request):
         'cost_price': str(p.cost_price),
         'sale_price': str(p.sale_price),
     } for p in products]
-    
+
     return JsonResponse({'results': results})

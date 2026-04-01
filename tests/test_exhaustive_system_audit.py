@@ -500,10 +500,10 @@ class PermissionAudit(ExhaustiveBaseTestCase):
         self.assertIn(resp.status_code, [302, 403])
 
     def test_cashier_cannot_adjust_stock(self):
-        """Cajero no puede ajustar stock (solo Admin/Manager)."""
+        """Cajero no puede hacer conteo físico (solo Admin/Manager)."""
         prod = self.make_product()
         c = self.login_as(self.cashier)
-        resp = c.get(reverse('stocks:stock_adjust', args=[prod.pk]))
+        resp = c.get(reverse('stocks:inventory_count', args=[prod.pk]))
         self.assertIn(resp.status_code, [302, 403])
 
     def test_cashier_cannot_access_expenses(self):

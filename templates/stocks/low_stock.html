@@ -86,8 +86,8 @@
                                 {{ product.sale_price|currency }}
                             </td>
                             <td class="text-center">
-                                <a href="{% url 'stocks:stock_adjust' product.pk %}" class="btn btn-sm btn-primary" title="Ajustar Stock">
-                                    <i class="fas fa-plus"></i>
+                                <a href="{% url 'purchase:purchase_create' %}" class="btn btn-sm btn-primary" title="Nueva Orden de Compra">
+                                    <i class="fas fa-cart-plus"></i>
                                 </a>
                                 <a href="{% url 'stocks:product_detail' product.pk %}" class="btn btn-sm btn-outline-secondary" title="Ver Detalle">
                                     <i class="fas fa-eye"></i>

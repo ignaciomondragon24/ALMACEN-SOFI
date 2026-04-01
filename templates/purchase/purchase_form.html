@@ -93,9 +93,17 @@
                 <div class="card shadow-sm">
                     <div class="card-header d-flex justify-content-between align-items-center" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
                         <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Productos</h6>
-                        <button type="button" id="btn-add-row" class="btn btn-sm btn-light">
-                            <i class="fas fa-plus me-1"></i>Agregar fila
-                        </button>
+                        <div class="d-flex gap-2">
+                            <div class="input-group input-group-sm" style="width:220px;" title="Escanear código de barras">
+                                <span class="input-group-text bg-light border-0"><i class="fas fa-barcode"></i></span>
+                                <input type="text" id="barcode-scan-input" class="form-control form-control-sm"
+                                       placeholder="Escanear código…" autocomplete="off"
+                                       inputmode="numeric" style="font-size:.85rem;">
+                            </div>
+                            <button type="button" id="btn-add-row" class="btn btn-sm btn-light">
+                                <i class="fas fa-plus me-1"></i>Agregar fila
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -115,7 +123,7 @@
                         </div>
                         <div id="no-rows-msg" class="text-center text-muted py-4">
                             <i class="fas fa-box-open fa-2x mb-2 d-block opacity-50"></i>
-                            Usá <strong>Agregar fila</strong> para sumar productos
+                            Escaneá un código de barras o usá <strong>Agregar fila</strong> para sumar productos
                         </div>
                     </div>
                 </div>
@@ -270,6 +278,116 @@ document.getElementById('items-body').addEventListener('click', function(e) {
 document.getElementById('btn-add-row').addEventListener('click', addRow);
 document.getElementById('tax-percent').addEventListener('input', recalc);
 document.addEventListener('click', function(e){ if (!drop.contains(e.target)) closeDrop(); });
+
+/* ─── Barcode Scanner ─────────────────────── */
+(function() {
+    const scanInput = document.getElementById('barcode-scan-input');
+    let scanTimer = null;
+    let lastKeyTime = 0;
+    const SCANNER_SPEED_MS = 50; // keystrokes faster than 50ms = scanner
+
+    scanInput.addEventListener('keydown', function(e) {
+        const now = Date.now();
+        const delta = now - lastKeyTime;
+        lastKeyTime = now;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const code = scanInput.value.trim();
+            if (code.length >= 2) processBarcode(code);
+            scanInput.value = '';
+            return;
+        }
+
+        // If typing slowly (manual) just leave it as-is
+        // If scanner speed, set timer to auto-process after pause
+        if (delta < SCANNER_SPEED_MS) {
+            clearTimeout(scanTimer);
+            scanTimer = setTimeout(function() {
+                const code = scanInput.value.trim();
+                if (code.length >= 6) {
+                    processBarcode(code);
+                    scanInput.value = '';
+                }
+            }, 120);
+        }
+    });
+
+    function processBarcode(code) {
+        // Search by exact barcode
+        fetch(SEARCH_URL + '?q=' + encodeURIComponent(code) + '&barcode=1')
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                const results = d.results || [];
+                if (!results.length) {
+                    flashScanInput('danger', 'Código no encontrado: ' + code);
+                    return;
+                }
+                // Find exact match first, fallback to first result
+                const exact = results.find(function(p){ return p.barcode === code; }) || results[0];
+                addRowForProduct(exact);
+                flashScanInput('success', exact.name + ' agregado');
+            })
+            .catch(function(){ flashScanInput('danger', 'Error de conexión'); });
+    }
+
+    function addRowForProduct(product) {
+        // Check if product already exists in a row
+        var existingRow = null;
+        document.querySelectorAll('#items-body tr').forEach(function(tr) {
+            if (tr.querySelector('.r-pid').value == product.id) {
+                existingRow = tr;
+            }
+        });
+
+        if (existingRow) {
+            // Increment quantity
+            var qtyInput = existingRow.querySelector('.r-qty');
+            qtyInput.value = (parseFloat(qtyInput.value) || 0) + 1;
+            recalc();
+            existingRow.classList.add('table-success');
+            setTimeout(function(){ existingRow.classList.remove('table-success'); }, 800);
+            return;
+        }
+
+        // New row
+        var id = ++rowCount;
+        rowProducts[id] = product;
+        var tr = document.createElement('tr');
+        tr.id = 'r' + id;
+        tr.innerHTML =
+            '<td>' +
+                '<input class="form-control form-control-sm r-search" data-row="'+id+'" value="'+product.name+'" autocomplete="off">' +
+                '<input type="hidden" class="r-pid" data-row="'+id+'" value="'+product.id+'">' +
+                '<small class="r-pname text-muted" data-row="'+id+'"></small>' +
+            '</td>' +
+            '<td><input class="form-control form-control-sm r-qty" data-row="'+id+'" type="number" min="1" step="1" value="1"></td>' +
+            '<td><input class="form-control form-control-sm r-cost" data-row="'+id+'" type="number" min="0" step="0.01" value="'+(parseFloat(product.cost_price)||'')+'"></td>' +
+            '<td><input class="form-control form-control-sm r-sale" data-row="'+id+'" type="number" min="0" step="0.01" value="'+(parseFloat(product.sale_price)||'')+'"></td>' +
+            '<td class="text-end align-middle r-sub" data-row="'+id+'">$0</td>' +
+            '<td class="align-middle">' +
+                '<button type="button" class="btn btn-sm btn-outline-danger py-0 r-del" data-row="'+id+'">'+
+                    '<i class="fas fa-trash"></i>' +
+                '</button>' +
+            '</td>';
+        document.getElementById('items-body').appendChild(tr);
+        document.getElementById('no-rows-msg').style.display = 'none';
+        recalc();
+
+        tr.classList.add('table-success');
+        setTimeout(function(){ tr.classList.remove('table-success'); }, 800);
+    }
+
+    function flashScanInput(type, msg) {
+        scanInput.classList.remove('is-valid','is-invalid');
+        scanInput.classList.add(type === 'success' ? 'is-valid' : 'is-invalid');
+        scanInput.placeholder = msg;
+        setTimeout(function(){
+            scanInput.classList.remove('is-valid','is-invalid');
+            scanInput.placeholder = 'Escanear código…';
+        }, 2000);
+    }
+})();
 
 /* ─── Form submit ────────────────────────── */
 document.getElementById('oc-form').addEventListener('submit', function(e) {

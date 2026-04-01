@@ -306,18 +306,15 @@ def product_detail(request, pk):
 
 @login_required
 @group_required(['Admin', 'Cajero Manager'])
-def stock_adjust(request, pk):
-    """Adjust product stock."""
+def inventory_count(request, pk):
+    """Conteo físico de inventario — corrección de stock con motivo y registro de auditoría."""
     product = get_object_or_404(Product, pk=pk)
-    
+
     if request.method == 'POST':
         new_quantity = request.POST.get('new_quantity')
         reason = request.POST.get('reason', '')
         notes = request.POST.get('notes', '')
-        batch_purchase_price = request.POST.get('purchase_price', '')
-        batch_supplier = request.POST.get('supplier_name', '')
 
-        # Mapear motivos a texto legible
         reason_map = {
             'conteo_fisico': 'Conteo Físico / Inventario',
             'mercaderia_danada': 'Mercadería Dañada',
@@ -335,14 +332,14 @@ def stock_adjust(request, pk):
 
         try:
             from decimal import Decimal
-            from django.db import transaction
+            from django.db import transaction as db_transaction
             from django.utils import timezone as tz
 
             new_quantity = Decimal(new_quantity)
             old_quantity = product.current_stock
             diff = new_quantity - old_quantity
 
-            with transaction.atomic():
+            with db_transaction.atomic():
                 StockManagementService.adjust_stock(
                     product=product,
                     new_quantity=new_quantity,
@@ -350,33 +347,19 @@ def stock_adjust(request, pk):
                     user=request.user
                 )
 
-                # Create StockBatch for entry adjustments (stock increase)
-                if diff > 0:
-                    cost = Decimal(batch_purchase_price) if batch_purchase_price else product.cost_price
-                    StockBatch.objects.create(
-                        product=product,
-                        supplier_name=batch_supplier or '',
-                        quantity_purchased=diff,
-                        quantity_remaining=diff,
-                        purchase_price=cost,
-                        purchased_at=tz.now(),
-                        created_by=request.user,
-                        notes=f'Ajuste de stock: {reason_text}',
-                    )
-
-                # FIFO deduction for stock decreases
+                # FIFO deduction for stock decreases (merma, daño, robo, etc.)
                 if diff < 0:
                     from granel.services import BatchService
                     BatchService.deduct_fifo(product.pk, abs(diff))
 
-            messages.success(request, f'Stock de "{product.name}" ajustado correctamente.')
+            messages.success(request, f'Conteo físico de "{product.name}" registrado correctamente.')
             return redirect('stocks:product_detail', pk=pk)
         except Exception as e:
-            messages.error(request, f'Error al ajustar stock: {str(e)}')
-    
+            messages.error(request, f'Error al registrar conteo: {str(e)}')
+
     form = StockAdjustmentForm(initial={'new_quantity': product.current_stock})
-    
-    return render(request, 'stocks/stock_adjust.html', {
+
+    return render(request, 'stocks/inventory_count.html', {
         'form': form,
         'product': product
     })

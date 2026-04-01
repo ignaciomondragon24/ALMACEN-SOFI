@@ -115,10 +115,10 @@
                                        title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="{% url 'stocks:stock_adjust' product.pk %}" 
+                                    <a href="{% url 'stocks:inventory_count' product.pk %}"
                                        class="btn btn-outline-warning"
-                                       title="Ajustar Stock">
-                                        <i class="fas fa-boxes"></i>
+                                       title="Conteo Físico">
+                                        <i class="fas fa-clipboard-check"></i>
                                     </a>
                                     <a href="{% url 'stocks:product_delete' product.pk %}" 
                                        class="btn btn-outline-danger"

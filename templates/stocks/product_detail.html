@@ -25,8 +25,8 @@
             <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
-            <a href="{% url 'stocks:stock_adjust' product.pk %}" class="btn btn-info">
-                <i class="fas fa-boxes me-1"></i> Ajustar Stock
+            <a href="{% url 'stocks:inventory_count' product.pk %}" class="btn btn-info">
+                <i class="fas fa-boxes me-1"></i> Conteo Físico
             </a>
         </div>
     </div>
@@ -297,8 +297,8 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{% url 'stocks:stock_adjust' product.pk %}" class="btn btn-outline-primary">
-                            <i class="fas fa-plus-minus me-2"></i>Ajustar Stock
+                        <a href="{% url 'stocks:inventory_count' product.pk %}" class="btn btn-outline-primary">
+                            <i class="fas fa-plus-minus me-2"></i>Conteo Físico
                         </a>
                         <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-outline-warning">
                             <i class="fas fa-edit me-2"></i>Editar Producto

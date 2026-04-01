@@ -352,7 +352,8 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock with cascade (packaging-aware)
+        # Deduct stock with cascade (packaging-aware) and consume FIFO batches
+        from granel.services import BatchService
         for item in pos_transaction.items.all():
             units_to_deduct = item.quantity * item.packaging_units
             pkg_note = ''
@@ -372,7 +373,8 @@ class CheckoutService:
                     reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
                     reference_id=pos_transaction.id
                 )
-        
+            BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+
         # Complete transaction
         pos_transaction.status = 'completed'
         pos_transaction.completed_at = timezone.now()
@@ -543,7 +545,8 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock with cascade (packaging-aware)
+        # Deduct stock with cascade (packaging-aware) and consume FIFO batches
+        from granel.services import BatchService
         for item in pos_transaction.items.all():
             units_to_deduct = item.quantity * item.packaging_units
             if item.product.packagings.filter(is_active=True).exists():
@@ -560,7 +563,8 @@ class CheckoutService:
                     reference=f'Venta al costo {pos_transaction.ticket_number}',
                     reference_id=pos_transaction.id
                 )
-        
+            BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+
         # Complete transaction
         pos_transaction.transaction_type = 'cost_sale'
         pos_transaction.status = 'completed'
@@ -617,7 +621,8 @@ class CheckoutService:
             item.save()
             total_cost += item.subtotal
         
-        # Deduct stock with cascade (packaging-aware)
+        # Deduct stock with cascade (packaging-aware) and consume FIFO batches
+        from granel.services import BatchService
         for item in pos_transaction.items.all():
             units_to_deduct = item.quantity * item.packaging_units
             if item.product.packagings.filter(is_active=True).exists():
@@ -634,6 +639,7 @@ class CheckoutService:
                     reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
                     reference_id=pos_transaction.id
                 )
+            BatchService.deduct_fifo(item.product.pk, units_to_deduct)
         
         # Complete transaction with zero payment
         pos_transaction.transaction_type = 'internal_consumption'
