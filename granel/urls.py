@@ -17,4 +17,10 @@ urlpatterns = [
     path('api/audit/', views.api_audit, name='api_audit'),
     path('api/bulk-products/', views.api_bulk_products, name='api_bulk_products'),
     path('api/quick-transfer/<int:component_id>/', views.api_quick_transfer, name='api_quick_transfer'),
+    # Caramelera create/edit
+    path('carameleras/', views.caramelera_list, name='caramelera_list'),
+    path('carameleras/create/', views.caramelera_create, name='caramelera_create'),
+    path('carameleras/<int:pk>/edit/', views.caramelera_edit, name='caramelera_edit'),
+    path('api/caramelera/save/', views.api_caramelera_save, name='api_caramelera_save'),
+    path('api/caramelera/<int:pk>/save/', views.api_caramelera_save, name='api_caramelera_save_edit'),
 ]

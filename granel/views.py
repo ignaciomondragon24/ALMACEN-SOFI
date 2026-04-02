@@ -354,3 +354,143 @@ def api_bulk_products(request):
             for p in bulk_products
         ]
     })
+
+
+# ======================== Caramelera Create / Edit ========================
+
+@login_required
+@stock_manager_required
+def caramelera_list(request):
+    """Lista de carameleras activas."""
+    carameleras = (
+        Product.objects.filter(is_active=True, is_granel=True)
+        .prefetch_related('components__bulk_product')
+        .order_by('name')
+    )
+    return render(request, 'granel/caramelera_list.html', {'carameleras': carameleras})
+
+
+@login_required
+@stock_manager_required
+def caramelera_create(request):
+    """Formulario para crear una nueva caramelera."""
+    bulk_products = Product.objects.filter(
+        is_active=True, weight_per_unit_grams__gt=0
+    ).order_by('name')
+    return render(request, 'granel/caramelera_form.html', {
+        'title': 'Nueva Caramelera',
+        'bulk_products': bulk_products,
+        'caramelera': None,
+        'components_json': '[]',
+    })
+
+
+@login_required
+@stock_manager_required
+def caramelera_edit(request, pk):
+    """Formulario para editar una caramelera existente."""
+    import json as _json
+    caramelera = get_object_or_404(Product, pk=pk, is_granel=True)
+    components = list(
+        CarameleraComponent.objects.filter(caramelera=caramelera)
+        .select_related('bulk_product')
+    )
+    bulk_products = Product.objects.filter(
+        is_active=True, weight_per_unit_grams__gt=0
+    ).order_by('name')
+
+    components_data = []
+    for c in components:
+        cpg = 0
+        if c.bulk_product.weight_per_unit_grams:
+            cpg = float(c.bulk_product.cost_price / c.bulk_product.weight_per_unit_grams)
+        components_data.append({
+            'product_id': c.bulk_product_id,
+            'name': c.bulk_product.name,
+            'proportion_grams': float(c.proportion_grams),
+            'cost_per_gram': cpg,
+        })
+
+    return render(request, 'granel/caramelera_form.html', {
+        'title': f'Editar {caramelera.name}',
+        'bulk_products': bulk_products,
+        'caramelera': caramelera,
+        'components_json': _json.dumps(components_data),
+    })
+
+
+@login_required
+@stock_manager_required
+@require_POST
+def api_caramelera_save(request, pk=None):
+    """API: crear o actualizar una caramelera con sus componentes."""
+    from django.db import transaction as db_transaction
+    try:
+        data = json.loads(request.body)
+        name = (data.get('name') or '').strip()
+        sale_price_100g = Decimal(str(data.get('sale_price_100g', '0')))
+        sale_price_250g = Decimal(str(data.get('sale_price_250g', '0')))
+        rows = data.get('rows', [])
+
+        if not name:
+            return JsonResponse({'error': 'El nombre es obligatorio.'}, status=400)
+        if sale_price_100g <= 0:
+            return JsonResponse({'error': 'El precio por 100g debe ser mayor a 0.'}, status=400)
+        if not rows:
+            return JsonResponse({'error': 'Agregá al menos un producto.'}, status=400)
+
+        validated = []
+        total_grams = Decimal('0')
+        total_cost = Decimal('0')
+        for row in rows:
+            pid = row.get('product_id')
+            grams = Decimal(str(row.get('proportion_grams', '0')))
+            if not pid or grams <= 0:
+                return JsonResponse(
+                    {'error': 'Cada fila necesita producto y gramos > 0.'}, status=400
+                )
+            try:
+                p = Product.objects.get(pk=pid, is_active=True, weight_per_unit_grams__gt=0)
+            except Product.DoesNotExist:
+                return JsonResponse({'error': f'Producto {pid} no válido.'}, status=400)
+            cpg = p.cost_price / p.weight_per_unit_grams
+            validated.append({'product': p, 'grams': grams, 'cpg': cpg})
+            total_grams += grams
+            total_cost += grams * cpg
+
+        weighted_cpg = (total_cost / total_grams).quantize(Decimal('0.0001'))
+
+        with db_transaction.atomic():
+            if pk:
+                caramelera = get_object_or_404(Product, pk=pk, is_granel=True)
+            else:
+                base = 'GRAM-' + ''.join(
+                    c for c in name.upper() if c.isalnum() or c == ' '
+                ).replace(' ', '-')[:12]
+                sku = base
+                i = 1
+                while Product.objects.filter(sku=sku).exists():
+                    sku = f'{base}-{i}'
+                    i += 1
+                caramelera = Product(sku=sku, is_granel=True, granel_price_weight_grams=100)
+
+            caramelera.name = name
+            caramelera.sale_price = sale_price_100g
+            caramelera.sale_price_250g = sale_price_250g
+            caramelera.weighted_avg_cost_per_gram = weighted_cpg
+            caramelera.cost_price = (weighted_cpg * 100).quantize(Decimal('0.01'))
+            caramelera.is_active = True
+            caramelera.save()
+
+            CarameleraComponent.objects.filter(caramelera=caramelera).delete()
+            for r in validated:
+                CarameleraComponent.objects.create(
+                    caramelera=caramelera,
+                    bulk_product=r['product'],
+                    proportion_grams=r['grams'],
+                )
+
+        return JsonResponse({'success': True, 'pk': caramelera.pk, 'name': caramelera.name})
+
+    except (ValueError, Exception) as e:
+        return JsonResponse({'error': str(e)}, status=400)

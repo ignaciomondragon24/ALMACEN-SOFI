@@ -176,6 +176,13 @@ class Product(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))]
     )
+    sale_price_250g = models.DecimalField(
+        'Precio por 250g',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text='Precio de venta por 250g (1/4 kg)'
+    )
     cost_price = models.DecimalField(
         'Costo Promedio',
         max_digits=10,

@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-candy-cane me-2" style="color:var(--che-primary,#E91E8C);"></i>{{ title }}
+        </h1>
+        <a href="{% url 'granel:caramelera_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+
+    <div id="error-box" class="alert alert-danger alert-permanent d-none" role="alert"></div>
+
+    <div class="row g-4">
+        <!-- Left column: basic data + live cost summary -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <i class="fas fa-tag me-1"></i> Datos de la Caramelera
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+                        <input type="text" id="input-name" class="form-control"
+                               placeholder="Ej: Gomitas Surtidas"
+                               value="{{ caramelera.name|default:'' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Precio de venta por 100g <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="input-price-100" class="form-control"
+                                   step="0.01" min="0" placeholder="2500"
+                                   value="{{ caramelera.sale_price|default:'' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Precio de venta por 250g</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="input-price-250" class="form-control"
+                                   step="0.01" min="0" placeholder="Auto (2.5x)"
+                                   value="{{ caramelera.sale_price_250g|default:'' }}">
+                        </div>
+                        <div class="form-text">Se calcula automaticamente como 2.5 x precio/100g. Podés editarlo.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live cost summary -->
+            <div class="card shadow-sm mt-3">
+                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <i class="fas fa-calculator me-1"></i> Costos (calculado en tiempo real)
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td class="text-muted">Costo ponderado por gramo</td>
+                            <td class="text-end fw-bold" id="display-cpg">-</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Costo por 100g</td>
+                            <td class="text-end fw-bold" id="display-cost100">-</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Costo por 250g</td>
+                            <td class="text-end fw-bold" id="display-cost250">-</td>
+                        </tr>
+                        <tr class="table-success">
+                            <td class="text-muted">Margen sobre 100g</td>
+                            <td class="text-end fw-bold" id="display-margin">-</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-4 d-grid">
+                <button type="button" id="btn-save-caramelera" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-1"></i>
+                    {% if caramelera %}Guardar Cambios{% else %}Crear Caramelera{% endif %}
+                </button>
+            </div>
+        </div>
+
+        <!-- Right column: product rows -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center"
+                     style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <span><i class="fas fa-boxes me-1"></i> Productos Bulto (receta)</span>
+                    <button type="button" id="btn-add-row" class="btn btn-sm btn-light">
+                        <i class="fas fa-plus me-1"></i>Agregar fila
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0" id="rows-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="min-width:200px;">Producto</th>
+                                <th style="width:110px;">Gramos</th>
+                                <th style="width:110px;" class="text-end">Costo/g</th>
+                                <th style="width:110px;" class="text-end">Subtotal</th>
+                                <th style="width:50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rows-body">
+                            <!-- rows inserted by JS -->
+                        </tbody>
+                    </table>
+                    <div id="rows-empty" class="text-center text-muted py-4 d-none">
+                        <i class="fas fa-plus-circle me-1"></i>Agrega productos con el boton de arriba.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Build product lookup: id -> {name, cpg}
+const PRODUCTS = {};
+{% for p in bulk_products %}
+PRODUCTS["{{ p.pk }}"] = {
+    name: "{{ p.name|escapejs }}",
+    cpg: {% if p.weight_per_unit_grams > 0 %}{{ p.cost_price }} / {{ p.weight_per_unit_grams }}{% else %}0{% endif %}
+};
+{% endfor %}
+
+// Pre-existing components (for edit mode)
+const INITIAL_ROWS = {{ components_json|safe }};
+
+// ---- Row management ----
+let rowIndex = 0;
+
+function buildProductOptions(selectedId) {
+    let html = '<option value="">-- Seleccionar --</option>';
+    Object.entries(PRODUCTS).forEach(([id, p]) => {
+        const sel = String(id) === String(selectedId) ? 'selected' : '';
+        html += `<option value="${id}" ${sel}>${p.name}</option>`;
+    });
+    return html;
+}
+
+function addRow(productId, grams) {
+    const idx = rowIndex++;
+    const tr = document.createElement('tr');
+    tr.dataset.idx = idx;
+
+    const cpg = productId && PRODUCTS[productId] ? PRODUCTS[productId].cpg : 0;
+    const subtotal = grams && cpg ? (parseFloat(grams) * cpg) : 0;
+
+    tr.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm row-product" data-idx="${idx}">
+                ${buildProductOptions(productId)}
+            </select>
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm row-grams" data-idx="${idx}"
+                   step="0.01" min="0" value="${grams || ''}">
+        </td>
+        <td class="text-end">
+            <span class="row-cpg text-muted small" data-idx="${idx}">
+                ${cpg > 0 ? '$' + cpg.toFixed(4) + '/g' : '-'}
+            </span>
+        </td>
+        <td class="text-end">
+            <span class="row-subtotal" data-idx="${idx}">
+                ${subtotal > 0 ? '$' + subtotal.toFixed(2) : '-'}
+            </span>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-remove" data-idx="${idx}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    document.getElementById('rows-body').appendChild(tr);
+    checkEmptyState();
+    recalculate();
+
+    // Events
+    tr.querySelector('.row-product').addEventListener('change', onProductChange);
+    tr.querySelector('.row-grams').addEventListener('input', onGramsChange);
+    tr.querySelector('.btn-remove').addEventListener('click', function() {
+        tr.remove();
+        checkEmptyState();
+        recalculate();
+    });
+}
+
+function checkEmptyState() {
+    const empty = document.getElementById('rows-body').children.length === 0;
+    document.getElementById('rows-empty').classList.toggle('d-none', !empty);
+}
+
+function onProductChange(e) {
+    const idx = e.target.dataset.idx;
+    const pid = e.target.value;
+    const cpg = pid && PRODUCTS[pid] ? PRODUCTS[pid].cpg : 0;
+    document.querySelector(`.row-cpg[data-idx="${idx}"]`).textContent =
+        cpg > 0 ? '$' + cpg.toFixed(4) + '/g' : '-';
+    updateRowSubtotal(idx, cpg);
+    recalculate();
+}
+
+function onGramsChange(e) {
+    const idx = e.target.dataset.idx;
+    const pid = document.querySelector(`.row-product[data-idx="${idx}"]`).value;
+    const cpg = pid && PRODUCTS[pid] ? PRODUCTS[pid].cpg : 0;
+    updateRowSubtotal(idx, cpg);
+    recalculate();
+}
+
+function updateRowSubtotal(idx, cpg) {
+    const grams = parseFloat(document.querySelector(`.row-grams[data-idx="${idx}"]`).value) || 0;
+    const subtotal = grams * cpg;
+    document.querySelector(`.row-subtotal[data-idx="${idx}"]`).textContent =
+        subtotal > 0 ? '$' + subtotal.toFixed(2) : '-';
+}
+
+function recalculate() {
+    const rows = collectRows();
+    let totalGrams = 0, totalCost = 0;
+    rows.forEach(r => {
+        if (r.cpg > 0 && r.grams > 0) {
+            totalGrams += r.grams;
+            totalCost += r.grams * r.cpg;
+        }
+    });
+
+    const cpg = totalGrams > 0 ? totalCost / totalGrams : 0;
+    const cost100 = cpg * 100;
+    const cost250 = cpg * 250;
+    const price100 = parseFloat(document.getElementById('input-price-100').value) || 0;
+    const margin = (cost100 > 0 && price100 > 0)
+        ? ((price100 - cost100) / cost100 * 100).toFixed(1)
+        : null;
+
+    document.getElementById('display-cpg').textContent = cpg > 0 ? '$' + cpg.toFixed(4) + '/g' : '-';
+    document.getElementById('display-cost100').textContent = cost100 > 0 ? '$' + cost100.toFixed(2) : '-';
+    document.getElementById('display-cost250').textContent = cost250 > 0 ? '$' + cost250.toFixed(2) : '-';
+    document.getElementById('display-margin').textContent = margin !== null ? margin + '%' : '-';
+
+    // Auto-fill 250g price if user hasn't manually set it
+    const p250Input = document.getElementById('input-price-250');
+    if (price100 > 0 && (!p250Input.dataset.manual || p250Input.dataset.manual === 'false')) {
+        p250Input.value = (price100 * 2.5).toFixed(2);
+    }
+}
+
+function collectRows() {
+    const result = [];
+    document.querySelectorAll('#rows-body tr').forEach(tr => {
+        const idx = tr.dataset.idx;
+        const pid = document.querySelector(`.row-product[data-idx="${idx}"]`).value;
+        const grams = parseFloat(document.querySelector(`.row-grams[data-idx="${idx}"]`).value) || 0;
+        const cpg = pid && PRODUCTS[pid] ? PRODUCTS[pid].cpg : 0;
+        result.push({ product_id: pid, proportion_grams: grams, cpg });
+    });
+    return result;
+}
+
+// ---- Price 100g input: auto-update 250g ----
+document.getElementById('input-price-100').addEventListener('input', function() {
+    const p250Input = document.getElementById('input-price-250');
+    if (!p250Input.dataset.manual || p250Input.dataset.manual === 'false') {
+        const v = parseFloat(this.value) || 0;
+        if (v > 0) p250Input.value = (v * 2.5).toFixed(2);
+    }
+    recalculate();
+});
+
+document.getElementById('input-price-250').addEventListener('input', function() {
+    this.dataset.manual = 'true';
+});
+
+// ---- Add row button ----
+document.getElementById('btn-add-row').addEventListener('click', function() {
+    addRow('', '');
+});
+
+// ---- Save button ----
+document.getElementById('btn-save-caramelera').addEventListener('click', function() {
+    const errorBox = document.getElementById('error-box');
+    errorBox.classList.add('d-none');
+    errorBox.textContent = '';
+
+    const name = document.getElementById('input-name').value.trim();
+    const sale_price_100g = parseFloat(document.getElementById('input-price-100').value) || 0;
+    const sale_price_250g = parseFloat(document.getElementById('input-price-250').value) || 0;
+    const rows = collectRows().filter(r => r.product_id && r.proportion_grams > 0);
+
+    // Client-side validation
+    if (!name) {
+        showError('El nombre es obligatorio.');
+        return;
+    }
+    if (sale_price_100g <= 0) {
+        showError('El precio por 100g debe ser mayor a 0.');
+        return;
+    }
+    if (rows.length === 0) {
+        showError('Agrega al menos un producto.');
+        return;
+    }
+
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+
+    const saveUrl = {% if caramelera %}"{% url 'granel:api_caramelera_save_edit' caramelera.pk %}"{% else %}"{% url 'granel:api_caramelera_save' %}"{% endif %};
+
+    const payload = {
+        name,
+        sale_price_100g,
+        sale_price_250g,
+        rows: rows.map(r => ({
+            product_id: parseInt(r.product_id),
+            proportion_grams: r.proportion_grams,
+        }))
+    };
+
+    fetch(saveUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify(payload),
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = "{% url 'granel:caramelera_list' %}";
+        } else {
+            showError(data.error || 'Error desconocido.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-1"></i>{% if caramelera %}Guardar Cambios{% else %}Crear Caramelera{% endif %}';
+        }
+    })
+    .catch(err => {
+        showError('Error de red: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i>{% if caramelera %}Guardar Cambios{% else %}Crear Caramelera{% endif %}';
+    });
+});
+
+function showError(msg) {
+    const box = document.getElementById('error-box');
+    box.textContent = msg;
+    box.classList.remove('d-none');
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function getCsrfToken() {
+    const el = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (el) return el.value;
+    const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1] : '';
+}
+
+// ---- Init: load existing rows ----
+INITIAL_ROWS.forEach(r => addRow(r.product_id, r.proportion_grams));
+if (INITIAL_ROWS.length === 0) checkEmptyState();
+</script>
+{% endblock %}

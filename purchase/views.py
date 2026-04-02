@@ -205,6 +205,9 @@ def purchase_create(request):
                     if not product_id or quantity < 1 or unit_cost <= 0:
                         raise ValueError(f'Datos inválidos: producto={product_id} qty={quantity} cost={unit_cost}')
 
+                    if not Product.objects.filter(pk=product_id, is_active=True).exists():
+                        raise ValueError(f'Producto con id={product_id} no existe o está inactivo.')
+
                     item_subtotal = unit_cost * quantity
                     PurchaseItem.objects.create(
                         purchase=purchase,

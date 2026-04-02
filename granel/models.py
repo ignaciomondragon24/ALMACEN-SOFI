@@ -100,6 +100,12 @@ class CarameleraComponent(models.Model):
         related_name='used_in_carameleras',
         verbose_name='Producto Bulto (gomitas/caramelos)',
     )
+    proportion_grams = models.DecimalField(
+        'Gramos en receta',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0')
+    )
     notes = models.CharField('Notas', max_length=200, blank=True)
     added_at = models.DateTimeField(auto_now_add=True)
 
