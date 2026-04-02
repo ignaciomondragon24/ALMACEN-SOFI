@@ -83,7 +83,7 @@
 
                 <div id="form-error" class="alert alert-danger mt-3" style="display:none;"></div>
 
-                <button type="submit" class="btn w-100 mt-2" style="background:var(--che-primary,#E91E8C);color:#fff;">
+                <button type="button" id="btn-submit-oc" class="btn w-100 mt-2" style="background:var(--che-primary,#E91E8C);color:#fff;">
                     <i class="fas fa-save me-2"></i>Crear Orden de Compra
                 </button>
             </div>
@@ -389,12 +389,10 @@ document.addEventListener('click', function(e){ if (!drop.contains(e.target)) cl
     }
 })();
 
-/* --- Form submit via fetch --- */
-document.getElementById('oc-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-
+/* --- Crear orden --- */
+document.getElementById('btn-submit-oc').addEventListener('click', function() {
     var errDiv    = document.getElementById('form-error');
-    var submitBtn = document.querySelector('#oc-form button[type=submit]');
+    var submitBtn = document.getElementById('btn-submit-oc');
 
     function showErr(msg) {
         errDiv.textContent = msg;
