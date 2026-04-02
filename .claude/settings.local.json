@@ -43,7 +43,8 @@
       "Bash(python manage.py test tests.test_new_flows --verbosity=2)",
       "Bash(python manage.py test tests.test_new_flows.PurchaseConfirmationStockTest --verbosity=2)",
       "Bash(python manage.py test tests.test_new_flows.PurchaseConfirmationStockTest tests.test_new_flows.PurchaseBarcodeSearchTest --verbosity=1)",
-      "Bash(python manage.py test tests.test_new_flows --verbosity=1)"
+      "Bash(python manage.py test tests.test_new_flows --verbosity=1)",
+      "Bash(python manage.py showmigrations purchase)"
     ]
   }
 }

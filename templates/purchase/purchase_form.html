@@ -24,7 +24,7 @@
     <!-- Real form: submits hidden JSON field -->
     <form method="post" id="oc-form">
         {% csrf_token %}
-        <input type="hidden" name="order_data" id="order-data-field">
+
 
         <div class="row g-4">
             <!-- Datos de la orden -->
@@ -389,15 +389,14 @@ document.addEventListener('click', function(e){ if (!drop.contains(e.target)) cl
     }
 })();
 
-/* --- Form submit --- */
+/* --- Form submit via fetch --- */
 document.getElementById('oc-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    var form = e.target;
-    var errDiv = document.getElementById('form-error');
-    var submitBtn = document.querySelector('#oc-form button[type=submit]');
-    errDiv.style.display = 'none';
 
-    function err(msg) {
+    var errDiv    = document.getElementById('form-error');
+    var submitBtn = document.querySelector('#oc-form button[type=submit]');
+
+    function showErr(msg) {
         errDiv.textContent = msg;
         errDiv.style.display = '';
         errDiv.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -405,51 +404,72 @@ document.getElementById('oc-form').addEventListener('submit', function(e) {
         submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
     }
 
-    try {
-        var supplierId = document.getElementById('supplier-select').value;
-        if (!supplierId) { err('Selecciona un proveedor.'); return; }
+    errDiv.style.display = 'none';
 
-        var rows = document.querySelectorAll('#items-body tr');
-        if (!rows.length) { err('Agrega al menos un producto.'); return; }
+    var supplierId = document.getElementById('supplier-select').value;
+    if (!supplierId) { showErr('Selecciona un proveedor.'); return; }
 
-        var items = [];
-        var rowErr = '';
-        rows.forEach(function(tr, i) {
-            if (rowErr) return;
-            var pid  = tr.querySelector('.r-pid').value;
-            var qty  = parseFloat(tr.querySelector('.r-qty').value);
-            var cost = parseFloat(tr.querySelector('.r-cost').value);
-            var sale = tr.querySelector('.r-sale').value;
-            if (!pid)            { rowErr = 'Fila '+(i+1)+': elegi un producto del buscador.'; return; }
-            if (!qty || qty < 1) { rowErr = 'Fila '+(i+1)+': la cantidad debe ser mayor a 0.'; return; }
-            if (!cost || cost<=0){ rowErr = 'Fila '+(i+1)+': ingresa el costo unitario.'; return; }
-            items.push({
-                product_id: parseInt(pid),
-                quantity:   qty,
-                unit_cost:  cost,
-                sale_price: sale ? parseFloat(sale) : null
-            });
+    var rows = document.querySelectorAll('#items-body tr');
+    if (!rows.length) { showErr('Agrega al menos un producto.'); return; }
+
+    var items = [];
+    var rowErr = '';
+    rows.forEach(function(tr, i) {
+        if (rowErr) return;
+        var pid  = tr.querySelector('.r-pid').value;
+        var qty  = parseFloat(tr.querySelector('.r-qty').value);
+        var cost = parseFloat(tr.querySelector('.r-cost').value);
+        var sale = tr.querySelector('.r-sale').value;
+        if (!pid)             { rowErr = 'Fila '+(i+1)+': elegí un producto del buscador.'; return; }
+        if (!qty || qty < 1)  { rowErr = 'Fila '+(i+1)+': la cantidad debe ser mayor a 0.'; return; }
+        if (!cost || cost<=0) { rowErr = 'Fila '+(i+1)+': ingresá el costo unitario.'; return; }
+        items.push({
+            product_id: parseInt(pid),
+            quantity:   qty,
+            unit_cost:  cost,
+            sale_price: sale ? parseFloat(sale) : null
         });
+    });
 
-        if (rowErr) { err(rowErr); return; }
-        if (!items.length) { err('Agrega al menos un producto valido.'); return; }
+    if (rowErr) { showErr(rowErr); return; }
+    if (!items.length) { showErr('Agrega al menos un producto válido.'); return; }
 
-        var payload = {
-            supplier_id: parseInt(supplierId),
-            order_date:  document.getElementById('order-date').value || null,
-            tax_percent: parseFloat(document.getElementById('tax-percent').value) || 0,
-            notes:       document.getElementById('order-notes').value,
-            items:       items
-        };
+    var payload = {
+        supplier_id: parseInt(supplierId),
+        order_date:  document.getElementById('order-date').value || null,
+        tax_percent: parseFloat(document.getElementById('tax-percent').value) || 0,
+        notes:       document.getElementById('order-notes').value,
+        items:       items
+    };
 
-        document.getElementById('order-data-field').value = JSON.stringify(payload);
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
-        form.submit();
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
 
-    } catch (ex) {
-        err('Error inesperado: ' + ex.message);
-    }
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(resp) {
+        return resp.json().then(function(data) {
+            return { ok: resp.ok, data: data };
+        });
+    })
+    .then(function(result) {
+        if (result.ok && result.data.success) {
+            window.location.href = '{% url "purchase:purchase_list" %}';
+        } else {
+            showErr(result.data.error || 'Error al crear la orden.');
+        }
+    })
+    .catch(function(ex) {
+        showErr('Error de conexión: ' + ex.message);
+    });
 });
 </script>
 {% endblock %}
