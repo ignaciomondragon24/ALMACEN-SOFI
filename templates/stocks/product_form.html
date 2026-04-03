@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load crispy_forms_tags %}
+{% load crispy_forms_tags currency_filters %}
 
 {% block title %}{{ title }} - CHE GOLOSO{% endblock %}
 
@@ -104,9 +104,9 @@
                                     <label for="id_cost_price" class="form-label">Precio de Costo *</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
-                                        <input type="number" name="cost_price" id="id_cost_price" 
-                                               class="form-control text-end{% if form.cost_price.errors %} is-invalid{% endif %}" step="0.01" min="0"
-                                               value="{{ form.cost_price.value|default:'0.00' }}" required>
+                                        <input type="number" name="cost_price" id="id_cost_price"
+                                               class="form-control text-end{% if form.cost_price.errors %} is-invalid{% endif %}" step="1" min="0"
+                                               value="{{ form.cost_price.value|unlocalize|default:'0' }}" required>
                                     </div>
                                     {% if form.cost_price.errors %}<div class="text-danger small">{{ form.cost_price.errors.0 }}</div>{% endif %}
                                 </div>
@@ -127,9 +127,9 @@
                                     <label for="id_sale_price" class="form-label">Precio de Venta *</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
-                                        <input type="number" name="sale_price" id="id_sale_price" 
-                                               class="form-control text-end" step="0.01" min="0"
-                                               value="{{ form.sale_price.value|default:'0.00' }}" required>
+                                        <input type="number" name="sale_price" id="id_sale_price"
+                                               class="form-control text-end" step="1" min="0"
+                                               value="{{ form.sale_price.value|unlocalize|default:'0' }}" required>
                                     </div>
                                 </div>
                             </div>
@@ -142,29 +142,29 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label for="id_current_stock" class="form-label">Stock Actual</label>
-                                    <input type="number" name="current_stock" id="id_current_stock" 
-                                           class="form-control text-end" step="0.001" min="0"
-                                           value="{{ form.current_stock.value|default:'0' }}"
+                                    <input type="number" name="current_stock" id="id_current_stock"
+                                           class="form-control text-end" step="1" min="0"
+                                           value="{{ form.current_stock.value|unlocalize|default:'0' }}"
                                            {% if product %}readonly{% endif %}>
                                     {% if product %}
-                                    <small class="text-muted">Use "Ajustar Stock" para modificar</small>
+                                    <small class="text-muted">Usá "Conteo Físico" para modificar</small>
                                     {% endif %}
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label for="id_min_stock" class="form-label">Stock Mínimo</label>
-                                    <input type="number" name="min_stock" id="id_min_stock" 
-                                           class="form-control text-end" step="0.001" min="0"
-                                           value="{{ form.min_stock.value|default:'5' }}">
+                                    <input type="number" name="min_stock" id="id_min_stock"
+                                           class="form-control text-end" step="1" min="0"
+                                           value="{{ form.min_stock.value|unlocalize|default:'0' }}">
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label for="id_max_stock" class="form-label">Stock Máximo</label>
-                                    <input type="number" name="max_stock" id="id_max_stock" 
-                                           class="form-control text-end" step="0.001" min="0"
-                                           value="{{ form.max_stock.value|default:'100' }}">
+                                    <input type="number" name="max_stock" id="id_max_stock"
+                                           class="form-control text-end" step="1" min="0"
+                                           value="{{ form.max_stock.value|unlocalize|default:'' }}">
                                 </div>
                             </div>
                         </div>
@@ -250,37 +250,21 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-check mb-3">
-                                    <input type="checkbox" name="is_active" id="id_is_active" 
+                                    <input type="checkbox" name="is_active" id="id_is_active"
                                            class="form-check-input" value="true"
                                            {% if form.is_active.value != False %}checked{% endif %}>
                                     <label class="form-check-label" for="id_is_active">
                                         Producto Activo
                                     </label>
                                 </div>
+                            </div>
+                            <div class="col-md-6">
                                 <div class="form-check mb-3">
-                                    <input type="checkbox" name="is_quick_access" id="id_is_quick_access" 
+                                    <input type="checkbox" name="is_quick_access" id="id_is_quick_access"
                                            class="form-check-input" value="true"
                                            {% if form.is_quick_access.value %}checked{% endif %}>
                                     <label class="form-check-label" for="id_is_quick_access">
                                         Mostrar en Acceso Rápido (POS)
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check mb-3">
-                                    <input type="checkbox" name="track_stock" id="id_track_stock" 
-                                           class="form-check-input" value="true"
-                                           {% if form.track_stock.value != False %}checked{% endif %}>
-                                    <label class="form-check-label" for="id_track_stock">
-                                        Controlar Stock
-                                    </label>
-                                </div>
-                                <div class="form-check mb-3">
-                                    <input type="checkbox" name="allow_decimal_quantity" id="id_allow_decimal" 
-                                           class="form-check-input" value="true"
-                                           {% if form.allow_decimal_quantity.value %}checked{% endif %}>
-                                    <label class="form-check-label" for="id_allow_decimal">
-                                        Permitir Cantidades Decimales
                                     </label>
                                 </div>
                             </div>

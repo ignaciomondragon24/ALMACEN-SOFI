@@ -239,13 +239,18 @@ Para productos que vienen en distintas presentaciones (ej: un chicle que viene e
 4. Guardar como borrador
 
 ### Recibir compra
-1. Abrir la orden de compra
-2. Click en **Recibir**
-3. El sistema:
+1. Abrir la orden de compra (o desde la lista, click en **Recibir** directo)
+2. Revisar el detalle de productos y cantidades
+3. Click en **Confirmar Recepcion**
+4. El sistema automaticamente:
    - Actualiza el stock de cada producto
-   - Calcula el costo promedio ponderado
-   - Registra los movimientos de stock
-4. La orden pasa a estado "Recibida"
+   - Calcula el costo promedio ponderado (costo FIFO)
+   - Crea un lote de stock para historial de precios por proveedor
+   - Registra un gasto en la categoria **Proveedores**
+5. La orden pasa a estado "Recibida"
+
+
+
 
 ### Proveedores
 **Compras > Proveedores** - Crear y gestionar proveedores con datos de contacto.
