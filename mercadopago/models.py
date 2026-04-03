@@ -120,12 +120,6 @@ class PointDevice(models.Model):
         default='PDV',
         help_text='PDV = Integrado con sistema'
     )
-    external_pos_id = models.CharField(
-        'External POS ID',
-        max_length=100,
-        blank=True,
-        help_text='ID externo para QR dinámico (se genera automáticamente)'
-    )
     last_sync = models.DateTimeField(
         'Última Sincronización',
         null=True,
@@ -141,12 +135,6 @@ class PointDevice(models.Model):
     
     def __str__(self):
         return f"{self.device_name or self.device_id} - {self.cash_register or 'Sin asignar'}"
-
-    def save(self, *args, **kwargs):
-        # Generar external_pos_id automáticamente si no existe
-        if not self.external_pos_id:
-            self.external_pos_id = f"POS-{self.device_id[-8:]}"
-        super().save(*args, **kwargs)
 
 
 class PaymentIntent(models.Model):

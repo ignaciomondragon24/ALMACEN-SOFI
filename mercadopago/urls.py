@@ -26,7 +26,6 @@ urlpatterns = [
     
     # API para POS
     path('api/create-intent/', views.api_create_payment_intent, name='api_create_intent'),
-    path('api/create-qr/', views.api_create_qr_order, name='api_create_qr'),
     path('api/status/<uuid:intent_id>/', views.api_check_payment_status, name='api_check_status'),
     path('api/cancel/<uuid:intent_id>/', views.api_cancel_payment, name='api_cancel'),
     

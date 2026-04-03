@@ -1980,7 +1980,7 @@
             const selectedCard = cards[selIdx];
             if (selectedCard && confirmBtn && !confirmBtn.disabled) {
                 if (selectedCard.dataset.methodCode === 'mercadopago') {
-                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>GENERAR QR';
+                    confirmBtn.innerHTML = '<i class="fas fa-mobile-alt me-2"></i>COBRAR CON POINT';
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
                 }
@@ -2073,102 +2073,27 @@
             }
         }
 
-        // ── MercadoPago QR Display ──────────────────────────────────────────
-        function showMpQrOverlay(qrData, amount) {
-            // Remove existing QR overlay if any
-            const existingQr = document.getElementById('mp-qr-display');
-            if (existingQr) existingQr.remove();
-
-            const qrContainer = document.createElement('div');
-            qrContainer.id = 'mp-qr-display';
-            qrContainer.style.cssText = `
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: white;
-                padding: 30px;
-                border-radius: 20px;
-                box-shadow: 0 10px 50px rgba(0,0,0,0.5);
-                z-index: 10001;
-                text-align: center;
-                min-width: 350px;
-            `;
-
-            qrContainer.innerHTML = `
-                <div style="margin-bottom: 15px;">
-                    <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png"
-                         alt="Mercado Pago" style="height: 40px;">
-                </div>
-                <div style="font-size: 1.5rem; font-weight: bold; color: #009ee3; margin-bottom: 10px;">
-                    ${formatCurrency(amount)}
-                </div>
-                <div id="qr-code-canvas" style="display: inline-block; padding: 15px; background: white; border-radius: 10px;"></div>
-                <div style="margin-top: 15px; color: #666; font-size: 0.9rem;">
-                    <i class="fas fa-mobile-alt me-2"></i>Escaneá con la app de Mercado Pago
-                </div>
-                <div style="margin-top: 10px; color: #999; font-size: 0.8rem;">
-                    <i class="fas fa-spinner fa-spin me-1"></i>Esperando pago...
-                </div>
-            `;
-
-            // Add to body
-            document.body.appendChild(qrContainer);
-
-            // Generate QR code using QRCode library (loaded dynamically)
-            if (typeof QRCode === 'undefined') {
-                // Load QRCode.js dynamically
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-                script.onload = () => generateQr(qrData);
-                document.head.appendChild(script);
-            } else {
-                generateQr(qrData);
-            }
-
-            function generateQr(data) {
-                const canvas = document.createElement('canvas');
-                document.getElementById('qr-code-canvas').appendChild(canvas);
-                QRCode.toCanvas(canvas, data, {
-                    width: 280,
-                    margin: 2,
-                    color: { dark: '#000000', light: '#ffffff' }
-                }, (error) => {
-                    if (error) console.error('QR generation error:', error);
-                });
-            }
-        }
-
-        function hideMpQrOverlay() {
-            const qr = document.getElementById('mp-qr-display');
-            if (qr) qr.remove();
-        }
-
-        // ── MercadoPago QR flow within Fast Checkout ──────────────────────
+        // ── MercadoPago Point flow within Fast Checkout ──────────────────────
         async function handleFcoMercadoPago(amount, methodId) {
-            // 1. Create QR order
-            const intentResp = await fetch('/mercadopago/api/create-qr/', {
+            // 1. Create payment intent → send to Point device
+            const intentResp = await fetch('/mercadopago/api/create-intent/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
                 body: JSON.stringify({
                     amount: amount,
-                    transaction_id: TRANSACTION_ID,
-                    title: `Venta CHE GOLOSO - ${cart.itemCount} items`
+                    transaction_id: TRANSACTION_ID
                 })
             });
             const intentData = await intentResp.json();
             if (!intentData.success) {
-                throw new Error(intentData.error || 'Error al generar QR');
+                throw new Error(intentData.error || 'Error al enviar a Point');
             }
 
             const paymentIntentId = intentData.payment_intent?.id;
-            const qrData = intentData.qr_data;
             if (!paymentIntentId) throw new Error('No se recibió ID de pago');
 
-            // Show QR in overlay
-            showMpQrOverlay(qrData, amount);
-            showToast('QR generado. El cliente debe escanearlo con la app de Mercado Pago.', 'info');
-            confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Esperando pago...';
+            showToast('Pago enviado al Point. Esperando pago del cliente...', 'info');
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Esperando Point...';
 
             // 2. Poll for payment status
             const maxAttempts = 90;  // 3 minutes
@@ -2177,7 +2102,6 @@
 
                 // Check if overlay was closed (user cancelled)
                 if (!fcoActive) {
-                    hideMpQrOverlay();
                     // Try to cancel the intent
                     fetch(`/mercadopago/api/cancel/${paymentIntentId}/`, {
                         method: 'POST',
@@ -2191,8 +2115,7 @@
                     const statusData = await statusResp.json();
 
                     if (statusData.status === 'approved') {
-                        // Payment approved → complete the transaction
-                        hideMpQrOverlay();
+                        // Payment approved by Point → complete the transaction
                         confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Aprobado! Finalizando...';
                         showToast('¡Pago con MercadoPago aprobado!', 'success');
 
@@ -2219,11 +2142,10 @@
                     }
 
                     if (statusData.status === 'rejected' || statusData.status === 'cancelled' || statusData.status === 'error') {
-                        hideMpQrOverlay();
                         throw new Error(
-                            statusData.status === 'rejected' ? 'Pago rechazado' :
+                            statusData.status === 'rejected' ? 'Pago rechazado en Point' :
                             statusData.status === 'cancelled' ? 'Pago cancelado' :
-                            'Error en el pago'
+                            'Error en el Point'
                         );
                     }
                     // Still processing — continue polling
@@ -2235,8 +2157,7 @@
                     console.warn('Poll error, retrying...', pollErr);
                 }
             }
-            hideMpQrOverlay();
-            throw new Error('Tiempo de espera agotado. Verificá el estado del pago en MercadoPago.');
+            throw new Error('Tiempo de espera agotado. Verificá el estado del pago en el Point.');
         }
 
         function onKey(e) {
@@ -2476,8 +2397,7 @@
                     },
                     body: JSON.stringify({
                         amount: mpAmt,
-                        transaction_id: TRANSACTION_ID,
-                        description: `Pago Mixto POS - ${cart.itemCount} items`
+                        transaction_id: TRANSACTION_ID
                     })
                 });
 
@@ -2813,8 +2733,7 @@
                     },
                     body: JSON.stringify({
                         amount: amount,
-                        transaction_id: TRANSACTION_ID,
-                        description: `Venta POS - ${cart.itemCount} items`
+                        transaction_id: TRANSACTION_ID
                     })
                 });
                 
