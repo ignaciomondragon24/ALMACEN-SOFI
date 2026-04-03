@@ -58,14 +58,14 @@ class PromotionEngine:
         for promo in valid_promotions:
             # Get product IDs in this promotion
             promo_product_ids = set(promo.products.values_list('id', flat=True))
-            
+
             # Find matching items in cart
             matching_items = [
                 item for item in cart_items
                 if item['product_id'] in promo_product_ids
                 and item['item_id'] not in affected_items
             ]
-            
+
             if not matching_items:
                 continue
             
@@ -177,7 +177,7 @@ class PromotionEngine:
         - quantity_required: N (how many items needed)
         - final_price: fixed price for N items
         """
-        n = promo.quantity_required
+        n = promo.quantity_required or 2
         fixed_price = promo.final_price
 
         if not fixed_price or fixed_price <= 0:

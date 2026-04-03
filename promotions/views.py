@@ -63,20 +63,19 @@ def promotion_create(request):
         # Build mutable copy of POST data to fix field names
         post_data = request.POST.copy()
         
-        # Map HTML form field names to model field names
-        if 'buy_quantity' in post_data:
-            post_data['quantity_required'] = post_data.get('buy_quantity', 2)
-        if 'pay_quantity' in post_data:
-            post_data['quantity_charged'] = post_data.get('pay_quantity', 1)
-        if 'combo_price' in post_data:
-            post_data['final_price'] = post_data.get('combo_price', '0')
-        if 'discount_percent_simple' in post_data:
-            post_data['discount_percent'] = post_data.get('discount_percent_simple', '0')
-        # N por Precio Fijo
-        if post_data.get('nx_quantity'):
-            post_data['quantity_required'] = post_data.get('nx_quantity')
-        if post_data.get('nx_fixed_price'):
-            post_data['final_price'] = post_data.get('nx_fixed_price')
+        # Map HTML form field names to model field names based on promo_type
+        promo_type = post_data.get('promo_type', 'nxm')
+
+        if promo_type == 'nxm':
+            post_data['quantity_required'] = post_data.get('buy_quantity') or '2'
+            post_data['quantity_charged'] = post_data.get('pay_quantity') or '1'
+        elif promo_type == 'nx_fixed_price':
+            post_data['quantity_required'] = post_data.get('nx_quantity') or '2'
+            post_data['final_price'] = post_data.get('nx_fixed_price') or '0'
+        elif promo_type == 'combo':
+            post_data['final_price'] = post_data.get('combo_price') or '0'
+        elif promo_type == 'simple_discount':
+            post_data['discount_percent'] = post_data.get('discount_percent_simple') or '0'
             
         # Set default status to active if not provided
         if not post_data.get('status'):
@@ -93,12 +92,25 @@ def promotion_create(request):
             from stocks.models import Product
             from decimal import Decimal
             
+            # Safe conversions
+            def safe_int(val, default=0):
+                try:
+                    return int(val) if val else default
+                except (ValueError, TypeError):
+                    return default
+
+            def safe_decimal(val, default='0'):
+                try:
+                    return Decimal(str(val)) if val else Decimal(default)
+                except:
+                    return Decimal(default)
+
             promotion = Promotion(
                 name=post_data.get('name', ''),
                 description=post_data.get('description', ''),
-                promo_type=post_data.get('promo_type', 'nxm'),
+                promo_type=promo_type,
                 status=post_data.get('status', 'active'),
-                priority=int(post_data.get('priority', 50)),
+                priority=safe_int(post_data.get('priority'), 50),
                 is_combinable=post_data.get('is_combinable') == 'on',
                 # Days
                 monday=post_data.get('monday') == 'on',
@@ -108,14 +120,14 @@ def promotion_create(request):
                 friday=post_data.get('friday') == 'on',
                 saturday=post_data.get('saturday') == 'on',
                 sunday=post_data.get('sunday') == 'on',
-                # NxM config
-                quantity_required=int(post_data.get('quantity_required', post_data.get('buy_quantity', 2))),
-                quantity_charged=int(post_data.get('quantity_charged', post_data.get('pay_quantity', 1))),
+                # NxM / nx_fixed_price config
+                quantity_required=safe_int(post_data.get('quantity_required'), 2),
+                quantity_charged=safe_int(post_data.get('quantity_charged'), 1),
                 # Discounts
-                discount_percent=Decimal(post_data.get('discount_percent', '0') or '0'),
-                second_unit_discount=Decimal(post_data.get('second_unit_discount', '0') or '0'),
-                final_price=Decimal(post_data.get('final_price', post_data.get('combo_price', '0')) or '0'),
-                min_quantity=int(post_data.get('min_quantity', 1) or 1),
+                discount_percent=safe_decimal(post_data.get('discount_percent'), '0'),
+                second_unit_discount=safe_decimal(post_data.get('second_unit_discount'), '0'),
+                final_price=safe_decimal(post_data.get('final_price'), '0'),
+                min_quantity=safe_int(post_data.get('min_quantity'), 1),
                 created_by=request.user
             )
             
@@ -165,21 +177,41 @@ def promotion_edit(request, pk):
         if products_str:
             product_ids = [int(pid.strip()) for pid in products_str.split(',') if pid.strip().isdigit()]
 
-        # N por Precio Fijo - map fields
-        if post_data.get('nx_quantity'):
-            post_data['quantity_required'] = post_data.get('nx_quantity')
-        if post_data.get('nx_fixed_price'):
-            post_data['final_price'] = post_data.get('nx_fixed_price')
+        # Map HTML form field names based on promo_type
+        promo_type = post_data.get('promo_type', promotion.promo_type)
+
+        if promo_type == 'nxm':
+            post_data['quantity_required'] = post_data.get('buy_quantity') or '2'
+            post_data['quantity_charged'] = post_data.get('pay_quantity') or '1'
+        elif promo_type == 'nx_fixed_price':
+            post_data['quantity_required'] = post_data.get('nx_quantity') or '2'
+            post_data['final_price'] = post_data.get('nx_fixed_price') or '0'
+        elif promo_type == 'combo':
+            post_data['final_price'] = post_data.get('combo_price') or '0'
+        elif promo_type == 'simple_discount':
+            post_data['discount_percent'] = post_data.get('discount_percent_simple') or '0'
 
         try:
             from stocks.models import Product
             from decimal import Decimal
 
+            def safe_int(val, default=0):
+                try:
+                    return int(val) if val else default
+                except (ValueError, TypeError):
+                    return default
+
+            def safe_decimal(val, default='0'):
+                try:
+                    return Decimal(str(val)) if val else Decimal(default)
+                except:
+                    return Decimal(default)
+
             promotion.name = post_data.get('name', promotion.name)
             promotion.description = post_data.get('description', '')
-            promotion.promo_type = post_data.get('promo_type', promotion.promo_type)
+            promotion.promo_type = promo_type
             promotion.status = post_data.get('status', promotion.status) or 'active'
-            promotion.priority = int(post_data.get('priority', 50))
+            promotion.priority = safe_int(post_data.get('priority'), 50)
             promotion.is_combinable = post_data.get('is_combinable') == 'on'
             # Days
             promotion.monday = post_data.get('monday') == 'on'
@@ -190,13 +222,13 @@ def promotion_edit(request, pk):
             promotion.saturday = post_data.get('saturday') == 'on'
             promotion.sunday = post_data.get('sunday') == 'on'
             # NxM / N por Precio Fijo config
-            promotion.quantity_required = int(post_data.get('quantity_required', post_data.get('buy_quantity', 2)))
-            promotion.quantity_charged = int(post_data.get('quantity_charged', post_data.get('pay_quantity', 1)))
+            promotion.quantity_required = safe_int(post_data.get('quantity_required'), 2)
+            promotion.quantity_charged = safe_int(post_data.get('quantity_charged'), 1)
             # Discounts
-            promotion.discount_percent = Decimal(post_data.get('discount_percent', '0') or '0')
-            promotion.second_unit_discount = Decimal(post_data.get('second_unit_discount', '0') or '0')
-            promotion.final_price = Decimal(post_data.get('final_price', post_data.get('combo_price', '0')) or '0')
-            promotion.min_quantity = int(post_data.get('min_quantity', 1) or 1)
+            promotion.discount_percent = safe_decimal(post_data.get('discount_percent'), '0')
+            promotion.second_unit_discount = safe_decimal(post_data.get('second_unit_discount'), '0')
+            promotion.final_price = safe_decimal(post_data.get('final_price'), '0')
+            promotion.min_quantity = safe_int(post_data.get('min_quantity'), 1)
             
             # Handle dates
             start_date = post_data.get('start_date')

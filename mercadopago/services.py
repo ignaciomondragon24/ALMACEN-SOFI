@@ -145,7 +145,7 @@ class MPPointService:
     
     def create_payment_intent(self, device_id, amount, description="Venta",
                               external_reference=None, additional_info=None,
-                              payment_type="qr"):
+                              payment_type=None):
         """
         Crea una intención de pago y la envía al dispositivo Point.
 
@@ -157,8 +157,8 @@ class MPPointService:
             description: Descripción del cobro
             external_reference: Referencia externa para rastrear el pago
             additional_info: Información adicional (dict)
-            payment_type: Tipo de pago - "qr" muestra QR en el Point,
-                          "credit_card"/"debit_card" para tarjeta
+            payment_type: Tipo de pago - None para cualquier método (QR + tarjeta),
+                          "credit_card"/"debit_card" para solo tarjeta
 
         Returns:
             tuple: (success, data)
@@ -175,11 +175,17 @@ class MPPointService:
         payload = {
             "amount": amount_cents,
             "additional_info": ai,
+            "description": description,
         }
 
-        # Agregar tipo de pago para que el Point muestre QR o pida tarjeta
-        if payment_type:
-            payload["payment"] = {"type": payment_type}
+        # Configurar método de pago si se especifica uno específico
+        # Si no se especifica, el Point mostrará todas las opciones (tarjeta + QR)
+        if payment_type and payment_type in ("credit_card", "debit_card"):
+            payload["payment"] = {
+                "type": payment_type,
+                "installments": 1,
+                "installments_cost": "seller"
+            }
 
         logger.info(
             f"Creating payment intent: device={device_id}, "
@@ -307,7 +313,7 @@ class PaymentIntentManager:
         return MPPointService()
     
     def create_and_send(self, device, amount, pos_transaction=None, user=None,
-                        description=None, payment_type="qr"):
+                        description=None, payment_type=None):
         """
         Crea una intención de pago y la envía al dispositivo.
 
@@ -317,7 +323,8 @@ class PaymentIntentManager:
             pos_transaction: POSTransaction relacionada (opcional)
             user: Usuario que crea el pago
             description: Descripción personalizada
-            payment_type: "qr" para QR en pantalla, "credit_card"/"debit_card" para tarjeta
+            payment_type: None = cualquier método (QR + tarjeta),
+                          "credit_card"/"debit_card" para específico
 
         Returns:
             tuple: (success, PaymentIntent or error_message)
@@ -359,10 +366,26 @@ class PaymentIntentManager:
                 # Error al enviar — include full MP response for debugging
                 error_msg = response.get("message", response.get("error", "Error desconocido"))
                 status_code = response.get("status", "")
-                cause = response.get("cause", "")
-                full_error = f"{error_msg}"
-                if cause:
-                    full_error += f" (causa: {cause})"
+                cause = response.get("cause", [])
+
+                # Extraer detalles de cause si es una lista
+                cause_details = ""
+                if isinstance(cause, list) and cause:
+                    cause_details = "; ".join(
+                        f"{c.get('code', '')}: {c.get('description', '')}"
+                        for c in cause if isinstance(c, dict)
+                    )
+                elif cause:
+                    cause_details = str(cause)
+
+                full_error = error_msg
+                if cause_details:
+                    full_error += f" ({cause_details})"
+
+                # Agregar sugerencia si es error de permisos o configuración
+                if "allow" in str(response).lower() or "permission" in str(response).lower():
+                    full_error += " - Verificar: dispositivo en modo PDV, credenciales válidas"
+
                 logger.error(f"Error al enviar payment intent: {response}")
                 payment_intent.mark_error(f"{full_error} | raw: {response}")
                 return False, full_error
