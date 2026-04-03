@@ -464,21 +464,20 @@
     }
     
     function showBulkQuantityModal(product) {
-        // Granel products: price per X grams (e.g., $2500/100g)
-        const isGranel = product.is_granel && product.granel_price_weight_grams;
-        const priceWeight = isGranel ? product.granel_price_weight_grams : null;  // e.g. 100
+        const isGranel = !!product.is_granel;
+        // Los productos granel de caramelera siempre usan precio/100g como base
+        const priceWeight = 100;
         const price250 = isGranel ? (product.sale_price_250g || 0) : 0;
         const unitLabel = isGranel ? 'gramos' : product.unit;
         const defaultVal = isGranel ? '100' : '0.500';
         const stepVal = isGranel ? '1' : '0.001';
         const minVal = isGranel ? '1' : '0.001';
 
-        // Price label for granel: show both price/100g and price/250g if available
         let priceLabel;
         if (isGranel) {
-            priceLabel = `${formatCurrency(product.unit_price)}/${priceWeight}g`;
+            priceLabel = `${formatCurrency(product.unit_price)}/100g`;
             if (price250 > 0) {
-                priceLabel += ` | ${formatCurrency(price250)}/250g`;
+                priceLabel += ` · ${formatCurrency(price250)}/250g`;
             }
         } else {
             priceLabel = `${formatCurrency(product.unit_price)}/${product.unit}`;
@@ -486,11 +485,11 @@
 
         function calcTotal(grams) {
             if (!isGranel) return grams * product.unit_price;
-            // Múltiplos de 250g: usa precio cuarto
+            // Múltiplos de 250g: usa precio cuarto si está configurado
             if (price250 > 0 && grams > 0 && grams % 250 === 0) {
                 return (grams / 250) * price250;
             }
-            // Regla de tres simple: proporcional al precio/100g
+            // Proporcional al precio/100g
             return (grams / priceWeight) * product.unit_price;
         }
 
@@ -498,39 +497,40 @@
             if (!isGranel || grams <= 0) return '';
             if (price250 > 0 && grams % 250 === 0) {
                 const qtd = grams / 250;
-                return `<small class="text-info">${qtd} cuarto${qtd !== 1 ? 's' : ''} × ${formatCurrency(price250)}</small>`;
+                return `<small class="text-warning">${qtd === 1 ? '1 cuarto' : qtd + ' cuartos'} × ${formatCurrency(price250)}</small>`;
             }
-            return `<small class="text-muted">${grams}g × ${formatCurrency(product.unit_price)}/${priceWeight}g</small>`;
+            return `<small class="text-muted">${grams}g × ${formatCurrency(product.unit_price)}/100g</small>`;
         }
+
+        const stockGrams = product.stock != null ? Math.floor(product.stock) : 0;
 
         const modalHtml = `
             <div class="modal fade" id="bulkQuantityModal" tabindex="-1">
                 <div class="modal-dialog modal-sm">
-                    <div class="modal-content bg-dark text-white" style="border:1.5px solid rgba(0,210,211,0.2);border-radius:14px;">
-                        <div class="modal-header border-secondary" style="border-bottom:1px solid rgba(0,210,211,0.12);">
-                            <h5 class="modal-title">
-                                <i class="fas fa-weight-hanging me-2" style="color:#E91E8C;"></i>${product.name}
-                            </h5>
+                    <div class="modal-content bg-dark text-white" style="border:1.5px solid rgba(233,30,140,0.25);border-radius:14px;">
+                        <div class="modal-header border-0 pb-1">
+                            <div>
+                                <h5 class="modal-title mb-0">
+                                    <i class="fas fa-candy-cane me-2" style="color:#E91E8C;"></i>${product.name}
+                                </h5>
+                                <small style="color:#aaa;">${priceLabel}</small>
+                            </div>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body">
-                            <p class="text-muted mb-3" style="font-size:0.85rem;">
-                                <i class="fas fa-tag me-1"></i>${priceLabel}
-                                ${isGranel ? `<br><small>Stock: ${product.stock.toFixed ? product.stock.toFixed(0) : product.stock}g disponibles</small>` : ''}
-                            </p>
+                        <div class="modal-body pt-2">
                             ${isGranel ? `
                             <div class="d-flex gap-2 mb-3">
                                 <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">
-                                    100g<br><small>${formatCurrency(product.unit_price)}</small>
+                                    100g<br><small style="color:#aaa;">${formatCurrency(calcTotal(100))}</small>
                                 </button>
                                 <button type="button" class="btn btn-sm ${price250 > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="250" style="flex:1;">
-                                    250g<br><small>${formatCurrency(price250 > 0 ? price250 : calcTotal(250))}</small>
+                                    ¼ kg<br><small style="color:#aaa;">${formatCurrency(calcTotal(250))}</small>
                                 </button>
                                 <button type="button" class="btn btn-sm ${price250 > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="500" style="flex:1;">
-                                    500g<br><small>${formatCurrency(price250 > 0 ? price250 * 2 : calcTotal(500))}</small>
+                                    ½ kg<br><small style="color:#aaa;">${formatCurrency(calcTotal(500))}</small>
                                 </button>
                             </div>` : ''}
-                            <label class="form-label" style="color:#aaa;font-size:0.85rem;">Peso (${unitLabel})</label>
+                            <label class="form-label" style="color:#aaa;font-size:0.82rem;">Peso en gramos</label>
                             <input type="number"
                                    class="form-control form-control-lg text-center"
                                    id="bulk-quantity-input"
@@ -538,15 +538,16 @@
                                    step="${stepVal}"
                                    value="${defaultVal}"
                                    autofocus
-                                   style="background:#0d0d1f;border:2px solid rgba(45,45,68,0.8);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
+                                   style="background:#0d0d1f;border:2px solid rgba(233,30,140,0.3);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
+                            ${isGranel && stockGrams > 0 ? `<div class="text-end mt-1"><small style="color:#555;font-size:0.75rem;">Disponible: ${stockGrams}g</small></div>` : ''}
                             <div class="mt-3 text-center">
                                 <div id="bulk-price-breakdown" style="min-height:1.2em;margin-bottom:4px;"></div>
-                                <span class="fs-4">Total: <strong id="bulk-total-preview" style="color:#00d2d3;">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</strong></span>
+                                <span class="fs-3 fw-bold" style="color:#00d2d3;" id="bulk-total-preview">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</span>
                             </div>
                         </div>
-                        <div class="modal-footer border-secondary" style="border-top:1px solid rgba(0,210,211,0.12);">
+                        <div class="modal-footer border-0 pt-0">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary" id="confirm-bulk-quantity">
+                            <button type="button" class="btn btn-primary px-4" id="confirm-bulk-quantity">
                                 <i class="fas fa-cart-plus me-1"></i>Agregar
                             </button>
                         </div>

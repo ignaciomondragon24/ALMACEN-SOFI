@@ -36,7 +36,7 @@ class AperturaBultoAdmin(admin.ModelAdmin):
     list_display = ('caramelera', 'producto', 'gramos_agregados', 'costo_por_gramo_al_abrir',
                     'costo_ponderado_despues', 'abierto_por', 'abierto_en')
     list_filter = ('caramelera', 'abierto_en')
-    search_fields = ('caramelera__nombre', 'producto__nombre')
+    search_fields = ('caramelera__nombre', 'producto__name')
     readonly_fields = ('abierto_en',)
 
 

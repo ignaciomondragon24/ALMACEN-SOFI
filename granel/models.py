@@ -214,7 +214,7 @@ class AperturaBulto(models.Model):
 
     def __str__(self):
         return (
-            f'{self.producto.nombre} → {self.caramelera.nombre} '
+            f'{self.producto.name} → {self.caramelera.nombre} '
             f'({self.gramos_agregados}g)'
         )
 

@@ -381,9 +381,12 @@ class Product(models.Model):
     
     @property
     def costo_por_gramo(self):
-        """Para productos de depósito de caramelera: costo por gramo."""
-        if self.weight_per_unit_grams and self.weight_per_unit_grams > 0 and self.purchase_price:
-            return (self.purchase_price / self.weight_per_unit_grams).quantize(Decimal('0.000001'))
+        """Para productos de depósito de caramelera: costo por gramo.
+        Usa cost_price (lo que el usuario ingresa en el formulario) con fallback a purchase_price.
+        """
+        precio = self.cost_price or self.purchase_price
+        if self.weight_per_unit_grams and self.weight_per_unit_grams > 0 and precio:
+            return (precio / self.weight_per_unit_grams).quantize(Decimal('0.000001'))
         return Decimal('0')
 
     @property

@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.db.models import Sum, Count
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 
 from decorators.decorators import stock_manager_required
@@ -181,20 +181,21 @@ def _sync_caramelera_pos_product(caramelera):
     """Crea o actualiza el producto is_granel de stocks vinculado a esta caramelera.
 
     El producto POS es el que aparece en el buscador del POS y dispara el modal de peso.
+    granel_price_weight_grams siempre = 100 (precio por 100g).
     """
     pos_product = caramelera.producto_pos.filter(is_granel=True).first()
     if pos_product is None:
         pos_product = Product(
             is_granel=True,
-            granel_price_weight_grams=100,
             granel_caramelera=caramelera,
-            current_stock=caramelera.stock_gramos_actual,
-            weighted_avg_cost_per_gram=caramelera.costo_ponderado_gramo,
         )
     pos_product.name = caramelera.nombre
     pos_product.sale_price = caramelera.precio_100g
     pos_product.sale_price_250g = caramelera.precio_cuarto
+    pos_product.granel_price_weight_grams = 100  # siempre precio/100g
     pos_product.is_active = caramelera.is_active
+    pos_product.current_stock = caramelera.stock_gramos_actual
+    pos_product.weighted_avg_cost_per_gram = caramelera.costo_ponderado_gramo
     pos_product.save()
 
 
@@ -289,7 +290,7 @@ def api_abrir_paquete(request, pk):
             'nuevo_stock': float(caramelera.stock_gramos_actual),
             'nuevo_costo_ponderado': float(caramelera.costo_ponderado_gramo),
             'unidades_restantes_deposito': apertura.unidades_restantes_deposito,
-            'producto_nombre': apertura.producto.nombre,
+            'producto_nombre': apertura.producto.name,
         })
     except (Caramelera.DoesNotExist, Product.DoesNotExist):
         return JsonResponse({'error': 'No encontrado'}, status=404)
