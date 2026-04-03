@@ -302,7 +302,16 @@ class Product(models.Model):
         default=Decimal('0.00'),
         help_text='Para bultos: gramos que contiene cada unidad (ej: 2000 para bolsa de 2kg)'
     )
-    
+    granel_caramelera = models.ForeignKey(
+        'granel.Caramelera',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='producto_pos',
+        verbose_name='Caramelera vinculada',
+        help_text='Caramelera del sistema granel asociada a este producto POS'
+    )
+
     # Parent-child relationship for presentations
     parent_product = models.ForeignKey(
         'self',

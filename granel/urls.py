@@ -4,25 +4,21 @@ from . import views
 app_name = 'granel'
 
 urlpatterns = [
-    path('', views.dashboard, name='dashboard'),
-    path('transfer/', views.transfer_form, name='transfer'),
-    path('transfer/history/', views.transfer_history, name='transfer_history'),
-    path('audit/', views.shrinkage_audit_form, name='audit'),
-    path('audit/history/', views.audit_history, name='audit_history'),
-    path('batches/', views.batch_list, name='batch_list'),
-    path('batches/<int:product_id>/', views.batch_detail, name='batch_detail'),
-    path('<int:product_id>/components/', views.manage_components, name='manage_components'),
-    # API
-    path('api/transfer/', views.api_transfer, name='api_transfer'),
-    path('api/audit/', views.api_audit, name='api_audit'),
-    path('api/bulk-products/', views.api_bulk_products, name='api_bulk_products'),
-    path('api/quick-transfer/<int:component_id>/', views.api_quick_transfer, name='api_quick_transfer'),
-    # Caramelera create/edit
+    # Depósito
+    path('deposito/', views.deposito_list, name='deposito_list'),
+    path('deposito/nuevo/', views.deposito_create, name='deposito_create'),
+    path('deposito/<int:pk>/editar/', views.deposito_edit, name='deposito_edit'),
+    path('api/deposito/<int:pk>/stock/', views.api_deposito_ajustar_stock, name='api_deposito_stock'),
+
+    # Carameleras
     path('carameleras/', views.caramelera_list, name='caramelera_list'),
-    path('carameleras/create/', views.caramelera_create, name='caramelera_create'),
+    path('carameleras/nueva/', views.caramelera_create, name='caramelera_create'),
     path('carameleras/<int:pk>/', views.caramelera_detail, name='caramelera_detail'),
-    path('carameleras/<int:pk>/edit/', views.caramelera_edit, name='caramelera_edit'),
-    path('api/caramelera/save/', views.api_caramelera_save, name='api_caramelera_save'),
-    path('api/caramelera/<int:pk>/save/', views.api_caramelera_save, name='api_caramelera_save_edit'),
-    path('api/caramelera/<int:pk>/abrir-bolsa/', views.api_abrir_bolsa, name='api_abrir_bolsa'),
+    path('carameleras/<int:pk>/editar/', views.caramelera_edit, name='caramelera_edit'),
+
+    # APIs
+    path('api/caramelera/<int:pk>/abrir-paquete/', views.api_abrir_paquete, name='api_abrir_paquete'),
+    path('api/caramelera/<int:pk>/auditoria/', views.api_auditoria, name='api_auditoria'),
+    path('api/caramelera/<int:pk>/venta/', views.api_venta_granel, name='api_venta_granel'),
+    path('api/caramelera/<int:pk>/info/', views.api_caramelera_info, name='api_caramelera_info'),
 ]

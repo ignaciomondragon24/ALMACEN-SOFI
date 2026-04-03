@@ -396,13 +396,29 @@ class CheckoutService:
                 )
             BatchService.deduct_fifo(item.product.pk, units_to_deduct)
 
+        # Register granel sales for items linked to a Caramelera
+        from granel.services import GranelService
+        for item in pos_transaction.items.all():
+            caramelera = getattr(item.product, 'granel_caramelera', None)
+            if caramelera is not None:
+                try:
+                    GranelService.registrar_venta(
+                        caramelera_id=caramelera.pk,
+                        gramos_vendidos=item.quantity,
+                        precio_cobrado=item.subtotal,
+                        pos_transaction_id=pos_transaction.id,
+                    )
+                except Exception:
+                    # No bloquear el checkout si el registro de venta granel falla
+                    pass
+
         # Complete transaction
         pos_transaction.status = 'completed'
         pos_transaction.completed_at = timezone.now()
         pos_transaction.amount_paid = total_paid
         pos_transaction.change_given = change
         pos_transaction.save()
-        
+
         return True, {
             'success': True,
             'transaction_id': pos_transaction.id,

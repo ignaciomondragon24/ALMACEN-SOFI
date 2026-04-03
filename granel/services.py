@@ -1,272 +1,208 @@
 """
-Granel Services - Transfer, FIFO, weighted cost, shrinkage.
+Granel Services — Aperturas de bulto, ventas granel, auditorías de caramelera.
+
+El servicio legacy BatchService se mantiene para compatibilidad con pos/services.py.
 """
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
 from stocks.models import Product, StockMovement
-from .models import StockBatch, BulkToGranelTransfer, ShrinkageAudit
+from .models import (
+    StockBatch,
+    Caramelera,
+    ProductoDeposito,
+    AperturaBulto,
+    VentaGranel,
+    AuditoriaCaramelera,
+)
 
 
 class GranelService:
-    """Service for bulk-to-granel operations and weighted average cost."""
+    """Servicio para operaciones de carameleras: apertura de bultos, ventas, auditorías."""
 
     @staticmethod
     @transaction.atomic
-    def transfer_bulk_to_granel(bulk_product_id, granel_product_id, user, notes=''):
+    def abrir_paquete(caramelera_id, producto_deposito_id, user, notas=''):
         """
-        Abre un bulto y transfiere su contenido al producto granel.
-        - Resta 1 unidad del bulto (FIFO: del lote más antiguo)
-        - Suma los gramos al producto granel
-        - Recalcula el costo ponderado del granel
+        Abre 1 bolsa del depósito y transfiere su contenido a la caramelera.
+
+        - Valida que el producto esté autorizado para esa caramelera
+        - Valida que haya stock disponible en el depósito
+        - Descuenta 1 unidad del stock del depósito
+        - Suma los gramos a la caramelera
+        - Recalcula el costo ponderado:
+          nuevo_costo = (stock_antes * costo_antes + gramos_nuevos * costo_nuevo) / (stock_antes + gramos_nuevos)
+        - Registra AperturaBulto para trazabilidad completa
+
+        Returns: AperturaBulto creada
         """
-        bulk = Product.objects.select_for_update().get(pk=bulk_product_id)
-        granel = Product.objects.select_for_update().get(pk=granel_product_id)
+        caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
+        producto = ProductoDeposito.objects.select_for_update().get(pk=producto_deposito_id)
 
-        if not granel.is_granel:
-            raise ValueError(f'{granel.name} no es un producto granel')
-        if bulk.weight_per_unit_grams <= 0:
-            raise ValueError(f'{bulk.name} no tiene peso por unidad configurado')
-        if bulk.current_stock < 1:
-            raise ValueError(f'No hay stock de {bulk.name} para transferir')
-
-        grams = bulk.weight_per_unit_grams
-
-        # FIFO: consume from oldest batch with remaining stock
-        batch = (
-            StockBatch.objects.select_for_update()
-            .filter(product=bulk, quantity_remaining__gt=0)
-            .order_by('purchased_at', 'created_at')
-            .first()
-        )
-
-        if batch:
-            cost_per_gram = batch.unit_cost / grams
-            batch.quantity_remaining -= 1
-            batch.save()
-        else:
-            # Fallback: use product cost_price if no batches exist
-            cost_per_gram = bulk.cost_price / grams if grams > 0 else Decimal('0')
-
-        # Snapshot before
-        stock_before = granel.current_stock
-        cost_before = granel.weighted_avg_cost_per_gram
-
-        # Weighted average cost recalculation
-        if stock_before > 0:
-            total_value = (stock_before * cost_before) + (grams * cost_per_gram)
-            new_avg = total_value / (stock_before + grams)
-        else:
-            new_avg = cost_per_gram
-
-        # Update granel product
-        granel.current_stock += grams
-        granel.weighted_avg_cost_per_gram = new_avg
-        # Update cost_price for display (cost per price_weight unit, e.g. per 100g)
-        granel.cost_price = (new_avg * granel.granel_price_weight_grams).quantize(Decimal('0.01'))
-        granel.save()
-
-        # Deduct 1 unit from bulk
-        bulk_stock_before = bulk.current_stock
-        bulk.current_stock -= 1
-        bulk.save()
-
-        # Stock movements
-        StockMovement.objects.create(
-            product=bulk,
-            movement_type='transfer_out',
-            quantity=Decimal('-1'),
-            unit_cost=batch.unit_cost if batch else bulk.cost_price,
-            stock_before=bulk_stock_before,
-            stock_after=bulk.current_stock,
-            reference=f'Apertura bulto -> {granel.name}',
-            notes=notes,
-            created_by=user,
-        )
-        StockMovement.objects.create(
-            product=granel,
-            movement_type='transfer_in',
-            quantity=grams,
-            unit_cost=cost_per_gram,
-            stock_before=stock_before,
-            stock_after=granel.current_stock,
-            reference=f'Recibe {grams}g de {bulk.name}',
-            notes=notes,
-            created_by=user,
-        )
-
-        # Transfer log
-        transfer = BulkToGranelTransfer.objects.create(
-            bulk_product=bulk,
-            granel_product=granel,
-            source_batch=batch,
-            grams_transferred=grams,
-            bulk_cost_per_gram=cost_per_gram,
-            granel_stock_before=stock_before,
-            granel_weighted_cost_before=cost_before,
-            granel_stock_after=granel.current_stock,
-            granel_weighted_cost_after=new_avg,
-            transferred_by=user,
-            notes=notes,
-        )
-
-        return transfer
-
-    @staticmethod
-    @transaction.atomic
-    def abrir_bolsa(bulk_product_id, granel_product_id, grams, user, notes=''):
-        """
-        Abre una bolsa y transfiere una cantidad específica de gramos al granel.
-        - Resta 1 unidad del producto bulto (FIFO)
-        - Suma `grams` al producto granel
-        - Recalcula el costo ponderado del granel
-        """
-        grams = Decimal(str(grams))
-        bulk = Product.objects.select_for_update().get(pk=bulk_product_id)
-        granel = Product.objects.select_for_update().get(pk=granel_product_id)
-
-        if not granel.is_granel:
-            raise ValueError(f'{granel.name} no es un producto granel')
-        if grams <= 0:
-            raise ValueError('Los gramos deben ser mayor a 0')
-        if bulk.current_stock < 1:
-            raise ValueError(f'No hay stock de {bulk.name} para transferir')
-
-        # FIFO: consume from oldest batch with remaining stock
-        bag_grams = bulk.weight_per_unit_grams or grams
-        batch = (
-            StockBatch.objects.select_for_update()
-            .filter(product=bulk, quantity_remaining__gt=0)
-            .order_by('purchased_at', 'created_at')
-            .first()
-        )
-
-        if batch:
-            cost_per_gram = batch.unit_cost / bag_grams if bag_grams > 0 else Decimal('0')
-            batch.quantity_remaining -= 1
-            batch.save()
-        else:
-            cost_per_gram = bulk.cost_price / bag_grams if bag_grams > 0 else Decimal('0')
-
-        # Snapshot before
-        stock_before = granel.current_stock
-        cost_before = granel.weighted_avg_cost_per_gram
-
-        # Weighted average cost recalculation
-        if stock_before > 0 and cost_before > 0:
-            total_value = (stock_before * cost_before) + (grams * cost_per_gram)
-            new_avg = total_value / (stock_before + grams)
-        else:
-            new_avg = cost_per_gram
-
-        # Update granel product
-        granel.current_stock += grams
-        granel.weighted_avg_cost_per_gram = new_avg
-        granel.cost_price = (new_avg * granel.granel_price_weight_grams).quantize(Decimal('0.01'))
-        granel.save()
-
-        # Deduct 1 unit from bulk
-        bulk_stock_before = bulk.current_stock
-        bulk.current_stock -= 1
-        bulk.save()
-
-        # Stock movements
-        StockMovement.objects.create(
-            product=bulk,
-            movement_type='transfer_out',
-            quantity=Decimal('-1'),
-            unit_cost=batch.unit_cost if batch else bulk.cost_price,
-            stock_before=bulk_stock_before,
-            stock_after=bulk.current_stock,
-            reference=f'Apertura bolsa -> {granel.name}',
-            notes=notes,
-            created_by=user,
-        )
-        StockMovement.objects.create(
-            product=granel,
-            movement_type='transfer_in',
-            quantity=grams,
-            unit_cost=cost_per_gram,
-            stock_before=stock_before,
-            stock_after=granel.current_stock,
-            reference=f'Recibe {grams}g de {bulk.name}',
-            notes=notes,
-            created_by=user,
-        )
-
-        # Transfer log
-        transfer = BulkToGranelTransfer.objects.create(
-            bulk_product=bulk,
-            granel_product=granel,
-            source_batch=batch,
-            grams_transferred=grams,
-            bulk_cost_per_gram=cost_per_gram,
-            granel_stock_before=stock_before,
-            granel_weighted_cost_before=cost_before,
-            granel_stock_after=granel.current_stock,
-            granel_weighted_cost_after=new_avg,
-            transferred_by=user,
-            notes=notes,
-        )
-
-        return transfer
-
-    @staticmethod
-    @transaction.atomic
-    def perform_shrinkage_audit(granel_product_id, actual_grams, reason, notes, user, apply_adjustment=True):
-        """
-        Compara stock teórico vs peso real y registra la merma.
-        """
-        granel = Product.objects.select_for_update().get(pk=granel_product_id)
-        actual_grams = Decimal(str(actual_grams))
-        theoretical = granel.current_stock
-        shrinkage = theoretical - actual_grams
-
-        if theoretical > 0:
-            shrinkage_pct = (shrinkage / theoretical * 100).quantize(Decimal('0.01'))
-        else:
-            shrinkage_pct = Decimal('0.00')
-
-        audit = ShrinkageAudit.objects.create(
-            granel_product=granel,
-            theoretical_grams=theoretical,
-            actual_grams=actual_grams,
-            shrinkage_grams=shrinkage,
-            shrinkage_percent=shrinkage_pct,
-            reason=reason,
-            notes=notes,
-            audited_by=user,
-            stock_adjusted=apply_adjustment,
-        )
-
-        if apply_adjustment and shrinkage != 0:
-            movement_type = 'adjustment_out' if shrinkage > 0 else 'adjustment_in'
-            StockMovement.objects.create(
-                product=granel,
-                movement_type=movement_type,
-                quantity=-shrinkage,  # negative shrinkage = reduce stock
-                unit_cost=granel.weighted_avg_cost_per_gram,
-                stock_before=theoretical,
-                stock_after=actual_grams,
-                reference=f'Auditoría merma #{audit.pk}',
-                notes=f'{audit.get_reason_display()}: {notes}',
-                created_by=user,
+        # Validaciones
+        if not caramelera.productos_autorizados.filter(pk=producto.pk).exists():
+            raise ValueError(
+                f'"{producto.nombre}" no está autorizado para la caramelera "{caramelera.nombre}". '
+                f'Editá la caramelera para agregar este producto.'
             )
-            granel.current_stock = actual_grams
-            granel.save()
+        if producto.stock_unidades < 1:
+            raise ValueError(
+                f'Sin stock de "{producto.nombre}" en depósito. '
+                f'Recibí mercadería primero.'
+            )
 
-        return audit
+        gramos_nuevos = producto.gramos_por_bulto
+        costo_nuevo_por_gramo = producto.costo_por_gramo
 
+        # Snapshot antes
+        stock_antes = caramelera.stock_gramos_actual
+        costo_antes = caramelera.costo_ponderado_gramo
+
+        # Fórmula de costo ponderado
+        if stock_antes > 0 and costo_antes > 0:
+            nuevo_costo = (
+                (stock_antes * costo_antes) + (gramos_nuevos * costo_nuevo_por_gramo)
+            ) / (stock_antes + gramos_nuevos)
+        else:
+            nuevo_costo = costo_nuevo_por_gramo
+
+        nuevo_costo = nuevo_costo.quantize(Decimal('0.000001'))
+
+        # Actualizar caramelera
+        caramelera.stock_gramos_actual = stock_antes + gramos_nuevos
+        caramelera.costo_ponderado_gramo = nuevo_costo
+        caramelera.save(update_fields=['stock_gramos_actual', 'costo_ponderado_gramo', 'updated_at'])
+
+        # Descontar 1 unidad del depósito
+        producto.stock_unidades -= 1
+        producto.save(update_fields=['stock_unidades', 'updated_at'])
+
+        # Log de apertura
+        apertura = AperturaBulto.objects.create(
+            caramelera=caramelera,
+            producto=producto,
+            gramos_agregados=gramos_nuevos,
+            costo_por_gramo_al_abrir=costo_nuevo_por_gramo,
+            costo_ponderado_antes=costo_antes,
+            costo_ponderado_despues=nuevo_costo,
+            stock_gramos_antes=stock_antes,
+            stock_gramos_despues=caramelera.stock_gramos_actual,
+            unidades_restantes_deposito=producto.stock_unidades,
+            abierto_por=user,
+            notas=notas,
+        )
+
+        return apertura
+
+    @staticmethod
+    @transaction.atomic
+    def realizar_auditoria(caramelera_id, peso_real_balanza, user, motivo=''):
+        """
+        Compara el stock del sistema con el peso real medido en la balanza.
+        Si ajuste_aplicado=True (por defecto), actualiza el stock al peso real.
+
+        Returns: AuditoriaCaramelera creada
+        """
+        caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
+        peso_real = Decimal(str(peso_real_balanza))
+        stock_sistema = caramelera.stock_gramos_actual
+
+        diferencia = stock_sistema - peso_real
+
+        if stock_sistema > 0:
+            porcentaje = (diferencia / stock_sistema * Decimal('100')).quantize(Decimal('0.01'))
+        else:
+            porcentaje = Decimal('0.00')
+
+        auditoria = AuditoriaCaramelera.objects.create(
+            caramelera=caramelera,
+            stock_sistema_gramos=stock_sistema,
+            peso_real_balanza_gramos=peso_real,
+            diferencia_gramos=diferencia,
+            porcentaje_merma=porcentaje,
+            ajuste_aplicado=True,
+            motivo=motivo,
+            auditado_por=user,
+        )
+
+        # Ajustar stock al peso real
+        caramelera.stock_gramos_actual = peso_real
+        caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
+
+        return auditoria
+
+    @staticmethod
+    def calcular_precio_venta(caramelera, gramos):
+        """
+        Calcula el precio de venta para una cantidad de gramos.
+
+        - Si gramos == 250 y precio_cuarto > 0 → precio_cuarto
+        - Sino → ceil(gramos / 100) * precio_100g
+
+        Returns: Decimal
+        """
+        return caramelera.calcular_precio(gramos)
+
+    @staticmethod
+    @transaction.atomic
+    def registrar_venta(caramelera_id, gramos_vendidos, precio_cobrado,
+                        pos_transaction_id=None):
+        """
+        Registra una venta granel y descuenta el stock de la caramelera.
+        Se llama desde el checkout del POS.
+
+        Returns: VentaGranel creada
+        """
+        caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
+        gramos = Decimal(str(gramos_vendidos))
+        precio = Decimal(str(precio_cobrado))
+
+        if gramos <= 0:
+            raise ValueError('Los gramos vendidos deben ser mayor a 0')
+        if caramelera.stock_gramos_actual < gramos:
+            raise ValueError(
+                f'Stock insuficiente. Disponible: {caramelera.stock_gramos_actual}g, '
+                f'solicitado: {gramos}g'
+            )
+
+        costo_gramo = caramelera.costo_ponderado_gramo
+        costo_total = (gramos * costo_gramo).quantize(Decimal('0.01'))
+        ganancia = (precio - costo_total).quantize(Decimal('0.01'))
+
+        # Determinar tipo de venta
+        tipo = 'cuarto' if gramos == Decimal('250') and caramelera.precio_cuarto > 0 else 'libre'
+
+        venta = VentaGranel.objects.create(
+            caramelera=caramelera,
+            gramos_vendidos=gramos,
+            tipo_venta=tipo,
+            precio_cobrado=precio,
+            costo_gramo_al_vender=costo_gramo,
+            costo_total=costo_total,
+            ganancia=ganancia,
+            pos_transaction_id=pos_transaction_id,
+        )
+
+        # Descontar stock
+        caramelera.stock_gramos_actual -= gramos
+        caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
+
+        return venta
+
+
+# ============================================================
+# SERVICIO LEGACY — requerido por pos/services.py
+# ============================================================
 
 class BatchService:
-    """Service for FIFO stock batch management."""
+    """Servicio FIFO para lotes de stock. Mantenido para compatibilidad con el POS."""
 
     @staticmethod
     @transaction.atomic
     def create_batch(product_id, quantity, unit_cost, purchased_at=None,
                      supplier_name='', purchase=None, notes='', user=None):
-        """Create a new stock batch (called when receiving merchandise)."""
+        """Crea un nuevo lote de stock al recibir mercadería."""
         product = Product.objects.select_for_update().get(pk=product_id)
         if purchased_at is None:
             purchased_at = timezone.now()
@@ -288,8 +224,8 @@ class BatchService:
     @transaction.atomic
     def deduct_fifo(product_id, quantity):
         """
-        Deduct quantity using FIFO from available batches.
-        Returns list of (batch, qty_deducted) tuples for margin reporting.
+        Descuenta la cantidad de los lotes disponibles en orden FIFO.
+        Retorna lista de (batch, qty_descontada).
         """
         quantity = Decimal(str(quantity))
         remaining = quantity
@@ -314,10 +250,7 @@ class BatchService:
 
     @staticmethod
     def get_fifo_cost(product_id, quantity):
-        """
-        Calculate the exact cost of selling `quantity` units using FIFO,
-        without actually deducting. Useful for margin preview.
-        """
+        """Calcula el costo exacto de vender `quantity` unidades por FIFO, sin descontar."""
         quantity = Decimal(str(quantity))
         remaining = quantity
         total_cost = Decimal('0.00')
@@ -339,10 +272,9 @@ class BatchService:
 
     @staticmethod
     def get_batch_summary(product_id):
-        """Get summary of all active batches for a product."""
-        batches = (
+        """Retorna los lotes activos de un producto en orden FIFO."""
+        return (
             StockBatch.objects
             .filter(product_id=product_id, quantity_remaining__gt=0)
             .order_by('purchased_at', 'created_at')
         )
-        return batches
