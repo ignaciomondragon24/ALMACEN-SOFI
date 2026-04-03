@@ -175,16 +175,8 @@ class MPPointService:
         payload = {
             "amount": amount_cents,
             "additional_info": ai,
+            "payment_mode": "qr",  # Forzar modo QR en el Point Smart
         }
-
-        # Configurar método de pago si se especifica uno específico
-        # Si no se especifica, el Point mostrará todas las opciones (tarjeta + QR)
-        if payment_type and payment_type in ("credit_card", "debit_card"):
-            payload["payment"] = {
-                "type": payment_type,
-                "installments": 1,
-                "installments_cost": "seller"
-            }
 
         logger.info(
             f"Creating payment intent: device={device_id}, "
