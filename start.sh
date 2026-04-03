@@ -7,6 +7,49 @@ echo "DEBUG: ${DEBUG:-not set}"
 echo "ALLOWED_HOSTS: ${ALLOWED_HOSTS:-not set}"
 echo "RAILWAY_PUBLIC_DOMAIN: ${RAILWAY_PUBLIC_DOMAIN:-not set}"
 
+# Fix directo de tabla M2M rota (antes de migrations, idempotente)
+echo "Checking granel M2M table..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django
+django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    print('  SQLite: skip')
+    sys.exit(0)
+with connection.cursor() as c:
+    # Verificar si las tablas base existen
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='granel_caramelera')\")
+    if not c.fetchone()[0]:
+        print('  granel_caramelera no existe aun, skip')
+        sys.exit(0)
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='stocks_product')\")
+    if not c.fetchone()[0]:
+        print('  stocks_product no existe aun, skip')
+        sys.exit(0)
+    # Ver columnas actuales
+    c.execute(\"SELECT column_name FROM information_schema.columns WHERE table_name='granel_caramelera_productos_autorizados' ORDER BY ordinal_position\")
+    cols = [r[0] for r in c.fetchall()]
+    print(f'  Columnas M2M: {cols}')
+    if 'product_id' in cols:
+        print('  product_id OK, no se necesita fix')
+        sys.exit(0)
+    print('  FIXING: drop + recreate M2M table...')
+    c.execute('DROP TABLE IF EXISTS granel_caramelera_productos_autorizados CASCADE')
+    c.execute(\"\"\"
+        CREATE TABLE granel_caramelera_productos_autorizados (
+            id BIGSERIAL PRIMARY KEY,
+            caramelera_id BIGINT NOT NULL REFERENCES granel_caramelera(id) DEFERRABLE INITIALLY DEFERRED,
+            product_id BIGINT NOT NULL REFERENCES stocks_product(id) DEFERRABLE INITIALLY DEFERRED,
+            CONSTRAINT granel_car_pa_uniq UNIQUE (caramelera_id, product_id)
+        )
+    \"\"\")
+    c.execute('CREATE INDEX ON granel_caramelera_productos_autorizados(caramelera_id)')
+    c.execute('CREATE INDEX ON granel_caramelera_productos_autorizados(product_id)')
+    print('  M2M table FIXED OK')
+" 2>&1 || echo "WARNING: M2M fix skipped"
+
 # Run migrations
 echo "Running migrations..."
 python manage.py migrate --noinput || echo "WARNING: Migration failed, continuing..."
