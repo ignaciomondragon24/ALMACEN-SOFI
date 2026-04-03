@@ -175,6 +175,9 @@ class MPPointService:
         payload = {
             "amount": amount_cents,
             "additional_info": ai,
+            "payment": {
+                "type": "qr"
+            }
         }
 
         logger.info(
