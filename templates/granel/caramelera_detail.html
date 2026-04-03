@@ -1,0 +1,324 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ caramelera.name }} — Caramelera{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">
+                <i class="fas fa-candy-cane me-2" style="color:var(--che-primary,#E91E8C);"></i>
+                {{ caramelera.name }}
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'granel:caramelera_list' %}">Carameleras</a></li>
+                    <li class="breadcrumb-item active">{{ caramelera.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalAbrirBolsa">
+                <i class="fas fa-box-open me-1"></i>Abrir Bolsa
+            </button>
+            <a href="{% url 'granel:caramelera_edit' caramelera.pk %}" class="btn btn-outline-primary">
+                <i class="fas fa-edit me-1"></i>Editar
+            </a>
+            <a href="{% url 'granel:caramelera_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+            </a>
+        </div>
+    </div>
+
+    <div id="alert-box"></div>
+
+    <div class="row g-4">
+        <!-- Left: info + stock -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <i class="fas fa-info-circle me-1"></i> Información
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless table-sm mb-0">
+                        <tr>
+                            <td class="text-muted">Stock actual</td>
+                            <td class="text-end fw-bold {% if caramelera.current_stock <= 0 %}text-danger{% else %}text-success{% endif %}">
+                                <span id="stock-display">{{ caramelera.current_stock|floatformat:0 }}</span>g
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Precio / 100g</td>
+                            <td class="text-end fw-bold">{{ caramelera.sale_price|currency }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Precio / 250g (¼)</td>
+                            <td class="text-end fw-bold">
+                                {% if caramelera.sale_price_250g > 0 %}
+                                    {{ caramelera.sale_price_250g|currency }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Costo ponderado/g</td>
+                            <td class="text-end">
+                                <span id="avg-cost-display">
+                                {% if caramelera.weighted_avg_cost_per_gram > 0 %}
+                                    ${{ caramelera.weighted_avg_cost_per_gram|floatformat:4 }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Components -->
+            <div class="card shadow-sm">
+                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <i class="fas fa-boxes me-1"></i> Componentes
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto Bulto</th>
+                                <th class="text-end">Stock</th>
+                                <th class="text-end">g/bolsa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for comp in components %}
+                            <tr>
+                                <td>{{ comp.bulk_product.name }}</td>
+                                <td class="text-end {% if comp.bulk_product.current_stock <= 0 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ comp.bulk_product.current_stock|floatformat:0 }}
+                                </td>
+                                <td class="text-end text-muted">{{ comp.bulk_product.weight_per_unit_grams|floatformat:0 }}g</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3">
+                                    Sin componentes configurados.
+                                    <a href="{% url 'granel:caramelera_edit' caramelera.pk %}">Editar</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: transfer history -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                    <i class="fas fa-history me-1"></i> Historial de Aperturas de Bolsa
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" id="history-table-wrap">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Producto Abierto</th>
+                                    <th class="text-end">Gramos</th>
+                                    <th class="text-end">Costo/g</th>
+                                    <th class="text-end">Stock después</th>
+                                    <th>Quién</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                {% for t in recent_transfers %}
+                                <tr>
+                                    <td>{{ t.transferred_at|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ t.bulk_product.name }}</td>
+                                    <td class="text-end text-success fw-semibold">+{{ t.grams_transferred|floatformat:0 }}g</td>
+                                    <td class="text-end text-muted small">${{ t.bulk_cost_per_gram|floatformat:4 }}</td>
+                                    <td class="text-end">{{ t.granel_stock_after|floatformat:0 }}g</td>
+                                    <td class="text-muted small">
+                                        {% if t.transferred_by %}{{ t.transferred_by.get_full_name|default:t.transferred_by.username }}{% else %}-{% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr id="history-empty-row">
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-box-open fa-2x d-block mb-2 opacity-50"></i>
+                                        Todavía no se abrió ninguna bolsa para esta caramelera.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Abrir Bolsa -->
+<div class="modal fade" id="modalAbrirBolsa" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--che-secondary,#2D1E5F);color:#fff;">
+                <h5 class="modal-title">
+                    <i class="fas fa-box-open me-2"></i>Abrir Bolsa — {{ caramelera.name }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-error" class="alert alert-danger d-none"></div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Producto (bolsa a abrir) <span class="text-danger">*</span></label>
+                    <select id="select-bulk" class="form-select">
+                        <option value="">-- Seleccioná un producto --</option>
+                        {% for bp in bulk_available %}
+                        <option value="{{ bp.pk|unlocalize }}"
+                                data-weight="{{ bp.weight_per_unit_grams|floatformat:0 }}"
+                                data-stock="{{ bp.current_stock|floatformat:0 }}">
+                            {{ bp.name }}
+                            (stock: {{ bp.current_stock|floatformat:0 }}, {{ bp.weight_per_unit_grams|floatformat:0 }}g/bolsa)
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text text-muted" id="bulk-stock-hint"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Gramos a agregar <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <input type="number" id="input-grams" class="form-control"
+                               min="1" step="1" placeholder="Ej: 1000">
+                        <span class="input-group-text">g</span>
+                    </div>
+                    <div class="form-text">Se descuenta 1 bolsa del stock del producto seleccionado.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Notas (opcional)</label>
+                    <input type="text" id="input-notes" class="form-control" placeholder="Ej: Bolsa abierta para reponer caramelera">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btn-confirmar-apertura">
+                    <i class="fas fa-check me-1"></i>Confirmar Apertura
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const CSRF = '{{ csrf_token }}';
+    const API_URL = '{% url "granel:api_abrir_bolsa" caramelera.pk %}';
+
+    const selectBulk = document.getElementById('select-bulk');
+    const inputGrams = document.getElementById('input-grams');
+    const bulkHint = document.getElementById('bulk-stock-hint');
+    const modalError = document.getElementById('modal-error');
+    const btnConfirm = document.getElementById('btn-confirmar-apertura');
+    const alertBox = document.getElementById('alert-box');
+
+    selectBulk.addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (opt.value) {
+            const weight = opt.dataset.weight;
+            const stock = opt.dataset.stock;
+            bulkHint.textContent = `Stock disponible: ${stock} bolsas · ${weight}g por bolsa`;
+            inputGrams.value = weight;
+        } else {
+            bulkHint.textContent = '';
+            inputGrams.value = '';
+        }
+    });
+
+    btnConfirm.addEventListener('click', async function () {
+        modalError.classList.add('d-none');
+        const bulkId = selectBulk.value;
+        const grams = parseFloat(inputGrams.value);
+        const notes = document.getElementById('input-notes').value;
+
+        if (!bulkId) { showModalError('Seleccioná un producto.'); return; }
+        if (!grams || grams <= 0) { showModalError('Ingresá los gramos a agregar.'); return; }
+
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Procesando...';
+
+        try {
+            const resp = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ bulk_product_id: parseInt(bulkId), grams, notes })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('modalAbrirBolsa')).hide();
+                // Update stock display
+                document.getElementById('stock-display').textContent = Math.round(data.new_stock);
+                document.getElementById('avg-cost-display').textContent = '$' + data.new_avg_cost.toFixed(4);
+                // Add row to history
+                prependHistoryRow(data);
+                showAlert(`<i class="fas fa-check-circle me-2"></i>+${Math.round(data.grams_added)}g de <strong>${data.bulk_name}</strong> agregados. Nuevo stock: <strong>${Math.round(data.new_stock)}g</strong>`, 'success');
+                // Reset form
+                selectBulk.value = '';
+                inputGrams.value = '';
+                document.getElementById('input-notes').value = '';
+                bulkHint.textContent = '';
+                // Update the option stock display
+                const opt = selectBulk.querySelector(`option[value="${bulkId}"]`);
+                if (opt) opt.dataset.stock = data.bulk_stock_remaining;
+            } else {
+                showModalError(data.error || 'Error al procesar.');
+            }
+        } catch (e) {
+            showModalError('Error de conexión.');
+        } finally {
+            btnConfirm.disabled = false;
+            btnConfirm.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
+        }
+    });
+
+    function showModalError(msg) {
+        modalError.textContent = msg;
+        modalError.classList.remove('d-none');
+    }
+
+    function showAlert(msg, type) {
+        alertBox.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show">
+            ${msg}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+        setTimeout(() => { alertBox.innerHTML = ''; }, 6000);
+    }
+
+    function prependHistoryRow(data) {
+        const tbody = document.getElementById('history-tbody');
+        const emptyRow = document.getElementById('history-empty-row');
+        if (emptyRow) emptyRow.remove();
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const tr = document.createElement('tr');
+        tr.style.background = 'rgba(0,210,100,0.08)';
+        tr.innerHTML = `
+            <td>${dateStr}</td>
+            <td>${data.bulk_name}</td>
+            <td class="text-end text-success fw-semibold">+${Math.round(data.grams_added)}g</td>
+            <td class="text-end text-muted small">$${data.new_avg_cost.toFixed(4)}</td>
+            <td class="text-end">${Math.round(data.new_stock)}g</td>
+            <td class="text-muted small">Vos</td>`;
+        tbody.prepend(tr);
+    }
+})();
+</script>
+{% endblock %}

@@ -176,6 +176,7 @@ def api_search(request):
             'allow_sell_by_amount': p.allow_sell_by_amount,
             'is_granel': p.is_granel,
             'granel_price_weight_grams': p.granel_price_weight_grams if p.is_granel else None,
+            'sale_price_250g': float(p.sale_price_250g) if p.is_granel else None,
             'has_parent': p.parent_product is not None,
             'parent_name': p.parent_product.name if p.parent_product else None,
             'packaging_id': None,
@@ -228,6 +229,7 @@ def api_all_products(request):
                 'allow_sell_by_amount': p.allow_sell_by_amount,
                 'is_granel': p.is_granel,
                 'granel_price_weight_grams': p.granel_price_weight_grams if p.is_granel else None,
+                'sale_price_250g': float(p.sale_price_250g) if p.is_granel else None,
                 'category': p.category.name if p.category else 'Sin categoría',
                 'category_id': p.category_id or 0,
                 'is_quick': p.id in quick_ids,
@@ -334,16 +336,22 @@ def api_cart_add(request):
     product_id = data.get('product_id')
     quantity = data.get('quantity', 1)
     packaging_id = data.get('packaging_id')
-    
+    # Optional: override unit_price (used for granel items where price is calculated on frontend)
+    override_unit_price = data.get('unit_price')
+
     if not transaction_id or not product_id:
         return JsonResponse({'success': False, 'error': 'Datos incompletos'}, status=400)
-    
+
     try:
         transaction = POSTransaction.objects.get(id=transaction_id, status='pending')
     except POSTransaction.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Transacción no encontrada'}, status=404)
-    
-    item, message = CartService.add_item(transaction, product_id, Decimal(str(quantity)), packaging_id=packaging_id)
+
+    override_price_decimal = Decimal(str(override_unit_price)) if override_unit_price is not None else None
+    item, message = CartService.add_item(
+        transaction, product_id, Decimal(str(quantity)),
+        packaging_id=packaging_id, override_unit_price=override_price_decimal
+    )
     
     if item:
         # Check stock and add warning if needed
@@ -570,6 +578,8 @@ def api_transaction_detail(request, transaction_id):
                 'packaging_name': item.packaging.name if item.packaging else None,
                 'packaging_type': item.packaging.packaging_type if item.packaging else None,
                 'packaging_units': item.packaging_units,
+                'is_granel': item.product.is_granel,
+                'granel_price_weight_grams': item.product.granel_price_weight_grams if item.product.is_granel else None,
             }
             for item in items
         ],

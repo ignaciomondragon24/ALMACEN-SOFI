@@ -494,3 +494,62 @@ def api_caramelera_save(request, pk=None):
 
     except (ValueError, Exception) as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@stock_manager_required
+def caramelera_detail(request, pk):
+    """Vista detallada de una caramelera: stock, componentes, historial de aperturas."""
+    caramelera = get_object_or_404(Product, pk=pk, is_granel=True)
+    components = (
+        CarameleraComponent.objects.filter(caramelera=caramelera)
+        .select_related('bulk_product')
+    )
+    recent_transfers = (
+        BulkToGranelTransfer.objects.filter(granel_product=caramelera)
+        .select_related('bulk_product', 'transferred_by')[:20]
+    )
+    # All bulk products with stock > 0 (for "abrir bolsa" modal)
+    bulk_available = Product.objects.filter(
+        is_active=True, weight_per_unit_grams__gt=0, current_stock__gt=0
+    ).order_by('name')
+
+    return render(request, 'granel/caramelera_detail.html', {
+        'caramelera': caramelera,
+        'components': components,
+        'recent_transfers': recent_transfers,
+        'bulk_available': bulk_available,
+    })
+
+
+@login_required
+@stock_manager_required
+@require_POST
+def api_abrir_bolsa(request, pk):
+    """API: abrir una bolsa y sumar gramos a la caramelera."""
+    caramelera = get_object_or_404(Product, pk=pk, is_granel=True)
+    try:
+        data = json.loads(request.body)
+        bulk_id = int(str(data.get('bulk_product_id', '')).replace('.', '').strip())
+        grams = Decimal(str(data.get('grams', '0')))
+        notes = data.get('notes', '')
+
+        transfer = GranelService.abrir_bolsa(
+            bulk_product_id=bulk_id,
+            granel_product_id=caramelera.pk,
+            grams=grams,
+            user=request.user,
+            notes=notes,
+        )
+        caramelera.refresh_from_db()
+        bulk = Product.objects.get(pk=bulk_id)
+        return JsonResponse({
+            'success': True,
+            'grams_added': float(transfer.grams_transferred),
+            'new_stock': float(caramelera.current_stock),
+            'new_avg_cost': float(caramelera.weighted_avg_cost_per_gram),
+            'bulk_stock_remaining': float(bulk.current_stock),
+            'bulk_name': bulk.name,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)

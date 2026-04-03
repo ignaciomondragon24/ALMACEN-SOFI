@@ -85,33 +85,36 @@ class CartService:
     
     @staticmethod
     @transaction.atomic
-    def add_item(pos_transaction, product_id, quantity=Decimal('1'), packaging_id=None):
+    def add_item(pos_transaction, product_id, quantity=Decimal('1'), packaging_id=None,
+                 override_unit_price=None):
         """
         Add a product to the cart.
-        
+
         Args:
             pos_transaction: POSTransaction instance
             product_id: Product ID
-            quantity: Quantity to add
-            packaging_id: ProductPackaging ID (optional). If provided, uses packaging price and units.
-        
+            quantity: Quantity to add (grams for granel products)
+            packaging_id: ProductPackaging ID (optional).
+            override_unit_price: If provided, use this as unit_price (used for granel where
+                                  the price per gram varies due to ceiling/cuarto logic).
+
         Returns:
             tuple (item: POSTransactionItem or None, message: str)
         """
         from stocks.models import Product, ProductPackaging
-        
+
         try:
             product = Product.objects.get(id=product_id, is_active=True)
         except Product.DoesNotExist:
             return None, 'Producto no encontrado'
-        
+
         quantity = Decimal(str(quantity))
-        
+
         # Resolve packaging
         packaging = None
         packaging_units = 1
         unit_price = product.sale_price
-        
+
         if packaging_id:
             try:
                 packaging = ProductPackaging.objects.get(id=packaging_id, product=product, is_active=True)
@@ -119,16 +122,31 @@ class CartService:
                 unit_price = packaging.sale_price
             except ProductPackaging.DoesNotExist:
                 pass
-        
-        # Check if item already exists in cart (same product AND same packaging)
-        existing_item = POSTransactionItem.objects.filter(
-            transaction=pos_transaction,
-            product=product,
-            packaging=packaging
-        ).first()
-        
+
+        # For granel products: price is per `granel_price_weight_grams` grams (e.g. per 100g).
+        # The frontend calculates the correct total and passes it as override_unit_price.
+        # If override_unit_price is given, use it directly as unit_price.
+        if override_unit_price is not None:
+            unit_price = override_unit_price
+
+        # Granel items are always stored as individual entries (one per weight transaction),
+        # never merged with existing cart entries.
+        if product.is_granel:
+            existing_item = None
+        else:
+            # Check if item already exists in cart (same product AND same packaging)
+            existing_item = POSTransactionItem.objects.filter(
+                transaction=pos_transaction,
+                product=product,
+                packaging=packaging
+            ).first()
+
         # Capture cost at time of sale
-        unit_cost = product.cost_price or product.purchase_price or Decimal('0.00')
+        # For granel products, weighted_avg_cost_per_gram × quantity gives total cost
+        if product.is_granel and product.weighted_avg_cost_per_gram > 0:
+            unit_cost = product.weighted_avg_cost_per_gram * quantity
+        else:
+            unit_cost = product.cost_price or product.purchase_price or Decimal('0.00')
 
         if existing_item:
             existing_item.quantity += quantity
@@ -148,7 +166,10 @@ class CartService:
                 unit_cost=unit_cost,
             )
             pkg_label = f' ({packaging.name})' if packaging else ''
-            message = f'{product.name}{pkg_label} agregado'
+            if product.is_granel:
+                message = f'{int(quantity) if quantity == int(quantity) else quantity}g de {product.name}'
+            else:
+                message = f'{product.name}{pkg_label} agregado'
         
         # Apply promotions
         CartService.apply_promotions(pos_transaction)

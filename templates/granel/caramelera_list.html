@@ -74,10 +74,16 @@
                             <span class="badge bg-info text-dark">{{ c.components.count }} productos</span>
                         </td>
                         <td class="text-center">
-                            <a href="{% url 'granel:caramelera_edit' c.pk %}"
-                               class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit"></i> Editar
-                            </a>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'granel:caramelera_detail' c.pk %}"
+                                   class="btn btn-outline-success" title="Ver detalle / Abrir bolsa">
+                                    <i class="fas fa-box-open me-1"></i>Abrir Bolsa
+                                </a>
+                                <a href="{% url 'granel:caramelera_edit' c.pk %}"
+                                   class="btn btn-outline-primary" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}

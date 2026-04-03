@@ -20,7 +20,9 @@ urlpatterns = [
     # Caramelera create/edit
     path('carameleras/', views.caramelera_list, name='caramelera_list'),
     path('carameleras/create/', views.caramelera_create, name='caramelera_create'),
+    path('carameleras/<int:pk>/', views.caramelera_detail, name='caramelera_detail'),
     path('carameleras/<int:pk>/edit/', views.caramelera_edit, name='caramelera_edit'),
     path('api/caramelera/save/', views.api_caramelera_save, name='api_caramelera_save'),
     path('api/caramelera/<int:pk>/save/', views.api_caramelera_save, name='api_caramelera_save_edit'),
+    path('api/caramelera/<int:pk>/abrir-bolsa/', views.api_abrir_bolsa, name='api_abrir_bolsa'),
 ]

@@ -115,6 +115,105 @@ class GranelService:
 
     @staticmethod
     @transaction.atomic
+    def abrir_bolsa(bulk_product_id, granel_product_id, grams, user, notes=''):
+        """
+        Abre una bolsa y transfiere una cantidad específica de gramos al granel.
+        - Resta 1 unidad del producto bulto (FIFO)
+        - Suma `grams` al producto granel
+        - Recalcula el costo ponderado del granel
+        """
+        grams = Decimal(str(grams))
+        bulk = Product.objects.select_for_update().get(pk=bulk_product_id)
+        granel = Product.objects.select_for_update().get(pk=granel_product_id)
+
+        if not granel.is_granel:
+            raise ValueError(f'{granel.name} no es un producto granel')
+        if grams <= 0:
+            raise ValueError('Los gramos deben ser mayor a 0')
+        if bulk.current_stock < 1:
+            raise ValueError(f'No hay stock de {bulk.name} para transferir')
+
+        # FIFO: consume from oldest batch with remaining stock
+        bag_grams = bulk.weight_per_unit_grams or grams
+        batch = (
+            StockBatch.objects.select_for_update()
+            .filter(product=bulk, quantity_remaining__gt=0)
+            .order_by('purchased_at', 'created_at')
+            .first()
+        )
+
+        if batch:
+            cost_per_gram = batch.unit_cost / bag_grams if bag_grams > 0 else Decimal('0')
+            batch.quantity_remaining -= 1
+            batch.save()
+        else:
+            cost_per_gram = bulk.cost_price / bag_grams if bag_grams > 0 else Decimal('0')
+
+        # Snapshot before
+        stock_before = granel.current_stock
+        cost_before = granel.weighted_avg_cost_per_gram
+
+        # Weighted average cost recalculation
+        if stock_before > 0 and cost_before > 0:
+            total_value = (stock_before * cost_before) + (grams * cost_per_gram)
+            new_avg = total_value / (stock_before + grams)
+        else:
+            new_avg = cost_per_gram
+
+        # Update granel product
+        granel.current_stock += grams
+        granel.weighted_avg_cost_per_gram = new_avg
+        granel.cost_price = (new_avg * granel.granel_price_weight_grams).quantize(Decimal('0.01'))
+        granel.save()
+
+        # Deduct 1 unit from bulk
+        bulk_stock_before = bulk.current_stock
+        bulk.current_stock -= 1
+        bulk.save()
+
+        # Stock movements
+        StockMovement.objects.create(
+            product=bulk,
+            movement_type='transfer_out',
+            quantity=Decimal('-1'),
+            unit_cost=batch.unit_cost if batch else bulk.cost_price,
+            stock_before=bulk_stock_before,
+            stock_after=bulk.current_stock,
+            reference=f'Apertura bolsa -> {granel.name}',
+            notes=notes,
+            created_by=user,
+        )
+        StockMovement.objects.create(
+            product=granel,
+            movement_type='transfer_in',
+            quantity=grams,
+            unit_cost=cost_per_gram,
+            stock_before=stock_before,
+            stock_after=granel.current_stock,
+            reference=f'Recibe {grams}g de {bulk.name}',
+            notes=notes,
+            created_by=user,
+        )
+
+        # Transfer log
+        transfer = BulkToGranelTransfer.objects.create(
+            bulk_product=bulk,
+            granel_product=granel,
+            source_batch=batch,
+            grams_transferred=grams,
+            bulk_cost_per_gram=cost_per_gram,
+            granel_stock_before=stock_before,
+            granel_weighted_cost_before=cost_before,
+            granel_stock_after=granel.current_stock,
+            granel_weighted_cost_after=new_avg,
+            transferred_by=user,
+            notes=notes,
+        )
+
+        return transfer
+
+    @staticmethod
+    @transaction.atomic
     def perform_shrinkage_audit(granel_product_id, actual_grams, reason, notes, user, apply_adjustment=True):
         """
         Compara stock teórico vs peso real y registra la merma.

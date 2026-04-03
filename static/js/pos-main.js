@@ -440,8 +440,8 @@
                 
                 const product = JSON.parse(this.dataset.product);
                 
-                // For bulk products, show quantity modal
-                if (product.is_bulk) {
+                // For bulk/granel products, show quantity/weight modal
+                if (product.is_bulk || product.is_granel) {
                     showBulkQuantityModal(product);
                 } else {
                     addToCart(product.id, 1, product.packaging_id || null);
@@ -466,47 +466,90 @@
     function showBulkQuantityModal(product) {
         // Granel products: price per X grams (e.g., $2500/100g)
         const isGranel = product.is_granel && product.granel_price_weight_grams;
-        const priceWeight = isGranel ? product.granel_price_weight_grams : null;
+        const priceWeight = isGranel ? product.granel_price_weight_grams : null;  // e.g. 100
+        const price250 = isGranel ? (product.sale_price_250g || 0) : 0;
         const unitLabel = isGranel ? 'gramos' : product.unit;
-        const priceLabel = isGranel
-            ? `${formatCurrency(product.unit_price)}/${priceWeight}g`
-            : `${formatCurrency(product.unit_price)}/${product.unit}`;
         const defaultVal = isGranel ? '100' : '0.500';
         const stepVal = isGranel ? '1' : '0.001';
         const minVal = isGranel ? '1' : '0.001';
 
-        function calcTotal(qty) {
-            if (isGranel) {
-                return (qty / priceWeight) * product.unit_price;
+        // Price label for granel: show both price/100g and price/250g if available
+        let priceLabel;
+        if (isGranel) {
+            priceLabel = `${formatCurrency(product.unit_price)}/${priceWeight}g`;
+            if (price250 > 0) {
+                priceLabel += ` | ${formatCurrency(price250)}/250g`;
             }
-            return qty * product.unit_price;
+        } else {
+            priceLabel = `${formatCurrency(product.unit_price)}/${product.unit}`;
+        }
+
+        function calcTotal(grams) {
+            if (!isGranel) return grams * product.unit_price;
+            // Use cuarto (250g) price if weight is a multiple of 250 and price_250g is configured
+            if (price250 > 0 && grams > 0 && grams % 250 === 0) {
+                return (grams / 250) * price250;
+            }
+            // Otherwise use price per priceWeight (e.g. per 100g), rounding up
+            const units = Math.ceil(grams / priceWeight);
+            return units * product.unit_price;
+        }
+
+        function priceBreakdown(grams) {
+            if (!isGranel || grams <= 0) return '';
+            if (price250 > 0 && grams % 250 === 0) {
+                const qtd = grams / 250;
+                return `<small class="text-info">${qtd} cuarto${qtd !== 1 ? 's' : ''} × ${formatCurrency(price250)}</small>`;
+            }
+            const units = Math.ceil(grams / priceWeight);
+            return `<small class="text-muted">${units} × ${priceWeight}g × ${formatCurrency(product.unit_price)}</small>`;
         }
 
         const modalHtml = `
             <div class="modal fade" id="bulkQuantityModal" tabindex="-1">
                 <div class="modal-dialog modal-sm">
-                    <div class="modal-content bg-dark text-white">
-                        <div class="modal-header border-secondary">
-                            <h5 class="modal-title"><i class="fas fa-weight me-2"></i>${product.name}</h5>
+                    <div class="modal-content bg-dark text-white" style="border:1.5px solid rgba(0,210,211,0.2);border-radius:14px;">
+                        <div class="modal-header border-secondary" style="border-bottom:1px solid rgba(0,210,211,0.12);">
+                            <h5 class="modal-title">
+                                <i class="fas fa-weight-hanging me-2" style="color:#E91E8C;"></i>${product.name}
+                            </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted mb-2">Precio: ${priceLabel}</p>
-                            <label class="form-label">Cantidad (${unitLabel})</label>
+                            <p class="text-muted mb-3" style="font-size:0.85rem;">
+                                <i class="fas fa-tag me-1"></i>${priceLabel}
+                                ${isGranel ? `<br><small>Stock: ${product.stock.toFixed ? product.stock.toFixed(0) : product.stock}g disponibles</small>` : ''}
+                            </p>
+                            ${isGranel && price250 > 0 ? `
+                            <div class="d-flex gap-2 mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">100g</button>
+                                <button type="button" class="btn btn-sm btn-outline-warning granel-quick-gram" data-grams="250" style="flex:1;">250g<br><small>${formatCurrency(price250)}</small></button>
+                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="500" style="flex:1;">500g</button>
+                            </div>` : isGranel ? `
+                            <div class="d-flex gap-2 mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="50" style="flex:1;">50g</button>
+                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">100g</button>
+                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="200" style="flex:1;">200g</button>
+                            </div>` : ''}
+                            <label class="form-label" style="color:#aaa;font-size:0.85rem;">Peso (${unitLabel})</label>
                             <input type="number"
-                                   class="form-control form-control-lg bg-secondary text-white text-center"
+                                   class="form-control form-control-lg text-center"
                                    id="bulk-quantity-input"
                                    min="${minVal}"
                                    step="${stepVal}"
                                    value="${defaultVal}"
-                                   autofocus>
+                                   autofocus
+                                   style="background:#0d0d1f;border:2px solid rgba(45,45,68,0.8);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
                             <div class="mt-3 text-center">
-                                <span class="fs-4">Total: <strong id="bulk-total-preview">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</strong></span>
+                                <div id="bulk-price-breakdown" style="min-height:1.2em;margin-bottom:4px;"></div>
+                                <span class="fs-4">Total: <strong id="bulk-total-preview" style="color:#00d2d3;">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</strong></span>
                             </div>
                         </div>
-                        <div class="modal-footer border-secondary">
+                        <div class="modal-footer border-secondary" style="border-top:1px solid rgba(0,210,211,0.12);">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary" id="confirm-bulk-quantity">Agregar</button>
+                            <button type="button" class="btn btn-primary" id="confirm-bulk-quantity">
+                                <i class="fas fa-cart-plus me-1"></i>Agregar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -519,17 +562,32 @@
         const modal = new bootstrap.Modal(document.getElementById('bulkQuantityModal'));
         const input = document.getElementById('bulk-quantity-input');
         const preview = document.getElementById('bulk-total-preview');
+        const breakdown = document.getElementById('bulk-price-breakdown');
         const confirmBtn = document.getElementById('confirm-bulk-quantity');
 
-        input.addEventListener('input', () => {
+        function updatePreview() {
             const qty = parseFloat(input.value) || 0;
             preview.textContent = formatCurrency(calcTotal(qty));
+            if (breakdown) breakdown.innerHTML = priceBreakdown(qty);
+        }
+
+        input.addEventListener('input', updatePreview);
+        updatePreview();
+
+        // Quick gram buttons
+        document.querySelectorAll('.granel-quick-gram').forEach(btn => {
+            btn.addEventListener('click', () => {
+                input.value = btn.dataset.grams;
+                updatePreview();
+                input.focus();
+            });
         });
 
         confirmBtn.addEventListener('click', () => {
             const qty = parseFloat(input.value) || 0;
             if (qty > 0) {
-                addToCart(product.id, qty);
+                const priceOverride = isGranel ? calcTotal(qty) : null;
+                addToCart(product.id, qty, null, priceOverride);
                 modal.hide();
                 hideSearchResults();
                 productSearch.value = '';
@@ -716,8 +774,8 @@
             
             if (data.products && data.products.length > 0) {
                 const product = data.products[0];
-                // For bulk products (granel), show weight modal
-                if (product.is_bulk) {
+                // For bulk/granel products, show weight modal
+                if (product.is_bulk || product.is_granel) {
                     showBulkQuantityModal(product);
                 } else {
                     addToCart(product.id, 1, product.packaging_id || null);
@@ -797,7 +855,7 @@
         }
     }
 
-    async function addToCart(productId, quantity = 1, packagingId = null) {
+    async function addToCart(productId, quantity = 1, packagingId = null, unitPrice = null) {
         try {
             const payload = {
                 transaction_id: TRANSACTION_ID,
@@ -806,6 +864,9 @@
             };
             if (packagingId) {
                 payload.packaging_id = packagingId;
+            }
+            if (unitPrice !== null) {
+                payload.unit_price = unitPrice;
             }
             const response = await fetch(API_URLS.addToCart, {
                 method: 'POST',
@@ -928,19 +989,24 @@
             if (btnMixedPay) btnMixedPay.disabled = true;
         } else {
             cartItems.innerHTML = cart.items.map(item => {
-                const pkgLabel = item.packaging_name 
+                const pkgLabel = item.packaging_name
                     ? `<span class="badge bg-${item.packaging_type === 'bulk' ? 'primary' : item.packaging_type === 'display' ? 'info' : 'success'} ms-1" style="font-size:.65em">${item.packaging_name}</span>`
                     : '';
+                // For granel items, show weight in grams as item name
+                const displayName = item.is_granel
+                    ? `${item.quantity % 1 === 0 ? item.quantity : parseFloat(item.quantity).toFixed(1)}g de ${item.product_name || item.name}`
+                    : (item.product_name || item.name);
                 return `
                 <div class="cart-item" data-item-id="${item.id}">
                     <div class="cart-item-info">
                         <div class="cart-item-name">
-                            ${item.product_name || item.name}
+                            ${displayName}
                             ${pkgLabel}
+                            ${item.is_granel ? '<span class="badge ms-1" style="font-size:.65em;background:rgba(233,30,140,0.2);color:#E91E8C;border:1px solid rgba(233,30,140,0.3);">granel</span>' : ''}
                             ${item.promotion_name ? `<span class="cart-item-promo badge bg-success ms-1">${item.promotion_name}</span>` : ''}
                         </div>
                         <div class="cart-item-price d-flex align-items-center gap-2">
-                            <span>${formatCurrency(item.unit_price)} c/u</span>
+                            <span>${item.is_granel ? formatCurrency(item.unit_price) + `/${item.granel_price_weight_grams || 100}g` : formatCurrency(item.unit_price) + ' c/u'}</span>
                             <button class="btn btn-xs cart-item-discount-btn ${item.discount > 0 ? 'btn-success active' : 'btn-outline-warning'}" tabindex="-1"
                                     title="Descuento solo a este producto" data-item-id="${item.id}">
                                 <i class="fas fa-percent"></i>
@@ -949,6 +1015,15 @@
                         </div>
                     </div>
                     <div class="cart-item-quantity">
+                        ${item.is_granel ? `
+                        <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="decrease">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input type="number" class="qty-input" tabindex="-1" value="${item.quantity}" min="1" step="1" style="width:65px;font-size:0.8rem;" title="Gramos">
+                        <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="increase">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        ` : `
                         <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="decrease">
                             <i class="fas fa-minus"></i>
                         </button>
@@ -956,6 +1031,7 @@
                         <button class="btn btn-sm btn-outline-secondary qty-btn" tabindex="-1" data-action="increase">
                             <i class="fas fa-plus"></i>
                         </button>
+                        `}
                     </div>
                     <div class="cart-item-subtotal">
                         ${formatCurrency(item.subtotal)}
@@ -990,13 +1066,15 @@
                     updateCartItem(itemId, parseFloat(qtyInput.value));
                 });
                 
+                const itemData2 = cart.items.find(i => String(i.id) === String(itemId));
+                const granelStep = itemData2 && itemData2.is_granel ? 50 : 1;
                 itemEl.querySelectorAll('.qty-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         let qty = parseFloat(qtyInput.value);
                         if (btn.dataset.action === 'increase') {
-                            qty += 1;
+                            qty += granelStep;
                         } else {
-                            qty = Math.max(0, qty - 1);
+                            qty = Math.max(0, qty - granelStep);
                         }
                         if (qty === 0) {
                             removeCartItem(itemId);
@@ -1134,9 +1212,20 @@
         if (!quickAccessGrid) return;
         
         quickAccessGrid.querySelectorAll('.quick-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', async function() {
                 const productId = this.dataset.productId;
-                if (productId) {
+                if (!productId) return;
+                // Granel products need weight entry — fetch product info first
+                try {
+                    const resp = await fetch(`${API_URLS.search}?q=${encodeURIComponent(productId)}`);
+                    const data = await resp.json();
+                    const product = data.products && data.products.find(p => String(p.id) === String(productId));
+                    if (product && (product.is_bulk || product.is_granel)) {
+                        showBulkQuantityModal(product);
+                    } else {
+                        addToCart(parseInt(productId), 1);
+                    }
+                } catch {
                     addToCart(parseInt(productId), 1);
                 }
             });
