@@ -122,38 +122,56 @@
                 </div>
             </div>
 
-            <!-- Costos de Compra (últimas entradas) -->
-            {% if active_batches %}
+            <!-- Historial de Precios de Compra -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-dollar-sign me-2"></i>Costos de Compra Activos
+                        <i class="fas fa-receipt me-2"></i>Historial de Compras
                     </h5>
                     <a href="{% url 'stocks:product_costs' product.pk %}" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-list me-1"></i>Ver Historial Completo
                     </a>
                 </div>
                 <div class="card-body p-0">
+                    {% if recent_batches %}
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
                                 <tr>
                                     <th>Fecha</th>
                                     <th>Proveedor</th>
-                                    <th class="text-end">Comprado</th>
-                                    <th class="text-end">Restante</th>
+                                    <th>Orden</th>
+                                    <th class="text-end">Cant.</th>
+                                    <th class="text-end">Disponible</th>
                                     <th class="text-end">Costo Unit.</th>
-                                    <th class="text-end">Ganancia</th>
+                                    <th class="text-end">Margen</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for batch in active_batches %}
-                                <tr>
+                                {% for batch in recent_batches %}
+                                <tr class="{% if batch.is_depleted %}text-muted{% endif %}">
                                     <td>{{ batch.purchased_at|date:"d/m/Y" }}</td>
-                                    <td>{{ batch.supplier_name|default:"-" }}</td>
-                                    <td class="text-end">{{ batch.quantity_purchased|floatformat:2 }}</td>
-                                    <td class="text-end">{{ batch.quantity_remaining|floatformat:2 }}</td>
-                                    <td class="text-end">${{ batch.purchase_price|floatformat:2 }}</td>
+                                    <td>
+                                        <span class="fw-semibold">{{ batch.supplier_name|default:"-" }}</span>
+                                    </td>
+                                    <td>
+                                        {% if batch.purchase %}
+                                            <a href="{% url 'purchase:purchase_detail' batch.purchase.pk %}" class="small text-decoration-none">
+                                                {{ batch.purchase.order_number }}
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ batch.quantity_purchased|floatformat:0 }}</td>
+                                    <td class="text-end">
+                                        {% if batch.is_depleted %}
+                                            <span class="badge bg-secondary">Agotado</span>
+                                        {% else %}
+                                            <span class="text-success fw-semibold">{{ batch.quantity_remaining|floatformat:0 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-semibold">${{ batch.purchase_price|floatformat:2 }}</td>
                                     <td class="text-end">
                                         {% if batch.margin_if_sold_at_list is not None %}
                                             {% if batch.margin_if_sold_at_list > 30 %}
@@ -165,18 +183,21 @@
                                             {% else %}
                                                 <span class="badge bg-dark">{{ batch.margin_if_sold_at_list }}%</span>
                                             {% endif %}
-                                        {% else %}
-                                            -
-                                        {% endif %}
+                                        {% else %}-{% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-receipt fa-2x mb-2 d-block opacity-50"></i>
+                        Sin compras registradas para este producto.
+                    </div>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
 
             <!-- Stock Movements -->
             <div class="card">

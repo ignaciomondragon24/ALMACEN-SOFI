@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from accounts.models import Role
 from cashregister.models import PaymentMethod, CashRegister
 from stocks.models import UnitOfMeasure, ProductCategory
+from expenses.models import ExpenseCategory
 
 
 class Command(BaseCommand):
@@ -30,7 +31,9 @@ class Command(BaseCommand):
         
         # Create categories
         self.create_categories()
-        
+
+        # Create expense categories
+        self.create_expense_categories()
 
         self.stdout.write(self.style.SUCCESS('\n✅ Data initialization complete!'))
 
@@ -128,3 +131,22 @@ class Command(BaseCommand):
     def create_categories(self):
         """Create default product categories."""
         self.stdout.write('  - Categorías: se crean desde el sistema, no por defecto.')
+
+    def create_expense_categories(self):
+        """Create default expense categories."""
+        self.stdout.write('Creating expense categories...')
+        categories = [
+            {'name': 'Proveedores', 'description': 'Pagos a proveedores por compras de mercadería', 'color': '#2D1E5F'},
+            {'name': 'Servicios', 'description': 'Electricidad, agua, internet, etc.', 'color': '#17a2b8'},
+            {'name': 'Personal', 'description': 'Sueldos y gastos de personal', 'color': '#28a745'},
+            {'name': 'Varios', 'description': 'Otros gastos', 'color': '#6c757d'},
+        ]
+        for cat_data in categories:
+            cat, created = ExpenseCategory.objects.get_or_create(
+                name=cat_data['name'],
+                defaults=cat_data,
+            )
+            if created:
+                self.stdout.write(f'  ✓ Created expense category: {cat.name}')
+            else:
+                self.stdout.write(f'  - Expense category exists: {cat.name}')

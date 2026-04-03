@@ -16,6 +16,7 @@ from .models import Supplier, Purchase, PurchaseItem
 from .forms import SupplierForm, PurchaseForm, PurchaseItemFormSet
 from stocks.models import Product, StockBatch
 from stocks.services import StockManagementService
+from expenses.models import Expense, ExpenseCategory
 
 
 @login_required
@@ -334,7 +335,27 @@ def purchase_receive(request, pk):
             purchase.received_date = timezone.now().date()
             purchase.save()
 
-        messages.success(request, 'Compra recibida, stock y lotes actualizados.')
+            # Crear gasto automático en categoría Proveedores
+            proveedores_cat, _ = ExpenseCategory.objects.get_or_create(
+                name='Proveedores',
+                defaults={
+                    'description': 'Pagos a proveedores por compras de mercadería',
+                    'color': '#2D1E5F',
+                },
+            )
+            Expense.objects.create(
+                category=proveedores_cat,
+                description=f'Compra {purchase.supplier.name} — {purchase.order_number}',
+                amount=purchase.total,
+                expense_date=purchase.received_date,
+                payment_method='transfer',
+                receipt_number=purchase.order_number,
+                supplier=purchase.supplier,
+                notes=f'Recepción automática de orden {purchase.order_number}',
+                created_by=request.user,
+            )
+
+        messages.success(request, 'Compra recibida, stock, lotes y gasto actualizados.')
         return redirect('purchase:purchase_list')
     
     context = {'purchase': purchase}

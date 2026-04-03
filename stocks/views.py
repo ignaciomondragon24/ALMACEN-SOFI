@@ -295,12 +295,13 @@ def product_detail(request, pk):
     """Product detail view."""
     product = get_object_or_404(Product, pk=pk)
     movements = product.stock_movements.order_by('-created_at')[:20]
-    active_batches = product.batches.filter(quantity_remaining__gt=0).order_by('-purchased_at')[:5]
+    # Últimos 8 lotes (activos o agotados) para mostrar historial de precios de compra
+    recent_batches = product.batches.select_related('purchase__supplier').order_by('-purchased_at')[:8]
 
     return render(request, 'stocks/product_detail.html', {
         'product': product,
         'movements': movements,
-        'active_batches': active_batches,
+        'recent_batches': recent_batches,
     })
 
 
