@@ -175,7 +175,6 @@ class MPPointService:
         payload = {
             "amount": amount_cents,
             "additional_info": ai,
-            "description": description,
         }
 
         # Configurar método de pago si se especifica uno específico
