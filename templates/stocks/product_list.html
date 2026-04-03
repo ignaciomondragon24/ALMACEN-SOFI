@@ -110,7 +110,17 @@
                             </td>
                             <td class="text-center">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'stocks:product_edit' product.pk %}" 
+                                    <a href="{% url 'stocks:product_detail' product.pk %}"
+                                       class="btn btn-outline-secondary"
+                                       title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'stocks:product_costs' product.pk %}"
+                                       class="btn btn-outline-info"
+                                       title="Historial de precios de compra">
+                                        <i class="fas fa-receipt"></i>
+                                    </a>
+                                    <a href="{% url 'stocks:product_edit' product.pk %}"
                                        class="btn btn-outline-primary"
                                        title="Editar">
                                         <i class="fas fa-edit"></i>
@@ -120,7 +130,7 @@
                                        title="Conteo Físico">
                                         <i class="fas fa-clipboard-check"></i>
                                     </a>
-                                    <a href="{% url 'stocks:product_delete' product.pk %}" 
+                                    <a href="{% url 'stocks:product_delete' product.pk %}"
                                        class="btn btn-outline-danger"
                                        title="Eliminar">
                                         <i class="fas fa-trash"></i>
