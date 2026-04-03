@@ -175,7 +175,6 @@ class MPPointService:
         payload = {
             "amount": amount_cents,
             "additional_info": ai,
-            "payment_mode": "qr",  # Forzar modo QR en el Point Smart
         }
 
         logger.info(
@@ -236,6 +235,62 @@ class MPPointService:
             "GET",
             f"/point/integration-api/devices/{device_id}/payment-intents"
         )
+
+    # ==================== QR DINÁMICO ====================
+
+    def get_user_id(self):
+        """Obtiene el user_id de MP consultando la API."""
+        if self.credentials.user_id:
+            return self.credentials.user_id
+        success, response = self._make_request("GET", "/users/me")
+        if success:
+            user_id = str(response.get("id", ""))
+            if user_id:
+                self.credentials.user_id = user_id
+                self.credentials.save(update_fields=["user_id"])
+            return user_id
+        return None
+
+    def create_qr_order(self, amount, external_reference, title="Venta CHE GOLOSO"):
+        """
+        Crea una orden QR dinámica. El cliente escanea el QR con su app de MP.
+
+        Returns:
+            tuple: (success, data) - data incluye 'qr_data' con el string para generar QR
+        """
+        user_id = self.get_user_id()
+        if not user_id:
+            return False, {"error": "No se pudo obtener el User ID de MP"}
+
+        total_amount = float(Decimal(str(amount)).quantize(Decimal("0.01")))
+
+        payload = {
+            "external_reference": external_reference,
+            "title": title,
+            "total_amount": total_amount,
+            "items": [{
+                "title": title,
+                "unit_price": total_amount,
+                "quantity": 1,
+                "unit_measure": "unit",
+                "total_amount": total_amount,
+            }],
+        }
+
+        logger.info(f"Creating QR order: amount={total_amount}, ref={external_reference}")
+
+        # Usar el store_id y external_pos_id por defecto
+        external_pos_id = f"CHEPOS-{user_id[-6:]}"
+
+        return self._make_request(
+            "POST",
+            f"/instore/qr/seller/collectors/{user_id}/pos/{external_pos_id}/orders",
+            data=payload
+        )
+
+    def get_qr_payment_status(self, external_reference):
+        """Busca el estado del pago por external_reference."""
+        return self.search_payments(external_reference=external_reference)
 
     # ==================== PAGOS ====================
     

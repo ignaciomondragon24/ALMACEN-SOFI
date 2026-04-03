@@ -1980,7 +1980,7 @@
             const selectedCard = cards[selIdx];
             if (selectedCard && confirmBtn && !confirmBtn.disabled) {
                 if (selectedCard.dataset.methodCode === 'mercadopago') {
-                    confirmBtn.innerHTML = '<i class="fas fa-mobile-alt me-2"></i>COBRAR CON POINT';
+                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>GENERAR QR';
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
                 }
@@ -2073,10 +2073,10 @@
             }
         }
 
-        // ── MercadoPago Point flow within Fast Checkout ──────────────────────
+        // ── MercadoPago QR flow within Fast Checkout ──────────────────────
         async function handleFcoMercadoPago(amount, methodId) {
-            // 1. Create payment intent → send to Point device
-            const intentResp = await fetch('/mercadopago/api/create-intent/', {
+            // 1. Create QR order
+            const intentResp = await fetch('/mercadopago/api/create-qr/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
                 body: JSON.stringify({
@@ -2086,14 +2086,17 @@
             });
             const intentData = await intentResp.json();
             if (!intentData.success) {
-                throw new Error(intentData.error || 'Error al enviar a Point');
+                throw new Error(intentData.error || 'Error al generar QR');
             }
 
             const paymentIntentId = intentData.payment_intent?.id;
+            const qrData = intentData.qr_data;
             if (!paymentIntentId) throw new Error('No se recibió ID de pago');
 
-            showToast('Pago enviado al Point. Esperando pago del cliente...', 'info');
-            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Esperando Point...';
+            // Show QR modal
+            showMpQrModal(qrData, amount);
+            showToast('QR generado. El cliente debe escanearlo con la app de MP.', 'info');
+            confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Esperando pago...';
 
             // 2. Poll for payment status
             const maxAttempts = 90;  // 3 minutes
@@ -2102,7 +2105,7 @@
 
                 // Check if overlay was closed (user cancelled)
                 if (!fcoActive) {
-                    // Try to cancel the intent
+                    hideMpQrModal();
                     fetch(`/mercadopago/api/cancel/${paymentIntentId}/`, {
                         method: 'POST',
                         headers: { 'X-CSRFToken': CSRF_TOKEN }
@@ -2115,12 +2118,10 @@
                     const statusData = await statusResp.json();
 
                     if (statusData.status === 'approved') {
-                        // Payment approved by Point → complete the transaction
+                        hideMpQrModal();
                         confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Aprobado! Finalizando...';
                         showToast('¡Pago con MercadoPago aprobado!', 'success');
 
-                        // The webhook may have already completed the transaction.
-                        // Try normal checkout; if already completed, fetch result.
                         const checkoutResp = await fetch(API_URLS.checkout, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
@@ -2134,7 +2135,6 @@
                         if (checkoutData.success) {
                             showSaleSuccessModal(checkoutData);
                         } else {
-                            // Webhook already completed it — reload to next transaction
                             showToast('Venta completada por MercadoPago', 'success');
                             setTimeout(() => window.location.reload(), 1200);
                         }
@@ -2142,22 +2142,65 @@
                     }
 
                     if (statusData.status === 'rejected' || statusData.status === 'cancelled' || statusData.status === 'error') {
+                        hideMpQrModal();
                         throw new Error(
-                            statusData.status === 'rejected' ? 'Pago rechazado en Point' :
+                            statusData.status === 'rejected' ? 'Pago rechazado' :
                             statusData.status === 'cancelled' ? 'Pago cancelado' :
-                            'Error en el Point'
+                            'Error en el pago'
                         );
                     }
-                    // Still processing — continue polling
                 } catch (pollErr) {
-                    if (pollErr.message.includes('rechazado') || pollErr.message.includes('cancelado') || pollErr.message.includes('Error en el')) {
+                    if (pollErr.message.includes('rechazado') || pollErr.message.includes('cancelado') || pollErr.message.includes('Error')) {
                         throw pollErr;
                     }
-                    // Network error during poll — keep trying
                     console.warn('Poll error, retrying...', pollErr);
                 }
             }
-            throw new Error('Tiempo de espera agotado. Verificá el estado del pago en el Point.');
+            hideMpQrModal();
+            throw new Error('Tiempo de espera agotado.');
+        }
+
+        // ── QR Modal functions ──────────────────────────────────────────────
+        function showMpQrModal(qrData, amount) {
+            hideMpQrModal();
+            const modal = document.createElement('div');
+            modal.id = 'mp-qr-modal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:99999;';
+            modal.innerHTML = `
+                <div style="background:#fff;padding:30px 40px;border-radius:20px;text-align:center;max-width:400px;">
+                    <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png" style="height:35px;margin-bottom:15px;">
+                    <div style="font-size:2rem;font-weight:bold;color:#009ee3;margin-bottom:15px;">${formatCurrency(amount)}</div>
+                    <div id="mp-qr-code" style="background:#fff;padding:10px;display:inline-block;"></div>
+                    <div style="margin-top:15px;color:#666;font-size:0.95rem;"><i class="fas fa-mobile-alt me-2"></i>Escaneá con la app de Mercado Pago</div>
+                    <div style="margin-top:10px;color:#999;font-size:0.85rem;"><i class="fas fa-spinner fa-spin me-1"></i>Esperando pago...</div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Load QRCode library and generate
+            if (typeof QRCode === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+                script.onload = () => renderQr(qrData);
+                document.head.appendChild(script);
+            } else {
+                renderQr(qrData);
+            }
+
+            function renderQr(data) {
+                const container = document.getElementById('mp-qr-code');
+                if (!container) return;
+                const canvas = document.createElement('canvas');
+                container.appendChild(canvas);
+                QRCode.toCanvas(canvas, data, { width: 250, margin: 1 }, (err) => {
+                    if (err) console.error('QR error:', err);
+                });
+            }
+        }
+
+        function hideMpQrModal() {
+            const m = document.getElementById('mp-qr-modal');
+            if (m) m.remove();
         }
 
         function onKey(e) {
