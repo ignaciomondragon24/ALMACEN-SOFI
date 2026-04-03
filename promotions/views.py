@@ -72,6 +72,11 @@ def promotion_create(request):
             post_data['final_price'] = post_data.get('combo_price', '0')
         if 'discount_percent_simple' in post_data:
             post_data['discount_percent'] = post_data.get('discount_percent_simple', '0')
+        # N por Precio Fijo
+        if post_data.get('nx_quantity'):
+            post_data['quantity_required'] = post_data.get('nx_quantity')
+        if post_data.get('nx_fixed_price'):
+            post_data['final_price'] = post_data.get('nx_fixed_price')
             
         # Set default status to active if not provided
         if not post_data.get('status'):
@@ -153,17 +158,23 @@ def promotion_edit(request, pk):
     
     if request.method == 'POST':
         post_data = request.POST.copy()
-        
+
         # Handle products - convert comma-separated string to list
         products_str = post_data.get('products', '')
         product_ids = []
         if products_str:
             product_ids = [int(pid.strip()) for pid in products_str.split(',') if pid.strip().isdigit()]
-        
+
+        # N por Precio Fijo - map fields
+        if post_data.get('nx_quantity'):
+            post_data['quantity_required'] = post_data.get('nx_quantity')
+        if post_data.get('nx_fixed_price'):
+            post_data['final_price'] = post_data.get('nx_fixed_price')
+
         try:
             from stocks.models import Product
             from decimal import Decimal
-            
+
             promotion.name = post_data.get('name', promotion.name)
             promotion.description = post_data.get('description', '')
             promotion.promo_type = post_data.get('promo_type', promotion.promo_type)
@@ -178,7 +189,7 @@ def promotion_edit(request, pk):
             promotion.friday = post_data.get('friday') == 'on'
             promotion.saturday = post_data.get('saturday') == 'on'
             promotion.sunday = post_data.get('sunday') == 'on'
-            # NxM config
+            # NxM / N por Precio Fijo config
             promotion.quantity_required = int(post_data.get('quantity_required', post_data.get('buy_quantity', 2)))
             promotion.quantity_charged = int(post_data.get('quantity_charged', post_data.get('pay_quantity', 1)))
             # Discounts

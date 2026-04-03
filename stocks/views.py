@@ -711,10 +711,21 @@ def import_excel(request):
                     from pos.models import QuickAccessButton, POSTransactionItem
                     from purchase.models import PurchaseItem
                     from sales.models import SaleItem
+                    from granel.models import (
+                        AperturaBulto, VentaCaramelera, BulkToGranelTransfer,
+                        CarameleraComponent, ShrinkageAudit, Caramelera
+                    )
                     # Borrar items que referencian productos (PROTECT)
                     POSTransactionItem.objects.all().delete()
                     PurchaseItem.objects.all().delete()
                     SaleItem.objects.all().delete()
+                    # Borrar modelos de granel que referencian productos
+                    AperturaBulto.objects.all().delete()
+                    VentaCaramelera.objects.all().delete()
+                    BulkToGranelTransfer.objects.all().delete()
+                    CarameleraComponent.objects.all().delete()
+                    ShrinkageAudit.objects.all().delete()
+                    Caramelera.objects.all().delete()
                     # Borrar en cascada
                     QuickAccessButton.objects.all().delete()
                     Promotion.objects.all().delete()

@@ -13,6 +13,7 @@ class Promotion(models.Model):
     
     PROMO_TYPES = [
         ('nxm', 'NxM (Ej: 2x1, 3x2)'),
+        ('nx_fixed_price', 'N por Precio Fijo (Ej: 2x$500, 3x$1000)'),
         ('quantity_discount', 'Descuento por Cantidad'),
         ('combo', 'Combo'),
         ('second_unit', 'Segunda Unidad con Descuento'),

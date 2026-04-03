@@ -102,15 +102,22 @@
                                 </div>
                             </div>
                             <div class="col-md-4">
+                                <div class="card promo-type-card h-100 text-center p-3" data-type="nx_fixed_price">
+                                    <div class="icon text-success"><i class="fas fa-dollar-sign"></i></div>
+                                    <h6>N por $X</h6>
+                                    <small class="text-muted">2x$500, 3x$1000</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
                                 <div class="card promo-type-card h-100 text-center p-3" data-type="second_unit">
-                                    <div class="icon text-success"><i class="fas fa-percent"></i></div>
+                                    <div class="icon text-warning"><i class="fas fa-percent"></i></div>
                                     <h6>2da Unidad</h6>
                                     <small class="text-muted">% descuento</small>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="card promo-type-card h-100 text-center p-3" data-type="quantity_discount">
-                                    <div class="icon text-warning"><i class="fas fa-boxes"></i></div>
+                                    <div class="icon text-secondary"><i class="fas fa-boxes"></i></div>
                                     <h6>Por Cantidad</h6>
                                     <small class="text-muted">Lleva X paga Y</small>
                                 </div>
@@ -138,15 +145,36 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Cantidad a Llevar</label>
-                                    <input type="number" class="form-control" name="buy_quantity" 
+                                    <input type="number" class="form-control" name="buy_quantity"
                                            value="{{ form.buy_quantity.value|default:2 }}" min="2">
                                     <small class="text-muted">Ej: para 2x1, poner 2</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Cantidad a Pagar</label>
-                                    <input type="number" class="form-control" name="pay_quantity" 
+                                    <input type="number" class="form-control" name="pay_quantity"
                                            value="{{ form.pay_quantity.value|default:1 }}" min="1">
                                     <small class="text-muted">Ej: para 2x1, poner 1</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- N por Precio Fijo Config -->
+                        <div class="config-section" id="config-nx_fixed_price">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Cantidad de Unidades</label>
+                                    <input type="number" class="form-control" name="nx_quantity"
+                                           value="{{ form.quantity_required.value|default:2 }}" min="2">
+                                    <small class="text-muted">Ej: 2 para "2 por $500"</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Precio Final</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" name="nx_fixed_price"
+                                               value="{{ form.final_price.value|default:'' }}" step="1" min="1">
+                                    </div>
+                                    <small class="text-muted">Ej: 500 para "2 por $500"</small>
                                 </div>
                             </div>
                         </div>

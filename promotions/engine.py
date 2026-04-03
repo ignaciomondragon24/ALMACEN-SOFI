@@ -74,6 +74,8 @@ class PromotionEngine:
             
             if promo.promo_type == 'nxm':
                 discount_info = PromotionEngine._apply_nxm(matching_items, promo)
+            elif promo.promo_type == 'nx_fixed_price':
+                discount_info = PromotionEngine._apply_nx_fixed_price(matching_items, promo)
             elif promo.promo_type == 'quantity_discount':
                 discount_info = PromotionEngine._apply_quantity_discount(matching_items, promo)
             elif promo.promo_type == 'second_unit':
@@ -165,7 +167,83 @@ class PromotionEngine:
             'discount': total_discount,
             'item_discounts': item_discounts
         }
-    
+
+    @staticmethod
+    def _apply_nx_fixed_price(items, promo):
+        """
+        Apply N por Precio Fijo promotion (e.g., 2x$500, 3x$1000).
+
+        Uses:
+        - quantity_required: N (how many items needed)
+        - final_price: fixed price for N items
+        """
+        n = promo.quantity_required
+        fixed_price = promo.final_price
+
+        if not fixed_price or fixed_price <= 0:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        # Calculate total quantity
+        total_qty = sum(Decimal(str(item['quantity'])) for item in items)
+
+        if total_qty < n:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        # How many complete sets of N items?
+        complete_sets = int(total_qty // n)
+
+        if complete_sets == 0:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        # Calculate original price for items in complete sets
+        items_in_promo = complete_sets * n
+
+        # Sort items by price (highest first - maximize discount)
+        sorted_items = sorted(items, key=lambda x: Decimal(str(x['unit_price'])), reverse=True)
+
+        original_price = Decimal('0.00')
+        remaining_qty = items_in_promo
+        item_discounts = []
+
+        for item in sorted_items:
+            if remaining_qty <= 0:
+                break
+
+            qty = min(Decimal(str(item['quantity'])), remaining_qty)
+            price = Decimal(str(item['unit_price']))
+
+            original_price += price * qty
+            remaining_qty -= qty
+
+        # Total discount = original price - (sets * fixed_price)
+        promo_price = Decimal(str(fixed_price)) * complete_sets
+        total_discount = max(original_price - promo_price, Decimal('0.00'))
+
+        # Distribute discount proportionally across items
+        if total_discount > 0 and original_price > 0:
+            remaining_qty = items_in_promo
+            for item in sorted_items:
+                if remaining_qty <= 0:
+                    break
+
+                qty = min(Decimal(str(item['quantity'])), remaining_qty)
+                price = Decimal(str(item['unit_price']))
+                item_subtotal = price * qty
+
+                proportion = item_subtotal / original_price
+                item_discount = total_discount * proportion
+
+                item_discounts.append({
+                    'item_id': item['item_id'],
+                    'discount': float(item_discount)
+                })
+                remaining_qty -= qty
+
+        return {
+            'discount': total_discount,
+            'item_discounts': item_discounts
+        }
+
     @staticmethod
     def _apply_quantity_discount(items, promo):
         """Apply discount when quantity threshold is met."""

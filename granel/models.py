@@ -158,7 +158,8 @@ class AperturaBulto(models.Model):
     )
     producto = models.ForeignKey(
         'stocks.Product',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name='aperturas_caramelera',
         verbose_name='Producto'
     )
@@ -425,7 +426,8 @@ class ShrinkageAudit(models.Model):
     ]
     granel_product = models.ForeignKey(
         'stocks.Product',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name='shrinkage_audits',
         verbose_name='Producto Granel'
     )
