@@ -109,9 +109,12 @@ def caramelera_edit(request, pk):
     if request.method == 'POST':
         return _caramelera_save(request, caramelera)
     productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
-    autorizados_ids = list(
-        caramelera.productos_autorizados.values_list('pk', flat=True)
-    )
+    try:
+        autorizados_ids = list(
+            caramelera.productos_autorizados.values_list('pk', flat=True)
+        )
+    except Exception:
+        autorizados_ids = []
     return render(request, 'granel/caramelera_form.html', {
         'title': f'Editar {caramelera.nombre}',
         'caramelera': caramelera,
@@ -322,6 +325,7 @@ def api_auditoria(request, pk):
             user=request.user,
             motivo=motivo,
         )
+        caramelera.refresh_from_db()
 
         return JsonResponse({
             'success': True,
@@ -364,6 +368,7 @@ def api_venta_granel(request, pk):
             precio_cobrado=precio_cobrado,
             pos_transaction_id=pos_transaction_id,
         )
+        caramelera.refresh_from_db()
 
         return JsonResponse({
             'success': True,

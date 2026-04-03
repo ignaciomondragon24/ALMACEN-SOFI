@@ -336,13 +336,15 @@ class BulkToGranelTransfer(models.Model):
     """LEGACY — Log de transferencias del sistema anterior. No usar para nuevas operaciones."""
     bulk_product = models.ForeignKey(
         'stocks.Product',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name='granel_transfers_out',
         verbose_name='Producto Bulto (origen)'
     )
     granel_product = models.ForeignKey(
         'stocks.Product',
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name='granel_transfers_in',
         verbose_name='Producto Granel (destino)'
     )
