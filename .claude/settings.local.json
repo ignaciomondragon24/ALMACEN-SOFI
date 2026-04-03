@@ -50,7 +50,9 @@
       "Bash(grep -E \"\\(settings|urls\\\\.py$\\)\")",
       "Bash(python manage.py test tests.test_caramelera_form --verbosity=2)",
       "Bash(python manage.py test tests.test_granel --verbosity=1)",
-      "Bash(python manage.py test tests.test_caramelera_form -v 2)"
+      "Bash(python manage.py test tests.test_caramelera_form -v 2)",
+      "Bash(python manage.py showmigrations stocks)",
+      "Bash(python manage.py makemigrations --check)"
     ]
   }
 }
