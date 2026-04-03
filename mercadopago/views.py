@@ -489,22 +489,169 @@ def api_check_payment_status(request, intent_id):
 
 @login_required
 @group_required(['Admin', 'Cajero Manager', 'Cashier'])
-@require_POST  
+@require_POST
 def api_cancel_payment(request, intent_id):
     """
     API para cancelar un pago pendiente.
-    
+
     POST /mercadopago/api/cancel/<intent_id>/
     """
     intent = get_object_or_404(PaymentIntent, pk=intent_id)
-    
+
     success, message = payment_manager.cancel(intent)
-    
+
     return JsonResponse({
         'success': success,
         'message': message,
         'status': intent.status
     })
+
+
+@login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
+@require_POST
+def api_create_qr_order(request):
+    """
+    API para crear un QR dinámico para cobrar.
+
+    POST /mercadopago/api/create-qr/
+    {
+        "amount": 1500.00,
+        "transaction_id": 123,  // opcional
+        "title": "Venta"  // opcional
+    }
+
+    Returns:
+        {
+            "success": true,
+            "qr_data": "00020101...",  // String para generar QR
+            "payment_intent": {...}
+        }
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+
+    amount = data.get('amount')
+    transaction_id = data.get('transaction_id')
+    title = data.get('title', 'Venta CHE GOLOSO')
+
+    if not amount:
+        return JsonResponse({'success': False, 'error': 'Monto requerido'}, status=400)
+
+    try:
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Monto inválido'}, status=400)
+
+    # Obtener turno activo
+    from cashregister.models import CashShift
+
+    active_shift = CashShift.objects.filter(
+        cashier=request.user,
+        status='open'
+    ).select_related('cash_register').first()
+
+    if not active_shift:
+        return JsonResponse({
+            'success': False,
+            'error': 'No hay turno de caja abierto'
+        }, status=400)
+
+    # Buscar dispositivo Point para obtener external_pos_id
+    device = PointDevice.objects.filter(
+        cash_register=active_shift.cash_register,
+        status='active'
+    ).first()
+
+    if not device:
+        device = PointDevice.objects.filter(status='active').first()
+
+    if not device:
+        return JsonResponse({
+            'success': False,
+            'error': 'No hay dispositivo Point configurado'
+        }, status=400)
+
+    # Asegurar que tenga external_pos_id
+    if not device.external_pos_id:
+        device.save()  # Esto genera el external_pos_id
+
+    # Obtener transacción POS si se proporcionó
+    pos_transaction = None
+    if transaction_id:
+        from pos.models import POSTransaction
+        pos_transaction = POSTransaction.objects.filter(pk=transaction_id).first()
+
+    # Crear el registro local de PaymentIntent
+    payment_intent = PaymentIntent(
+        device=device,
+        amount=amount,
+        pos_transaction=pos_transaction,
+        created_by=request.user,
+        description=title
+    )
+    payment_intent.save()
+
+    try:
+        service = MPPointService()
+
+        # Primero intentar crear el POS en MP si no existe
+        # (ignoramos errores si ya existe)
+        service.create_pos(
+            external_pos_id=device.external_pos_id,
+            name=device.device_name or f"POS {device.external_pos_id}"
+        )
+
+        # Crear la orden QR
+        success, response = service.create_qr_order(
+            external_pos_id=device.external_pos_id,
+            amount=amount,
+            external_reference=payment_intent.external_reference,
+            title=title
+        )
+
+        if success:
+            qr_data = response.get('qr_data', '')
+            in_store_order_id = response.get('in_store_order_id', '')
+
+            payment_intent.mp_payment_intent_id = in_store_order_id
+            payment_intent.status = 'processing'
+            payment_intent.sent_at = timezone.now()
+            payment_intent.save()
+
+            logger.info(f"QR order created: {payment_intent.external_reference}")
+
+            return JsonResponse({
+                'success': True,
+                'qr_data': qr_data,
+                'payment_intent': {
+                    'id': str(payment_intent.id),
+                    'external_reference': payment_intent.external_reference,
+                    'amount': float(payment_intent.amount),
+                    'status': payment_intent.status,
+                },
+                'message': 'QR generado. El cliente debe escanearlo con la app de Mercado Pago.'
+            })
+        else:
+            error_msg = response.get('message', response.get('error', 'Error desconocido'))
+            logger.error(f"Error creating QR order: {response}")
+            payment_intent.mark_error(f"{error_msg} | raw: {response}")
+            return JsonResponse({
+                'success': False,
+                'error': error_msg
+            }, status=400)
+
+    except Exception as e:
+        payment_intent.mark_error(str(e))
+        logger.exception(f"Exception creating QR order: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 # ==================== WEBHOOK ====================
