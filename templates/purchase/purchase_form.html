@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load currency_filters %}
 
 {% block title %}Nueva Orden de Compra{% endblock %}
 
@@ -39,7 +40,7 @@
                             <select id="supplier-select" class="form-select">
                                 <option value="">-- Seleccionar --</option>
                                 {% for s in suppliers %}
-                                <option value="{{ s.pk }}">{{ s.name }}</option>
+                                <option value="{{ s.pk|unlocalize }}">{{ s.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -466,7 +467,9 @@ document.getElementById('btn-submit-oc').addEventListener('click', function() {
         }
     })
     .catch(function(ex) {
-        showErr('Error de conexión: ' + ex.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Crear Orden de Compra';
+        showErr('Error al procesar la solicitud. Revisá la consola del navegador.');
     });
 });
 </script>

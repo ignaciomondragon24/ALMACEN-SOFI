@@ -90,6 +90,15 @@ def divide(value, arg):
         return 0
 
 
+@register.filter(name='unlocalize')
+def unlocalize_filter(value):
+    """Return value as plain string, bypassing locale number formatting.
+    Use for PKs/IDs inside form values, URL params and data-* attributes."""
+    if value is None:
+        return ''
+    return str(value)
+
+
 @register.filter(name='multiply')
 def multiply(value, arg):
     """

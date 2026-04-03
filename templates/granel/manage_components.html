@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load currency_filters %}
 
 {% block title %}Componentes de {{ caramelera.name }}{% endblock %}
 
@@ -47,7 +48,7 @@
                                     <form method="post" style="display:inline;">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="remove">
-                                        <input type="hidden" name="component_id" value="{{ comp.pk }}">
+                                        <input type="hidden" name="component_id" value="{{ comp.pk|unlocalize }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger py-0"
                                             onclick="return confirm('¿Quitar {{ comp.bulk_product.name }} de esta caramelera?')">
                                             <i class="fas fa-trash"></i>
@@ -97,7 +98,7 @@
                             <select name="bulk_product_id" class="form-select" required>
                                 <option value="">-- Seleccionar --</option>
                                 {% for b in available_bulk %}
-                                <option value="{{ b.pk }}">
+                                <option value="{{ b.pk|unlocalize }}">
                                     {{ b.name }} — {{ b.weight_per_unit_grams|floatformat:0 }}g — Stock: {{ b.current_stock|floatformat:0 }} unid
                                 </option>
                                 {% endfor %}

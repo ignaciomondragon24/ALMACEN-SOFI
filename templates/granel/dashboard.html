@@ -80,7 +80,7 @@
                                 <button
                                     class="btn btn-sm btn-abrir"
                                     style="background:var(--che-primary,#E91E8C);color:#fff;font-size:.8rem;white-space:nowrap;"
-                                    data-component-id="{{ comp.pk }}"
+                                    data-component-id="{{ comp.pk|unlocalize }}"
                                     data-bulk-name="{{ comp.bulk_product.name }}"
                                     data-granel-name="{{ item.product.name }}"
                                     data-stock="{{ comp.bulk_product.current_stock }}"
@@ -103,7 +103,7 @@
                     <a href="{% url 'granel:transfer' %}" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-exchange-alt me-1"></i>Abrir otro
                     </a>
-                    <a href="{% url 'granel:transfer_history' %}?granel={{ item.product.pk }}" class="btn btn-sm btn-outline-secondary">
+                    <a href="{% url 'granel:transfer_history' %}?granel={{ item.product.pk|unlocalize }}" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-history me-1"></i>Historial
                     </a>
                 </div>

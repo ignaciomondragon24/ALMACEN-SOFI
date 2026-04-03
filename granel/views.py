@@ -92,7 +92,7 @@ def transfer_history(request):
         'bulk_product', 'granel_product', 'source_batch', 'transferred_by'
     ).all()
 
-    granel_id = request.GET.get('granel')
+    granel_id = (request.GET.get('granel') or '').replace('.', '').strip() or None
     if granel_id:
         transfers = transfers.filter(granel_product_id=granel_id)
 
@@ -133,7 +133,7 @@ def audit_history(request):
         'granel_product', 'audited_by'
     ).all()
 
-    granel_id = request.GET.get('granel')
+    granel_id = (request.GET.get('granel') or '').replace('.', '').strip() or None
     if granel_id:
         audits = audits.filter(granel_product_id=granel_id)
 
@@ -270,7 +270,7 @@ def manage_components(request, product_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'add':
-            bulk_id = request.POST.get('bulk_product_id')
+            bulk_id = (request.POST.get('bulk_product_id') or '').replace('.', '').strip()
             notes = request.POST.get('notes', '')
             if bulk_id:
                 CarameleraComponent.objects.get_or_create(
@@ -279,7 +279,7 @@ def manage_components(request, product_id):
                     defaults={'notes': notes},
                 )
         elif action == 'remove':
-            component_id = request.POST.get('component_id')
+            component_id = (request.POST.get('component_id') or '').replace('.', '').strip()
             CarameleraComponent.objects.filter(pk=component_id, caramelera=caramelera).delete()
         from django.shortcuts import redirect
         return redirect('granel:manage_components', product_id=product_id)

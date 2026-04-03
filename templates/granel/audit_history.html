@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load currency_filters %}
 
 {% block title %}Historial de Mermas{% endblock %}
 
@@ -26,7 +27,7 @@
                     <select name="granel" class="form-select form-select-sm">
                         <option value="">Todos los productos</option>
                         {% for g in granel_products %}
-                        <option value="{{ g.pk }}" {% if current_granel == g.pk|stringformat:'d' %}selected{% endif %}>{{ g.name }}</option>
+                        <option value="{{ g.pk|unlocalize }}" {% if current_granel == g.pk|stringformat:'d' %}selected{% endif %}>{{ g.name }}</option>
                         {% endfor %}
                     </select>
                 </div>

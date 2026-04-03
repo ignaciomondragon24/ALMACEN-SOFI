@@ -225,7 +225,7 @@ def purchase_create(request):
                 purchase.total = subtotal + tax_amount
                 purchase.save()
 
-        except ValueError as e:
+        except Exception as e:
             if 'application/json' in content_type:
                 return JsonResponse({'error': str(e)}, status=400)
             messages.error(request, str(e))
