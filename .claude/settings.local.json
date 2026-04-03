@@ -46,7 +46,11 @@
       "Bash(python manage.py test tests.test_new_flows --verbosity=1)",
       "Bash(python manage.py showmigrations purchase)",
       "Bash(curl -s -c /tmp/cookies.txt -b /tmp/cookies.txt http://127.0.0.1:8000/purchase/create/ -L --max-redirs 3 -o /tmp/page_output.html -w \"HTTP_STATUS:%{http_code}\")",
-      "Bash(curl -s -c /tmp/cookies.txt http://127.0.0.1:8000/ -v)"
+      "Bash(curl -s -c /tmp/cookies.txt http://127.0.0.1:8000/ -v)",
+      "Bash(grep -E \"\\(settings|urls\\\\.py$\\)\")",
+      "Bash(python manage.py test tests.test_caramelera_form --verbosity=2)",
+      "Bash(python manage.py test tests.test_granel --verbosity=1)",
+      "Bash(python manage.py test tests.test_caramelera_form -v 2)"
     ]
   }
 }
