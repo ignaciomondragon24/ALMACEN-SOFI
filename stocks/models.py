@@ -302,6 +302,20 @@ class Product(models.Model):
         default=Decimal('0.00'),
         help_text='Para bultos: gramos que contiene cada unidad (ej: 2000 para bolsa de 2kg)'
     )
+
+    # Caramelera deposit product
+    es_deposito_caramelera = models.BooleanField(
+        'Es producto para caramelera',
+        default=False,
+        help_text='Marca este producto como un bulto que puede abrirse en una caramelera'
+    )
+    marca = models.CharField(
+        'Marca',
+        max_length=200,
+        blank=True,
+        help_text='Marca del producto (útil para diferenciar bultos en carameleras)'
+    )
+
     granel_caramelera = models.ForeignKey(
         'granel.Caramelera',
         on_delete=models.SET_NULL,
@@ -365,6 +379,13 @@ class Product(models.Model):
         suffix = ''.join(random.choices(string.digits, k=6))
         return f'{prefix}{suffix}'
     
+    @property
+    def costo_por_gramo(self):
+        """Para productos de depósito de caramelera: costo por gramo."""
+        if self.weight_per_unit_grams and self.weight_per_unit_grams > 0 and self.purchase_price:
+            return (self.purchase_price / self.weight_per_unit_grams).quantize(Decimal('0.000001'))
+        return Decimal('0')
+
     @property
     def margin_percent(self):
         """Calculate profit margin percentage."""

@@ -11,7 +11,6 @@ from stocks.models import Product, StockMovement
 from .models import (
     StockBatch,
     Caramelera,
-    ProductoDeposito,
     AperturaBulto,
     VentaGranel,
     AuditoriaCaramelera,
@@ -38,21 +37,28 @@ class GranelService:
         Returns: AperturaBulto creada
         """
         caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
-        producto = ProductoDeposito.objects.select_for_update().get(pk=producto_deposito_id)
+        producto = Product.objects.select_for_update().get(pk=producto_deposito_id)
 
         # Validaciones
         if not caramelera.productos_autorizados.filter(pk=producto.pk).exists():
             raise ValueError(
-                f'"{producto.nombre}" no está autorizado para la caramelera "{caramelera.nombre}". '
+                f'"{producto.name}" no está autorizado para la caramelera "{caramelera.nombre}". '
                 f'Editá la caramelera para agregar este producto.'
             )
-        if producto.stock_unidades < 1:
+        if not producto.es_deposito_caramelera:
+            raise ValueError(f'"{producto.name}" no es un producto para caramelera.')
+        if producto.current_stock < 1:
             raise ValueError(
-                f'Sin stock de "{producto.nombre}" en depósito. '
+                f'Sin stock de "{producto.name}" en depósito. '
                 f'Recibí mercadería primero.'
             )
+        if not producto.weight_per_unit_grams or producto.weight_per_unit_grams <= 0:
+            raise ValueError(
+                f'"{producto.name}" no tiene gramos por unidad configurados. '
+                f'Editá el producto para agregar los gramos.'
+            )
 
-        gramos_nuevos = producto.gramos_por_bulto
+        gramos_nuevos = producto.weight_per_unit_grams
         costo_nuevo_por_gramo = producto.costo_por_gramo
 
         # Snapshot antes
@@ -75,8 +81,8 @@ class GranelService:
         caramelera.save(update_fields=['stock_gramos_actual', 'costo_ponderado_gramo', 'updated_at'])
 
         # Descontar 1 unidad del depósito
-        producto.stock_unidades -= 1
-        producto.save(update_fields=['stock_unidades', 'updated_at'])
+        producto.current_stock -= 1
+        producto.save(update_fields=['current_stock', 'updated_at'])
 
         # Log de apertura
         apertura = AperturaBulto.objects.create(
@@ -88,7 +94,7 @@ class GranelService:
             costo_ponderado_despues=nuevo_costo,
             stock_gramos_antes=stock_antes,
             stock_gramos_despues=caramelera.stock_gramos_actual,
-            unidades_restantes_deposito=producto.stock_unidades,
+            unidades_restantes_deposito=int(producto.current_stock),
             abierto_por=user,
             notas=notas,
         )

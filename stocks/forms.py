@@ -18,6 +18,7 @@ class ProductForm(forms.ModelForm):
             'quick_access_icon', 'quick_access_position',
             'is_bulk', 'bulk_unit', 'allow_sell_by_amount',
             'is_granel', 'granel_price_weight_grams', 'weight_per_unit_grams',
+            'es_deposito_caramelera', 'marca',
         ]
         widgets = {
             'sku': forms.TextInput(attrs={'class': 'form-control'}),
@@ -44,6 +45,8 @@ class ProductForm(forms.ModelForm):
             'is_granel': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'granel_price_weight_grams': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
             'weight_per_unit_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'es_deposito_caramelera': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'marca': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Arcor, Stani...'}),
         }
 
     def __init__(self, *args, **kwargs):

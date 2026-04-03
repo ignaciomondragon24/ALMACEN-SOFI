@@ -7,12 +7,12 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.db.models import Sum, Count
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 import json
 
 from decorators.decorators import stock_manager_required
+from stocks.models import Product
 from .models import (
-    ProductoDeposito,
     Caramelera,
     AperturaBulto,
     VentaGranel,
@@ -28,12 +28,12 @@ from .services import GranelService
 @login_required
 @stock_manager_required
 def deposito_list(request):
-    """Lista de productos en depósito con búsqueda y alertas de stock bajo."""
-    qs = ProductoDeposito.objects.filter(is_active=True).order_by('nombre')
+    """Lista de productos del inventario marcados como 'para caramelera'."""
+    qs = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(nombre__icontains=q) | ProductoDeposito.objects.filter(
-            is_active=True, marca__icontains=q
+        qs = qs.filter(name__icontains=q) | Product.objects.filter(
+            es_deposito_caramelera=True, is_active=True, marca__icontains=q
         )
         qs = qs.distinct()
 
@@ -45,102 +45,28 @@ def deposito_list(request):
 
 @login_required
 @stock_manager_required
-def deposito_create(request):
-    """Formulario para crear un ProductoDeposito."""
-    if request.method == 'POST':
-        return _deposito_save(request, None)
-    return render(request, 'granel/deposito_form.html', {
-        'title': 'Nuevo Producto Depósito',
-        'producto': None,
-    })
-
-
-@login_required
-@stock_manager_required
 def deposito_edit(request, pk):
-    """Formulario para editar un ProductoDeposito."""
-    producto = get_object_or_404(ProductoDeposito, pk=pk)
-    if request.method == 'POST':
-        return _deposito_save(request, producto)
-    return render(request, 'granel/deposito_form.html', {
-        'title': f'Editar {producto.nombre}',
-        'producto': producto,
-    })
-
-
-def _deposito_save(request, producto):
-    """Lógica compartida de creación/edición de ProductoDeposito."""
-    nombre = request.POST.get('nombre', '').strip()
-    marca = request.POST.get('marca', '').strip()
-    costo_bulto_raw = request.POST.get('costo_bulto', '').strip()
-    gramos_raw = request.POST.get('gramos_por_bulto', '').strip()
-    stock_raw = request.POST.get('stock_unidades', '0').strip()
-
-    errors = []
-    if not nombre:
-        errors.append('El nombre es obligatorio.')
-    try:
-        costo_bulto = Decimal(costo_bulto_raw)
-        if costo_bulto <= 0:
-            errors.append('El costo del bulto debe ser mayor a 0.')
-    except (InvalidOperation, ValueError):
-        errors.append('Costo del bulto inválido.')
-        costo_bulto = Decimal('0')
-    try:
-        gramos_por_bulto = Decimal(gramos_raw)
-        if gramos_por_bulto <= 0:
-            errors.append('Los gramos por bulto deben ser mayor a 0.')
-    except (InvalidOperation, ValueError):
-        errors.append('Gramos por bulto inválido.')
-        gramos_por_bulto = Decimal('0')
-    try:
-        stock_unidades = int(stock_raw)
-        if stock_unidades < 0:
-            errors.append('El stock no puede ser negativo.')
-    except ValueError:
-        errors.append('Stock inválido.')
-        stock_unidades = 0
-
-    context = {
-        'title': 'Editar' if producto else 'Nuevo Producto Depósito',
-        'producto': producto,
-        'errors': errors,
-        'post': request.POST,
-    }
-
-    if errors:
-        return render(request, 'granel/deposito_form.html', context)
-
-    if producto is None:
-        producto = ProductoDeposito()
-
-    producto.nombre = nombre
-    producto.marca = marca
-    producto.costo_bulto = costo_bulto
-    producto.gramos_por_bulto = gramos_por_bulto
-    producto.stock_unidades = stock_unidades
-    producto.save()
-
-    return redirect('granel:deposito_list')
+    """Redirige al formulario estándar del inventario para editar el producto."""
+    return redirect('stocks:product_edit', pk=pk)
 
 
 @login_required
 @stock_manager_required
 @require_POST
 def api_deposito_ajustar_stock(request, pk):
-    """POST: ajusta el stock_unidades de un ProductoDeposito."""
-    producto = get_object_or_404(ProductoDeposito, pk=pk)
+    """POST: ajusta el current_stock de un Product (depósito caramelera)."""
+    producto = get_object_or_404(Product, pk=pk, es_deposito_caramelera=True)
     try:
         data = json.loads(request.body)
         delta = int(data.get('delta', 0))
-        nuevo = producto.stock_unidades + delta
+        nuevo = int(producto.current_stock) + delta
         if nuevo < 0:
             return JsonResponse({'error': 'El stock no puede quedar negativo.'}, status=400)
-        producto.stock_unidades = nuevo
-        producto.save(update_fields=['stock_unidades', 'updated_at'])
+        producto.current_stock = nuevo
+        producto.save(update_fields=['current_stock', 'updated_at'])
         return JsonResponse({
             'success': True,
-            'stock_unidades': producto.stock_unidades,
+            'stock_unidades': int(producto.current_stock),
         })
     except (ValueError, json.JSONDecodeError) as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -168,7 +94,7 @@ def caramelera_create(request):
     """Formulario para crear una nueva Caramelera."""
     if request.method == 'POST':
         return _caramelera_save(request, None)
-    productos = ProductoDeposito.objects.filter(is_active=True).order_by('nombre')
+    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
     return render(request, 'granel/caramelera_form.html', {
         'title': 'Nueva Caramelera',
         'caramelera': None,
@@ -183,7 +109,7 @@ def caramelera_edit(request, pk):
     caramelera = get_object_or_404(Caramelera, pk=pk)
     if request.method == 'POST':
         return _caramelera_save(request, caramelera)
-    productos = ProductoDeposito.objects.filter(is_active=True).order_by('nombre')
+    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
     autorizados_ids = list(
         caramelera.productos_autorizados.values_list('pk', flat=True)
     )
@@ -217,7 +143,7 @@ def _caramelera_save(request, caramelera):
     except (InvalidOperation, ValueError):
         precio_cuarto = Decimal('0')
 
-    productos = ProductoDeposito.objects.filter(is_active=True).order_by('nombre')
+    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
     context = {
         'title': 'Editar' if caramelera else 'Nueva Caramelera',
         'caramelera': caramelera,
@@ -238,8 +164,9 @@ def _caramelera_save(request, caramelera):
     caramelera.save()
 
     # Sincronizar productos autorizados
-    autorizados = ProductoDeposito.objects.filter(
+    autorizados = Product.objects.filter(
         pk__in=[int(x) for x in autorizados_ids if x.isdigit()],
+        es_deposito_caramelera=True,
         is_active=True,
     )
     caramelera.productos_autorizados.set(autorizados)
@@ -262,8 +189,8 @@ def caramelera_detail(request, pk):
     """
     caramelera = get_object_or_404(Caramelera, pk=pk)
 
-    # Productos autorizados con stock en depósito
-    autorizados = caramelera.productos_autorizados.filter(is_active=True).order_by('nombre')
+    # Productos autorizados con stock en depósito (stocks.Product)
+    autorizados = caramelera.productos_autorizados.filter(is_active=True).order_by('name')
 
     # Historial de aperturas (últimas 20)
     aperturas = (
@@ -275,7 +202,7 @@ def caramelera_detail(request, pk):
     # Ranking de rotación — agrupado por producto
     ranking = (
         AperturaBulto.objects.filter(caramelera=caramelera)
-        .values('producto__id', 'producto__nombre', 'producto__marca')
+        .values('producto__id', 'producto__name', 'producto__marca')
         .annotate(
             bolsas=Count('id'),
             gramos_total=Sum('gramos_agregados'),
@@ -340,7 +267,7 @@ def api_abrir_paquete(request, pk):
             'unidades_restantes_deposito': apertura.unidades_restantes_deposito,
             'producto_nombre': apertura.producto.nombre,
         })
-    except (Caramelera.DoesNotExist, ProductoDeposito.DoesNotExist):
+    except (Caramelera.DoesNotExist, Product.DoesNotExist):
         return JsonResponse({'error': 'No encontrado'}, status=404)
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)

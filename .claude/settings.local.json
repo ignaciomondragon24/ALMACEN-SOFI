@@ -52,7 +52,15 @@
       "Bash(python manage.py test tests.test_granel --verbosity=1)",
       "Bash(python manage.py test tests.test_caramelera_form -v 2)",
       "Bash(python manage.py showmigrations stocks)",
-      "Bash(python manage.py makemigrations --check)"
+      "Bash(python manage.py makemigrations --check)",
+      "Bash(python manage.py shell -c \"from stocks.models import Product; print\\([f.name for f in Product._meta.fields if ''track'' in f.name or ''decimal'' in f.name or ''purchase'' in f.name]\\)\")",
+      "Bash(python manage.py shell -c \":*)",
+      "Bash(python manage.py makemigrations granel stocks --name=\"new_caramelera_system\")",
+      "Bash(python manage.py test tests.test_caramelera_form.CarameleraFormTestCase.test_create_caramelera_missing_nombre --verbosity=2)",
+      "Bash(python manage.py test tests.test_caramelera_form --verbosity=1)",
+      "Bash(grep -E \"^test|ERROR|FAIL|ok$\")",
+      "Bash(python manage.py makemigrations stocks --name add_caramelera_fields)",
+      "Bash(python manage.py makemigrations granel --name use_product_for_caramelera)"
     ]
   }
 }

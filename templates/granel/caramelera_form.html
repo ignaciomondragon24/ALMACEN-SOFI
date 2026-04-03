@@ -93,8 +93,9 @@
                         {% if not productos_deposito %}
                         <div class="alert alert-warning mb-0">
                             <i class="fas fa-exclamation-triangle me-2"></i>
-                            No hay productos en el depósito todavía.
-                            <a href="{% url 'granel:deposito_create' %}">Crear uno aquí</a>.
+                            No hay productos marcados como "para caramelera" todavía.
+                            <a href="{% url 'stocks:product_create' %}">Creá uno en el inventario</a>
+                            y activá la opción correspondiente.
                         </div>
                         {% else %}
                         <div class="row g-2">
@@ -107,15 +108,17 @@
                                            id="prod_{{ p.pk|unlocalize }}"
                                            {% if p.pk in autorizados_ids %}checked{% endif %}>
                                     <label class="form-check-label w-100" for="prod_{{ p.pk|unlocalize }}">
-                                        <div class="fw-semibold small">{{ p.nombre }}</div>
+                                        <div class="fw-semibold small">{{ p.name }}</div>
                                         {% if p.marca %}
                                         <div class="text-muted" style="font-size:.75rem;">{{ p.marca }}</div>
                                         {% endif %}
                                         <div class="text-muted" style="font-size:.75rem;">
-                                            {{ p.gramos_por_bulto|floatformat:0 }}g/bulto ·
-                                            ${{ p.costo_por_gramo|floatformat:4 }}/g ·
-                                            <span class="{% if p.stock_unidades > 0 %}text-success{% else %}text-danger{% endif %}">
-                                                stock: {{ p.stock_unidades }}
+                                            {% if p.weight_per_unit_grams %}
+                                                {{ p.weight_per_unit_grams|floatformat:0 }}g/bulto ·
+                                                ${{ p.costo_por_gramo|floatformat:4 }}/g ·
+                                            {% endif %}
+                                            <span class="{% if p.current_stock > 0 %}text-success{% else %}text-danger{% endif %}">
+                                                stock: {{ p.current_stock|floatformat:0 }}
                                             </span>
                                         </div>
                                     </label>

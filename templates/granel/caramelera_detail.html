@@ -125,13 +125,13 @@
                             {% for p in autorizados %}
                             <tr>
                                 <td>
-                                    {{ p.nombre }}
+                                    {{ p.name }}
                                     {% if p.marca %}
                                     <div class="text-muted" style="font-size:.72rem;">{{ p.marca }}</div>
                                     {% endif %}
                                 </td>
-                                <td class="text-end {% if p.stock_unidades <= 0 %}text-danger{% elif p.stock_unidades <= 2 %}text-warning{% else %}text-success{% endif %}">
-                                    {{ p.stock_unidades }}
+                                <td class="text-end {% if p.current_stock <= 0 %}text-danger{% elif p.current_stock <= 2 %}text-warning{% else %}text-success{% endif %}">
+                                    {{ p.current_stock|floatformat:0 }}
                                 </td>
                                 <td class="text-end text-muted small">
                                     ${{ p.costo_por_gramo|floatformat:4 }}
@@ -205,7 +205,7 @@
                             {% for r in ranking %}
                             <tr>
                                 <td>
-                                    {{ r.producto__nombre }}
+                                    {{ r.producto__name }}
                                     {% if r.producto__marca %}
                                     <span class="text-muted small">{{ r.producto__marca }}</span>
                                     {% endif %}
@@ -250,7 +250,7 @@
                                 <tr>
                                     <td class="text-muted small">{{ a.abierto_en|date:"d/m/Y H:i" }}</td>
                                     <td>
-                                        <strong>{{ a.producto.nombre }}</strong>
+                                        <strong>{{ a.producto.name }}</strong>
                                         {% if a.producto.marca %}
                                         <span class="text-muted small">{{ a.producto.marca }}</span>
                                         {% endif %}
@@ -355,26 +355,30 @@
                         {% for p in autorizados %}
                         <div class="d-flex align-items-center justify-content-between
                                     border rounded p-2 mb-2
-                                    {% if p.stock_unidades <= 0 %}opacity-50{% endif %}">
+                                    {% if p.current_stock <= 0 %}opacity-50{% endif %}">
                             <div>
-                                <span class="fw-semibold">{{ p.nombre }}</span>
+                                <span class="fw-semibold">{{ p.name }}</span>
                                 {% if p.marca %}
                                 <span class="text-muted small ms-1">{{ p.marca }}</span>
                                 {% endif %}
                                 <div class="text-muted small">
-                                    {{ p.gramos_por_bulto|floatformat:0 }}g/bolsa ·
-                                    ${{ p.costo_por_gramo|floatformat:4 }}/g
+                                    {% if p.weight_per_unit_grams %}
+                                        {{ p.weight_per_unit_grams|floatformat:0 }}g/bolsa ·
+                                        ${{ p.costo_por_gramo|floatformat:4 }}/g
+                                    {% else %}
+                                        <span class="text-danger">Sin gramos configurados</span>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="text-end ms-3">
-                                {% if p.stock_unidades > 0 %}
-                                <span class="badge bg-success mb-1">{{ p.stock_unidades }} en dep.</span><br>
+                                {% if p.current_stock > 0 %}
+                                <span class="badge bg-success mb-1">{{ p.current_stock|floatformat:0 }} en dep.</span><br>
                                 <button type="button"
                                         class="btn btn-sm btn-success btn-seleccionar-producto"
                                         data-pk="{{ p.pk|unlocalize }}"
-                                        data-nombre="{{ p.nombre|escapejs }}"
-                                        data-gramos="{{ p.gramos_por_bulto|floatformat:0 }}"
-                                        data-stock="{{ p.stock_unidades }}">
+                                        data-nombre="{{ p.name|escapejs }}"
+                                        data-gramos="{{ p.weight_per_unit_grams|floatformat:0 }}"
+                                        data-stock="{{ p.current_stock|floatformat:0 }}">
                                     <i class="fas fa-check me-1"></i>Abrir
                                 </button>
                                 {% else %}

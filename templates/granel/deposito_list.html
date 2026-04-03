@@ -10,10 +10,15 @@
             <i class="fas fa-warehouse me-2" style="color:var(--che-primary,#E91E8C);"></i>
             Depósito de Bultos
         </h1>
-        <a href="{% url 'granel:deposito_create' %}" class="btn btn-primary">
+        <a href="{% url 'stocks:product_create' %}" class="btn btn-primary">
             <i class="fas fa-plus me-1"></i>Nuevo Producto
         </a>
     </div>
+    <p class="text-muted small mb-3">
+        <i class="fas fa-info-circle me-1"></i>
+        Los productos se crean y editan desde el <a href="{% url 'stocks:product_list' %}">Inventario</a>.
+        Activá la opción "Producto para Caramelera" al crear o editar un producto para que aparezca aquí.
+    </p>
 
     <!-- Búsqueda -->
     <form method="get" class="mb-3">
@@ -37,7 +42,8 @@
         {% if q %}
             No se encontraron productos para "{{ q }}".
         {% else %}
-            No hay productos en el depósito todavía. Creá el primero con el botón de arriba.
+            No hay productos marcados como "para caramelera" todavía.
+            Creá un producto en el inventario y activá la opción correspondiente.
         {% endif %}
     </div>
     {% else %}
@@ -58,34 +64,46 @@
                 <tbody>
                     {% for p in productos %}
                     <tr>
-                        <td class="fw-semibold">{{ p.nombre }}</td>
+                        <td class="fw-semibold">{{ p.name }}</td>
                         <td class="text-muted">{{ p.marca|default:"—" }}</td>
-                        <td class="text-end">{{ p.costo_bulto|currency_ar }}</td>
-                        <td class="text-end text-muted">{{ p.gramos_por_bulto|floatformat:0 }}g</td>
-                        <td class="text-end text-muted small">
-                            ${{ p.costo_por_gramo|floatformat:4 }}/g
-                        </td>
-                        <td class="text-center">
-                            {% if p.stock_unidades <= 2 %}
-                                <span class="badge bg-danger fs-6">{{ p.stock_unidades }}</span>
-                            {% elif p.stock_unidades <= 5 %}
-                                <span class="badge bg-warning text-dark fs-6">{{ p.stock_unidades }}</span>
+                        <td class="text-end">{{ p.purchase_price|currency_ar }}</td>
+                        <td class="text-end text-muted">
+                            {% if p.weight_per_unit_grams %}
+                                {{ p.weight_per_unit_grams|floatformat:0 }}g
                             {% else %}
-                                <span class="badge bg-success fs-6">{{ p.stock_unidades }}</span>
+                                <span class="text-danger">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-muted small">
+                            {% if p.costo_por_gramo > 0 %}
+                                ${{ p.costo_por_gramo|floatformat:4 }}/g
+                            {% else %}
+                                <span class="text-danger">Sin gramos</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
+                            {% with stock=p.current_stock|floatformat:0 %}
+                            {% if p.current_stock <= 2 %}
+                                <span class="badge bg-danger fs-6">{{ stock }}</span>
+                            {% elif p.current_stock <= 5 %}
+                                <span class="badge bg-warning text-dark fs-6">{{ stock }}</span>
+                            {% else %}
+                                <span class="badge bg-success fs-6">{{ stock }}</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="text-center">
                             <div class="d-flex gap-1 justify-content-center">
-                                <a href="{% url 'granel:deposito_edit' p.pk %}"
-                                   class="btn btn-sm btn-outline-primary" title="Editar">
+                                <a href="{% url 'stocks:product_edit' p.pk %}"
+                                   class="btn btn-sm btn-outline-primary" title="Editar producto">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <!-- Ajuste rápido de stock -->
                                 <button type="button"
                                         class="btn btn-sm btn-outline-success btn-ajustar"
                                         data-pk="{{ p.pk|unlocalize }}"
-                                        data-nombre="{{ p.nombre|escapejs }}"
-                                        data-stock="{{ p.stock_unidades }}"
+                                        data-nombre="{{ p.name|escapejs }}"
+                                        data-stock="{{ p.current_stock|floatformat:0 }}"
                                         title="Ajustar stock">
                                     <i class="fas fa-boxes"></i>
                                 </button>

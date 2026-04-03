@@ -1,52 +1,45 @@
 ---
-name: granel_candy_system_context
-description: Context and decisions for the weighted bulk candy (granel) system implementation in CHE GOLOSO
+name: Granel System Architecture
+description: Current state of the caramelera/granel system after the April 2026 full rewrite — models, services, URLs, POS integration
 type: project
 ---
 
-Feature: Sistema de venta de gomitas/caramelos a granel con costo ponderado dinámico.
+## Current Architecture (post-rewrite, April 2026)
 
-**Why:** The business sells mixed bulk candy from a shared jar. Multiple supplier bags with different costs per gram feed the same retail "commodity" product sold at a fixed price per 100g. They need real margin reporting and shrinkage auditing.
+The granel system was completely rewritten to use independent models decoupled from `stocks.Product`. New models live in `granel/models.py`.
 
-**How to apply:** This is the primary active development feature. All design decisions below are load-bearing for implementation.
+### New Models
+- `ProductoDeposito` — sealed bags/boxes in storeroom. Fields: `costo_bulto`, `gramos_por_bulto`, `stock_unidades`, computed `costo_por_gramo`.
+- `Caramelera` — the candy jar. Fields: `precio_100g`, `precio_cuarto` (250g special price), `stock_gramos_actual`, `costo_ponderado_gramo` (WAC), `productos_autorizados` M2M to ProductoDeposito. Methods: `calcular_precio(gramos)`, `margen_100g`.
+- `AperturaBulto` — full before/after snapshot log of every bag opened.
+- `VentaGranel` — POS sale record with cost snapshot and profit.
+- `AuditoriaCaramelera` — physical scale weighing, records diff, adjusts stock.
 
-## Key design decisions made during exploration (2026-03-30)
+### Legacy Models (kept for migration history, no new features)
+`BulkToGranelTransfer`, `CarameleraComponent`, `ShrinkageAudit` — do not add new functionality.
 
-### POSTransactionItem.quantity is PositiveIntegerField (blocking issue)
-Migration 0003_auto_20260205_0040.py changed it FROM DecimalField TO PositiveIntegerField.
-This MUST be reversed (new migration back to DecimalField) before granel sales work.
-The model.py shows PositiveIntegerField with MinValueValidator(1) — this truncates decimal quantities.
+### GranelService Methods
+- `abrir_paquete(caramelera_id, producto_deposito_id, user, notas)` — validates authorization + stock, runs WAC, returns `AperturaBulto`
+- `realizar_auditoria(caramelera_id, peso_real_balanza, user, motivo)` — records diff, adjusts stock
+- `registrar_venta(caramelera_id, gramos_vendidos, precio_cobrado, pos_transaction_id)` — deducts stock, records `VentaGranel`
 
-### Product model already has is_bulk + bulk_unit fields
-No need for a new boolean. The granel comodin product sets is_bulk=True, bulk_unit='g'.
-The existing POS bulk modal (showBulkQuantityModal in pos-main.js) already handles weight input.
+### WAC Formula
+`new_cost = (stock_antes * costo_antes + gramos_nuevos * cpg_bulto) / (stock_antes + gramos_nuevos)`
+Edge case: stock_antes == 0 → new_cost = cpg_bulto directly.
 
-### New fields needed on Product (via stocks migration)
-- is_granel: BooleanField (distinguishes granel comodin from regular bulk products)
-- granel_price_weight_grams: PositiveIntegerField default=100 (price displayed "per X grams")
-- weighted_avg_cost_per_gram: DecimalField(max_digits=12, decimal_places=4) (high precision)
-- weight_per_unit_grams: DecimalField(max_digits=10, decimal_places=2) (for source bulk bags — grams per sealed bag)
+### POS Integration
+- `stocks.Product` has optional FK `granel_caramelera = ForeignKey('granel.Caramelera', null=True, blank=True)`
+- In `pos/services.py` `CheckoutService.process_payment()`, after stock deduction, calls `GranelService.registrar_venta()` for items where `product.granel_caramelera` is set. Wrapped in try/except so it never blocks checkout.
 
-### New app: granel/
-All granel-specific logic lives in a new app, not in stocks/.
+### URL Namespace `granel:`
+- `deposito_list`, `deposito_create`, `deposito_edit`, `api_deposito_stock`
+- `caramelera_list`, `caramelera_create`, `caramelera_detail`, `caramelera_edit`
+- `api_abrir_paquete`, `api_auditoria`, `api_venta_granel`, `api_caramelera_info`
 
-### StockManagementService.add_stock already does weighted average
-BUT uses cost_price which is decimal_places=2 — insufficient for per-gram costs.
-The new weighted_avg_cost_per_gram field handles this separately.
+### Migrations
+- `granel/migrations/0006_new_caramelera_system.py`
+- `stocks/migrations/0013_new_caramelera_system.py` — adds `granel_caramelera` FK to `stocks.Product`
 
-### CheckoutService requires no changes
-It deducts stock via deduct_stock() or deduct_stock_with_cascade().
-The granel product is just another is_bulk product from POS perspective.
+**Why:** Previous system overloaded `stocks.Product` with `is_granel`, `weight_per_unit_grams`, `weighted_avg_cost_per_gram` etc. New system has dedicated models with clear semantics and better audit trail.
 
-### Transfer workflow maps to StockMovement types
-Use transfer_out on source bulk product, transfer_in on granel product.
-These types already exist in StockMovement.MOVEMENT_TYPES.
-
-## Architecture summary
-- New app: granel/ (models, services, views, urls, admin, forms)
-- Migrate stocks: add 4 new fields to Product
-- Migrate pos: revert quantity back to DecimalField
-- New models in granel: BulkToGranelTransfer, GranelCostHistory, ShrinkageAudit
-- New service: GranelService with transfer_bulk_to_granel, recalculate_weighted_cost, perform_shrinkage_audit
-- POS changes: update bulk modal to show "per Xg" label for is_granel products
-- Navbar: add "Caramelera" dropdown under Inventario
+**How to apply:** Use new models for all granel features. Link a POS product to a caramelera via `product.granel_caramelera`. Never write new code against legacy models.

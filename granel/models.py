@@ -73,10 +73,11 @@ class Caramelera(models.Model):
     """
     nombre = models.CharField('Nombre', max_length=200)
     productos_autorizados = models.ManyToManyField(
-        ProductoDeposito,
+        'stocks.Product',
         blank=True,
+        limit_choices_to={'es_deposito_caramelera': True},
         verbose_name='Productos Autorizados',
-        help_text='Productos del depósito que pueden entrar en este mix'
+        help_text='Productos del inventario marcados como "para caramelera" que pueden entrar en este mix'
     )
     precio_100g = models.DecimalField(
         'Precio por 100g ($)',
@@ -156,10 +157,10 @@ class AperturaBulto(models.Model):
         verbose_name='Caramelera'
     )
     producto = models.ForeignKey(
-        ProductoDeposito,
+        'stocks.Product',
         on_delete=models.PROTECT,
-        related_name='aperturas',
-        verbose_name='Producto Depósito'
+        related_name='aperturas_caramelera',
+        verbose_name='Producto'
     )
     gramos_agregados = models.DecimalField(
         'Gramos Agregados',

@@ -4,9 +4,8 @@ from . import views
 app_name = 'granel'
 
 urlpatterns = [
-    # Depósito
+    # Depósito (los productos se crean/editan desde el inventario estándar)
     path('deposito/', views.deposito_list, name='deposito_list'),
-    path('deposito/nuevo/', views.deposito_create, name='deposito_create'),
     path('deposito/<int:pk>/editar/', views.deposito_edit, name='deposito_edit'),
     path('api/deposito/<int:pk>/stock/', views.api_deposito_ajustar_stock, name='api_deposito_stock'),
 
