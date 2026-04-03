@@ -82,7 +82,6 @@ def caramelera_list(request):
     """Lista de carameleras activas con stock, precios y margen estimado."""
     carameleras = (
         Caramelera.objects.filter(is_active=True)
-        .prefetch_related('productos_autorizados')
         .order_by('nombre')
     )
     return render(request, 'granel/caramelera_list.html', {'carameleras': carameleras})
