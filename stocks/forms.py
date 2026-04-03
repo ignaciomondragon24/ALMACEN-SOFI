@@ -16,9 +16,7 @@ class ProductForm(forms.ModelForm):
             'cost_price', 'sale_price', 'current_stock', 'min_stock', 'max_stock',
             'location', 'image', 'is_active', 'is_quick_access', 'quick_access_color',
             'quick_access_icon', 'quick_access_position',
-            'is_bulk', 'bulk_unit', 'allow_sell_by_amount',
-            'is_granel', 'granel_price_weight_grams', 'weight_per_unit_grams',
-            'es_deposito_caramelera', 'marca',
+            'weight_per_unit_grams', 'es_deposito_caramelera', 'marca',
         ]
         widgets = {
             'sku': forms.TextInput(attrs={'class': 'form-control'}),
@@ -39,12 +37,7 @@ class ProductForm(forms.ModelForm):
             'quick_access_color': forms.TextInput(attrs={'class': 'form-control', 'type': 'color'}),
             'quick_access_icon': forms.TextInput(attrs={'class': 'form-control'}),
             'quick_access_position': forms.NumberInput(attrs={'class': 'form-control'}),
-            'is_bulk': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'bulk_unit': forms.Select(attrs={'class': 'form-select'}),
-            'allow_sell_by_amount': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'is_granel': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'granel_price_weight_grams': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            'weight_per_unit_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'weight_per_unit_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
             'es_deposito_caramelera': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'marca': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Arcor, Stani...'}),
         }

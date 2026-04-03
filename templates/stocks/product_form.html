@@ -170,81 +170,6 @@
                         </div>
                         
                         <hr class="my-4">
-                        <h6 class="text-muted mb-3"><i class="fas fa-candy-cane me-2" style="color:#E91E8C;"></i>Granel / Venta por Peso</h6>
-
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-check mb-3">
-                                    <input type="checkbox" name="is_bulk" id="id_is_bulk"
-                                           class="form-check-input" value="true"
-                                           {% if form.is_bulk.value %}checked{% endif %}>
-                                    <label class="form-check-label" for="id_is_bulk">
-                                        Producto a Granel (se vende por peso)
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check mb-3">
-                                    <input type="checkbox" name="is_granel" id="id_is_granel"
-                                           class="form-check-input" value="true"
-                                           {% if form.is_granel.value %}checked{% endif %}>
-                                    <label class="form-check-label" for="id_is_granel">
-                                        Producto Comodin Granel (caramelera)
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="granel-fields" style="{% if not form.is_bulk.value and not form.is_granel.value %}display:none{% endif %}">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="id_bulk_unit" class="form-label">Unidad de Venta</label>
-                                        <select name="bulk_unit" id="id_bulk_unit" class="form-select">
-                                            <option value="">---</option>
-                                            <option value="g" {% if form.bulk_unit.value == 'g' %}selected{% endif %}>Gramos (g)</option>
-                                            <option value="kg" {% if form.bulk_unit.value == 'kg' %}selected{% endif %}>Kilogramos (kg)</option>
-                                            <option value="ml" {% if form.bulk_unit.value == 'ml' %}selected{% endif %}>Mililitros (ml)</option>
-                                            <option value="l" {% if form.bulk_unit.value == 'l' %}selected{% endif %}>Litros (l)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="id_weight_per_unit_grams" class="form-label">Peso por Unidad (g)</label>
-                                        <div class="input-group">
-                                            <input type="number" name="weight_per_unit_grams" id="id_weight_per_unit_grams"
-                                                   class="form-control text-end" step="0.01" min="0"
-                                                   value="{{ form.weight_per_unit_grams.value|default:'0' }}">
-                                            <span class="input-group-text">g</span>
-                                        </div>
-                                        <small class="text-muted">Peso del bulto cerrado (ej: 2000g)</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="id_granel_price_weight_grams" class="form-label">Precio por X gramos</label>
-                                        <div class="input-group">
-                                            <input type="number" name="granel_price_weight_grams" id="id_granel_price_weight_grams"
-                                                   class="form-control text-end" min="1"
-                                                   value="{{ form.granel_price_weight_grams.value|default:'100' }}">
-                                            <span class="input-group-text">g</span>
-                                        </div>
-                                        <small class="text-muted">Ej: 100 = precio cada 100g</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="form-check mb-3">
-                                <input type="checkbox" name="allow_sell_by_amount" id="id_allow_sell_by_amount"
-                                       class="form-check-input" value="true"
-                                       {% if form.allow_sell_by_amount.value %}checked{% endif %}>
-                                <label class="form-check-label" for="id_allow_sell_by_amount">
-                                    Permitir venta por monto (el cliente dice "$500 de gomitas")
-                                </label>
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
                         <h6 class="text-muted mb-3">
                             <i class="fas fa-warehouse me-2" style="color:#E91E8C;"></i>Depósito para Caramelera
                         </h6>
@@ -259,20 +184,35 @@
                                     </label>
                                     <div class="form-text">
                                         Al activar esto, el producto aparece en el Depósito de Bultos y puede
-                                        abrirse hacia una caramelera. Configurá los gramos por unidad arriba
-                                        (campo "Peso por Unidad") y el precio de costo como costo del bulto.
+                                        abrirse hacia una caramelera. El precio de costo es el costo del bulto.
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6" id="campo-marca-caramelera"
-                                 style="{% if not form.es_deposito_caramelera.value %}display:none{% endif %}">
-                                <div class="mb-3">
-                                    <label for="id_marca" class="form-label">Marca</label>
-                                    <input type="text" name="marca" id="id_marca"
-                                           class="form-control"
-                                           placeholder="Ej: Arcor, Stani..."
-                                           value="{{ form.marca.value|default:'' }}">
-                                    <div class="form-text">Útil para distinguir bultos del mismo tipo.</div>
+                        </div>
+                        <div id="campos-caramelera" style="{% if not form.es_deposito_caramelera.value %}display:none{% endif %}">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="id_marca" class="form-label">Marca</label>
+                                        <input type="text" name="marca" id="id_marca"
+                                               class="form-control"
+                                               placeholder="Ej: Arcor, Stani..."
+                                               value="{{ form.marca.value|default:'' }}">
+                                        <div class="form-text">Útil para distinguir bultos del mismo tipo.</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="id_weight_per_unit_grams" class="form-label">Gramos por Unidad</label>
+                                        <div class="input-group">
+                                            <input type="number" name="weight_per_unit_grams" id="id_weight_per_unit_grams"
+                                                   class="form-control text-end" step="1" min="1"
+                                                   value="{{ form.weight_per_unit_grams.value|default:'' }}"
+                                                   placeholder="Ej: 2000">
+                                            <span class="input-group-text">g</span>
+                                        </div>
+                                        <div class="form-text">Cuántos gramos tiene cada bolsa/unidad.</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -630,18 +570,9 @@
         document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadePurchasePrices);
     }
 
-    // Toggle granel fields visibility
-    function toggleGranelFields() {
-        const isBulk = document.getElementById('id_is_bulk').checked;
-        const isGranel = document.getElementById('id_is_granel').checked;
-        document.getElementById('granel-fields').style.display = (isBulk || isGranel) ? '' : 'none';
-    }
-    document.getElementById('id_is_bulk').addEventListener('change', toggleGranelFields);
-    document.getElementById('id_is_granel').addEventListener('change', toggleGranelFields);
-
-    // Toggle marca field for caramelera deposit products
+    // Toggle caramelera deposit fields
     document.getElementById('id_es_deposito_caramelera').addEventListener('change', function() {
-        document.getElementById('campo-marca-caramelera').style.display = this.checked ? '' : 'none';
+        document.getElementById('campos-caramelera').style.display = this.checked ? '' : 'none';
     });
 </script>
 {% endblock %}

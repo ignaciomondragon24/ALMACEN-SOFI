@@ -171,7 +171,31 @@ def _caramelera_save(request, caramelera):
     )
     caramelera.productos_autorizados.set(autorizados)
 
+    # Crear/actualizar el producto POS vinculado (is_granel=True)
+    _sync_caramelera_pos_product(caramelera)
+
     return redirect('granel:caramelera_detail', pk=caramelera.pk)
+
+
+def _sync_caramelera_pos_product(caramelera):
+    """Crea o actualiza el producto is_granel de stocks vinculado a esta caramelera.
+
+    El producto POS es el que aparece en el buscador del POS y dispara el modal de peso.
+    """
+    pos_product = caramelera.producto_pos.filter(is_granel=True).first()
+    if pos_product is None:
+        pos_product = Product(
+            is_granel=True,
+            granel_price_weight_grams=100,
+            granel_caramelera=caramelera,
+            current_stock=caramelera.stock_gramos_actual,
+            weighted_avg_cost_per_gram=caramelera.costo_ponderado_gramo,
+        )
+    pos_product.name = caramelera.nombre
+    pos_product.sale_price = caramelera.precio_100g
+    pos_product.sale_price_250g = caramelera.precio_cuarto
+    pos_product.is_active = caramelera.is_active
+    pos_product.save()
 
 
 @login_required

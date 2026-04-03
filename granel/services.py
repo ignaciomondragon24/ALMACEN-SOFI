@@ -99,6 +99,13 @@ class GranelService:
             notas=notas,
         )
 
+        # Sincronizar producto POS: stock y costo ponderado
+        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
+        if pos_product is not None:
+            pos_product.current_stock = caramelera.stock_gramos_actual
+            pos_product.weighted_avg_cost_per_gram = nuevo_costo
+            pos_product.save(update_fields=['current_stock', 'weighted_avg_cost_per_gram', 'updated_at'])
+
         return apertura
 
     @staticmethod
@@ -135,6 +142,12 @@ class GranelService:
         # Ajustar stock al peso real
         caramelera.stock_gramos_actual = peso_real
         caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
+
+        # Sincronizar producto POS
+        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
+        if pos_product is not None:
+            pos_product.current_stock = caramelera.stock_gramos_actual
+            pos_product.save(update_fields=['current_stock', 'updated_at'])
 
         return auditoria
 
@@ -193,6 +206,12 @@ class GranelService:
         # Descontar stock
         caramelera.stock_gramos_actual -= gramos
         caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
+
+        # Sincronizar producto POS
+        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
+        if pos_product is not None:
+            pos_product.current_stock = caramelera.stock_gramos_actual
+            pos_product.save(update_fields=['current_stock', 'updated_at'])
 
         return venta
 

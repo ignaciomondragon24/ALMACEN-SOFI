@@ -486,13 +486,12 @@
 
         function calcTotal(grams) {
             if (!isGranel) return grams * product.unit_price;
-            // Use cuarto (250g) price if weight is a multiple of 250 and price_250g is configured
+            // Múltiplos de 250g: usa precio cuarto
             if (price250 > 0 && grams > 0 && grams % 250 === 0) {
                 return (grams / 250) * price250;
             }
-            // Otherwise use price per priceWeight (e.g. per 100g), rounding up
-            const units = Math.ceil(grams / priceWeight);
-            return units * product.unit_price;
+            // Regla de tres simple: proporcional al precio/100g
+            return (grams / priceWeight) * product.unit_price;
         }
 
         function priceBreakdown(grams) {
@@ -501,8 +500,7 @@
                 const qtd = grams / 250;
                 return `<small class="text-info">${qtd} cuarto${qtd !== 1 ? 's' : ''} × ${formatCurrency(price250)}</small>`;
             }
-            const units = Math.ceil(grams / priceWeight);
-            return `<small class="text-muted">${units} × ${priceWeight}g × ${formatCurrency(product.unit_price)}</small>`;
+            return `<small class="text-muted">${grams}g × ${formatCurrency(product.unit_price)}/${priceWeight}g</small>`;
         }
 
         const modalHtml = `
@@ -520,16 +518,17 @@
                                 <i class="fas fa-tag me-1"></i>${priceLabel}
                                 ${isGranel ? `<br><small>Stock: ${product.stock.toFixed ? product.stock.toFixed(0) : product.stock}g disponibles</small>` : ''}
                             </p>
-                            ${isGranel && price250 > 0 ? `
+                            ${isGranel ? `
                             <div class="d-flex gap-2 mb-3">
-                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">100g</button>
-                                <button type="button" class="btn btn-sm btn-outline-warning granel-quick-gram" data-grams="250" style="flex:1;">250g<br><small>${formatCurrency(price250)}</small></button>
-                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="500" style="flex:1;">500g</button>
-                            </div>` : isGranel ? `
-                            <div class="d-flex gap-2 mb-3">
-                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="50" style="flex:1;">50g</button>
-                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">100g</button>
-                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="200" style="flex:1;">200g</button>
+                                <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">
+                                    100g<br><small>${formatCurrency(product.unit_price)}</small>
+                                </button>
+                                <button type="button" class="btn btn-sm ${price250 > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="250" style="flex:1;">
+                                    250g<br><small>${formatCurrency(price250 > 0 ? price250 : calcTotal(250))}</small>
+                                </button>
+                                <button type="button" class="btn btn-sm ${price250 > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="500" style="flex:1;">
+                                    500g<br><small>${formatCurrency(price250 > 0 ? price250 * 2 : calcTotal(500))}</small>
+                                </button>
                             </div>` : ''}
                             <label class="form-label" style="color:#aaa;font-size:0.85rem;">Peso (${unitLabel})</label>
                             <input type="number"
