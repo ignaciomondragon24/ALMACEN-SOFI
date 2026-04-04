@@ -91,7 +91,7 @@ def promotion_create(request):
         try:
             from stocks.models import Product
             from decimal import Decimal
-            
+
             # Safe conversions
             def safe_int(val, default=0):
                 try:
@@ -104,6 +104,30 @@ def promotion_create(request):
                     return Decimal(str(val)) if val else Decimal(default)
                 except:
                     return Decimal(default)
+
+            # Validate required price/discount based on promo_type
+            validation_errors = []
+            if promo_type in ('nx_fixed_price', 'combo'):
+                if safe_decimal(post_data.get('final_price'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el precio para esta promoción.')
+            elif promo_type == 'second_unit':
+                if safe_decimal(post_data.get('second_unit_discount'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el descuento de 2da unidad.')
+            elif promo_type in ('quantity_discount', 'simple_discount'):
+                if safe_decimal(post_data.get('discount_percent'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el porcentaje de descuento.')
+
+            if not product_ids:
+                validation_errors.append('Debe seleccionar al menos un producto.')
+
+            if validation_errors:
+                for error in validation_errors:
+                    messages.error(request, error)
+                form = PromotionForm(post_data)
+                return render(request, 'promotions/promotion_form.html', {
+                    'form': form,
+                    'title': 'Nueva Promoción'
+                })
 
             promotion = Promotion(
                 name=post_data.get('name', ''),
@@ -206,6 +230,31 @@ def promotion_edit(request, pk):
                     return Decimal(str(val)) if val else Decimal(default)
                 except:
                     return Decimal(default)
+
+            # Validate required price/discount based on promo_type
+            validation_errors = []
+            if promo_type in ('nx_fixed_price', 'combo'):
+                if safe_decimal(post_data.get('final_price'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el precio para esta promoción.')
+            elif promo_type == 'second_unit':
+                if safe_decimal(post_data.get('second_unit_discount'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el descuento de 2da unidad.')
+            elif promo_type in ('quantity_discount', 'simple_discount'):
+                if safe_decimal(post_data.get('discount_percent'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el porcentaje de descuento.')
+
+            if not product_ids:
+                validation_errors.append('Debe seleccionar al menos un producto.')
+
+            if validation_errors:
+                for error in validation_errors:
+                    messages.error(request, error)
+                form = PromotionForm(post_data, instance=promotion)
+                return render(request, 'promotions/promotion_form.html', {
+                    'form': form,
+                    'title': 'Editar Promoción',
+                    'promotion': promotion
+                })
 
             promotion.name = post_data.get('name', promotion.name)
             promotion.description = post_data.get('description', '')

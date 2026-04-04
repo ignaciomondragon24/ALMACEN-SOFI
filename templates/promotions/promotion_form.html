@@ -146,13 +146,13 @@
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Cantidad a Llevar</label>
                                     <input type="number" class="form-control" name="buy_quantity"
-                                           value="{{ form.buy_quantity.value|default:2 }}" min="2">
+                                           value="{{ form.quantity_required.value|default:2 }}" min="2">
                                     <small class="text-muted">Ej: para 2x1, poner 2</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Cantidad a Pagar</label>
                                     <input type="number" class="form-control" name="pay_quantity"
-                                           value="{{ form.pay_quantity.value|default:1 }}" min="1">
+                                           value="{{ form.quantity_charged.value|default:1 }}" min="1">
                                     <small class="text-muted">Ej: para 2x1, poner 1</small>
                                 </div>
                             </div>
@@ -220,8 +220,8 @@
                                     <label class="form-label">Precio del Combo</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
-                                        <input type="number" class="form-control" name="combo_price" 
-                                               value="{{ form.combo_price.value|default:'' }}" step="0.01" min="0">
+                                        <input type="number" class="form-control" name="combo_price"
+                                               value="{{ form.final_price.value|default:'' }}" step="0.01" min="0">
                                     </div>
                                 </div>
                             </div>
@@ -288,13 +288,11 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <label for="id_start_date" class="form-label">Fecha Inicio</label>
-                            <input type="date" class="form-control" id="id_start_date" name="start_date" 
-                                   value="{{ form.start_date.value|default:'' }}">
+                            {{ form.start_date }}
                         </div>
                         <div class="mb-3">
                             <label for="id_end_date" class="form-label">Fecha Fin</label>
-                            <input type="date" class="form-control" id="id_end_date" name="end_date" 
-                                   value="{{ form.end_date.value|default:'' }}">
+                            {{ form.end_date }}
                         </div>
                         <small class="text-muted">Dejar vacío para promoción sin fecha de fin</small>
                     </div>
@@ -507,6 +505,57 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateProductIds() {
         document.getElementById('selectedProductIds').value = selectedProducts.join(',');
     }
+
+    // Form validation on submit
+    document.getElementById('promotionForm').addEventListener('submit', function(e) {
+        const promoType = promoTypeInput.value;
+
+        if (!promoType) {
+            e.preventDefault();
+            alert('Debe seleccionar un tipo de promoción.');
+            return;
+        }
+
+        // Validate price/discount based on promo type
+        let priceField = null;
+        let fieldLabel = '';
+
+        if (promoType === 'nx_fixed_price') {
+            priceField = document.querySelector('input[name="nx_fixed_price"]');
+            fieldLabel = 'precio final';
+        } else if (promoType === 'combo') {
+            priceField = document.querySelector('input[name="combo_price"]');
+            fieldLabel = 'precio del combo';
+        } else if (promoType === 'second_unit') {
+            priceField = document.querySelector('input[name="second_unit_discount"]');
+            fieldLabel = 'descuento de 2da unidad';
+        } else if (promoType === 'quantity_discount') {
+            priceField = document.querySelector('#config-quantity_discount input[name="discount_percent"]');
+            fieldLabel = 'porcentaje de descuento';
+        } else if (promoType === 'simple_discount') {
+            priceField = document.querySelector('input[name="discount_percent_simple"]');
+            fieldLabel = 'porcentaje de descuento';
+        }
+
+        if (priceField) {
+            const val = parseFloat(priceField.value);
+            if (!priceField.value || isNaN(val) || val <= 0) {
+                e.preventDefault();
+                priceField.classList.add('is-invalid');
+                priceField.focus();
+                alert('Debe ingresar el ' + fieldLabel + ' para guardar la promoción.');
+                return;
+            }
+            priceField.classList.remove('is-invalid');
+        }
+
+        // Validate at least one product
+        if (selectedProducts.length === 0) {
+            e.preventDefault();
+            alert('Debe seleccionar al menos un producto.');
+            return;
+        }
+    });
 });
 </script>
 {% endblock %}
