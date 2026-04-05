@@ -124,9 +124,12 @@ def promotion_create(request):
                 for error in validation_errors:
                     messages.error(request, error)
                 form = PromotionForm(post_data)
+                # Pass selected products so they survive re-render
+                selected_products = Product.objects.filter(id__in=product_ids) if product_ids else []
                 return render(request, 'promotions/promotion_form.html', {
                     'form': form,
-                    'title': 'Nueva Promoción'
+                    'title': 'Nueva Promoción',
+                    'selected_products': selected_products,
                 })
 
             # Days: if no day checkbox is present in POST, default all to True
@@ -252,10 +255,12 @@ def promotion_edit(request, pk):
                 for error in validation_errors:
                     messages.error(request, error)
                 form = PromotionForm(post_data, instance=promotion)
+                selected_products = Product.objects.filter(id__in=product_ids) if product_ids else list(promotion.products.all())
                 return render(request, 'promotions/promotion_form.html', {
                     'form': form,
                     'title': 'Editar Promoción',
-                    'promotion': promotion
+                    'promotion': promotion,
+                    'selected_products': selected_products,
                 })
 
             promotion.name = post_data.get('name', promotion.name)

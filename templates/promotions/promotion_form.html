@@ -260,7 +260,15 @@
                         
                         <label class="form-label">Productos Seleccionados</label>
                         <div id="selectedProducts" class="border rounded p-3" style="min-height: 100px;">
-                            {% if promotion and promotion.products.exists %}
+                            {% with prods=selected_products|default_if_none:"" %}
+                            {% if prods %}
+                                {% for product in prods %}
+                                <span class="badge bg-primary me-2 mb-2 existing-product" data-id="{{ product.pk }}">
+                                    {{ product.name }}
+                                    <button type="button" class="btn-close btn-close-white ms-1" aria-label="Quitar" onclick="removeProduct({{ product.pk }})"></button>
+                                </span>
+                                {% endfor %}
+                            {% elif promotion and promotion.products.exists %}
                                 {% for product in promotion.products.all %}
                                 <span class="badge bg-primary me-2 mb-2 existing-product" data-id="{{ product.pk }}">
                                     {{ product.name }}
@@ -270,8 +278,9 @@
                             {% else %}
                             <p class="text-muted mb-0" id="noProductsMessage">No hay productos seleccionados</p>
                             {% endif %}
+                            {% endwith %}
                         </div>
-                        <input type="hidden" name="products" id="selectedProductIds" value="{% if promotion %}{% for p in promotion.products.all %}{{ p.pk }}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}">
+                        <input type="hidden" name="products" id="selectedProductIds" value="{% if selected_products %}{% for p in selected_products %}{{ p.pk }}{% if not forloop.last %},{% endif %}{% endfor %}{% elif promotion %}{% for p in promotion.products.all %}{{ p.pk }}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}">
                     </div>
                 </div>
             </div>
@@ -385,15 +394,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const promoTypeInput = document.getElementById('id_promo_type');
     const configSections = document.querySelectorAll('.config-section');
     
-    // Initialize selected products from existing badges
+    // Initialize selected products from existing badges AND hidden input
     const selectedProducts = [];
-    const existingBadges = document.querySelectorAll('.existing-product');
-    existingBadges.forEach(badge => {
+    const hiddenInput = document.getElementById('selectedProductIds');
+
+    // First: read IDs from the hidden input (server-rendered, authoritative)
+    if (hiddenInput.value.trim()) {
+        hiddenInput.value.split(',').forEach(v => {
+            const id = parseInt(v.trim());
+            if (id && !selectedProducts.includes(id)) {
+                selectedProducts.push(id);
+            }
+        });
+    }
+    // Second: also pick up any badges (belt-and-suspenders)
+    document.querySelectorAll('.existing-product').forEach(badge => {
         const id = parseInt(badge.dataset.id);
         if (id && !selectedProducts.includes(id)) {
             selectedProducts.push(id);
         }
     });
+    // Sync hidden input with merged list
+    hiddenInput.value = selectedProducts.join(',');
+
     // Hide "no products" message if there are products
     if (selectedProducts.length > 0) {
         const noProductsMsg = document.getElementById('noProductsMessage');
@@ -431,21 +454,63 @@ document.addEventListener('DOMContentLoaded', function() {
     let searchTimeout;
     const productSearch = document.getElementById('productSearch');
     const productResults = document.getElementById('productResults');
-    
+
+    // Prevent Enter from submitting the form (barcode scanners send Enter after scan)
+    productSearch.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            if (query.length >= 1) {
+                searchAndAdd(query);
+            }
+        }
+    });
+
+    async function searchAndAdd(query) {
+        try {
+            const response = await fetch(`/stocks/api/search/?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+
+            // If exactly one result (typical barcode scan), add it directly
+            const available = data.products.filter(p => !selectedProducts.includes(p.id));
+            if (available.length === 1) {
+                addProduct(available[0]);
+                return;
+            }
+
+            // Otherwise show results for manual selection
+            productResults.innerHTML = '';
+            available.forEach(product => {
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'list-group-item list-group-item-action';
+                item.innerHTML = `<strong>${product.name}</strong> <small class="text-muted">$${product.sale_price}</small>`;
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    addProduct(product);
+                });
+                productResults.appendChild(item);
+            });
+        } catch (error) {
+            console.error('Error searching products:', error);
+        }
+    }
+
     productSearch.addEventListener('input', function() {
         clearTimeout(searchTimeout);
         const query = this.value;
-        
+
         if (query.length < 2) {
             productResults.innerHTML = '';
             return;
         }
-        
+
         searchTimeout = setTimeout(async () => {
             try {
                 const response = await fetch(`/stocks/api/search/?q=${encodeURIComponent(query)}`);
                 const data = await response.json();
-                
+
                 productResults.innerHTML = '';
                 data.products.forEach(product => {
                     if (!selectedProducts.includes(product.id)) {
@@ -548,6 +613,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             priceField.classList.remove('is-invalid');
         }
+
+        // Sync hidden input before submit
+        updateProductIds();
 
         // Validate at least one product
         if (selectedProducts.length === 0) {
