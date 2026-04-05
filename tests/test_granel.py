@@ -56,12 +56,17 @@ class GranelBaseTestCase(TestCase):
 
     def _create_deposito(self, nombre='Ositos 2kg', costo=Decimal('10000'),
                           gramos=Decimal('2000'), stock=5):
-        return ProductoDeposito.objects.create(
-            nombre=nombre,
+        """Create a Product configured as deposito caramelera (replaces old ProductoDeposito)."""
+        return Product.objects.create(
+            name=nombre,
+            sku=f'DEP-{Product.objects.count()+1:04d}',
+            cost_price=costo,
+            sale_price=costo,
+            weight_per_unit_grams=gramos,
+            current_stock=Decimal(str(stock)),
+            es_deposito_caramelera=True,
             marca='Testbrand',
-            costo_bulto=costo,
-            gramos_por_bulto=gramos,
-            stock_unidades=stock,
+            category=self.category,
         )
 
     def _create_caramelera(self, nombre='Gomitas Surtidas',
@@ -152,7 +157,7 @@ class TransferValidationTest(GranelBaseTestCase):
 
         GranelService.abrir_paquete(caramelera.pk, producto.pk, self.user)
         producto.refresh_from_db()
-        self.assertEqual(producto.stock_unidades, 2)
+        self.assertEqual(producto.current_stock, Decimal('2'))
 
     def test_apertura_no_stock_raises(self):
         """abrir_paquete with no deposito stock should raise ValueError."""

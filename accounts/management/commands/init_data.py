@@ -35,7 +35,7 @@ class Command(BaseCommand):
         # Create expense categories
         self.create_expense_categories()
 
-        self.stdout.write(self.style.SUCCESS('\n✅ Data initialization complete!'))
+        self.stdout.write(self.style.SUCCESS('\n[OK] Data initialization complete!'))
 
     def create_roles(self):
         """Create default roles with permissions."""

@@ -15,7 +15,7 @@ class Command(BaseCommand):
     help = 'Setup initial data for deployment (superuser + default data). Safe to run multiple times.'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.MIGRATE_HEADING('🚀 CHE GOLOSO - Setup Inicial'))
+        self.stdout.write(self.style.MIGRATE_HEADING('CHE GOLOSO - Setup Inicial'))
         self.stdout.write('')
 
         # 1. Create superuser from environment variables
@@ -25,7 +25,7 @@ class Command(BaseCommand):
         self._init_default_data()
 
         self.stdout.write('')
-        self.stdout.write(self.style.SUCCESS('✅ Setup inicial completado exitosamente'))
+        self.stdout.write(self.style.SUCCESS('[OK] Setup inicial completado exitosamente'))
 
     def _create_superuser(self):
         """Create superuser from environment variables if it doesn't exist."""
@@ -36,14 +36,14 @@ class Command(BaseCommand):
         if not username or not password:
             self.stdout.write(
                 self.style.WARNING(
-                    '⚠️  DJANGO_SUPERUSER_USERNAME y/o DJANGO_SUPERUSER_PASSWORD no configurados. '
+                    '[WARN]DJANGO_SUPERUSER_USERNAME y/o DJANGO_SUPERUSER_PASSWORD no configurados. '
                     'Saltando creación de superusuario.'
                 )
             )
             return
 
         if User.objects.filter(username=username).exists():
-            self.stdout.write(f'  ℹ️  Superusuario "{username}" ya existe. Sin cambios.')
+            self.stdout.write(f'  [INFO]Superusuario "{username}" ya existe. Sin cambios.')
             return
 
         try:
@@ -53,11 +53,11 @@ class Command(BaseCommand):
                 password=password,
             )
             self.stdout.write(
-                self.style.SUCCESS(f'  ✅ Superusuario "{username}" creado exitosamente')
+                self.style.SUCCESS(f'  [OK] Superusuario "{username}" creado exitosamente')
             )
         except Exception as e:
             self.stdout.write(
-                self.style.ERROR(f'  ❌ Error creando superusuario: {e}')
+                self.style.ERROR(f'  [ERROR] Error creando superusuario: {e}')
             )
 
     def _init_default_data(self):
@@ -65,8 +65,8 @@ class Command(BaseCommand):
         try:
             self.stdout.write('  Inicializando datos por defecto...')
             call_command('init_data', verbosity=0)
-            self.stdout.write(self.style.SUCCESS('  ✅ Datos por defecto inicializados'))
+            self.stdout.write(self.style.SUCCESS('  [OK] Datos por defecto inicializados'))
         except Exception as e:
             self.stdout.write(
-                self.style.WARNING(f'  ⚠️  Error en init_data (no crítico): {e}')
+                self.style.WARNING(f'  [WARN]Error en init_data (no crítico): {e}')
             )

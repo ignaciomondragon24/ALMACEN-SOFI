@@ -47,6 +47,7 @@ class ProductForm(forms.ModelForm):
         self.fields['quick_access_color'].required = False
         self.fields['quick_access_icon'].required = False
         self.fields['quick_access_position'].required = False
+        self.fields['weight_per_unit_grams'].required = False
 
 
 class CategoryForm(forms.ModelForm):

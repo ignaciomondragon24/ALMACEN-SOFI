@@ -29,8 +29,8 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Fecha *</label>
-                                <input type="date" name="expense_date" class="form-control" 
-                                       value="{{ form.instance.expense_date|date:'Y-m-d'|default:form.initial.expense_date }}" required>
+                                <input type="date" name="expense_date" class="form-control"
+                                       value="{{ form.expense_date.value|default_if_none:'' }}" required>
                             </div>
                         </div>
                         

@@ -62,8 +62,8 @@ class PromotionEngine:
             # Find matching items in cart
             matching_items = [
                 item for item in cart_items
-                if item['product_id'] in promo_product_ids
-                and item['item_id'] not in affected_items
+                if item.get('product_id') in promo_product_ids
+                and item.get('item_id') not in affected_items
             ]
 
             if not matching_items:
@@ -99,7 +99,7 @@ class PromotionEngine:
                 # If not combinable, mark items as affected
                 if not promo.is_combinable:
                     for item in matching_items:
-                        affected_items.add(item['item_id'])
+                        affected_items.add(item.get('item_id'))
         
         final_total = original_total - total_discount
         
@@ -159,7 +159,7 @@ class PromotionEngine:
             
             if item_discount > 0:
                 item_discounts.append({
-                    'item_id': item['item_id'],
+                    'item_id': item.get('item_id'),
                     'discount': float(item_discount)
                 })
         
@@ -234,7 +234,7 @@ class PromotionEngine:
                 item_discount = total_discount * proportion
 
                 item_discounts.append({
-                    'item_id': item['item_id'],
+                    'item_id': item.get('item_id'),
                     'discount': float(item_discount)
                 })
                 remaining_qty -= qty
@@ -269,7 +269,7 @@ class PromotionEngine:
             
             if item_discount > 0:
                 item_discounts.append({
-                    'item_id': item['item_id'],
+                    'item_id': item.get('item_id'),
                     'discount': float(item_discount)
                 })
         
@@ -299,7 +299,7 @@ class PromotionEngine:
             
             if item_discount > 0:
                 item_discounts.append({
-                    'item_id': item['item_id'],
+                    'item_id': item.get('item_id'),
                     'discount': float(item_discount)
                 })
         
@@ -328,7 +328,7 @@ class PromotionEngine:
             
             if item_discount > 0:
                 item_discounts.append({
-                    'item_id': item['item_id'],
+                    'item_id': item.get('item_id'),
                     'discount': float(item_discount)
                 })
         
@@ -371,7 +371,7 @@ class PromotionEngine:
                     item_discount = discount * proportion
                     
                     item_discounts.append({
-                        'item_id': item['item_id'],
+                        'item_id': item.get('item_id'),
                         'discount': float(item_discount)
                     })
         

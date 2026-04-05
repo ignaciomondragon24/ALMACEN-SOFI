@@ -1,10 +1,9 @@
 """
 Tests for caramelera create/edit views and deposito CRUD.
 Covers:
-- GET caramelera_list, caramelera_create, deposito_list, deposito_create
+- GET caramelera_list, caramelera_create, deposito_list
 - POST caramelera_create creates a Caramelera with productos_autorizados
 - POST caramelera_edit updates existing
-- POST deposito_create creates ProductoDeposito
 - Validation errors
 - caramelera_detail returns 200 with autorizados
 - api_abrir_paquete opens a package and updates stock/cost
@@ -18,8 +17,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 import json
 
+from stocks.models import Product, ProductCategory
 from granel.models import (
-    ProductoDeposito, Caramelera, AperturaBulto, AuditoriaCaramelera,
+    Caramelera, AperturaBulto, AuditoriaCaramelera,
 )
 
 User = get_user_model()
@@ -35,19 +35,30 @@ class CarameleraFormTestCase(TestCase):
         )
         cls.user.groups.add(cls.sm_group)
 
-        cls.deposito1 = ProductoDeposito.objects.create(
-            nombre='Gomitas Ositos 1kg',
+        cls.category = ProductCategory.objects.create(name='Gomitas Test')
+
+        # Create Product instances marked as deposito caramelera
+        cls.deposito1 = Product.objects.create(
+            name='Gomitas Ositos 1kg',
+            sku='DEP-0001',
             marca='Mogul',
-            costo_bulto=Decimal('3000'),
-            gramos_por_bulto=Decimal('1000'),
-            stock_unidades=5,
+            cost_price=Decimal('3000'),
+            sale_price=Decimal('3000'),
+            weight_per_unit_grams=Decimal('1000'),
+            current_stock=Decimal('5'),
+            es_deposito_caramelera=True,
+            category=cls.category,
         )
-        cls.deposito2 = ProductoDeposito.objects.create(
-            nombre='Caramelos Acidos 500g',
+        cls.deposito2 = Product.objects.create(
+            name='Caramelos Acidos 500g',
+            sku='DEP-0002',
             marca='Arcor',
-            costo_bulto=Decimal('1000'),
-            gramos_por_bulto=Decimal('500'),
-            stock_unidades=10,
+            cost_price=Decimal('1000'),
+            sale_price=Decimal('1000'),
+            weight_per_unit_grams=Decimal('500'),
+            current_stock=Decimal('10'),
+            es_deposito_caramelera=True,
+            category=cls.category,
         )
 
     def setUp(self):
@@ -67,10 +78,6 @@ class CarameleraFormTestCase(TestCase):
 
     def test_deposito_list_returns_200(self):
         resp = self.client.get(reverse('granel:deposito_list'))
-        self.assertEqual(resp.status_code, 200)
-
-    def test_deposito_create_returns_200(self):
-        resp = self.client.get(reverse('granel:deposito_create'))
         self.assertEqual(resp.status_code, 200)
 
     # ------ POST caramelera_create ------
@@ -150,29 +157,6 @@ class CarameleraFormTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Gomitas Surtidas')
 
-    # ------ POST deposito_create ------
-
-    def test_create_deposito_success(self):
-        resp = self.client.post(reverse('granel:deposito_create'), data={
-            'nombre': 'Nuevo Producto Test',
-            'marca': 'Test',
-            'costo_bulto': '5000',
-            'gramos_por_bulto': '2000',
-            'stock_unidades': '3',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertTrue(ProductoDeposito.objects.filter(nombre='Nuevo Producto Test').exists())
-
-    def test_create_deposito_missing_nombre(self):
-        resp = self.client.post(reverse('granel:deposito_create'), data={
-            'nombre': '',
-            'costo_bulto': '5000',
-            'gramos_por_bulto': '2000',
-            'stock_unidades': '0',
-        })
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'obligatorio')
-
     # ------ API abrir_paquete ------
 
     def test_api_abrir_paquete_success(self):
@@ -187,23 +171,27 @@ class CarameleraFormTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data['gramos_agregados'], float(self.deposito1.gramos_por_bulto))
+        self.assertEqual(data['gramos_agregados'], float(self.deposito1.weight_per_unit_grams))
 
         caramelera.refresh_from_db()
-        self.assertEqual(caramelera.stock_gramos_actual, self.deposito1.gramos_por_bulto)
+        self.assertEqual(caramelera.stock_gramos_actual, self.deposito1.weight_per_unit_grams)
 
         self.deposito1.refresh_from_db()
-        self.assertEqual(self.deposito1.stock_unidades, 4)
+        self.assertEqual(self.deposito1.current_stock, Decimal('4'))
 
     def test_api_abrir_paquete_no_stock_returns_400(self):
         self.client.post(reverse('granel:caramelera_create'), data=self._valid_caramelera_post())
         caramelera = Caramelera.objects.get(nombre='Gomitas Surtidas')
 
-        deposito_vacio = ProductoDeposito.objects.create(
-            nombre='Vacio Test',
-            costo_bulto=Decimal('1000'),
-            gramos_por_bulto=Decimal('500'),
-            stock_unidades=0,
+        deposito_vacio = Product.objects.create(
+            name='Vacio Test',
+            sku='DEP-VACIO',
+            cost_price=Decimal('1000'),
+            sale_price=Decimal('1000'),
+            weight_per_unit_grams=Decimal('500'),
+            current_stock=Decimal('0'),
+            es_deposito_caramelera=True,
+            category=self.category,
         )
         caramelera.productos_autorizados.add(deposito_vacio)
 
