@@ -373,6 +373,9 @@ class Product(models.Model):
         # Auto-generate SKU if not provided
         if not self.sku:
             self.sku = self.generate_sku()
+        # Empty barcode must be None for PostgreSQL unique constraint
+        if not self.barcode:
+            self.barcode = None
         # Ensure weight_per_unit_grams is never None (PostgreSQL NOT NULL)
         if self.weight_per_unit_grams is None:
             self.weight_per_unit_grams = Decimal('0.00')
