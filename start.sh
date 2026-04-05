@@ -50,6 +50,26 @@ with connection.cursor() as c:
     print('  M2M table FIXED OK')
 " 2>&1 || echo "WARNING: M2M fix skipped"
 
+# Pre-flight: ensure mercadopago migration state is consistent
+echo "Checking mercadopago migration state..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    sys.exit(0)
+with connection.cursor() as c:
+    # Check if migration 0003 is recorded as applied but 0004 is not
+    c.execute(\"SELECT name FROM django_migrations WHERE app='mercadopago' ORDER BY id\")
+    applied = [r[0] for r in c.fetchall()]
+    print(f'  Applied mercadopago migrations: {applied}')
+    if '0003_remove_external_pos_id' in applied and '0004_add_qr_flow_and_optional_device' not in applied:
+        print('  0003 applied but 0004 missing — will let migrate handle it')
+    if '0003_remove_external_pos_id' not in applied:
+        print('  0003 not yet applied — will run during migrate')
+" 2>&1 || echo "WARNING: migration pre-check skipped"
+
 # Run migrations
 echo "Running migrations..."
 python manage.py migrate --noinput || echo "WARNING: Migration failed, continuing..."
