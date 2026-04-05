@@ -129,6 +129,14 @@ def promotion_create(request):
                     'title': 'Nueva Promoción'
                 })
 
+            # Days: if no day checkbox is present in POST, default all to True
+            day_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+            any_day_in_post = any(d in post_data for d in day_fields)
+            if any_day_in_post:
+                day_values = {d: post_data.get(d) == 'on' for d in day_fields}
+            else:
+                day_values = {d: True for d in day_fields}
+
             promotion = Promotion(
                 name=post_data.get('name', ''),
                 description=post_data.get('description', ''),
@@ -137,13 +145,7 @@ def promotion_create(request):
                 priority=safe_int(post_data.get('priority'), 50),
                 is_combinable=post_data.get('is_combinable') == 'on',
                 # Days
-                monday=post_data.get('monday') == 'on',
-                tuesday=post_data.get('tuesday') == 'on',
-                wednesday=post_data.get('wednesday') == 'on',
-                thursday=post_data.get('thursday') == 'on',
-                friday=post_data.get('friday') == 'on',
-                saturday=post_data.get('saturday') == 'on',
-                sunday=post_data.get('sunday') == 'on',
+                **day_values,
                 # NxM / nx_fixed_price config
                 quantity_required=safe_int(post_data.get('quantity_required'), 2),
                 quantity_charged=safe_int(post_data.get('quantity_charged'), 1),
@@ -262,14 +264,13 @@ def promotion_edit(request, pk):
             promotion.status = post_data.get('status', promotion.status) or 'active'
             promotion.priority = safe_int(post_data.get('priority'), 50)
             promotion.is_combinable = post_data.get('is_combinable') == 'on'
-            # Days
-            promotion.monday = post_data.get('monday') == 'on'
-            promotion.tuesday = post_data.get('tuesday') == 'on'
-            promotion.wednesday = post_data.get('wednesday') == 'on'
-            promotion.thursday = post_data.get('thursday') == 'on'
-            promotion.friday = post_data.get('friday') == 'on'
-            promotion.saturday = post_data.get('saturday') == 'on'
-            promotion.sunday = post_data.get('sunday') == 'on'
+            # Days: if no day checkbox present in POST, keep existing values
+            day_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+            any_day_in_post = any(d in post_data for d in day_fields)
+            if any_day_in_post:
+                for d in day_fields:
+                    setattr(promotion, d, post_data.get(d) == 'on')
+            # else: keep existing day values unchanged
             # NxM / N por Precio Fijo config
             promotion.quantity_required = safe_int(post_data.get('quantity_required'), 2)
             promotion.quantity_charged = safe_int(post_data.get('quantity_charged'), 1)
