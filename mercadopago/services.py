@@ -175,10 +175,13 @@ class MPPointService:
         payload = {
             "amount": amount_cents,
             "additional_info": ai,
-            "payment": {
-                "type": "qr"
-            }
         }
+
+        # payment_type controla qué acepta el Point Smart:
+        # None = cualquier método (tarjeta o QR en pantalla)
+        # "credit_card" / "debit_card" = solo tarjeta
+        if payment_type:
+            payload["payment"] = {"type": payment_type}
 
         logger.info(
             f"Creating payment intent: device={device_id}, "
@@ -256,7 +259,8 @@ class MPPointService:
 
     def create_qr_order(self, amount, external_reference, title="Venta CHE GOLOSO"):
         """
-        Crea una orden QR dinámica. El cliente escanea el QR con su app de MP.
+        Crea una orden asociada al QR estático. El cliente escanea el QR
+        físico pegado en la caja y la app de MP le muestra el cobro.
 
         Returns:
             tuple: (success, data) - data incluye 'qr_data' con el string para generar QR
@@ -282,8 +286,10 @@ class MPPointService:
 
         logger.info(f"Creating QR order: amount={total_amount}, ref={external_reference}")
 
-        # Usar el store_id y external_pos_id por defecto
-        external_pos_id = f"CHEPOS-{user_id[-6:]}"
+        # Usar external_pos_id de las credenciales o generar uno por defecto
+        external_pos_id = self.credentials.external_pos_id
+        if not external_pos_id:
+            external_pos_id = f"CHEPOS-{user_id[-6:]}"
 
         return self._make_request(
             "POST",
@@ -382,6 +388,7 @@ class PaymentIntentManager:
         
         # Crear el registro local
         payment_intent = PaymentIntent(
+            payment_flow='point',
             device=device,
             amount=Decimal(str(amount)),
             pos_transaction=pos_transaction,

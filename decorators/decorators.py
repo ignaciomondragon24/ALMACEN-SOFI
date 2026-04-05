@@ -107,7 +107,7 @@ def open_shift_required(view_func):
                 request,
                 'Debe abrir una caja para continuar.'
             )
-            return redirect('cashregister:shift_open')
+            return redirect('cashregister:open_shift')
         
         # Add shift to request for easy access
         request.cash_shift = open_shift

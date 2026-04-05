@@ -46,6 +46,12 @@ class MPCredentials(models.Model):
         'Activo',
         default=True
     )
+    external_pos_id = models.CharField(
+        'External POS ID (QR)',
+        max_length=100,
+        blank=True,
+        help_text='ID del punto de venta para QR estático. Ej: CHEPOS-001. Debe coincidir con el configurado en MP.'
+    )
     webhook_secret = models.CharField(
         'Webhook Secret',
         max_length=200,
@@ -176,10 +182,24 @@ class PaymentIntent(models.Model):
         help_text='ID del pago aprobado en MP'
     )
     
+    FLOW_CHOICES = [
+        ('qr', 'QR Estático'),
+        ('point', 'Point Smart (Tarjeta)'),
+    ]
+
+    payment_flow = models.CharField(
+        'Flujo de Pago',
+        max_length=10,
+        choices=FLOW_CHOICES,
+        default='qr'
+    )
+
     # Relaciones
     device = models.ForeignKey(
         PointDevice,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name='payment_intents',
         verbose_name='Dispositivo'
     )

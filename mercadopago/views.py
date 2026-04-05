@@ -71,16 +71,18 @@ def credentials_form(request):
         public_key = request.POST.get('public_key', '').strip()
         is_sandbox = request.POST.get('is_sandbox') == 'on'
         webhook_secret = request.POST.get('webhook_secret', '').strip()
-        
+        external_pos_id = request.POST.get('external_pos_id', '').strip()
+
         if not access_token:
             messages.error(request, 'El Access Token es requerido')
             return redirect('mercadopago:credentials')
-        
+
         if credentials:
             credentials.access_token = access_token
             credentials.public_key = public_key
             credentials.is_sandbox = is_sandbox
             credentials.webhook_secret = webhook_secret
+            credentials.external_pos_id = external_pos_id
             credentials.save()
             messages.success(request, 'Credenciales actualizadas correctamente')
         else:
@@ -90,6 +92,7 @@ def credentials_form(request):
                 public_key=public_key,
                 is_sandbox=is_sandbox,
                 webhook_secret=webhook_secret,
+                external_pos_id=external_pos_id,
                 is_active=True
             )
             messages.success(request, 'Credenciales guardadas correctamente')
@@ -455,18 +458,16 @@ def api_create_qr(request):
     if not active_shift:
         return JsonResponse({'success': False, 'error': 'No hay turno de caja abierto'}, status=400)
 
-    # Buscar dispositivo para asociar el pago
-    device = PointDevice.objects.filter(status='active').first()
-
     # Obtener transacción POS
     pos_transaction = None
     if transaction_id:
         from pos.models import POSTransaction
         pos_transaction = POSTransaction.objects.filter(pk=transaction_id).first()
 
-    # Crear registro local
+    # Crear registro local (QR no requiere device)
     payment_intent = PaymentIntent(
-        device=device,
+        payment_flow='qr',
+        device=None,
         amount=amount,
         pos_transaction=pos_transaction,
         created_by=request.user,
@@ -541,25 +542,44 @@ def api_check_payment_status(request, intent_id):
             }
         })
     
-    # Consultar estado en MP
-    success, result = payment_manager.check_status(intent)
-    
-    # Actualizar estado local según respuesta
-    if success:
-        mp_state = result.get('state', '')
-        
-        if mp_state == 'FINISHED':
-            # Verificar si fue aprobado
-            payment = result.get('payment', {})
-            if payment.get('status') == 'approved':
-                intent.mark_approved(payment)
-                complete_pos_transaction(intent)
-            else:
-                intent.mark_rejected(payment.get('status_detail', ''))
-        elif mp_state == 'CANCELED':
-            intent.mark_cancelled()
-        elif mp_state == 'ERROR':
-            intent.mark_error(result.get('error_reason', 'Error desconocido'))
+    # Consultar estado en MP según el flujo de pago
+    if intent.payment_flow == 'qr':
+        # QR: buscar pago por external_reference en la API de payments
+        try:
+            service = MPPointService()
+            success, result = service.search_payments(
+                external_reference=intent.external_reference
+            )
+            if success:
+                results = result.get('results', [])
+                if results:
+                    payment = results[0]
+                    if payment.get('status') == 'approved':
+                        intent.mark_approved(payment)
+                        complete_pos_transaction(intent)
+                    elif payment.get('status') in ('rejected', 'cancelled'):
+                        intent.mark_rejected(payment.get('status_detail', ''))
+                # Si no hay results, el pago sigue pendiente
+        except Exception as e:
+            logger.warning(f"QR status check error: {e}")
+    else:
+        # Point: consultar por payment_intent_id en la API de Point
+        success, result = payment_manager.check_status(intent)
+
+        if success:
+            mp_state = result.get('state', '')
+
+            if mp_state == 'FINISHED':
+                payment = result.get('payment', {})
+                if payment.get('status') == 'approved':
+                    intent.mark_approved(payment)
+                    complete_pos_transaction(intent)
+                else:
+                    intent.mark_rejected(payment.get('status_detail', ''))
+            elif mp_state == 'CANCELED':
+                intent.mark_cancelled()
+            elif mp_state == 'ERROR':
+                intent.mark_error(result.get('error_reason', 'Error desconocido'))
     
     return JsonResponse({
         'success': True,

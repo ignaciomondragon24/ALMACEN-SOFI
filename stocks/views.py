@@ -306,7 +306,7 @@ def product_detail(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Cajero Manager'])
+@group_required(['Admin'])
 def inventory_count(request, pk):
     """Conteo físico de inventario — corrección de stock con motivo y registro de auditoría."""
     product = get_object_or_404(Product, pk=pk)
@@ -683,7 +683,7 @@ def api_generate_barcode(request):
 # ==================== IMPORTAR EXCEL ====================
 
 @login_required
-@group_required(['Admin', 'Cajero Manager'])
+@group_required(['Admin'])
 def import_excel(request):
     """Importar productos desde Excel. Cada hoja = una categoría."""
     import openpyxl
@@ -1365,7 +1365,7 @@ def api_get_packaging(request, packaging_id):
 
 
 @login_required
-@group_required(['Admin', 'Cajero Manager'])
+@group_required(['Admin'])
 def packaging_delete(request, packaging_id):
     """Eliminar un empaque."""
 
@@ -1384,7 +1384,7 @@ def packaging_delete(request, packaging_id):
 # ==================== GESTIÓN DE EMPAQUES ====================
 
 @login_required
-@group_required(['Admin', 'Cajero Manager'])
+@group_required(['Admin'])
 def product_packaging_view(request, pk):
     """Vista completa de gestión de empaques con recepción, apertura y ajuste."""
     product = get_object_or_404(Product, pk=pk)

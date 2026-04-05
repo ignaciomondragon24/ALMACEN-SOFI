@@ -120,21 +120,27 @@
                                        title="Historial de precios de compra">
                                         <i class="fas fa-receipt"></i>
                                     </a>
+                                    {% if is_cajero_manager %}
                                     <a href="{% url 'stocks:product_edit' product.pk %}"
                                        class="btn btn-outline-primary"
                                        title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    {% endif %}
+                                    {% if is_admin %}
                                     <a href="{% url 'stocks:inventory_count' product.pk %}"
                                        class="btn btn-outline-warning"
                                        title="Conteo Físico">
                                         <i class="fas fa-clipboard-check"></i>
                                     </a>
+                                    {% endif %}
+                                    {% if is_cajero_manager %}
                                     <a href="{% url 'stocks:product_delete' product.pk %}"
                                        class="btn btn-outline-danger"
                                        title="Eliminar">
                                         <i class="fas fa-trash"></i>
                                     </a>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

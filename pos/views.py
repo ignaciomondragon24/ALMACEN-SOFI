@@ -784,20 +784,26 @@ def api_apply_discount(request, transaction_id):
     except POSTransaction.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Transacción no encontrada'}, status=404)
     
-    # Calculate discount amount
+    # Calculate promotion discounts already applied to items
+    promo_discount = sum(
+        item.discount for item in transaction.items.all() if item.promotion_id
+    )
+
+    # Calculate manual discount amount (applied on top of promotion discounts)
+    effective_subtotal = transaction.subtotal - promo_discount
     if discount_type == 'percent':
         if discount_value > 100:
             return JsonResponse({'success': False, 'error': 'El porcentaje no puede ser mayor a 100%'}, status=400)
-        discount_amount = (transaction.subtotal * discount_value) / Decimal('100')
+        manual_discount = (effective_subtotal * discount_value) / Decimal('100')
     else:  # fixed
-        if discount_value > transaction.subtotal:
+        if discount_value > effective_subtotal:
             return JsonResponse({'success': False, 'error': 'El descuento no puede ser mayor al subtotal'}, status=400)
-        discount_amount = discount_value
-    
-    # Apply discount to transaction
-    transaction.discount_total = discount_amount
+        manual_discount = discount_value
+
+    # Apply discount: promotion discounts + manual discount
+    transaction.discount_total = promo_discount + manual_discount
     transaction.notes = f"Descuento: {reason}" if reason else f"Descuento: {discount_value}{'%' if discount_type == 'percent' else '$'}"
-    transaction.total = transaction.subtotal - discount_amount + transaction.tax_total
+    transaction.total = transaction.subtotal - transaction.discount_total + transaction.tax_total
     transaction.save()
     
     return JsonResponse({

@@ -15,7 +15,7 @@ def health_check(request):
             cursor.execute("SELECT 1")
         return JsonResponse({'status': 'ok', 'db': 'ok'})
     except Exception as e:
-        return JsonResponse({'status': 'ok', 'db': str(e)}, status=200)
+        return JsonResponse({'status': 'error', 'db': str(e)}, status=503)
 
 
 urlpatterns = [

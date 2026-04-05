@@ -586,7 +586,8 @@
         confirmBtn.addEventListener('click', () => {
             const qty = parseFloat(input.value) || 0;
             if (qty > 0) {
-                const priceOverride = isGranel ? calcTotal(qty) : null;
+                // For granel: pass price per gram so backend calculates unit_price * quantity correctly
+                const priceOverride = isGranel ? (calcTotal(qty) / qty) : null;
                 addToCart(product.id, qty, null, priceOverride);
                 modal.hide();
                 hideSearchResults();
@@ -1976,11 +1977,14 @@
             const cards = getCards();
             selIdx = Math.max(0, Math.min(cards.length - 1, idx));
             cards.forEach((c, i) => c.classList.toggle('selected', i === selIdx));
-            // Update confirm button label for MercadoPago
+            // Update confirm button label for MercadoPago / Tarjeta
             const selectedCard = cards[selIdx];
             if (selectedCard && confirmBtn && !confirmBtn.disabled) {
-                if (selectedCard.dataset.methodCode === 'mercadopago') {
+                const code = selectedCard.dataset.methodCode;
+                if (code === 'mercadopago') {
                     confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>GENERAR QR';
+                } else if (code === 'tarjeta_mp') {
+                    confirmBtn.innerHTML = '<i class="fas fa-credit-card me-2"></i>ENVIAR A POINT';
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
                 }
@@ -2025,17 +2029,32 @@
                 return;
             }
 
-            // MercadoPago Point: enviar al dispositivo y esperar aprobación
+            // MercadoPago QR: generar QR estático y esperar pago
             if (card.dataset.methodCode === 'mercadopago') {
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<i class="fas fa-mobile-alt fa-beat me-2"></i>Enviando a Point...';
+                confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Generando QR...';
                 try {
                     await handleFcoMercadoPago(paid, parseInt(card.dataset.methodId));
                 } catch (err) {
-                    console.error('MP Point FCO error:', err);
-                    showToast(err.message || 'Error al conectar con MercadoPago Point', 'error');
+                    console.error('MP QR FCO error:', err);
+                    showToast(err.message || 'Error al generar QR de MercadoPago', 'error');
                     confirmBtn.disabled = false;
-                    confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
+                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>GENERAR QR';
+                }
+                return;
+            }
+
+            // Tarjeta MP (Point Smart): enviar al posnet y esperar pago
+            if (card.dataset.methodCode === 'tarjeta_mp') {
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fas fa-credit-card fa-beat me-2"></i>Enviando a Point...';
+                try {
+                    await handleFcoPointCard(paid, parseInt(card.dataset.methodId));
+                } catch (err) {
+                    console.error('MP Point Card error:', err);
+                    showToast(err.message || 'Error al enviar a Point Smart', 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fas fa-credit-card me-2"></i>ENVIAR A POINT';
                 }
                 return;
             }
@@ -2158,6 +2177,86 @@
             }
             hideMpQrModal();
             throw new Error('Tiempo de espera agotado.');
+        }
+
+        // ── Point Smart Card flow within Fast Checkout ─────────────────────
+        async function handleFcoPointCard(amount, methodId) {
+            // 1. Create payment intent on Point Smart device
+            const intentResp = await fetch('/mercadopago/api/create-intent/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                body: JSON.stringify({
+                    amount: amount,
+                    transaction_id: TRANSACTION_ID
+                })
+            });
+            const intentData = await intentResp.json();
+            if (!intentData.success) {
+                throw new Error(intentData.error || 'Error al enviar a Point Smart');
+            }
+
+            const paymentIntentId = intentData.payment_intent?.id;
+            if (!paymentIntentId) throw new Error('No se recibió ID de pago');
+
+            showToast('Cobro enviado al Point Smart. Esperando pago con tarjeta...', 'info');
+            confirmBtn.innerHTML = '<i class="fas fa-credit-card fa-beat me-2"></i>Esperando tarjeta...';
+
+            // 2. Poll for payment status
+            const maxAttempts = 90;  // 3 minutes
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                await new Promise(r => setTimeout(r, 2000));
+
+                // Check if overlay was closed (user cancelled)
+                if (!fcoActive) {
+                    fetch(`/mercadopago/api/cancel/${paymentIntentId}/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF_TOKEN }
+                    }).catch(() => {});
+                    return;
+                }
+
+                try {
+                    const statusResp = await fetch(`/mercadopago/api/status/${paymentIntentId}/`);
+                    const statusData = await statusResp.json();
+
+                    if (statusData.status === 'approved') {
+                        confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Aprobado! Finalizando...';
+                        showToast('¡Pago con tarjeta aprobado!', 'success');
+
+                        const checkoutResp = await fetch(API_URLS.checkout, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                            body: JSON.stringify({
+                                transaction_id: TRANSACTION_ID,
+                                payments: [{ method_id: methodId, amount: amount }]
+                            })
+                        });
+                        const checkoutData = await checkoutResp.json();
+                        closeOverlay(true);
+                        if (checkoutData.success) {
+                            showSaleSuccessModal(checkoutData);
+                        } else {
+                            showToast('Pago aprobado por MercadoPago Point', 'success');
+                            setTimeout(() => window.location.reload(), 1200);
+                        }
+                        return;
+                    }
+
+                    if (statusData.status === 'rejected' || statusData.status === 'cancelled' || statusData.status === 'error') {
+                        throw new Error(
+                            statusData.status === 'rejected' ? 'Pago con tarjeta rechazado' :
+                            statusData.status === 'cancelled' ? 'Pago cancelado' :
+                            'Error en el pago'
+                        );
+                    }
+                } catch (pollErr) {
+                    if (pollErr.message.includes('rechazado') || pollErr.message.includes('cancelado') || pollErr.message.includes('Error')) {
+                        throw pollErr;
+                    }
+                    console.warn('Point poll error, retrying...', pollErr);
+                }
+            }
+            throw new Error('Tiempo de espera agotado. Verifique el dispositivo Point.');
         }
 
         // ── QR Modal functions ──────────────────────────────────────────────

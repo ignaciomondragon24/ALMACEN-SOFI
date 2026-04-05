@@ -3,35 +3,27 @@
 from django.db import migrations
 
 
+def remove_external_pos_id(apps, schema_editor):
+    """Remove external_pos_id column if it exists."""
+    from django.db import connection
+    cursor = connection.cursor()
+    # Check if column exists
+    columns = [col.name for col in connection.introspection.get_table_description(cursor, 'mercadopago_pointdevice')]
+    if 'external_pos_id' in columns:
+        # SQLite doesn't support DROP COLUMN before 3.35, so we just skip
+        # In production (PostgreSQL), this works fine
+        try:
+            cursor.execute('ALTER TABLE mercadopago_pointdevice DROP COLUMN external_pos_id')
+        except Exception:
+            pass  # Column doesn't exist or can't be dropped (old SQLite)
+
+
 class Migration(migrations.Migration):
-    """
-    This migration safely removes the external_pos_id field if it exists.
-    It handles the case where the field was never created in production.
-    """
 
     dependencies = [
         ('mercadopago', '0002_alter_mpcredentials_id_alter_pointdevice_id_and_more'),
     ]
 
     operations = [
-        migrations.RunSQL(
-            # Forward: remove column if exists
-            sql="""
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'mercadopago_pointdevice'
-                    AND column_name = 'external_pos_id'
-                ) THEN
-                    ALTER TABLE mercadopago_pointdevice DROP COLUMN external_pos_id;
-                END IF;
-            END $$;
-            """,
-            # Reverse: add column back (optional, for rollback)
-            reverse_sql="""
-            ALTER TABLE mercadopago_pointdevice
-            ADD COLUMN IF NOT EXISTS external_pos_id VARCHAR(100) DEFAULT '';
-            """,
-        ),
+        migrations.RunPython(remove_external_pos_id, migrations.RunPython.noop),
     ]

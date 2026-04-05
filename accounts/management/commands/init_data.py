@@ -63,7 +63,8 @@ class Command(BaseCommand):
             {'code': 'debit', 'name': 'Débito', 'is_cash': False, 'icon': 'fas fa-credit-card', 'position': 2},
             {'code': 'credit', 'name': 'Crédito', 'is_cash': False, 'icon': 'fas fa-credit-card', 'position': 3},
             {'code': 'transfer', 'name': 'Transferencia', 'is_cash': False, 'icon': 'fas fa-building-columns', 'position': 4},
-            {'code': 'mercadopago', 'name': 'MercadoPago', 'is_cash': False, 'icon': 'fas fa-wallet', 'position': 5},
+            {'code': 'mercadopago', 'name': 'MercadoPago QR', 'is_cash': False, 'icon': 'fas fa-qrcode', 'position': 5},
+            {'code': 'tarjeta_mp', 'name': 'Tarjeta (Point)', 'is_cash': False, 'icon': 'fas fa-credit-card', 'position': 6},
         ]
         
         for method_data in methods:
@@ -74,11 +75,20 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'  ✓ Created payment method: {method.name}')
             else:
-                # Fix icons on existing methods if they're wrong/missing prefix
+                # Update name, icon, and position on existing methods
+                updated_fields = []
                 if method.icon != method_data['icon']:
                     method.icon = method_data['icon']
-                    method.save(update_fields=['icon'])
-                    self.stdout.write(f'  ↻ Updated icon for: {method.name}')
+                    updated_fields.append('icon')
+                if method.name != method_data['name']:
+                    method.name = method_data['name']
+                    updated_fields.append('name')
+                if method.position != method_data['position']:
+                    method.position = method_data['position']
+                    updated_fields.append('position')
+                if updated_fields:
+                    method.save(update_fields=updated_fields)
+                    self.stdout.write(f'  ↻ Updated {", ".join(updated_fields)} for: {method.name}')
                 else:
                     self.stdout.write(f'  - Payment method exists: {method.name}')
 

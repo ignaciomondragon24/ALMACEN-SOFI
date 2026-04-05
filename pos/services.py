@@ -142,9 +142,9 @@ class CartService:
             ).first()
 
         # Capture cost at time of sale
-        # For granel products, weighted_avg_cost_per_gram × quantity gives total cost
+        # For granel products, cost per gram so that unit_cost * quantity = total cost
         if product.is_granel and product.weighted_avg_cost_per_gram > 0:
-            unit_cost = product.weighted_avg_cost_per_gram * quantity
+            unit_cost = product.weighted_avg_cost_per_gram
         else:
             unit_cost = product.cost_price or product.purchase_price or Decimal('0.00')
 

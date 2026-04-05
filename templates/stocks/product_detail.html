@@ -19,15 +19,21 @@
             </nav>
         </div>
         <div>
+            {% if is_admin %}
             <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn" style="background:var(--che-pink,#E91E8C);color:#fff;">
                 <i class="fas fa-boxes-stacked me-1"></i> Gestionar Empaques
             </a>
+            {% endif %}
+            {% if is_cajero_manager %}
             <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-warning">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
+            {% endif %}
+            {% if is_admin %}
             <a href="{% url 'stocks:inventory_count' product.pk %}" class="btn btn-info">
                 <i class="fas fa-boxes me-1"></i> Conteo Físico
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -318,9 +324,12 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
+                        {% if is_admin %}
                         <a href="{% url 'stocks:inventory_count' product.pk %}" class="btn btn-outline-primary">
                             <i class="fas fa-plus-minus me-2"></i>Conteo Físico
                         </a>
+                        {% endif %}
+                        {% if is_cajero_manager %}
                         <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-outline-warning">
                             <i class="fas fa-edit me-2"></i>Editar Producto
                         </a>
@@ -328,6 +337,7 @@
                         <a href="{% url 'stocks:product_delete' product.pk %}" class="btn btn-outline-danger">
                             <i class="fas fa-trash me-2"></i>Desactivar Producto
                         </a>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>

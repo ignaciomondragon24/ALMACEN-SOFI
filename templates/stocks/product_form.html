@@ -462,6 +462,13 @@
 
 {% block extra_js %}
 <script>
+    // Prevent Enter key from submitting form (barcode scanners send Enter after scan)
+    document.querySelector('form').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+            e.preventDefault();
+        }
+    });
+
     // Bidirectional price/margin calculation
     const costInput = document.getElementById('id_cost_price');
     const marginInput = document.getElementById('id_margin');

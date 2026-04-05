@@ -128,7 +128,8 @@ class Product(models.Model):
     sku = models.CharField(
         'SKU',
         max_length=50,
-        unique=True
+        unique=True,
+        blank=True
     )
     barcode = models.CharField(
         'Código de Barras',

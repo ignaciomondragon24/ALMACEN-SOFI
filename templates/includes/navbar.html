@@ -70,9 +70,11 @@
                         <li><a class="dropdown-item" href="{% url 'stocks:packaging_inventory' %}">
                             <i class="fas fa-boxes-stacked text-info me-1"></i>Empaques
                         </a></li>
+                        {% if is_admin %}
                         <li><a class="dropdown-item" href="{% url 'stocks:import_excel' %}">
                             <i class="fas fa-file-excel text-success me-1"></i>Importar Excel
                         </a></li>
+                        {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'granel:caramelera_list' %}">
                             <i class="fas fa-candy-cane me-1" style="color:#E91E8C;"></i>Carameleras
