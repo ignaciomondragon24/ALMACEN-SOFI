@@ -301,6 +301,7 @@ class Product(models.Model):
         max_digits=10,
         decimal_places=2,
         default=Decimal('0.00'),
+        blank=True,
         help_text='Para bultos: gramos que contiene cada unidad (ej: 2000 para bolsa de 2kg)'
     )
 
@@ -372,6 +373,9 @@ class Product(models.Model):
         # Auto-generate SKU if not provided
         if not self.sku:
             self.sku = self.generate_sku()
+        # Ensure weight_per_unit_grams is never None (PostgreSQL NOT NULL)
+        if self.weight_per_unit_grams is None:
+            self.weight_per_unit_grams = Decimal('0.00')
         super().save(*args, **kwargs)
     
     def generate_sku(self):

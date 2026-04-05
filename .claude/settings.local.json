@@ -98,7 +98,9 @@
       "Bash(ls tests/test_pos* tests/test_mp* tests/test_mercado*)",
       "Bash(PYTHONIOENCODING=utf-8 python manage.py test tests.test_pos_api tests.test_pos_frontend --verbosity=2)",
       "Bash(python manage.py showmigrations mercadopago)",
-      "Bash(python manage.py test tests --verbosity 2)"
+      "Bash(python manage.py test tests --verbosity 2)",
+      "Bash(python manage.py makemigrations stocks --name fix_weight_per_unit_grams_default)",
+      "Bash(python manage.py migrate stocks 0017)"
     ]
   }
 }

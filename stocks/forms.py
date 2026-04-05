@@ -49,6 +49,12 @@ class ProductForm(forms.ModelForm):
         self.fields['quick_access_position'].required = False
         self.fields['weight_per_unit_grams'].required = False
 
+    def clean_weight_per_unit_grams(self):
+        val = self.cleaned_data.get('weight_per_unit_grams')
+        if val is None:
+            return Decimal('0.00')
+        return val
+
 
 class CategoryForm(forms.ModelForm):
     """Form for categories."""
