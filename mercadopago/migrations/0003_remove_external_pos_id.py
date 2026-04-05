@@ -1,21 +1,39 @@
-# Generated migration to safely remove external_pos_id field
+# Migration to safely handle external_pos_id field removal from PointDevice
+# This field was briefly added then moved to MPCredentials in migration 0004
 
-from django.db import migrations
+from django.db import migrations, connection
 
 
 def remove_external_pos_id(apps, schema_editor):
-    """Remove external_pos_id column if it exists."""
-    from django.db import connection
-    cursor = connection.cursor()
-    # Check if column exists
-    columns = [col.name for col in connection.introspection.get_table_description(cursor, 'mercadopago_pointdevice')]
-    if 'external_pos_id' in columns:
-        # SQLite doesn't support DROP COLUMN before 3.35, so we just skip
-        # In production (PostgreSQL), this works fine
-        try:
-            cursor.execute('ALTER TABLE mercadopago_pointdevice DROP COLUMN external_pos_id')
-        except Exception:
-            pass  # Column doesn't exist or can't be dropped (old SQLite)
+    """Remove external_pos_id column from pointdevice if it exists."""
+    cursor = schema_editor.connection.cursor()
+    try:
+        columns = [
+            col.name for col in
+            schema_editor.connection.introspection.get_table_description(
+                cursor, 'mercadopago_pointdevice'
+            )
+        ]
+    except Exception:
+        return  # Table doesn't exist yet — safe to skip
+
+    if 'external_pos_id' not in columns:
+        return  # Column already gone — nothing to do
+
+    # Use savepoint so a failure doesn't break the transaction on PostgreSQL
+    from django.db import connection as db_connection
+    if db_connection.vendor == 'postgresql':
+        cursor.execute('SAVEPOINT sp_drop_col')
+    try:
+        cursor.execute(
+            'ALTER TABLE mercadopago_pointdevice DROP COLUMN external_pos_id'
+        )
+    except Exception:
+        if db_connection.vendor == 'postgresql':
+            cursor.execute('ROLLBACK TO SAVEPOINT sp_drop_col')
+    else:
+        if db_connection.vendor == 'postgresql':
+            cursor.execute('RELEASE SAVEPOINT sp_drop_col')
 
 
 class Migration(migrations.Migration):
