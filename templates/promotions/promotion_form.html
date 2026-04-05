@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const item = document.createElement('a');
                         item.href = '#';
                         item.className = 'list-group-item list-group-item-action';
-                        item.innerHTML = `<strong>${product.name}</strong> <small class="text-muted">$${product.price}</small>`;
+                        item.innerHTML = `<strong>${product.name}</strong> <small class="text-muted">$${product.sale_price}</small>`;
                         item.addEventListener('click', (e) => {
                             e.preventDefault();
                             addProduct(product);
