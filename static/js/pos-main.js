@@ -2007,7 +2007,7 @@
                 const code = selectedCard.dataset.methodCode;
                 if (code === 'mercadopago') {
                     confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>CARGAR AL QR';
-                } else if (code === 'tarjeta_mp') {
+                } else if (code === 'tarjeta_mp' || code === 'debit' || code === 'credit') {
                     confirmBtn.innerHTML = '<i class="fas fa-credit-card me-2"></i>ENVIAR A POINT';
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
@@ -2069,11 +2069,18 @@
             }
 
             // Tarjeta MP (Point Smart): enviar al posnet y esperar pago
-            if (card.dataset.methodCode === 'tarjeta_mp') {
+            // 'tarjeta_mp' → acepta cualquier tarjeta
+            // 'debit' → fuerza débito en el Point
+            // 'credit' → fuerza crédito en el Point
+            const cardCode = card.dataset.methodCode;
+            if (cardCode === 'tarjeta_mp' || cardCode === 'debit' || cardCode === 'credit') {
                 confirmBtn.disabled = true;
                 confirmBtn.innerHTML = '<i class="fas fa-credit-card fa-beat me-2"></i>Enviando a Point...';
+                let paymentType = null;
+                if (cardCode === 'debit') paymentType = 'debit_card';
+                else if (cardCode === 'credit') paymentType = 'credit_card';
                 try {
-                    await handleFcoPointCard(paid, parseInt(card.dataset.methodId));
+                    await handleFcoPointCard(paid, parseInt(card.dataset.methodId), paymentType);
                 } catch (err) {
                     console.error('MP Point Card error:', err);
                     showToast(err.message || 'Error al enviar a Point Smart', 'error');
@@ -2205,15 +2212,17 @@
         }
 
         // ── Point Smart Card flow within Fast Checkout ─────────────────────
-        async function handleFcoPointCard(amount, methodId) {
+        async function handleFcoPointCard(amount, methodId, paymentType = null) {
             // 1. Create payment intent on Point Smart device
+            const body = {
+                amount: amount,
+                transaction_id: TRANSACTION_ID
+            };
+            if (paymentType) body.payment_type = paymentType;
             const intentResp = await fetch('/mercadopago/api/create-intent/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-                body: JSON.stringify({
-                    amount: amount,
-                    transaction_id: TRANSACTION_ID
-                })
+                body: JSON.stringify(body)
             });
             const intentData = await intentResp.json();
             if (!intentData.success) {
@@ -2781,10 +2790,12 @@
                 const methodCode = this.dataset.methodCode;
                 
                 if (this.checked) {
-                    // Check if Mercado Pago Point Smart method (tarjeta_mp / mp_point).
+                    // Check if Mercado Pago Point Smart method (tarjeta_mp / mp_point / debit / credit).
                     // 'mercadopago' code = QR estático: NO usa Point, se cobra como cualquier otro
                     // método después de que el cliente escanea el QR impreso desde el panel de MP.
-                    const isMercadoPago = methodCode === 'tarjeta_mp' || methodCode === 'mp_point';
+                    // 'debit' / 'credit' → Point forzado al tipo de tarjeta correspondiente.
+                    const isMercadoPago = methodCode === 'tarjeta_mp' || methodCode === 'mp_point'
+                                       || methodCode === 'debit' || methodCode === 'credit';
                     
                     // Add input
                     const inputHtml = `
@@ -2872,31 +2883,41 @@
             const input = document.querySelector(`.payment-amount[data-method-id="${methodId}"]`);
             const statusEl = document.getElementById(`mp-status-${methodId}`);
             const mpBtn = document.querySelector(`.btn-mp-point[data-method-id="${methodId}"]`);
-            
+
             if (!input) return;
-            
+
             const amount = parseFloat(input.value) || 0;
             if (amount <= 0) {
                 showToast('Ingrese un monto válido', 'warning');
                 return;
             }
-            
+
+            // Derivar payment_type según el código del método:
+            // debit → débito forzado; credit → crédito forzado; tarjeta_mp → cualquiera
+            const methodCode = input.dataset.methodCode || '';
+            let paymentType = null;
+            if (methodCode === 'debit') paymentType = 'debit_card';
+            else if (methodCode === 'credit') paymentType = 'credit_card';
+
             try {
                 mpBtn.disabled = true;
                 mpBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
                 statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con Point...';
                 statusEl.className = 'ms-2 mp-status text-info small';
-                
+
+                const body = {
+                    amount: amount,
+                    transaction_id: TRANSACTION_ID
+                };
+                if (paymentType) body.payment_type = paymentType;
+
                 const response = await fetch('/mercadopago/api/create-intent/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': CSRF_TOKEN
                     },
-                    body: JSON.stringify({
-                        amount: amount,
-                        transaction_id: TRANSACTION_ID
-                    })
+                    body: JSON.stringify(body)
                 });
                 
                 const data = await response.json();

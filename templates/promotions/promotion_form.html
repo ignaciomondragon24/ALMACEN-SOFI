@@ -262,6 +262,7 @@
                         
                         <label class="form-label">Productos Seleccionados</label>
                         <div id="selectedProducts" class="border rounded p-3" style="min-height: 100px;">
+                            {% localize off %}
                             {% with prods=selected_products|default_if_none:"" %}
                             {% if prods %}
                                 {% for product in prods %}
@@ -281,8 +282,11 @@
                             <p class="text-muted mb-0" id="noProductsMessage">No hay productos seleccionados</p>
                             {% endif %}
                             {% endwith %}
+                            {% endlocalize %}
                         </div>
+                        {% localize off %}
                         <input type="hidden" name="products" id="selectedProductIds" value="{% if selected_products %}{% for p in selected_products %}{{ p.pk }}{% if not forloop.last %},{% endif %}{% endfor %}{% elif promotion %}{% for p in promotion.products.all %}{{ p.pk }}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}">
+                        {% endlocalize %}
                     </div>
                 </div>
             </div>
