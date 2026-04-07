@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
-{% load currency_filters %}
+{% load currency_filters l10n %}
 
 {% block title %}Punto de Venta - CHE GOLOSO{% endblock %}
 
@@ -627,9 +627,10 @@
             <div class="pos-quick-access">
                 <h6 class="text-muted mb-2">Acceso Rápido</h6>
                 <div class="quick-access-grid" id="quick-access-grid">
+                    {% localize off %}
                     {% for button in quick_buttons %}
-                    <button type="button" 
-                            class="quick-btn" 
+                    <button type="button"
+                            class="quick-btn"
                             tabindex="-1"
                             data-product-id="{{ button.product.id }}"
                             style="background-color: {{ button.color }};">
@@ -641,6 +642,7 @@
                         No hay botones configurados
                     </p>
                     {% endfor %}
+                    {% endlocalize %}
                 </div>
             </div>
             
@@ -850,10 +852,11 @@
                         
                         <p style="font-weight:600;margin-bottom:0.75rem;color:#ccc;">Métodos de Pago</p>
                         <div class="payment-methods" id="payment-methods">
+                            {% localize off %}
                             {% for method in payment_methods %}
                             <div class="form-check mb-2">
-                                <input type="checkbox" 
-                                       class="form-check-input payment-method-check" 
+                                <input type="checkbox"
+                                       class="form-check-input payment-method-check"
                                        id="payment-{{ method.id }}"
                                        data-method-id="{{ method.id }}"
                                        data-method-name="{{ method.name }}"
@@ -864,6 +867,7 @@
                                 </label>
                             </div>
                             {% endfor %}
+                            {% endlocalize %}
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -1022,10 +1026,11 @@
                         
                         <p style="font-weight:600;margin-bottom:0.75rem;color:#ccc;">Método de Pago</p>
                         <div class="payment-methods" id="cost-payment-methods">
+                            {% localize off %}
                             {% for method in payment_methods %}
                             <div class="form-check mb-2">
-                                <input type="radio" 
-                                       class="form-check-input cost-payment-method-check" 
+                                <input type="radio"
+                                       class="form-check-input cost-payment-method-check"
                                        name="cost-payment-method"
                                        id="cost-payment-{{ method.id }}"
                                        data-method-id="{{ method.id }}"
@@ -1038,6 +1043,7 @@
                                 </label>
                             </div>
                             {% endfor %}
+                            {% endlocalize %}
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -1177,9 +1183,11 @@
                             <select class="form-select" id="quick-add-category"
                                 style="background:#0d0d1f;border:1.5px solid rgba(45,45,68,0.8);color:#eee;">
                                 <option value="">Sin categoría</option>
+                                {% localize off %}
                                 {% for cat in categories %}
                                 <option value="{{ cat.id }}">{{ cat.name }}</option>
                                 {% endfor %}
+                                {% endlocalize %}
                             </select>
                         </div>
                         <div class="col-6 mb-3">
@@ -1216,10 +1224,11 @@
 {% endblock %}
 
 {% block extra_js %}
+{% localize off %}
 <script>
     // Transaction ID
     const TRANSACTION_ID = {{ transaction.id }};
-    
+
     // API URLs
     const API_URLS = {
         search: '{% url "pos:api_search" %}',
@@ -1240,7 +1249,7 @@
         allProducts: '/pos/api/all-products/',
         toggleQuickAccess: '/pos/api/toggle-quick-access/',
     };
-    
+
     // CSRF Token
     const CSRF_TOKEN = '{{ csrf_token }}';
 
@@ -1258,6 +1267,7 @@
         {% endfor %}
     ];
 </script>
+{% endlocalize %}
 <script>
     // ─── Inline shortcut editing ─────────────────────────────────────
     document.querySelectorAll('.shortcut-key-select').forEach(select => {
