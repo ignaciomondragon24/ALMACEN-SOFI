@@ -77,8 +77,14 @@ class MPPointService:
             
             logger.info(f"MP API {method} {endpoint} - Status: {response.status_code}")
 
+            if response.status_code == 204:
+                # No content (típico de PUT en Instore Orders v2 para QR estático)
+                return True, {}
             if response.status_code in [200, 201]:
-                return True, response.json()
+                try:
+                    return True, response.json()
+                except ValueError:
+                    return True, {}
             else:
                 try:
                     error_data = response.json()
@@ -259,23 +265,43 @@ class MPPointService:
 
     def create_qr_order(self, amount, external_reference, title="Venta CHE GOLOSO"):
         """
-        Asigna un monto al QR ESTÁTICO impreso del seller. NO genera un QR
-        nuevo: el cliente escanea el QR físico pegado en la caja y su app
-        de MP le muestra el cobro recién creado.
+        Asigna un monto al QR ESTÁTICO impreso del seller (Instore Orders v2).
+        NO genera un QR nuevo: el cliente escanea el QR físico pegado en la
+        caja y su app de MP le muestra el cobro recién creado.
 
-        Endpoint: POST /instore/qr/seller/collectors/{user_id}/pos/{external_pos_id}/orders
-        Docs: https://www.mercadopago.com.ar/developers/es/reference/qr-payments/_instore_qr_seller_collectors_user_id_pos_external_pos_id_orders/post
+        Endpoint: PUT /instore/qr/seller/collectors/{user_id}/stores/{external_store_id}/pos/{external_pos_id}/orders
+        Docs: https://www.mercadopago.com.ar/developers/en/reference/instore_orders/_instore_qr_seller_collectors_user_id_stores_external_store_id_pos_external_pos_id_orders/put
 
-        Importante: el `external_pos_id` debe coincidir con el POS al que MP
-        asoció el QR físico cuando lo emitió desde el panel.
+        IMPORTANTE: la API legacy POST /instore/qr/.../pos/.../orders devuelve
+        405 Not Allowed. Hay que usar PUT y el path con /stores/{store_id}/.
+
+        Respuesta: 204 No Content si todo OK. No devuelve in_store_order_id;
+        el seguimiento se hace con external_reference vía search_payments.
 
         Returns:
-            tuple: (success, data) - data incluye 'in_store_order_id'.
-            (No devuelve qr_data porque el QR ya existe físicamente.)
+            tuple: (success, data)
         """
         user_id = self.get_user_id()
         if not user_id:
             return False, {"error": "No se pudo obtener el User ID de MP"}
+
+        external_pos_id = self.credentials.external_pos_id
+        if not external_pos_id:
+            return False, {"error": "Falta external_pos_id en MPCredentials"}
+
+        # Resolver el store_id consultando el POS (Instore Orders v2 lo exige
+        # en la URL). MP devuelve store_id como string en el listado de POS.
+        store_id = None
+        ok, pos_data = self.get_pos_by_external_id(external_pos_id)
+        if ok:
+            store_id = str(pos_data.get("store_id") or "")
+        if not store_id:
+            return False, {
+                "error": (
+                    f"No se pudo resolver el store_id del POS '{external_pos_id}'. "
+                    f"Verificá que el POS exista en MP."
+                )
+            }
 
         total_amount = float(Decimal(str(amount)).quantize(Decimal("0.01")))
 
@@ -292,16 +318,14 @@ class MPPointService:
             }],
         }
 
-        logger.info(f"Creating QR order: amount={total_amount}, ref={external_reference}")
-
-        # Usar external_pos_id de las credenciales o generar uno por defecto
-        external_pos_id = self.credentials.external_pos_id
-        if not external_pos_id:
-            external_pos_id = f"CHEPOS-{user_id[-6:]}"
+        logger.info(
+            f"Creating QR order (PUT v2): amount={total_amount}, ref={external_reference}, "
+            f"store={store_id}, pos={external_pos_id}"
+        )
 
         return self._make_request(
-            "POST",
-            f"/instore/qr/seller/collectors/{user_id}/pos/{external_pos_id}/orders",
+            "PUT",
+            f"/instore/qr/seller/collectors/{user_id}/stores/{store_id}/pos/{external_pos_id}/orders",
             data=payload
         )
 

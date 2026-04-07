@@ -632,9 +632,9 @@ def api_create_qr(request):
         )
 
         if success:
-            # API de QR estático devuelve únicamente in_store_order_id.
-            # El cliente paga escaneando el QR físico ya pegado en la caja.
-            payment_intent.mp_payment_intent_id = response.get('in_store_order_id', '')
+            # Instore Orders v2: PUT devuelve 204 No Content (sin body).
+            # El seguimiento se hace por external_reference vía /v1/payments/search.
+            payment_intent.mp_payment_intent_id = (response or {}).get('in_store_order_id', '') or payment_intent.external_reference
             payment_intent.status = 'processing'
             payment_intent.sent_at = timezone.now()
             payment_intent.save()
@@ -720,7 +720,8 @@ def api_check_payment_status(request, intent_id):
     if intent.payment_flow == 'qr':
         # QR: buscar pago por external_reference en la API de payments
         try:
-            service = MPPointService()
+            credentials = MPCredentials.get_active()
+            service = MPPointService(credentials=credentials)
             success, result = service.search_payments(
                 external_reference=intent.external_reference
             )
