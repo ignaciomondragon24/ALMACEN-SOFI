@@ -148,6 +148,71 @@ with connection.cursor() as c:
         print('  Marked migration 0004 as applied')
 " 2>&1 || echo "WARNING: mercadopago field repair skipped"
 
+# Defensive: ensure promotions 0004 (PromotionGroup + group FK) is in place.
+# Sin esto, el engine hace SELECT ... group_id FROM promotions_promotion y
+# revienta el POS entero (apply_promotions corre en cada add_item).
+echo "Verifying promotions PromotionGroup schema..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    print('  SQLite: skip')
+    sys.exit(0)
+with connection.cursor() as c:
+    # Skip si la tabla base aún no existe
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='promotions_promotion')\")
+    if not c.fetchone()[0]:
+        print('  promotions_promotion no existe aun, skip')
+        sys.exit(0)
+
+    # 1) Crear tabla promotions_promotiongroup si falta
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='promotions_promotiongroup')\")
+    if not c.fetchone()[0]:
+        print('  Creating promotions_promotiongroup table ...')
+        c.execute(\"\"\"
+            CREATE TABLE promotions_promotiongroup (
+                id BIGSERIAL PRIMARY KEY,
+                name varchar(200) NOT NULL UNIQUE,
+                description text NOT NULL DEFAULT '',
+                created_at timestamptz NOT NULL DEFAULT NOW(),
+                updated_at timestamptz NOT NULL DEFAULT NOW()
+            )
+        \"\"\")
+        print('  promotions_promotiongroup created OK')
+    else:
+        print('  promotions_promotiongroup OK')
+
+    # 2) Agregar columna group_id a promotions_promotion si falta
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='promotions_promotion' AND column_name='group_id'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding promotions_promotion.group_id ...')
+        c.execute(\"\"\"
+            ALTER TABLE promotions_promotion
+            ADD COLUMN group_id bigint NULL
+                REFERENCES promotions_promotiongroup(id)
+                ON DELETE SET NULL
+                DEFERRABLE INITIALLY DEFERRED
+        \"\"\")
+        c.execute('CREATE INDEX promotions_promotion_group_id_idx ON promotions_promotion(group_id)')
+        print('  group_id column added OK')
+    else:
+        print('  promotions_promotion.group_id OK')
+
+    # 3) Marcar migración 0004 como aplicada para que Django no intente correrla otra vez
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='promotions' AND name='0004_promotiongroup_promotion_group'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('promotions', '0004_promotiongroup_promotion_group', NOW())
+        \"\"\")
+        print('  Marked promotions.0004 as applied')
+" 2>&1 || echo "WARNING: promotions schema repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."

@@ -40,11 +40,29 @@ class PromotionEngine:
             Decimal(str(item['unit_price'])) * Decimal(str(item['quantity']))
             for item in cart_items
         )
-        
-        # Get active promotions
-        active_promotions = Promotion.objects.filter(
-            status='active'
-        ).select_related('group').prefetch_related('products').order_by('-priority')
+
+        # Get active promotions. Si por cualquier razón la consulta falla
+        # (p. ej. una migración pendiente que rompe el esquema), no rompemos
+        # el POS: devolvemos el carrito sin descuentos en lugar de explotar.
+        try:
+            active_promotions = list(
+                Promotion.objects.filter(status='active')
+                .select_related('group')
+                .prefetch_related('products')
+                .order_by('-priority')
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(
+                'PromotionEngine: error cargando promos, devolviendo carrito sin descuentos: %s',
+                exc,
+            )
+            return {
+                'original_total': float(original_total),
+                'discount_total': 0.0,
+                'final_total': float(original_total),
+                'applied_promotions': [],
+            }
 
         # Filter valid promotions
         valid_promotions = [p for p in active_promotions if p.is_valid_today()]
