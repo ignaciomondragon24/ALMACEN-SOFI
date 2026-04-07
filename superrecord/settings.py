@@ -76,6 +76,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'accounts.middleware.AjaxLoginRedirectMiddleware',
 ]
 
 ROOT_URLCONF = 'superrecord.urls'

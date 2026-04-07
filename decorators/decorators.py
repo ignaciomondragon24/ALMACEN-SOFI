@@ -7,15 +7,33 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 
 
+# Aliases para grupos legacy / creados manualmente que no están en init_data.
+# Cuando un decorador exige un grupo canónico (clave), también acepta los
+# grupos listados (valores). Es aditivo: no rompe el comportamiento existente.
+GROUP_ALIASES = {
+    'Cajero Manager': ('Manager', 'Stock Manager'),
+    'Admin': ('General Manager',),
+}
+
+
+def _expand_groups(group_names):
+    """Expande una lista de grupos canónicos con sus aliases legacy."""
+    expanded = set(group_names)
+    for canonical, aliases in GROUP_ALIASES.items():
+        if canonical in expanded:
+            expanded.update(aliases)
+    return tuple(expanded)
+
+
 def group_required(*group_names):
     """
     Decorator that checks if user belongs to any of the specified groups.
-    
+
     Usage:
         @group_required('Admin', 'Manager')
         def my_view(request):
             ...
-        
+
         # Also supports list syntax:
         @group_required(['Admin', 'Manager'])
         def my_view(request):
@@ -24,27 +42,30 @@ def group_required(*group_names):
     # Handle case where a list is passed as a single argument
     if len(group_names) == 1 and isinstance(group_names[0], (list, tuple)):
         group_names = tuple(group_names[0])
-    
+
+    # Incluir aliases legacy (Manager, Stock Manager, General Manager)
+    group_names = _expand_groups(group_names)
+
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             if not request.user.is_authenticated:
                 return redirect('accounts:login')
-            
+
             # Superusers have access to everything
             if request.user.is_superuser:
                 return view_func(request, *args, **kwargs)
-            
+
             # Check if user belongs to any of the required groups
             if request.user.groups.filter(name__in=group_names).exists():
                 return view_func(request, *args, **kwargs)
-            
+
             messages.error(
                 request,
                 'No tiene permisos para acceder a esta sección.'
             )
             raise PermissionDenied
-        
+
         return wrapper
     return decorator
 

@@ -19,11 +19,22 @@ def role_context(request):
     
     user = request.user
     user_groups = list(user.groups.values_list('name', flat=True))
-    
+
     # Role checks - hierarchical
+    # Aliases legacy: Manager/Stock Manager → Cajero Manager; General Manager → Admin
     is_superadmin = user.is_superuser
-    is_admin = is_superadmin or user.is_admin or 'Admin' in user_groups
-    is_cajero_manager = is_admin or 'Cajero Manager' in user_groups
+    is_admin = (
+        is_superadmin
+        or user.is_admin
+        or 'Admin' in user_groups
+        or 'General Manager' in user_groups
+    )
+    is_cajero_manager = (
+        is_admin
+        or 'Cajero Manager' in user_groups
+        or 'Manager' in user_groups
+        or 'Stock Manager' in user_groups
+    )
     is_cashier = is_cajero_manager or 'Cashier' in user_groups
     
     # Backward compat aliases

@@ -71,8 +71,19 @@ def dashboard_view(request):
     
     user = request.user
     user_groups = list(user.groups.values_list('name', flat=True))
-    is_admin = user.is_superuser or user.is_admin or 'Admin' in user_groups
-    is_cajero_manager = is_admin or 'Cajero Manager' in user_groups
+    # Aliases legacy: Manager/Stock Manager → Cajero Manager; General Manager → Admin
+    is_admin = (
+        user.is_superuser
+        or user.is_admin
+        or 'Admin' in user_groups
+        or 'General Manager' in user_groups
+    )
+    is_cajero_manager = (
+        is_admin
+        or 'Cajero Manager' in user_groups
+        or 'Manager' in user_groups
+        or 'Stock Manager' in user_groups
+    )
     is_cashier = is_cajero_manager or 'Cashier' in user_groups
     
     today = timezone.now().date()

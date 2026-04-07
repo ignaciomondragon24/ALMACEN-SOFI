@@ -29,7 +29,16 @@
                     </a>
                 </li>
                 {% endif %}
-                
+
+                <!-- Productos (consulta) - sólo cajeros sin acceso al inventario completo -->
+                {% if is_cashier and not can_stocks %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'stocks:product_list' %}">
+                        <i class="fas fa-boxes me-1"></i>Productos
+                    </a>
+                </li>
+                {% endif %}
+
                 <!-- Cash Register - Cajeros, Managers, Admin -->
                 {% if can_cash %}
                 <li class="nav-item dropdown">
