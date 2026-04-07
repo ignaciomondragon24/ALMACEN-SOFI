@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load currency_filters %}
+{% load currency_filters l10n %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -140,6 +140,7 @@
                         
                         <input type="hidden" name="promo_type" id="id_promo_type" value="{{ form.promo_type.value|default:'' }}" required>
 
+                        {% localize off %}
                         <!-- NxM Config -->
                         <div class="config-section" id="config-nxm">
                             <div class="row">
@@ -185,7 +186,7 @@
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Descuento 2da Unidad (%)</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" name="second_unit_discount" 
+                                        <input type="number" class="form-control" name="second_unit_discount"
                                                value="{{ form.second_unit_discount.value|default:50 }}" min="1" max="100" step="1">
                                         <span class="input-group-text">%</span>
                                     </div>
@@ -199,13 +200,13 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Cantidad Mínima</label>
-                                    <input type="number" class="form-control" name="min_quantity" 
+                                    <input type="number" class="form-control" name="min_quantity"
                                            value="{{ form.min_quantity.value|default:3 }}" min="1">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Descuento (%)</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" name="discount_percent" 
+                                        <input type="number" class="form-control" name="discount_percent"
                                                value="{{ form.discount_percent.value|default:10 }}" min="1" max="100" step="0.01">
                                         <span class="input-group-text">%</span>
                                     </div>
@@ -233,13 +234,14 @@
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Descuento (%)</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" name="discount_percent_simple" 
+                                        <input type="number" class="form-control" name="discount_percent_simple"
                                                value="{{ form.discount_percent.value|default:10 }}" min="1" max="100" step="0.01">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        {% endlocalize %}
                     </div>
                 </div>
 
@@ -356,8 +358,10 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <label for="id_priority" class="form-label">Prioridad</label>
+                            {% localize off %}
                             <input type="number" class="form-control" id="id_priority" name="priority"
                                    value="{{ form.priority.value|default:50 }}" min="1" max="100">
+                            {% endlocalize %}
                             <small class="text-muted">Mayor número = mayor prioridad</small>
                         </div>
                         <div class="form-check mb-3">

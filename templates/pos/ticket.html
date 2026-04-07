@@ -222,7 +222,6 @@
                 <span class="item-qty">{{ item.quantity|floatformat:0 }} x</span>
                 <span class="item-name">
                     {{ item.product.name|truncatechars:22 }}
-                    {% if item.promotion_name %}<span class="promo-badge">{{ item.promotion_name }}</span>{% endif %}
                 </span>
             </div>
             <div class="item-line2">
@@ -235,6 +234,20 @@
                 </span>
                 <span class="item-subtotal">${{ item.subtotal|floatformat:0 }}</span>
             </div>
+            {% if item.promotion_name %}
+            <div class="item-line2" style="font-size: 0.72rem; color: #555;">
+                <span>* {{ item.promotion_name }}{% if item.promotion_group_name %} (enlaz. {{ item.promotion_group_name }}){% endif %}</span>
+                {% if item.promotion_discount and item.promotion_discount > 0 %}
+                <span>-${{ item.promotion_discount|floatformat:0 }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if item.discount and item.discount > 0 %}
+            <div class="item-line2" style="font-size: 0.72rem; color: #555;">
+                <span>* Dto. manual</span>
+                <span>-${{ item.discount|floatformat:0 }}</span>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
 

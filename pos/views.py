@@ -572,8 +572,10 @@ def api_transaction_detail(request, transaction_id):
                 'quantity': float(item.quantity),
                 'unit_price': float(item.unit_price),
                 'discount': float(item.discount),
+                'promotion_discount': float(item.promotion_discount),
                 'subtotal': float(item.subtotal),
                 'promotion_name': item.promotion_name,
+                'promotion_group_name': item.promotion_group_name,
                 'packaging_id': item.packaging_id,
                 'packaging_name': item.packaging.name if item.packaging else None,
                 'packaging_type': item.packaging.packaging_type if item.packaging else None,
@@ -724,6 +726,9 @@ def api_cart_item_discount(request, item_id):
     discount_value = Decimal(str(data.get('value', 0)))
 
     item_total_before_discount = item.unit_price * item.quantity
+    # El descuento manual no puede pasarse del neto ya descontado por promo.
+    promo_discount = item.promotion_discount or Decimal('0.00')
+    max_manual = item_total_before_discount - promo_discount
 
     if discount_type == 'remove':
         item.discount = Decimal('0.00')
@@ -731,11 +736,16 @@ def api_cart_item_discount(request, item_id):
         if discount_value <= 0 or discount_value > 100:
             return JsonResponse({'success': False, 'error': 'Porcentaje inválido (1-100)'}, status=400)
         item.discount = (item_total_before_discount * discount_value / Decimal('100')).quantize(Decimal('0.01'))
+        if item.discount > max_manual:
+            item.discount = max(max_manual, Decimal('0.00')).quantize(Decimal('0.01'))
     elif discount_type == 'fixed':
         if discount_value <= 0:
             return JsonResponse({'success': False, 'error': 'Monto inválido'}, status=400)
-        if discount_value > item_total_before_discount:
-            return JsonResponse({'success': False, 'error': 'El descuento supera el subtotal del ítem'}, status=400)
+        if discount_value > max_manual:
+            return JsonResponse({
+                'success': False,
+                'error': 'El descuento manual supera el monto disponible del ítem (ya hay una promo aplicada)'
+            }, status=400)
         item.discount = discount_value.quantize(Decimal('0.01'))
     else:
         return JsonResponse({'success': False, 'error': 'Tipo inválido'}, status=400)
@@ -751,6 +761,7 @@ def api_cart_item_discount(request, item_id):
         'item': {
             'id': item.id,
             'discount': float(item.discount),
+            'promotion_discount': float(item.promotion_discount),
             'subtotal': float(item.subtotal),
         },
         'totals': {
@@ -784,9 +795,10 @@ def api_apply_discount(request, transaction_id):
     except POSTransaction.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Transacción no encontrada'}, status=404)
     
-    # Calculate promotion discounts already applied to items
+    # Calculate promotion discounts already applied to items (usando el campo
+    # específico de promo, no el discount manual).
     promo_discount = sum(
-        item.discount for item in transaction.items.all() if item.promotion_id
+        (item.promotion_discount or Decimal('0.00')) for item in transaction.items.all()
     )
 
     # Calculate manual discount amount (applied on top of promotion discounts)

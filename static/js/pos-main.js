@@ -997,6 +997,30 @@
                 const displayName = item.is_granel
                     ? `${item.quantity % 1 === 0 ? item.quantity : parseFloat(item.quantity).toFixed(1)}g de ${item.product_name || item.name}`
                     : (item.product_name || item.name);
+
+                // Descuento manual (botón) — ya NO se mezcla con la promo
+                const manualDiscount = parseFloat(item.discount || 0);
+                const promoDiscount  = parseFloat(item.promotion_discount || 0);
+                const hasPromo       = promoDiscount > 0 || !!item.promotion_name;
+                const groupName      = item.promotion_group_name || '';
+
+                // Línea extra con la promo aplicada (nombre + monto + grupo enlazado si aplica)
+                const promoRow = hasPromo ? `
+                    <div class="cart-item-promo-row">
+                        <span class="promo-tag">
+                            <i class="fas fa-tag"></i>${item.promotion_name || 'Promo'}
+                        </span>
+                        ${groupName ? `
+                            <span class="promo-group" title="Esta promoción está enlazada con otras del mismo grupo">
+                                <i class="fas fa-link"></i>Enlazada: ${groupName}
+                            </span>
+                        ` : ''}
+                        ${promoDiscount > 0 ? `
+                            <span class="promo-amount">-${formatCurrency(promoDiscount)}</span>
+                        ` : ''}
+                    </div>
+                ` : '';
+
                 return `
                 <div class="cart-item" data-item-id="${item.id}">
                     <div class="cart-item-info">
@@ -1004,14 +1028,13 @@
                             ${displayName}
                             ${pkgLabel}
                             ${item.is_granel ? '<span class="badge ms-1" style="font-size:.65em;background:rgba(233,30,140,0.2);color:#E91E8C;border:1px solid rgba(233,30,140,0.3);">granel</span>' : ''}
-                            ${item.promotion_name ? `<span class="cart-item-promo badge bg-success ms-1">${item.promotion_name}</span>` : ''}
                         </div>
                         <div class="cart-item-price d-flex align-items-center gap-2">
                             <span>${item.is_granel ? formatCurrency(item.unit_price) + `/${item.granel_price_weight_grams || 100}g` : formatCurrency(item.unit_price) + ' c/u'}</span>
-                            <button class="btn btn-xs cart-item-discount-btn ${item.discount > 0 ? 'btn-success active' : 'btn-outline-warning'}" tabindex="-1"
-                                    title="Descuento solo a este producto" data-item-id="${item.id}">
+                            <button class="btn btn-xs cart-item-discount-btn ${manualDiscount > 0 ? 'btn-success active' : 'btn-outline-warning'}" tabindex="-1"
+                                    title="Descuento manual para este producto (separado de la promo)" data-item-id="${item.id}">
                                 <i class="fas fa-percent"></i>
-                                ${item.discount > 0 ? ` -${formatCurrency(item.discount)}` : ' Dto.'}
+                                ${manualDiscount > 0 ? ` -${formatCurrency(manualDiscount)}` : ' Dto.'}
                             </button>
                         </div>
                     </div>
@@ -1040,6 +1063,7 @@
                     <div class="cart-item-remove" title="Eliminar">
                         <i class="fas fa-trash"></i>
                     </div>
+                    ${promoRow}
                 </div>
             `}).join('');
             

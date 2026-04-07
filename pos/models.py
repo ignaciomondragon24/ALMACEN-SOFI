@@ -192,19 +192,22 @@ class POSTransaction(models.Model):
         """Recalculate transaction totals from items."""
         from django.db.models import Sum, F, DecimalField
         from django.db.models.functions import Coalesce
-        
+
         # Use output_field to handle mixed types (DecimalField * PositiveIntegerField)
         result = self.items.aggregate(
             subtotal=Sum(
                 F('unit_price') * F('quantity'),
                 output_field=DecimalField(max_digits=12, decimal_places=2)
             ),
-            discount=Sum('discount'),
+            manual_discount=Sum('discount'),
+            promo_discount=Sum('promotion_discount'),
             count=Sum('quantity')
         )
-        
+
         self.subtotal = result['subtotal'] or Decimal('0.00')
-        self.discount_total = result['discount'] or Decimal('0.00')
+        manual = result['manual_discount'] or Decimal('0.00')
+        promo = result['promo_discount'] or Decimal('0.00')
+        self.discount_total = manual + promo
         self.total = self.subtotal - self.discount_total + self.tax_total
         self.items_count = int(result['count'] or 0)
         self.save()
@@ -260,10 +263,18 @@ class POSTransactionItem(models.Model):
         help_text='Costo del producto al momento de la venta (para cálculo de ganancia)'
     )
     discount = models.DecimalField(
-        'Descuento',
+        'Descuento Manual',
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00')
+        default=Decimal('0.00'),
+        help_text='Descuento manual ingresado por el cajero (independiente de la promo)'
+    )
+    promotion_discount = models.DecimalField(
+        'Descuento por Promoción',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Descuento aplicado automáticamente por una promoción activa'
     )
     subtotal = models.DecimalField(
         'Subtotal',
@@ -271,7 +282,7 @@ class POSTransactionItem(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
-    
+
     # Promotion info
     promotion = models.ForeignKey(
         'promotions.Promotion',
@@ -286,6 +297,12 @@ class POSTransactionItem(models.Model):
         max_length=200,
         blank=True,
         help_text='Guardado para histórico'
+    )
+    promotion_group_name = models.CharField(
+        'Grupo de Promoción',
+        max_length=200,
+        blank=True,
+        help_text='Nombre del grupo si la promo está enlazada con otras'
     )
     
     class Meta:
@@ -303,8 +320,10 @@ class POSTransactionItem(models.Model):
         return self.quantity * self.packaging_units
     
     def save(self, *args, **kwargs):
-        # Calculate subtotal (never negative)
-        self.subtotal = max((self.unit_price * self.quantity) - self.discount, Decimal('0.00'))
+        # Calculate subtotal (never negative): resta tanto descuento manual como promo
+        gross = self.unit_price * self.quantity
+        total_discount = (self.discount or Decimal('0.00')) + (self.promotion_discount or Decimal('0.00'))
+        self.subtotal = max(gross - total_discount, Decimal('0.00'))
         super().save(*args, **kwargs)
 
 

@@ -121,13 +121,16 @@ class PromotionEngine:
                 discount_info = PromotionEngine._apply_combo(matching_items, leader)
 
             if discount_info and discount_info['discount'] > 0:
-                # Nombre informativo: si es grupo, usar el nombre del grupo
-                display_name = (
-                    leader.group.name if leader.group_id and leader.group else leader.name
+                # Para el nombre individual guardamos la promo específica del
+                # líder (ej. "lata coca 4x1000"). El nombre del grupo se guarda
+                # aparte para que el POS pueda mostrar "Enlazada con: latas".
+                group_name = (
+                    leader.group.name if leader.group_id and leader.group else ''
                 )
                 applied_promotions.append({
                     'promotion_id': leader.id,
-                    'promotion_name': display_name,
+                    'promotion_name': leader.name,
+                    'group_name': group_name,
                     'discount_amount': float(discount_info['discount']),
                     'affected_products': list(promo_product_ids),
                     'item_discounts': discount_info.get('item_discounts', [])

@@ -234,20 +234,26 @@ class CartService:
     
     @staticmethod
     def apply_promotions(pos_transaction):
-        """Apply promotions to cart items."""
+        """Apply promotions to cart items.
+
+        Importante: sólo tocamos el campo ``promotion_discount`` + metadatos
+        de la promo. El ``discount`` (manual del cajero) queda intocado para
+        que no se pise al re-aplicar promos cuando cambia el carrito.
+        """
         from promotions.engine import PromotionEngine
-        
+
         items = pos_transaction.items.all()
         if not items:
             return
-        
-        # Reset discounts
+
+        # Reset SÓLO los campos de promoción — el descuento manual no se toca.
         for item in items:
-            item.discount = Decimal('0.00')
+            item.promotion_discount = Decimal('0.00')
             item.promotion = None
             item.promotion_name = ''
+            item.promotion_group_name = ''
             item.save()
-        
+
         # Get cart items data
         cart_items = [
             {
@@ -258,22 +264,24 @@ class CartService:
             }
             for item in items
         ]
-        
+
         # Calculate promotions
         result = PromotionEngine.calculate_cart(cart_items)
-        
+
         # Apply discounts to items
         for applied in result.get('applied_promotions', []):
             for item_discount in applied.get('item_discounts', []):
                 item_id = item_discount.get('item_id')
                 discount = Decimal(str(item_discount.get('discount', 0)))
-                
+
                 if item_id and discount > 0:
                     try:
                         item = POSTransactionItem.objects.get(id=item_id)
-                        item.discount += discount  # Sum discounts for combinable promos
+                        # Sumamos (no pisamos) para soportar promos combinables
+                        item.promotion_discount += discount
                         item.promotion_id = applied.get('promotion_id')
                         item.promotion_name = applied.get('promotion_name', '')
+                        item.promotion_group_name = applied.get('group_name', '')
                         item.save()
                     except POSTransactionItem.DoesNotExist:
                         pass
@@ -519,7 +527,11 @@ class CheckoutService:
         # Update item prices to cost price and recalculate
         for item in pos_transaction.items.all():
             item.unit_price = item.product.cost_price or item.product.purchase_price
-            item.discount = Decimal('0.00')  # No discounts on cost sales
+            item.discount = Decimal('0.00')            # No discounts on cost sales
+            item.promotion_discount = Decimal('0.00')  # Tampoco promos
+            item.promotion = None
+            item.promotion_name = ''
+            item.promotion_group_name = ''
             item.subtotal = item.unit_price * item.quantity
             item.save()
         
@@ -654,6 +666,10 @@ class CheckoutService:
             cost = item.product.cost_price or item.product.purchase_price
             item.unit_price = cost
             item.discount = Decimal('0.00')
+            item.promotion_discount = Decimal('0.00')
+            item.promotion = None
+            item.promotion_name = ''
+            item.promotion_group_name = ''
             item.subtotal = cost * item.quantity
             item.save()
             total_cost += item.subtotal

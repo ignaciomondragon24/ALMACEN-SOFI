@@ -213,6 +213,64 @@ with connection.cursor() as c:
         print('  Marked promotions.0004 as applied')
 " 2>&1 || echo "WARNING: promotions schema repair skipped"
 
+# Defensive: ensure POSTransactionItem tiene promotion_discount + promotion_group_name.
+# Migración 0009 los agrega; este bloque es red de seguridad si la migración
+# no corrió todavía (mismo enfoque que usamos con promotions 0004 más arriba).
+echo "Verifying pos_postransactionitem promo fields..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    print('  SQLite: skip')
+    sys.exit(0)
+with connection.cursor() as c:
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='pos_postransactionitem')\")
+    if not c.fetchone()[0]:
+        print('  pos_postransactionitem no existe aun, skip')
+        sys.exit(0)
+
+    # 1) promotion_discount
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='pos_postransactionitem' AND column_name='promotion_discount'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding pos_postransactionitem.promotion_discount ...')
+        c.execute(\"\"\"
+            ALTER TABLE pos_postransactionitem
+            ADD COLUMN promotion_discount numeric(10,2) NOT NULL DEFAULT 0
+        \"\"\")
+        print('  promotion_discount added OK')
+    else:
+        print('  promotion_discount OK')
+
+    # 2) promotion_group_name
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='pos_postransactionitem' AND column_name='promotion_group_name'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding pos_postransactionitem.promotion_group_name ...')
+        c.execute(\"\"\"
+            ALTER TABLE pos_postransactionitem
+            ADD COLUMN promotion_group_name varchar(200) NOT NULL DEFAULT ''
+        \"\"\")
+        print('  promotion_group_name added OK')
+    else:
+        print('  promotion_group_name OK')
+
+    # 3) Marcar migración 0009 como aplicada para que Django no la reintente
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='pos' AND name='0009_item_promotion_discount_and_group'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('pos', '0009_item_promotion_discount_and_group', NOW())
+        \"\"\")
+        print('  Marked pos.0009 as applied')
+" 2>&1 || echo "WARNING: pos promo fields repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."

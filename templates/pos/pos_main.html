@@ -439,6 +439,57 @@
         border-color: #00d2d3 !important;
         outline: 2px solid rgba(0,210,211,0.5) !important;
     }
+
+    /* ===== Línea de promoción aplicada al item ===== */
+    /* .cart-item es display:flex — forzamos wrap para que la promo-row ocupe
+       su propia fila debajo del item principal. */
+    .cart-item { flex-wrap: wrap; }
+    .cart-item-promo-row {
+        flex: 1 0 100%;
+        margin-top: 6px;
+        padding: 4px 8px;
+        background: linear-gradient(90deg, rgba(245, 208, 0, 0.12), rgba(233, 30, 140, 0.10));
+        border-left: 3px solid #F5D000;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        color: #ffe266;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.25;
+    }
+    .cart-item-promo-row .promo-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(245, 208, 0, 0.22);
+        color: #F5D000;
+        padding: 2px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.7rem;
+    }
+    .cart-item-promo-row .promo-tag i { font-size: 0.72rem; }
+    .cart-item-promo-row .promo-amount {
+        color: #00d2d3;
+        font-weight: 700;
+        margin-left: auto;
+        white-space: nowrap;
+    }
+    .cart-item-promo-row .promo-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(233, 30, 140, 0.18);
+        color: #ff5ca8;
+        padding: 2px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.68rem;
+        border: 1px dashed rgba(233, 30, 140, 0.5);
+    }
+    .cart-item-promo-row .promo-group i { font-size: 0.65rem; }
 </style>
 {% endblock %}
 
