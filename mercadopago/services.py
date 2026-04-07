@@ -334,6 +334,56 @@ class MPPointService:
                 return True, pos
         return False, {"message": f"No se encontró un POS con external_id={external_id}"}
 
+    def update_pos(self, pos_id, external_id, name=None, fixed_amount=True):
+        """
+        Actualiza un POS existente vía PUT /pos/{id}. Sirve para ASIGNAR
+        un external_id alfanumérico a un POS que MP creó automáticamente
+        sin uno (caso típico: al pedir el QR físico desde el panel).
+
+        Args:
+            pos_id: ID interno (numérico) del POS en MP
+            external_id: nuevo external_id alfanumérico (ej "CHEPOS-001")
+            name: opcional, nombre del POS
+            fixed_amount: True para QR estático tradicional sin monto fijo
+
+        Docs: https://www.mercadopago.com.ar/developers/es/reference/qr-payments/_pos_id/put
+        """
+        payload = {
+            "external_id": external_id,
+            "fixed_amount": bool(fixed_amount),
+        }
+        if name:
+            payload["name"] = name
+        return self._make_request("PUT", f"/pos/{pos_id}", data=payload)
+
+    def create_pos(self, external_id, store_id, name="QR CHE GOLOSO", fixed_amount=True):
+        """
+        Crea un nuevo POS dentro de un store existente.
+        Útil cuando el seller no tiene ningún POS o quiere uno extra.
+
+        Docs: https://www.mercadopago.com.ar/developers/es/reference/qr-payments/_pos/post
+        """
+        payload = {
+            "name": name,
+            "fixed_amount": bool(fixed_amount),
+            "category": 621102,  # Otros
+            "store_id": str(store_id),
+            "external_id": external_id,
+        }
+        return self._make_request("POST", "/pos", data=payload)
+
+    def list_stores(self):
+        """
+        Lista los stores (sucursales) del seller. Necesario para crear un POS
+        nuevo, ya que cada POS pertenece a un store.
+
+        Docs: https://www.mercadopago.com.ar/developers/es/reference/qr-payments/_stores/get
+        """
+        user_id = self.get_user_id()
+        if not user_id:
+            return False, {"error": "No se pudo obtener el User ID de MP"}
+        return self._make_request("GET", f"/users/{user_id}/stores")
+
     # ==================== PAGOS ====================
     
     def get_payment(self, payment_id):

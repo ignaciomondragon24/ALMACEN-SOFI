@@ -12,6 +12,7 @@ urlpatterns = [
     path('credentials/', views.credentials_form, name='credentials'),
     path('test-connection/', views.test_connection, name='test_connection'),
     path('list-pos/', views.list_pos_view, name='list_pos'),
+    path('assign-pos-external-id/', views.assign_pos_external_id_view, name='assign_pos_external_id'),
     
     # Dispositivos
     path('devices/', views.device_list, name='device_list'),

@@ -148,6 +148,70 @@ def test_connection(request):
 
 @login_required
 @group_required(['Admin'])
+@require_POST
+def assign_pos_external_id_view(request):
+    """
+    Asigna programáticamente un external_id alfanumérico a un POS existente
+    en la cuenta MP. Esto es lo que destraba el QR estático cuando MP creó
+    el POS sin external_id (caso típico al pedir el QR físico desde el panel).
+
+    Body JSON:
+        pos_id: int — ID interno del POS a actualizar
+        external_id: str — external_id alfanumérico a asignar (ej "CHEPOS-001")
+
+    Si la actualización en MP es exitosa, además guarda ese external_id como
+    el `external_pos_id` activo en MPCredentials para que el POS lo use ya.
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'JSON inválido'}, status=400)
+
+    pos_id = data.get('pos_id')
+    external_id = (data.get('external_id') or '').strip()
+
+    if not pos_id:
+        return JsonResponse({'success': False, 'message': 'Falta pos_id'}, status=400)
+    if not external_id:
+        return JsonResponse({'success': False, 'message': 'Falta external_id'}, status=400)
+
+    credentials = MPCredentials.get_active()
+    if not credentials or not credentials.access_token:
+        return JsonResponse({
+            'success': False,
+            'message': 'No hay credenciales de MP con Access Token cargado.'
+        }, status=400)
+
+    try:
+        service = MPPointService(credentials=credentials)
+        success, response = service.update_pos(pos_id=pos_id, external_id=external_id)
+        if not success:
+            error_msg = response.get('message') or response.get('error') or str(response)
+            return JsonResponse({
+                'success': False,
+                'message': f'MP rechazó la actualización: {error_msg}',
+                'raw': response,
+            }, status=400)
+
+        # Guardar como external_pos_id activo en credenciales
+        credentials.external_pos_id = external_id
+        credentials.save(update_fields=['external_pos_id'])
+
+        return JsonResponse({
+            'success': True,
+            'message': f'POS actualizado en MP. Ahora usa external_id="{external_id}".',
+            'pos': response,
+        })
+    except Exception as e:
+        logger.exception(f"Error assigning external_id to POS: {e}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error inesperado: {str(e)}',
+        }, status=500)
+
+
+@login_required
+@group_required(['Admin'])
 def list_pos_view(request):
     """
     Lista los POS (puntos de venta) del seller en MP.
