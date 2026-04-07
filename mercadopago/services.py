@@ -308,9 +308,13 @@ class MPPointService:
         payload = {
             "external_reference": external_reference,
             "title": title,
+            "description": title,
             "total_amount": total_amount,
             "items": [{
+                "sku_number": "CHE-001",
+                "category": "marketplace",
                 "title": title,
+                "description": title,
                 "unit_price": total_amount,
                 "quantity": 1,
                 "unit_measure": "unit",
