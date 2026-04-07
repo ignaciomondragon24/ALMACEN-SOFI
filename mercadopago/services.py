@@ -259,11 +259,19 @@ class MPPointService:
 
     def create_qr_order(self, amount, external_reference, title="Venta CHE GOLOSO"):
         """
-        Crea una orden asociada al QR estático. El cliente escanea el QR
-        físico pegado en la caja y la app de MP le muestra el cobro.
+        Asigna un monto al QR ESTÁTICO impreso del seller. NO genera un QR
+        nuevo: el cliente escanea el QR físico pegado en la caja y su app
+        de MP le muestra el cobro recién creado.
+
+        Endpoint: POST /instore/qr/seller/collectors/{user_id}/pos/{external_pos_id}/orders
+        Docs: https://www.mercadopago.com.ar/developers/es/reference/qr-payments/_instore_qr_seller_collectors_user_id_pos_external_pos_id_orders/post
+
+        Importante: el `external_pos_id` debe coincidir con el POS al que MP
+        asoció el QR físico cuando lo emitió desde el panel.
 
         Returns:
-            tuple: (success, data) - data incluye 'qr_data' con el string para generar QR
+            tuple: (success, data) - data incluye 'in_store_order_id'.
+            (No devuelve qr_data porque el QR ya existe físicamente.)
         """
         user_id = self.get_user_id()
         if not user_id:
@@ -300,6 +308,31 @@ class MPPointService:
     def get_qr_payment_status(self, external_reference):
         """Busca el estado del pago por external_reference."""
         return self.search_payments(external_reference=external_reference)
+
+    # ==================== POS (sucursales) para QR estático ====================
+
+    def list_pos(self):
+        """
+        Lista los puntos de venta (POS) del seller en MP.
+        Útil para que el admin sepa qué external_pos_id cargar.
+
+        Docs: https://www.mercadopago.com.ar/developers/es/reference/qr-payments/_pos/get
+        """
+        return self._make_request("GET", "/pos")
+
+    def get_pos_by_external_id(self, external_id):
+        """
+        Verifica si existe un POS con el external_id dado en la cuenta MP.
+        Devuelve (exists: bool, pos_data_or_error: dict).
+        """
+        success, data = self.list_pos()
+        if not success:
+            return False, data
+        results = data.get("results", []) if isinstance(data, dict) else []
+        for pos in results:
+            if str(pos.get("external_id", "")) == str(external_id):
+                return True, pos
+        return False, {"message": f"No se encontró un POS con external_id={external_id}"}
 
     # ==================== PAGOS ====================
     

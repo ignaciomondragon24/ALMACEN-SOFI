@@ -1982,7 +1982,7 @@
             if (selectedCard && confirmBtn && !confirmBtn.disabled) {
                 const code = selectedCard.dataset.methodCode;
                 if (code === 'mercadopago') {
-                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>GENERAR QR';
+                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>CARGAR AL QR';
                 } else if (code === 'tarjeta_mp') {
                     confirmBtn.innerHTML = '<i class="fas fa-credit-card me-2"></i>ENVIAR A POINT';
                 } else {
@@ -2029,17 +2029,17 @@
                 return;
             }
 
-            // MercadoPago QR: generar QR estático y esperar pago
+            // MercadoPago QR estático: cargar monto al QR físico y esperar pago
             if (card.dataset.methodCode === 'mercadopago') {
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Generando QR...';
+                confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Cargando monto al QR...';
                 try {
                     await handleFcoMercadoPago(paid, parseInt(card.dataset.methodId));
                 } catch (err) {
                     console.error('MP QR FCO error:', err);
-                    showToast(err.message || 'Error al generar QR de MercadoPago', 'error');
+                    showToast(err.message || 'Error al cargar el monto al QR', 'error');
                     confirmBtn.disabled = false;
-                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>GENERAR QR';
+                    confirmBtn.innerHTML = '<i class="fas fa-qrcode me-2"></i>CARGAR AL QR';
                 }
                 return;
             }
@@ -2092,9 +2092,11 @@
             }
         }
 
-        // ── MercadoPago QR flow within Fast Checkout ──────────────────────
+        // ── MercadoPago QR ESTÁTICO flow within Fast Checkout ─────────────
+        // No genera un QR nuevo: asigna el monto al QR físico ya impreso
+        // y pegado a la caja. El cliente escanea el QR de la caja, no la pantalla.
         async function handleFcoMercadoPago(amount, methodId) {
-            // 1. Create QR order
+            // 1. Asignar monto al QR estático en MP
             const intentResp = await fetch('/mercadopago/api/create-qr/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
@@ -2105,17 +2107,16 @@
             });
             const intentData = await intentResp.json();
             if (!intentData.success) {
-                throw new Error(intentData.error || 'Error al generar QR');
+                throw new Error(intentData.error || 'Error al cargar el monto en el QR');
             }
 
             const paymentIntentId = intentData.payment_intent?.id;
-            const qrData = intentData.qr_data;
             if (!paymentIntentId) throw new Error('No se recibió ID de pago');
 
-            // Show QR modal
-            showMpQrModal(qrData, amount);
-            showToast('QR generado. El cliente debe escanearlo con la app de MP.', 'info');
-            confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Esperando pago...';
+            // Show "scan physical QR" modal (NO QR en pantalla)
+            showMpQrModal(amount);
+            showToast('Monto cargado. Pedile al cliente que escanee el QR de la caja.', 'info');
+            confirmBtn.innerHTML = '<i class="fas fa-qrcode fa-beat me-2"></i>Esperando que escanee...';
 
             // 2. Poll for payment status
             const maxAttempts = 90;  // 3 minutes
@@ -2259,42 +2260,35 @@
             throw new Error('Tiempo de espera agotado. Verifique el dispositivo Point.');
         }
 
-        // ── QR Modal functions ──────────────────────────────────────────────
-        function showMpQrModal(qrData, amount) {
+        // ── Modal "Esperando pago QR estático" ──────────────────────────────
+        // NO genera un QR en pantalla. El cliente tiene que escanear el QR
+        // FÍSICO impreso pegado a la caja. Esto solo informa el monto cargado
+        // y muestra que estamos esperando confirmación de MP.
+        function showMpQrModal(amount) {
             hideMpQrModal();
             const modal = document.createElement('div');
             modal.id = 'mp-qr-modal';
-            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:99999;';
+            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:99999;';
             modal.innerHTML = `
-                <div style="background:#fff;padding:30px 40px;border-radius:20px;text-align:center;max-width:400px;">
-                    <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png" style="height:35px;margin-bottom:15px;">
-                    <div style="font-size:2rem;font-weight:bold;color:#009ee3;margin-bottom:15px;">${formatCurrency(amount)}</div>
-                    <div id="mp-qr-code" style="background:#fff;padding:10px;display:inline-block;"></div>
-                    <div style="margin-top:15px;color:#666;font-size:0.95rem;"><i class="fas fa-mobile-alt me-2"></i>Escaneá con la app de Mercado Pago</div>
-                    <div style="margin-top:10px;color:#999;font-size:0.85rem;"><i class="fas fa-spinner fa-spin me-1"></i>Esperando pago...</div>
+                <div style="background:#fff;padding:40px 50px;border-radius:24px;text-align:center;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                    <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png" style="height:42px;margin-bottom:20px;">
+                    <div style="font-size:0.95rem;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Monto cargado al QR</div>
+                    <div style="font-size:3rem;font-weight:800;color:#009ee3;margin-bottom:25px;line-height:1;">${formatCurrency(amount)}</div>
+                    <div style="background:#fff8e1;border:2px dashed #f5d000;border-radius:14px;padding:18px;margin-bottom:20px;">
+                        <div style="font-size:1.05rem;color:#333;font-weight:600;margin-bottom:6px;">
+                            <i class="fas fa-hand-point-right me-2" style="color:#E91E8C;"></i>Pedile al cliente que escanee el QR pegado en la caja
+                        </div>
+                        <div style="font-size:0.85rem;color:#666;">El monto ya está cargado. Cuando lo escanee verá <strong>${formatCurrency(amount)}</strong> en su app.</div>
+                    </div>
+                    <div style="color:#009ee3;font-weight:600;font-size:0.95rem;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Esperando confirmación de pago...
+                    </div>
+                    <div style="margin-top:14px;color:#999;font-size:0.78rem;">
+                        Cerrá esta pantalla con <kbd>Esc</kbd> para cancelar
+                    </div>
                 </div>
             `;
             document.body.appendChild(modal);
-
-            // Load QRCode library and generate
-            if (typeof QRCode === 'undefined') {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-                script.onload = () => renderQr(qrData);
-                document.head.appendChild(script);
-            } else {
-                renderQr(qrData);
-            }
-
-            function renderQr(data) {
-                const container = document.getElementById('mp-qr-code');
-                if (!container) return;
-                const canvas = document.createElement('canvas');
-                container.appendChild(canvas);
-                QRCode.toCanvas(canvas, data, { width: 250, margin: 1 }, (err) => {
-                    if (err) console.error('QR error:', err);
-                });
-            }
         }
 
         function hideMpQrModal() {
@@ -2763,8 +2757,10 @@
                 const methodCode = this.dataset.methodCode;
                 
                 if (this.checked) {
-                    // Check if Mercado Pago Point method
-                    const isMercadoPago = methodCode === 'mercadopago' || methodCode === 'mp_point';
+                    // Check if Mercado Pago Point Smart method (tarjeta_mp / mp_point).
+                    // 'mercadopago' code = QR estático: NO usa Point, se cobra como cualquier otro
+                    // método después de que el cliente escanea el QR impreso desde el panel de MP.
+                    const isMercadoPago = methodCode === 'tarjeta_mp' || methodCode === 'mp_point';
                     
                     // Add input
                     const inputHtml = `

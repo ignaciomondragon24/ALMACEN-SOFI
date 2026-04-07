@@ -146,6 +146,64 @@ def test_connection(request):
         })
 
 
+@login_required
+@group_required(['Admin'])
+def list_pos_view(request):
+    """
+    Lista los POS (puntos de venta) del seller en MP.
+    Sirve para que el admin sepa qué external_pos_id usar para el QR estático.
+
+    Devuelve JSON con la lista cruda + indicador de cuál coincide con
+    el external_pos_id actualmente configurado en credenciales.
+    """
+    try:
+        credentials = MPCredentials.get_active()
+        if not credentials:
+            return JsonResponse({
+                'success': False,
+                'message': 'No hay credenciales de MP configuradas. Cargá el Access Token primero.'
+            }, status=400)
+
+        service = MPPointService(credentials=credentials)
+        success, response = service.list_pos()
+        if not success:
+            error_msg = response.get('message') or response.get('error') or str(response)
+            return JsonResponse({
+                'success': False,
+                'message': f'MP rechazó la consulta: {error_msg}',
+                'raw': response,
+            }, status=400)
+
+        results = response.get('results', []) if isinstance(response, dict) else []
+        configured = credentials.external_pos_id or ''
+
+        pos_list = []
+        for pos in results:
+            external_id = str(pos.get('external_id', ''))
+            pos_list.append({
+                'id': pos.get('id'),
+                'name': pos.get('name'),
+                'external_id': external_id,
+                'store_id': pos.get('store_id'),
+                'category': pos.get('category'),
+                'fixed_amount': pos.get('fixed_amount'),
+                'is_configured': configured and external_id == configured,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'count': len(pos_list),
+            'configured_external_pos_id': configured,
+            'results': pos_list,
+        })
+    except Exception as e:
+        logger.exception(f"Error listing POS: {e}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error inesperado: {str(e)}',
+        }, status=500)
+
+
 # ==================== DISPOSITIVOS ====================
 
 @login_required
@@ -427,8 +485,9 @@ def api_create_payment_intent(request):
 @require_POST
 def api_create_qr(request):
     """
-    API para crear QR dinámico de MercadoPago.
-    El QR se muestra en pantalla y el cliente lo escanea con su app.
+    API para asignar un monto al QR estático de MercadoPago asociado al
+    seller. El cliente escanea el QR físico ya impreso y la app de MP le
+    muestra el cobro creado en esta llamada.
     """
     try:
         data = json.loads(request.body)
@@ -447,6 +506,31 @@ def api_create_qr(request):
             raise ValueError()
     except (ValueError, TypeError):
         return JsonResponse({'success': False, 'error': 'Monto inválido'}, status=400)
+
+    # Validar credenciales antes de tocar el modelo
+    credentials = MPCredentials.get_active()
+    if not credentials:
+        return JsonResponse({
+            'success': False,
+            'error': (
+                'No hay credenciales de Mercado Pago configuradas. '
+                'Pedile al Admin que las cargue en Admin → Mercado Pago → Credenciales.'
+            )
+        }, status=400)
+    if not credentials.access_token:
+        return JsonResponse({
+            'success': False,
+            'error': 'Las credenciales de MP no tienen Access Token cargado.'
+        }, status=400)
+    if not credentials.external_pos_id:
+        return JsonResponse({
+            'success': False,
+            'error': (
+                'Falta configurar el External POS ID del QR estático. '
+                'Pedile al Admin que lo cargue en Admin → Mercado Pago → Credenciales '
+                '(debe coincidir con el ID del POS asociado al QR impreso en tu cuenta MP).'
+            )
+        }, status=400)
 
     # Verificar turno activo
     from cashregister.models import CashShift
@@ -476,7 +560,7 @@ def api_create_qr(request):
     payment_intent.save()
 
     try:
-        service = MPPointService()
+        service = MPPointService(credentials=credentials)
         success, response = service.create_qr_order(
             amount=amount,
             external_reference=payment_intent.external_reference,
@@ -484,7 +568,8 @@ def api_create_qr(request):
         )
 
         if success:
-            qr_data = response.get('qr_data', '')
+            # API de QR estático devuelve únicamente in_store_order_id.
+            # El cliente paga escaneando el QR físico ya pegado en la caja.
             payment_intent.mp_payment_intent_id = response.get('in_store_order_id', '')
             payment_intent.status = 'processing'
             payment_intent.sent_at = timezone.now()
@@ -492,20 +577,45 @@ def api_create_qr(request):
 
             return JsonResponse({
                 'success': True,
-                'qr_data': qr_data,
                 'payment_intent': {
                     'id': str(payment_intent.id),
                     'external_reference': payment_intent.external_reference,
                     'amount': float(payment_intent.amount),
                     'status': payment_intent.status,
                 },
-                'message': 'QR generado. El cliente debe escanearlo con la app de Mercado Pago.'
+                'message': 'Monto cargado al QR estático. El cliente debe escanear el QR físico de la caja.'
             })
         else:
-            error_msg = response.get('message', response.get('error', str(response)))
+            # Construir mensaje de error legible
+            error_msg = response.get('message') or response.get('error')
+            mp_status = response.get('status')
+            mp_cause = response.get('cause')
+            if isinstance(mp_cause, list) and mp_cause:
+                first = mp_cause[0]
+                if isinstance(first, dict):
+                    error_msg = first.get('description') or first.get('message') or error_msg
+            if not error_msg:
+                error_msg = str(response)
+
+            # Hint específico cuando MP no encuentra el POS
+            lower = (error_msg or '').lower()
+            if 'pos' in lower and ('not found' in lower or 'no encontr' in lower):
+                error_msg = (
+                    f"MercadoPago no encontró el POS '{credentials.external_pos_id}' en tu cuenta. "
+                    f"Verificá el External POS ID en Admin → Mercado Pago → Credenciales."
+                )
+            elif mp_status in (401, 403):
+                error_msg = (
+                    "MercadoPago rechazó el Access Token (401/403). "
+                    "Verificá que sea de Producción y que tenga permisos sobre el QR estático."
+                )
+
             payment_intent.mark_error(str(response))
             return JsonResponse({'success': False, 'error': error_msg}, status=400)
 
+    except ValueError as e:
+        payment_intent.mark_error(str(e))
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
     except Exception as e:
         payment_intent.mark_error(str(e))
         logger.exception(f"Error creating QR: {e}")

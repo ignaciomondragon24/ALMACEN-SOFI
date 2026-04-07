@@ -11,6 +11,7 @@ urlpatterns = [
     path('', views.mp_dashboard, name='dashboard'),
     path('credentials/', views.credentials_form, name='credentials'),
     path('test-connection/', views.test_connection, name='test_connection'),
+    path('list-pos/', views.list_pos_view, name='list_pos'),
     
     # Dispositivos
     path('devices/', views.device_list, name='device_list'),
