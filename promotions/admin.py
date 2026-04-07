@@ -1,5 +1,15 @@
 from django.contrib import admin
-from .models import Promotion, PromotionProduct
+from .models import Promotion, PromotionProduct, PromotionGroup
+
+
+@admin.register(PromotionGroup)
+class PromotionGroupAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'promo_count', 'created_at')
+    search_fields = ('name', 'description')
+
+    def promo_count(self, obj):
+        return obj.promotions.count()
+    promo_count.short_description = 'Promos enlazadas'
 
 
 class PromotionProductInline(admin.TabularInline):
@@ -10,18 +20,19 @@ class PromotionProductInline(admin.TabularInline):
 
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'promo_type', 'status', 'priority', 'start_date', 'end_date', 
+    list_display = ('name', 'promo_type', 'status', 'priority', 'group', 'start_date', 'end_date',
                    'is_combinable', 'usages', 'is_valid_today')
-    list_filter = ('status', 'promo_type', 'is_combinable', 'start_date')
+    list_filter = ('status', 'promo_type', 'is_combinable', 'group', 'start_date')
     search_fields = ('name', 'description')
     inlines = [PromotionProductInline]
-    
+    autocomplete_fields = ['group']
+
     fieldsets = (
         ('Información Básica', {
             'fields': ('name', 'description', 'promo_type', 'status')
         }),
         ('Vigencia', {
-            'fields': ('start_date', 'end_date', 'priority', 'is_combinable')
+            'fields': ('start_date', 'end_date', 'priority', 'is_combinable', 'group')
         }),
         ('Días Activos', {
             'fields': (('monday', 'tuesday', 'wednesday', 'thursday'), 

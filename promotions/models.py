@@ -8,6 +8,30 @@ from decimal import Decimal
 from django.utils import timezone
 
 
+class PromotionGroup(models.Model):
+    """
+    Grupo de promociones enlazadas. Cuando varias promos comparten un grupo,
+    el motor las trata como UNA sola promo virtual: la lista de productos se
+    une, y se aplica la lógica de la promo de mayor prioridad del grupo.
+
+    Caso de uso: dos promos "4 x $1000" sobre productos distintos. Si el
+    cliente lleva 2 de cada una, las 4 unidades sumadas activan el precio
+    promocional como si fuera una única promo.
+    """
+    name = models.CharField('Nombre', max_length=200, unique=True)
+    description = models.TextField('Descripción', blank=True)
+    created_at = models.DateTimeField('Fecha de creación', auto_now_add=True)
+    updated_at = models.DateTimeField('Última actualización', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Grupo de Promociones'
+        verbose_name_plural = 'Grupos de Promociones'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Promotion(models.Model):
     """Promotion model."""
     
@@ -70,6 +94,18 @@ class Promotion(models.Model):
         'Combinable',
         default=True,
         help_text='¿Se puede combinar con otras promociones?'
+    )
+
+    # Linking: dos o más promos en el mismo grupo se tratan como una sola
+    # virtual al momento de calcular descuentos en el carrito.
+    group = models.ForeignKey(
+        PromotionGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='promotions',
+        verbose_name='Grupo enlazado',
+        help_text='Promociones del mismo grupo suman cantidades como si fueran una sola.'
     )
     
     # Active days

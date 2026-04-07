@@ -327,9 +327,9 @@ def inventory_count(request, pk):
             'otro': 'Otro',
         }
 
-        reason_text = reason_map.get(reason, reason)
-        if notes:
-            reason_text = f"{reason_text}: {notes}"
+        # Etiqueta legible del motivo (va a `reference` del StockMovement).
+        # Las notas libres van por separado a `notes`.
+        reason_label = reason_map.get(reason, reason or 'Ajuste de inventario')
 
         try:
             from decimal import Decimal
@@ -344,7 +344,8 @@ def inventory_count(request, pk):
                 StockManagementService.adjust_stock(
                     product=product,
                     new_quantity=new_quantity,
-                    reason=reason_text,
+                    reason=reason_label,
+                    notes=notes,
                     user=request.user
                 )
 
@@ -383,6 +384,7 @@ def product_movement_list(request, pk=None):
     # Filters
     search = request.GET.get('search', '')
     movement_type = request.GET.get('type', '')
+    reason_filter = request.GET.get('reason', '')
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
@@ -396,6 +398,14 @@ def product_movement_list(request, pk=None):
     if movement_type:
         movements = movements.filter(movement_type=movement_type)
 
+    # Filtro por motivo: busca en `reference` y `notes` del movimiento.
+    # Útil para encontrar todos los robos, mermas, etc.
+    if reason_filter:
+        movements = movements.filter(
+            Q(reference__icontains=reason_filter) |
+            Q(notes__icontains=reason_filter)
+        )
+
     if date_from:
         movements = movements.filter(created_at__date__gte=date_from)
 
@@ -406,11 +416,22 @@ def product_movement_list(request, pk=None):
     page = request.GET.get('page', 1)
     movements_page = paginator.get_page(page)
 
+    # Atajos para filtros frecuentes (chips clicables)
+    reason_shortcuts = [
+        ('Robo', 'Robo / Pérdida'),
+        ('Dañada', 'Mercadería Dañada'),
+        ('Vencida', 'Mercadería Vencida'),
+        ('Conteo', 'Conteo Físico'),
+        ('Consumo', 'Consumo Interno'),
+    ]
+
     return render(request, 'stocks/movement_list.html', {
         'movements': movements_page,
         'product': product,
         'search': search,
         'selected_type': movement_type,
+        'reason_filter': reason_filter,
+        'reason_shortcuts': reason_shortcuts,
         'date_from': date_from,
         'date_to': date_to,
         'movement_types': StockMovement.MOVEMENT_TYPES,
@@ -705,9 +726,20 @@ def import_excel(request):
             errors = []
 
             with transaction.atomic():
-                # Si flush, borrar todo el inventario, promociones y categorías
+                # Snapshot de promo->producto por SKU/barcode ANTES de borrar
+                # (las promociones se preservan; los links se restauran post-import)
+                promo_links_snapshot = []
                 if flush:
-                    from promotions.models import Promotion
+                    from promotions.models import PromotionProduct
+                    for pp in PromotionProduct.objects.select_related('product').all():
+                        promo_links_snapshot.append({
+                            'promotion_id': pp.promotion_id,
+                            'sku': pp.product.sku or '',
+                            'barcode': pp.product.barcode or '',
+                        })
+
+                # Si flush, borrar todo el inventario y categorías
+                if flush:
                     from pos.models import QuickAccessButton, POSTransactionItem
                     from purchase.models import PurchaseItem
                     from sales.models import SaleItem
@@ -728,9 +760,9 @@ def import_excel(request):
                     CarameleraComponent.objects.all().delete()
                     ShrinkageAudit.objects.all().delete()
                     Caramelera.objects.all().delete()
-                    # Borrar en cascada
+                    # Borrar en cascada (Product.delete() cascadea PromotionProduct,
+                    # pero NO toca el modelo Promotion → la promo queda viva sin productos)
                     QuickAccessButton.objects.all().delete()
-                    Promotion.objects.all().delete()
                     StockMovement.objects.all().delete()
                     ProductPackaging.objects.all().delete()
                     Product.objects.all().delete()
@@ -805,8 +837,32 @@ def import_excel(request):
                         except Exception as e:
                             errors.append(f"{item.get('nombre', '???')}: {e}")
 
+                # Restaurar promo->producto buscando los nuevos productos por SKU/barcode
+                promos_restored = 0
+                if flush and promo_links_snapshot:
+                    from promotions.models import PromotionProduct
+                    for link in promo_links_snapshot:
+                        new_product = None
+                        if link['sku']:
+                            new_product = Product.objects.filter(sku=link['sku']).first()
+                        if not new_product and link['barcode']:
+                            new_product = Product.objects.filter(barcode=link['barcode']).first()
+                        if new_product:
+                            _, was_created = PromotionProduct.objects.get_or_create(
+                                promotion_id=link['promotion_id'],
+                                product=new_product,
+                            )
+                            if was_created:
+                                promos_restored += 1
+
             if flush:
                 messages.info(request, 'Se borró todo el inventario anterior.')
+                if promo_links_snapshot:
+                    messages.info(
+                        request,
+                        f'Promociones preservadas. Se restablecieron {promos_restored} '
+                        f'de {len(promo_links_snapshot)} vínculos producto↔promo (matcheo por SKU/barcode).'
+                    )
             msg = f'Importación completada: {created} creados, {updated} actualizados'
             if cat_created:
                 msg += f', {cat_created} categorías nuevas'

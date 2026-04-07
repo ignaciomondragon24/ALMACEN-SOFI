@@ -140,16 +140,19 @@ class StockManagementService:
     
     @staticmethod
     @transaction.atomic
-    def adjust_stock(product, new_quantity, reason, user=None):
+    def adjust_stock(product, new_quantity, reason, user=None, notes=''):
         """
         Adjust stock to a specific quantity.
-        
+
         Args:
             product: Product instance
             new_quantity: New stock quantity
-            reason: Reason for adjustment
+            reason: Motivo del ajuste, e.g. "Robo / Pérdida", "Mercadería Dañada".
+                    Se guarda en el campo `reference` del movimiento.
             user: User performing the action
-        
+            notes: Detalle libre del ajuste (descripción del incidente,
+                   nro de cajas robadas, etc.). Se guarda en `notes`.
+
         Returns:
             StockMovement instance
         """
@@ -159,14 +162,16 @@ class StockManagementService:
         new_quantity = Decimal(str(new_quantity))
         stock_before = product.current_stock
         difference = new_quantity - stock_before
-        
+
         movement_type = 'adjustment_in' if difference >= 0 else 'adjustment_out'
-        
+
         # Update product stock
         product.current_stock = new_quantity
         product.save()
-        
-        # Create movement record
+
+        # Create movement record:
+        # - reference = motivo legible (Robo, Rotura, Conteo físico, etc.)
+        # - notes     = detalle libre del usuario
         movement = StockMovement.objects.create(
             product=product,
             movement_type=movement_type,
@@ -174,11 +179,11 @@ class StockManagementService:
             unit_cost=product.cost_price,
             stock_before=stock_before,
             stock_after=new_quantity,
-            reference='Ajuste de inventario',
-            notes=reason,
+            reference=reason or 'Ajuste de inventario',
+            notes=notes or '',
             created_by=user
         )
-        
+
         return movement
     
     @staticmethod

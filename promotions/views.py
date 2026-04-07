@@ -9,10 +9,23 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 import json
 
-from .models import Promotion, PromotionProduct
+from .models import Promotion, PromotionProduct, PromotionGroup
 from .forms import PromotionForm
 from .engine import PromotionEngine
 from decorators.decorators import group_required
+
+
+def _resolve_promo_group(group_name):
+    """
+    Devuelve un PromotionGroup existente o lo crea. None si group_name vacío.
+    """
+    if not group_name:
+        return None
+    name = group_name.strip()
+    if not name:
+        return None
+    obj, _ = PromotionGroup.objects.get_or_create(name=name)
+    return obj
 
 
 @login_required
@@ -130,6 +143,8 @@ def promotion_create(request):
                     'form': form,
                     'title': 'Nueva Promoción',
                     'selected_products': selected_products,
+                    'existing_groups': PromotionGroup.objects.all(),
+                    'current_group_name': post_data.get('group_name', ''),
                 })
 
             # Days: if no day checkbox is present in POST, default all to True
@@ -157,6 +172,8 @@ def promotion_create(request):
                 second_unit_discount=safe_decimal(post_data.get('second_unit_discount'), '0'),
                 final_price=safe_decimal(post_data.get('final_price'), '0'),
                 min_quantity=safe_int(post_data.get('min_quantity'), 1),
+                # Grupo enlazado (opcional)
+                group=_resolve_promo_group(post_data.get('group_name', '')),
                 created_by=request.user
             )
             
@@ -184,10 +201,11 @@ def promotion_create(request):
             form = PromotionForm(post_data)
     else:
         form = PromotionForm()
-    
+
     return render(request, 'promotions/promotion_form.html', {
         'form': form,
-        'title': 'Nueva Promoción'
+        'title': 'Nueva Promoción',
+        'existing_groups': PromotionGroup.objects.all(),
     })
 
 
@@ -261,6 +279,8 @@ def promotion_edit(request, pk):
                     'title': 'Editar Promoción',
                     'promotion': promotion,
                     'selected_products': selected_products,
+                    'existing_groups': PromotionGroup.objects.all(),
+                    'current_group_name': post_data.get('group_name', promotion.group.name if promotion.group else ''),
                 })
 
             promotion.name = post_data.get('name', promotion.name)
@@ -284,6 +304,8 @@ def promotion_edit(request, pk):
             promotion.second_unit_discount = safe_decimal(post_data.get('second_unit_discount'), '0')
             promotion.final_price = safe_decimal(post_data.get('final_price'), '0')
             promotion.min_quantity = safe_int(post_data.get('min_quantity'), 1)
+            # Grupo enlazado: vacío → desvincular; con valor → get-or-create
+            promotion.group = _resolve_promo_group(post_data.get('group_name', ''))
             
             # Handle dates
             start_date = post_data.get('start_date')
@@ -313,7 +335,9 @@ def promotion_edit(request, pk):
     return render(request, 'promotions/promotion_form.html', {
         'form': form,
         'title': 'Editar Promoción',
-        'promotion': promotion
+        'promotion': promotion,
+        'existing_groups': PromotionGroup.objects.all(),
+        'current_group_name': promotion.group.name if promotion.group else '',
     })
 
 

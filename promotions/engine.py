@@ -44,20 +44,37 @@ class PromotionEngine:
         # Get active promotions
         active_promotions = Promotion.objects.filter(
             status='active'
-        ).prefetch_related('products').order_by('-priority')
-        
+        ).select_related('group').prefetch_related('products').order_by('-priority')
+
         # Filter valid promotions
         valid_promotions = [p for p in active_promotions if p.is_valid_today()]
-        
+
         applied_promotions = []
         total_discount = Decimal('0.00')
-        
+
         # Track which items have been affected by non-combinable promos
         affected_items = set()
-        
+
+        # Promociones enlazadas (grupos) ya procesadas, para no contar dos veces
+        groups_processed = set()
+
         for promo in valid_promotions:
-            # Get product IDs in this promotion
-            promo_product_ids = set(promo.products.values_list('id', flat=True))
+            # Si esta promo pertenece a un grupo y ya procesamos el grupo, saltar
+            if promo.group_id and promo.group_id in groups_processed:
+                continue
+
+            # Determinar el "líder" y los product_ids combinados
+            if promo.group_id:
+                # promo es la de mayor prioridad del grupo (lista ya ordenada)
+                group_members = [p for p in valid_promotions if p.group_id == promo.group_id]
+                groups_processed.add(promo.group_id)
+                leader = promo
+                promo_product_ids = set()
+                for member in group_members:
+                    promo_product_ids.update(member.products.values_list('id', flat=True))
+            else:
+                leader = promo
+                promo_product_ids = set(promo.products.values_list('id', flat=True))
 
             # Find matching items in cart
             matching_items = [
@@ -68,36 +85,40 @@ class PromotionEngine:
 
             if not matching_items:
                 continue
-            
-            # Apply promotion based on type
+
+            # Apply promotion based on type (uses leader's config)
             discount_info = None
-            
-            if promo.promo_type == 'nxm':
-                discount_info = PromotionEngine._apply_nxm(matching_items, promo)
-            elif promo.promo_type == 'nx_fixed_price':
-                discount_info = PromotionEngine._apply_nx_fixed_price(matching_items, promo)
-            elif promo.promo_type == 'quantity_discount':
-                discount_info = PromotionEngine._apply_quantity_discount(matching_items, promo)
-            elif promo.promo_type == 'second_unit':
-                discount_info = PromotionEngine._apply_second_unit(matching_items, promo)
-            elif promo.promo_type == 'simple_discount':
-                discount_info = PromotionEngine._apply_simple_discount(matching_items, promo)
-            elif promo.promo_type == 'combo':
-                discount_info = PromotionEngine._apply_combo(matching_items, promo)
-            
+
+            if leader.promo_type == 'nxm':
+                discount_info = PromotionEngine._apply_nxm(matching_items, leader)
+            elif leader.promo_type == 'nx_fixed_price':
+                discount_info = PromotionEngine._apply_nx_fixed_price(matching_items, leader)
+            elif leader.promo_type == 'quantity_discount':
+                discount_info = PromotionEngine._apply_quantity_discount(matching_items, leader)
+            elif leader.promo_type == 'second_unit':
+                discount_info = PromotionEngine._apply_second_unit(matching_items, leader)
+            elif leader.promo_type == 'simple_discount':
+                discount_info = PromotionEngine._apply_simple_discount(matching_items, leader)
+            elif leader.promo_type == 'combo':
+                discount_info = PromotionEngine._apply_combo(matching_items, leader)
+
             if discount_info and discount_info['discount'] > 0:
+                # Nombre informativo: si es grupo, usar el nombre del grupo
+                display_name = (
+                    leader.group.name if leader.group_id and leader.group else leader.name
+                )
                 applied_promotions.append({
-                    'promotion_id': promo.id,
-                    'promotion_name': promo.name,
+                    'promotion_id': leader.id,
+                    'promotion_name': display_name,
                     'discount_amount': float(discount_info['discount']),
                     'affected_products': list(promo_product_ids),
                     'item_discounts': discount_info.get('item_discounts', [])
                 })
-                
+
                 total_discount += discount_info['discount']
-                
+
                 # If not combinable, mark items as affected
-                if not promo.is_combinable:
+                if not leader.is_combinable:
                     for item in matching_items:
                         affected_items.add(item.get('item_id'))
         

@@ -356,16 +356,36 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <label for="id_priority" class="form-label">Prioridad</label>
-                            <input type="number" class="form-control" id="id_priority" name="priority" 
+                            <input type="number" class="form-control" id="id_priority" name="priority"
                                    value="{{ form.priority.value|default:50 }}" min="1" max="100">
                             <small class="text-muted">Mayor número = mayor prioridad</small>
                         </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="is_combinable" id="id_is_combinable" 
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="is_combinable" id="id_is_combinable"
                                    {% if form.is_combinable.value != False %}checked{% endif %}>
                             <label class="form-check-label" for="id_is_combinable">
                                 Combinable con otras promociones
                             </label>
+                        </div>
+                        <hr>
+                        <div class="mb-2">
+                            <label for="id_group_name" class="form-label">
+                                <i class="fas fa-link me-1"></i>Grupo enlazado <small class="text-muted">(opcional)</small>
+                            </label>
+                            <input type="text" class="form-control" id="id_group_name" name="group_name"
+                                   list="promo_groups_datalist"
+                                   value="{{ current_group_name|default:'' }}"
+                                   placeholder="Ej: 4x$1000 — Galletas">
+                            <datalist id="promo_groups_datalist">
+                                {% for g in existing_groups %}
+                                <option value="{{ g.name }}"></option>
+                                {% endfor %}
+                            </datalist>
+                            <small class="text-muted d-block mt-1">
+                                Promociones con el mismo nombre de grupo se combinan en el carrito.
+                                Ej: dos promos "4x$1000" enlazadas → llevando 2 de cada una se activa el precio.
+                                Dejá vacío para que la promo funcione sola.
+                            </small>
                         </div>
                     </div>
                 </div>

@@ -136,6 +136,11 @@
                         {% if not promo.is_combinable %}
                         <span class="badge bg-warning">No combinable</span>
                         {% endif %}
+                        {% if promo.group %}
+                        <span class="badge bg-info" title="Grupo enlazado: {{ promo.group.name }}">
+                            <i class="fas fa-link"></i> {{ promo.group.name }}
+                        </span>
+                        {% endif %}
                     </div>
                     
                     {% if promo.description %}

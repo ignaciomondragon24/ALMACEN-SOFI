@@ -79,6 +79,19 @@
                                         {% endif %}
                                     </td>
                                 </tr>
+                                {% if promotion.group %}
+                                <tr>
+                                    <td class="text-muted">Grupo enlazado:</td>
+                                    <td>
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-link me-1"></i>{{ promotion.group.name }}
+                                        </span>
+                                        <small class="text-muted d-block mt-1">
+                                            Suma cantidades con {{ promotion.group.promotions.count|add:"-1" }} otra(s) promo(s) del mismo grupo.
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endif %}
                             </table>
                         </div>
                         <div class="col-md-6">
