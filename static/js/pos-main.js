@@ -1995,7 +1995,79 @@
         const confirmBtn  = document.getElementById('fco-confirm');
         const changeEl    = document.getElementById('fco-change');
 
+        // Modo "pago pendiente" (esperando tarjeta en el Point Smart).
+        // Cuando está activo, el overlay se reemplaza por la vista de espera y
+        // onKey bloquea todas las teclas excepto Esc (que cancela el cobro).
+        let fcoPendingMode = false;
+
         function getCards() { return Array.from(document.querySelectorAll('.fco-method')); }
+
+        // ── Pending payment (Point Smart) helpers ──────────────────────────
+        // Formato MM:SS para el countdown del tiempo restante.
+        function formatSecondsMMSS(totalSec) {
+            const safe = Math.max(0, Math.floor(totalSec));
+            const m = Math.floor(safe / 60);
+            const s = safe % 60;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // Reemplaza el contenido de .fco-box con la vista "PAGO PENDIENTE".
+        // Devuelve referencias a los nodos interactivos (cancel btn, progress,
+        // countdown, iconWrap, msg) o null si no pudo montarse.
+        function renderFcoPendingView({ amount, methodName, methodIcon, externalReference, maxSeconds }) {
+            const box = overlay.querySelector('.fco-box');
+            if (!box) return null;
+
+            const safeIcon = methodIcon || 'fas fa-credit-card';
+            const safeName = methodName || 'Tarjeta';
+            const safeRef  = externalReference || '—';
+
+            box.innerHTML = `
+                <div class="fco-pending-view">
+                    <div class="fco-pending-header">
+                        <i class="fas fa-hourglass-half me-2"></i>PAGO PENDIENTE
+                    </div>
+                    <div class="fco-pending-body">
+                        <div class="fco-pending-icon-wrap" id="fco-pending-icon-wrap">
+                            <i class="${safeIcon} fco-pending-icon"></i>
+                        </div>
+                        <div class="fco-pending-msg" id="fco-pending-msg">
+                            Esperando que el cliente pase la tarjeta en el <strong>Point Smart</strong>
+                        </div>
+                        <div class="fco-pending-info">
+                            <div class="fco-pending-info-item">
+                                <span class="fco-pending-info-label">Monto</span>
+                                <span class="fco-pending-info-value">${formatCurrency(amount)}</span>
+                            </div>
+                            <div class="fco-pending-info-item">
+                                <span class="fco-pending-info-label">Método</span>
+                                <span class="fco-pending-info-value">${safeName}</span>
+                            </div>
+                        </div>
+                        <div class="fco-pending-progress-wrap">
+                            <div class="fco-pending-progress-bar">
+                                <div class="fco-pending-progress-fill" id="fco-pending-fill" style="width:100%"></div>
+                            </div>
+                            <span class="fco-pending-countdown" id="fco-pending-countdown">${formatSecondsMMSS(maxSeconds)} restantes</span>
+                        </div>
+                    </div>
+                    <div class="fco-pending-footer">
+                        <span class="fco-pending-ref" title="Referencia externa">Ref: <code>${safeRef}</code></span>
+                        <button type="button" class="btn btn-outline-danger fco-pending-cancel" id="fco-pending-cancel">
+                            <i class="fas fa-times me-2"></i>Cancelar cobro
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            return {
+                iconWrap:     document.getElementById('fco-pending-icon-wrap'),
+                msg:          document.getElementById('fco-pending-msg'),
+                progressFill: document.getElementById('fco-pending-fill'),
+                countdown:    document.getElementById('fco-pending-countdown'),
+                cancelBtn:    document.getElementById('fco-pending-cancel'),
+            };
+        }
 
         function setSelected(idx) {
             const cards = getCards();
@@ -2212,6 +2284,10 @@
         }
 
         // ── Point Smart Card flow within Fast Checkout ─────────────────────
+        // Muestra la vista "PAGO PENDIENTE" mientras se espera a que el cliente
+        // pase la tarjeta en el Point. Se cierra el carrito automáticamente
+        // cuando el pago se aprueba, o se cancela el intent si el cajero cierra
+        // el overlay (Esc / botón Cancelar / click fuera).
         async function handleFcoPointCard(amount, methodId, paymentType = null) {
             // 1. Create payment intent on Point Smart device
             const body = {
@@ -2231,66 +2307,130 @@
 
             const paymentIntentId = intentData.payment_intent?.id;
             if (!paymentIntentId) throw new Error('No se recibió ID de pago');
+            const externalRef = intentData.payment_intent?.external_reference || '';
 
-            showToast('Cobro enviado al Point Smart. Esperando pago con tarjeta...', 'info');
-            confirmBtn.innerHTML = '<i class="fas fa-credit-card fa-beat me-2"></i>Esperando tarjeta...';
+            // Leer nombre e ícono del método elegido (para mostrarlos en la vista
+            // pendiente y que el cajero los confirme de un vistazo).
+            const selectedCard = getCards()[selIdx];
+            const methodName = selectedCard?.querySelector('.fco-method-name')?.textContent?.trim() || 'Tarjeta';
+            const methodIconClass = selectedCard?.querySelector('.fco-method-icon')?.className
+                ?.replace(/\bfco-method-icon\b/, '').trim() || 'fas fa-credit-card';
 
-            // 2. Poll for payment status
-            const maxAttempts = 90;  // 3 minutes
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                await new Promise(r => setTimeout(r, 2000));
+            // 2. Entrar en modo "pago pendiente": reemplaza la UI del overlay
+            //    por la vista de espera (icono grande, monto, método, progress
+            //    bar con countdown y botón Cancelar).
+            const maxAttempts = 90;       // 90 intentos
+            const pollIntervalMs = 2000;  // cada 2 segundos → 180s totales
+            const maxSeconds = Math.floor((maxAttempts * pollIntervalMs) / 1000);
 
-                // Check if overlay was closed (user cancelled)
-                if (!fcoActive) {
-                    fetch(`/mercadopago/api/cancel/${paymentIntentId}/`, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': CSRF_TOKEN }
-                    }).catch(() => {});
-                    return;
-                }
+            const pending = renderFcoPendingView({
+                amount,
+                methodName,
+                methodIcon: methodIconClass,
+                externalReference: externalRef,
+                maxSeconds,
+            });
+            if (!pending) throw new Error('No se pudo montar la vista de espera');
 
-                try {
-                    const statusResp = await fetch(`/mercadopago/api/status/${paymentIntentId}/`);
-                    const statusData = await statusResp.json();
+            fcoPendingMode = true;
+            let cancelledByUser = false;
+            showToast('Cobro enviado al Point Smart. Esperando tarjeta...', 'info');
 
-                    if (statusData.status === 'approved') {
-                        confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Aprobado! Finalizando...';
-                        showToast('¡Pago con tarjeta aprobado!', 'success');
+            // Countdown: actualiza progress bar y texto MM:SS cada segundo.
+            let secondsLeft = maxSeconds;
+            const countdownId = setInterval(() => {
+                secondsLeft = Math.max(0, secondsLeft - 1);
+                const pct = Math.max(0, (secondsLeft / maxSeconds) * 100);
+                if (pending.progressFill) pending.progressFill.style.width = `${pct}%`;
+                if (pending.countdown) pending.countdown.textContent = `${formatSecondsMMSS(secondsLeft)} restantes`;
+                if (secondsLeft <= 0) clearInterval(countdownId);
+            }, 1000);
 
-                        const checkoutResp = await fetch(API_URLS.checkout, {
+            // Botón "Cancelar cobro": marca flag y cierra overlay (el poll loop
+            // detecta !fcoActive en el próximo tick y dispara cancel al backend).
+            const onCancelClick = () => {
+                cancelledByUser = true;
+                closeOverlay();
+            };
+            pending.cancelBtn?.addEventListener('click', onCancelClick);
+
+            const cleanupPending = () => {
+                clearInterval(countdownId);
+                pending.cancelBtn?.removeEventListener('click', onCancelClick);
+                fcoPendingMode = false;
+            };
+
+            try {
+                // 3. Poll for payment status
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    await new Promise(r => setTimeout(r, pollIntervalMs));
+
+                    // Check if overlay was closed (user cancelled via Esc /
+                    // botón Cancelar / click fuera del box)
+                    if (!fcoActive) {
+                        fetch(`/mercadopago/api/cancel/${paymentIntentId}/`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-                            body: JSON.stringify({
-                                transaction_id: TRANSACTION_ID,
-                                payments: [{ method_id: methodId, amount: amount }]
-                            })
-                        });
-                        const checkoutData = await checkoutResp.json();
-                        closeOverlay(true);
-                        if (checkoutData.success) {
-                            showSaleSuccessModal(checkoutData);
-                        } else {
-                            showToast('Pago aprobado por MercadoPago Point', 'success');
-                            setTimeout(() => window.location.reload(), 1200);
+                            headers: { 'X-CSRFToken': CSRF_TOKEN }
+                        }).catch(() => {});
+                        if (cancelledByUser) {
+                            showToast('Cobro cancelado por el cajero', 'info');
                         }
                         return;
                     }
 
-                    if (statusData.status === 'rejected' || statusData.status === 'cancelled' || statusData.status === 'error') {
-                        throw new Error(
-                            statusData.status === 'rejected' ? 'Pago con tarjeta rechazado' :
-                            statusData.status === 'cancelled' ? 'Pago cancelado' :
-                            'Error en el pago'
-                        );
+                    try {
+                        const statusResp = await fetch(`/mercadopago/api/status/${paymentIntentId}/`);
+                        const statusData = await statusResp.json();
+
+                        if (statusData.status === 'approved') {
+                            // Feedback visual: ícono verde + mensaje de éxito,
+                            // breve pausa para que el cajero vea la confirmación,
+                            // luego checkout atómico y cierre del overlay.
+                            if (pending.iconWrap) pending.iconWrap.classList.add('approved');
+                            if (pending.msg) pending.msg.innerHTML = '<strong>¡Pago aprobado!</strong> Finalizando venta...';
+                            if (pending.progressFill) pending.progressFill.style.width = '100%';
+                            if (pending.cancelBtn) pending.cancelBtn.disabled = true;
+                            showToast('¡Pago con tarjeta aprobado!', 'success');
+
+                            await new Promise(r => setTimeout(r, 700));
+
+                            const checkoutResp = await fetch(API_URLS.checkout, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                                body: JSON.stringify({
+                                    transaction_id: TRANSACTION_ID,
+                                    payments: [{ method_id: methodId, amount: amount }]
+                                })
+                            });
+                            const checkoutData = await checkoutResp.json();
+                            closeOverlay(true);
+                            if (checkoutData.success) {
+                                showSaleSuccessModal(checkoutData);
+                            } else {
+                                showToast('Pago aprobado por MercadoPago Point', 'success');
+                                setTimeout(() => window.location.reload(), 1200);
+                            }
+                            return;
+                        }
+
+                        if (statusData.status === 'rejected' || statusData.status === 'cancelled' || statusData.status === 'error') {
+                            throw new Error(
+                                statusData.status === 'rejected' ? 'Pago con tarjeta rechazado' :
+                                statusData.status === 'cancelled' ? 'Pago cancelado' :
+                                'Error en el pago'
+                            );
+                        }
+                    } catch (pollErr) {
+                        if (pollErr.message.includes('rechazado') || pollErr.message.includes('cancelado') || pollErr.message.includes('Error')) {
+                            throw pollErr;
+                        }
+                        console.warn('Point poll error, retrying...', pollErr);
                     }
-                } catch (pollErr) {
-                    if (pollErr.message.includes('rechazado') || pollErr.message.includes('cancelado') || pollErr.message.includes('Error')) {
-                        throw pollErr;
-                    }
-                    console.warn('Point poll error, retrying...', pollErr);
                 }
+                throw new Error('Tiempo de espera agotado. Verifique el dispositivo Point.');
+            } finally {
+                cleanupPending();
             }
-            throw new Error('Tiempo de espera agotado. Verifique el dispositivo Point.');
         }
 
         // ── Modal "Esperando pago QR estático" ──────────────────────────────
@@ -2331,6 +2471,14 @@
 
         function onKey(e) {
             if (!fcoActive) return;
+            // Modo "pago pendiente" (esperando Point Smart): bloquear TODAS
+            // las teclas excepto Escape, que cancela el cobro cerrando el
+            // overlay (el poll loop detecta !fcoActive y avisa al backend).
+            if (fcoPendingMode) {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                if (e.key === 'Escape') closeOverlay();
+                return;
+            }
             // Capturar TODAS las teclas mientras el overlay está activo
             // para evitar que otros handlers (shortcuts globales, Chrome) las procesen
             if (document.activeElement === amountInput) {

@@ -854,3 +854,221 @@
     .fco-footer { padding: 10px 12px; flex-wrap: wrap; }
     .fco-hint { min-width: 100%; margin-bottom: 6px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FAST CHECKOUT — VISTA "PAGO PENDIENTE" (Point Smart esperando tarjeta)
+   Reemplaza el contenido de .fco-box con un panel grande de espera.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fco-pending-view {
+    display: flex;
+    flex-direction: column;
+    animation: fcoPendingIn 0.2s ease-out;
+}
+@keyframes fcoPendingIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.fco-pending-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px 28px;
+    background: linear-gradient(135deg, rgba(245,208,0,0.12) 0%, rgba(233,30,140,0.08) 100%);
+    border-bottom: 1px solid rgba(245,208,0,0.25);
+    color: #F5D000;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px rgba(245,208,0,0.35);
+}
+.fco-pending-header i { color: #F5D000; }
+
+.fco-pending-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    padding: 32px 28px 24px;
+}
+
+/* Icono grande con pulso mientras esperamos */
+.fco-pending-icon-wrap {
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, rgba(245,208,0,0.16) 0%, rgba(245,208,0,0.04) 60%, transparent 100%);
+    border: 3px solid rgba(245,208,0,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 40px rgba(245,208,0,0.25), inset 0 0 30px rgba(245,208,0,0.05);
+    animation: fcoPendingPulse 1.6s ease-in-out infinite;
+    transition: all 0.35s ease;
+}
+.fco-pending-icon {
+    font-size: 3.6rem;
+    color: #F5D000;
+    filter: drop-shadow(0 0 14px rgba(245,208,0,0.45));
+}
+@keyframes fcoPendingPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 40px rgba(245,208,0,0.25), inset 0 0 30px rgba(245,208,0,0.05);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 60px rgba(245,208,0,0.45), inset 0 0 40px rgba(245,208,0,0.1);
+    }
+}
+/* Estado "aprobado": el círculo se pone verde */
+.fco-pending-icon-wrap.approved {
+    background: radial-gradient(circle at 50% 50%, rgba(46,204,113,0.2) 0%, rgba(46,204,113,0.05) 60%, transparent 100%);
+    border-color: rgba(46,204,113,0.75);
+    box-shadow: 0 0 55px rgba(46,204,113,0.45), inset 0 0 35px rgba(46,204,113,0.1);
+    animation: none;
+    transform: scale(1.08);
+}
+.fco-pending-icon-wrap.approved .fco-pending-icon {
+    color: #2ecc71;
+    filter: drop-shadow(0 0 18px rgba(46,204,113,0.6));
+}
+
+.fco-pending-msg {
+    text-align: center;
+    color: #e8e8f0;
+    font-size: 1.1rem;
+    font-weight: 500;
+    line-height: 1.4;
+    max-width: 420px;
+}
+.fco-pending-msg strong { color: #00d2d3; font-weight: 700; }
+
+/* Grid con monto y método (2 tarjetas) */
+.fco-pending-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    max-width: 440px;
+}
+.fco-pending-info-item {
+    background: rgba(18,18,42,0.75);
+    border: 1px solid rgba(0,210,211,0.18);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+}
+.fco-pending-info-label {
+    color: #888;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+}
+.fco-pending-info-value {
+    color: #fff;
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.fco-pending-info-item:first-child .fco-pending-info-value {
+    color: #00d2d3;
+    text-shadow: 0 0 18px rgba(0,210,211,0.25);
+}
+
+/* Barra de progreso + countdown */
+.fco-pending-progress-wrap {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+.fco-pending-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(50,50,75,0.55);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(50,50,75,0.8);
+}
+.fco-pending-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #F5D000 0%, #00d2d3 100%);
+    border-radius: 10px;
+    transition: width 1s linear;
+    box-shadow: 0 0 12px rgba(0,210,211,0.3);
+}
+.fco-pending-countdown {
+    color: #888;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+}
+
+/* Footer con referencia externa + botón cancelar */
+.fco-pending-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: rgba(14,14,30,0.85);
+    border-top: 1px solid rgba(50,50,75,0.55);
+    gap: 12px;
+}
+.fco-pending-ref {
+    color: #555;
+    font-size: 0.72rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+.fco-pending-ref code {
+    color: #888;
+    background: rgba(50,50,75,0.4);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+}
+.fco-pending-cancel {
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    letter-spacing: 0.06em;
+    border-radius: 10px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.fco-pending-cancel:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 18px rgba(220,53,69,0.28);
+}
+.fco-pending-cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Responsive */
+@media (max-width: 540px) {
+    .fco-pending-header { padding: 14px 16px; font-size: 0.85rem; letter-spacing: 0.18em; }
+    .fco-pending-body { padding: 22px 16px 18px; gap: 16px; }
+    .fco-pending-icon-wrap { width: 104px; height: 104px; }
+    .fco-pending-icon { font-size: 2.8rem; }
+    .fco-pending-msg { font-size: 0.98rem; }
+    .fco-pending-info-value { font-size: 1.1rem; }
+    .fco-pending-info-item { padding: 10px 12px; }
+    .fco-pending-footer { padding: 10px 14px; flex-wrap: wrap; }
+    .fco-pending-ref { min-width: 100%; margin-bottom: 6px; }
+    .fco-pending-cancel { width: 100%; }
+}
