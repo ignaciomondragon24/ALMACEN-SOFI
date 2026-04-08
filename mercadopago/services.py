@@ -163,8 +163,8 @@ class MPPointService:
             description: Descripción del cobro
             external_reference: Referencia externa para rastrear el pago
             additional_info: Información adicional (dict)
-            payment_type: Tipo de pago - None para cualquier método (QR + tarjeta),
-                          "credit_card"/"debit_card" para solo tarjeta
+            payment_type: (Aceptado pero IGNORADO actualmente) tipo de tarjeta.
+                          Ver nota abajo sobre por qué no se manda a MP.
 
         Returns:
             tuple: (success, data)
@@ -183,16 +183,36 @@ class MPPointService:
             "additional_info": ai,
         }
 
-        # payment_type controla qué acepta el Point Smart:
-        # None = cualquier método (tarjeta o QR en pantalla)
-        # "credit_card" / "debit_card" = solo tarjeta
-        if payment_type:
-            payload["payment"] = {"type": payment_type}
+        # NOTA sobre payment.type (débito/crédito forzado en el Point):
+        # En el commit 13262be intentamos mandar
+        #     payload["payment"] = {"type": "debit_card" | "credit_card"}
+        # para que el POS forzara el tipo de tarjeta en el dispositivo cuando
+        # el cajero elige "Débito" o "Crédito" como método de cobro. En la
+        # práctica MP rechaza ese payload (el cobro nunca llega al Point) y
+        # rompe el flujo para ambos métodos.
+        #
+        # El SDK oficial de Java (PointPaymentIntentPaymentRequest) documenta
+        # "type" como un string opcional con valores credit_card/debit_card/
+        # voucher_card y "installments" sólo válido para credit_card, pero la
+        # API real parece tener validaciones extra (config del seller, firmware
+        # del device, u otros campos requeridos que no figuran en los docs).
+        # La integración de referencia de Odoo 19 (pos_mercado_pago) tampoco
+        # manda el objeto "payment" y funciona establemente en producción.
+        #
+        # Por eso hoy NO enviamos payment.type: el Point Smart deja que el
+        # cliente elija el tipo de tarjeta en el dispositivo y el POS sigue
+        # registrando la venta bajo el método que eligió el cajero (débito/
+        # crédito/tarjeta_mp) para la contabilidad. Se mantiene la firma del
+        # argumento por si en el futuro descubrimos el payload correcto: con
+        # sólo re-habilitar el bloque de abajo volvería a funcionar el forzado.
+        #
+        # if payment_type:
+        #     payload["payment"] = {"type": payment_type}
 
         logger.info(
             f"Creating payment intent: device={device_id}, "
             f"amount_cents={amount_cents}, ref={external_reference}, "
-            f"type={payment_type}, payload={payload}"
+            f"requested_type={payment_type} (ignored), payload={payload}"
         )
 
         return self._make_request(
