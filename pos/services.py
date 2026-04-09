@@ -1,12 +1,15 @@
 """
 POS Services - Business Logic
 """
+import logging
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
 
 from .models import POSSession, POSTransaction, POSTransactionItem, POSPayment
+
+logger = logging.getLogger(__name__)
 
 
 class POSService:
@@ -416,9 +419,11 @@ class CheckoutService:
                         precio_cobrado=item.subtotal,
                         pos_transaction_id=pos_transaction.id,
                     )
-                except Exception:
-                    # No bloquear el checkout si el registro de venta granel falla
-                    pass
+                except Exception as e:
+                    logger.error(
+                        'Fallo al registrar VentaGranel para caramelera=%s, gramos=%s, tx=%s: %s',
+                        caramelera.pk, item.quantity, pos_transaction.id, e,
+                    )
 
         # Complete transaction
         pos_transaction.status = 'completed'

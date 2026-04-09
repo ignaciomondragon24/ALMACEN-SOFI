@@ -156,8 +156,8 @@ class GranelService:
         """
         Calcula el precio de venta para una cantidad de gramos.
 
-        - Si gramos == 250 y precio_cuarto > 0 → precio_cuarto
-        - Sino → ceil(gramos / 100) * precio_100g
+        - Múltiplos de 250g con precio_cuarto > 0 → cuartos × precio_cuarto
+        - Sino → proporcional: (gramos / 100) × precio_100g
 
         Returns: Decimal
         """

@@ -389,9 +389,10 @@
             const pkgBadge = product.packaging_type
                 ? `<span class="badge bg-${product.packaging_type === 'bulk' ? 'primary' : product.packaging_type === 'display' ? 'info' : 'success'} ms-1">${product.packaging_name || product.packaging_type}</span>`
                 : '';
+            const stockUnit = product.is_granel ? 'g' : product.unit;
             const stockDisplay = product.stock_in_packaging !== undefined
                 ? `Stock: ${product.stock_in_packaging} ${product.packaging_name || 'uds'} (${product.stock} uds)`
-                : `Stock: ${product.stock} ${product.unit}`;
+                : `Stock: ${product.stock} ${stockUnit}`;
             // SKU badge: prominent for products without barcode
             const codeLine = product.barcode
                 ? `${product.barcode}`
@@ -404,7 +405,7 @@
                         <div class="search-result-name">
                             ${product.name}
                             ${pkgBadge}
-                            ${product.is_bulk ? '<span class="badge bg-info ms-1">Granel</span>' : ''}
+                            ${(product.is_bulk || product.is_granel) ? '<span class="badge bg-info ms-1">Granel</span>' : ''}
                             ${product.allow_sell_by_amount ? '<span class="badge bg-warning ms-1">$ Monto</span>' : ''}
                         </div>
                         <div class="search-result-info">
@@ -539,7 +540,7 @@
                                    value="${defaultVal}"
                                    autofocus
                                    style="background:#0d0d1f;border:2px solid rgba(233,30,140,0.3);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
-                            ${isGranel && stockGrams > 0 ? `<div class="text-end mt-1"><small style="color:#555;font-size:0.75rem;">Disponible: ${stockGrams}g</small></div>` : ''}
+                            ${isGranel ? `<div class="text-end mt-1"><small style="color:${stockGrams > 0 ? '#555' : '#ff6b6b'};font-size:0.75rem;">Disponible: ${stockGrams}g</small></div>` : ''}
                             <div class="mt-3 text-center">
                                 <div id="bulk-price-breakdown" style="min-height:1.2em;margin-bottom:4px;"></div>
                                 <span class="fs-3 fw-bold" style="color:#00d2d3;" id="bulk-total-preview">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</span>
@@ -569,6 +570,16 @@
             const qty = parseFloat(input.value) || 0;
             preview.textContent = formatCurrency(calcTotal(qty));
             if (breakdown) breakdown.innerHTML = priceBreakdown(qty);
+            // Validar stock para granel
+            if (isGranel && stockGrams > 0 && qty > stockGrams) {
+                confirmBtn.disabled = true;
+                confirmBtn.title = 'Excede el stock disponible';
+                input.style.borderColor = '#ff6b6b';
+            } else {
+                confirmBtn.disabled = false;
+                confirmBtn.title = '';
+                input.style.borderColor = 'rgba(233,30,140,0.3)';
+            }
         }
 
         input.addEventListener('input', updatePreview);
@@ -1030,7 +1041,7 @@
                             ${item.is_granel ? '<span class="badge ms-1" style="font-size:.65em;background:rgba(233,30,140,0.2);color:#E91E8C;border:1px solid rgba(233,30,140,0.3);">granel</span>' : ''}
                         </div>
                         <div class="cart-item-price d-flex align-items-center gap-2">
-                            <span>${item.is_granel ? formatCurrency(item.unit_price) + `/${item.granel_price_weight_grams || 100}g` : formatCurrency(item.unit_price) + ' c/u'}</span>
+                            <span>${item.is_granel ? formatCurrency(item.unit_price * (item.granel_price_weight_grams || 100)) + `/${item.granel_price_weight_grams || 100}g` : formatCurrency(item.unit_price) + ' c/u'}</span>
                             <button class="btn btn-xs cart-item-discount-btn ${manualDiscount > 0 ? 'btn-success active' : 'btn-outline-warning'}" tabindex="-1"
                                     title="Descuento manual para este producto (separado de la promo)" data-item-id="${item.id}">
                                 <i class="fas fa-percent"></i>
@@ -1220,7 +1231,7 @@
         
         // Update totals
         if (cartSubtotal) cartSubtotal.textContent = formatCurrency(cart.subtotal);
-        if (cartItemsCount) cartItemsCount.textContent = cart.itemCount || cart.items?.length || 0;
+        if (cartItemsCount) cartItemsCount.textContent = cart.items?.length || 0;
         
         if (cart.discount > 0) {
             if (cartDiscount) cartDiscount.textContent = `-${formatCurrency(cart.discount)}`;

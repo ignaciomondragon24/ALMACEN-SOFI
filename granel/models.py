@@ -117,6 +117,16 @@ class Caramelera(models.Model):
     def __str__(self):
         return self.nombre
 
+    def save(self, **kwargs):
+        super().save(**kwargs)
+        # Sincronizar precios y nombre al producto POS vinculado
+        self.producto_pos.filter(is_granel=True).update(
+            name=self.nombre,
+            sale_price=self.precio_100g,
+            sale_price_250g=self.precio_cuarto,
+            is_active=self.is_active,
+        )
+
     @property
     def precio_por_gramo(self):
         if self.precio_100g > 0:
@@ -126,14 +136,14 @@ class Caramelera(models.Model):
     def calcular_precio(self, gramos):
         """
         Calcula el precio de venta para una cantidad de gramos.
-        Si gramos == 250 y precio_cuarto > 0 → usa precio_cuarto.
-        Sino → ceil(gramos / 100) * precio_100g.
+        Múltiplos de 250g con precio_cuarto > 0 → cuartos × precio_cuarto.
+        Sino → proporcional: (gramos / 100) × precio_100g.
         """
         gramos = Decimal(str(gramos))
-        if gramos == Decimal('250') and self.precio_cuarto > 0:
-            return self.precio_cuarto
-        centenas = Decimal(str(math.ceil(float(gramos) / 100)))
-        return centenas * self.precio_100g
+        if self.precio_cuarto > 0 and gramos > 0 and gramos % Decimal('250') == 0:
+            cuartos = gramos / Decimal('250')
+            return cuartos * self.precio_cuarto
+        return (gramos / Decimal('100')) * self.precio_100g
 
     @property
     def margen_100g(self):

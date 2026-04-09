@@ -259,16 +259,18 @@ class VentaGranelTest(GranelBaseTestCase):
             GranelService.registrar_venta(caramelera.pk, Decimal('500'), Decimal('5000'))
 
     def test_calcular_precio_libre(self):
-        """calcular_precio para gramos libres usa techo de 100g."""
+        """calcular_precio para gramos libres es proporcional a precio/100g."""
         caramelera = self._create_caramelera(precio_100g=Decimal('2500'))
-        # 150g → ceil(150/100)=2 * 2500 = 5000
-        self.assertEqual(caramelera.calcular_precio(150), Decimal('5000'))
+        # 150g → (150/100) * 2500 = 3750
+        self.assertEqual(caramelera.calcular_precio(150), Decimal('3750.0'))
 
     def test_calcular_precio_cuarto(self):
-        """calcular_precio para exactamente 250g usa precio_cuarto."""
+        """calcular_precio para múltiplos de 250g usa precio_cuarto."""
         caramelera = self._create_caramelera(precio_100g=Decimal('2500'),
                                               precio_cuarto=Decimal('5500'))
         self.assertEqual(caramelera.calcular_precio(250), Decimal('5500'))
+        # 500g → 2 cuartos × 5500 = 11000
+        self.assertEqual(caramelera.calcular_precio(500), Decimal('11000'))
 
 
 class FIFOBatchTest(GranelBaseTestCase):

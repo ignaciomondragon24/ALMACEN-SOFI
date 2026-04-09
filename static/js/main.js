@@ -11,9 +11,11 @@
         });
     });
 
-    // Auto-dismiss alerts after 5 seconds
+    // Auto-dismiss Django message alerts after 5 seconds
+    // Only target alerts with data-bs-dismiss="alert" button (flash messages),
+    // not modal/UI alerts used by other components.
     document.addEventListener('DOMContentLoaded', function() {
-        const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
+        const alerts = document.querySelectorAll('.alert.alert-dismissible:not(.alert-permanent)');
         alerts.forEach(function(alert) {
             setTimeout(function() {
                 const bsAlert = new bootstrap.Alert(alert);
