@@ -50,6 +50,75 @@ with connection.cursor() as c:
     print('  M2M table FIXED OK')
 " 2>&1 || echo "WARNING: M2M fix skipped"
 
+# Fix AperturaBulto FK: producto_id debe apuntar a stocks_product, no a granel_productodeposito
+echo "Checking AperturaBulto FK constraint..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    print('  SQLite: skip')
+    sys.exit(0)
+with connection.cursor() as c:
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='granel_aperturabulto')\")
+    if not c.fetchone()[0]:
+        print('  granel_aperturabulto no existe aun, skip')
+        sys.exit(0)
+    # Find FK constraints on producto_id that reference the WRONG table
+    c.execute(\"\"\"
+        SELECT con.conname, cls.relname AS referenced_table
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+        JOIN pg_class cls ON cls.oid = con.confrelid
+        WHERE rel.relname = 'granel_aperturabulto'
+          AND att.attname = 'producto_id'
+          AND con.contype = 'f'
+    \"\"\")
+    fks = c.fetchall()
+    print(f'  FK constraints on producto_id: {fks}')
+    needs_fix = False
+    for fk_name, ref_table in fks:
+        if ref_table != 'stocks_product':
+            print(f'  FIXING: dropping wrong FK {fk_name} -> {ref_table}')
+            c.execute(f'ALTER TABLE granel_aperturabulto DROP CONSTRAINT \"{fk_name}\"')
+            needs_fix = True
+        else:
+            print(f'  FK {fk_name} -> {ref_table} OK')
+    if needs_fix:
+        # Check if correct FK already exists
+        c.execute(\"\"\"
+            SELECT 1 FROM pg_constraint con
+            JOIN pg_class rel ON rel.oid = con.conrelid
+            JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+            JOIN pg_class cls ON cls.oid = con.confrelid
+            WHERE rel.relname = 'granel_aperturabulto'
+              AND att.attname = 'producto_id'
+              AND con.contype = 'f'
+              AND cls.relname = 'stocks_product'
+        \"\"\")
+        if not c.fetchone():
+            c.execute(\"\"\"
+                ALTER TABLE granel_aperturabulto
+                ADD CONSTRAINT granel_aperturabulto_producto_id_fk_stocks_product
+                FOREIGN KEY (producto_id) REFERENCES stocks_product(id)
+                DEFERRABLE INITIALLY DEFERRED
+            \"\"\")
+            print('  New FK -> stocks_product created OK')
+    elif not fks:
+        print('  No FK found, creating correct one...')
+        c.execute(\"\"\"
+            ALTER TABLE granel_aperturabulto
+            ADD CONSTRAINT granel_aperturabulto_producto_id_fk_stocks_product
+            FOREIGN KEY (producto_id) REFERENCES stocks_product(id)
+            DEFERRABLE INITIALLY DEFERRED
+        \"\"\")
+        print('  FK -> stocks_product created OK')
+    else:
+        print('  AperturaBulto FK OK, no fix needed')
+" 2>&1 || echo "WARNING: AperturaBulto FK fix skipped"
+
 # Pre-flight: ensure mercadopago migration state is consistent
 echo "Checking mercadopago migration state..."
 python -c "
