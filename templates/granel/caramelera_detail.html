@@ -493,6 +493,27 @@
     let productoSeleccionadoPk = null;
     let productoSeleccionadoStock = 0;
 
+    const modalAbrirEl = document.getElementById('modalAbrirPaquete');
+    const modalAuditoriaEl = document.getElementById('modalAuditoria');
+
+    // Reset completo del modal de apertura cada vez que se abre
+    modalAbrirEl.addEventListener('show.bs.modal', function () {
+        productoSeleccionadoPk = null;
+        productoSeleccionadoStock = 0;
+        document.getElementById('modal-abrir-error').classList.add('d-none');
+        document.getElementById('producto-seleccionado-info').classList.add('d-none');
+        document.getElementById('input-notas-apertura').value = '';
+        const btnConfirmar = document.getElementById('btn-confirmar-apertura');
+        btnConfirmar.classList.add('d-none');
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
+        // Restaurar estilos de botones de producto
+        document.querySelectorAll('.btn-seleccionar-producto').forEach(function (b) {
+            b.classList.remove('btn-outline-success');
+            b.classList.add('btn-success');
+        });
+    });
+
     document.querySelectorAll('.btn-seleccionar-producto').forEach(function (btn) {
         btn.addEventListener('click', function () {
             productoSeleccionadoPk = this.dataset.pk;
@@ -537,12 +558,18 @@
             const data = await resp.json();
 
             if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('modalAbrirPaquete')).hide();
+                // Actualizar stock del producto en el modal ANTES de cerrar
+                updateProductoDepositoStock(productoSeleccionadoPk, data.unidades_restantes_deposito);
+
+                bootstrap.Modal.getInstance(modalAbrirEl).hide();
                 // Actualizar displays en la página
                 document.getElementById('stock-display').textContent =
                     Math.round(data.nuevo_stock) + 'g';
                 document.getElementById('costo-ponderado-display').textContent =
                     '$' + data.nuevo_costo_ponderado.toFixed(4) + '/g';
+                // Actualizar stock en modal de auditoría
+                document.getElementById('auditoria-stock-sistema').value =
+                    Math.round(data.nuevo_stock);
                 // Prepend fila en historial
                 prependAperturaRow(data);
                 showAlert(
@@ -552,11 +579,6 @@
                     `Nuevo stock: <strong>${Math.round(data.nuevo_stock)}g</strong>`,
                     'success'
                 );
-                // Resetear
-                productoSeleccionadoPk = null;
-                document.getElementById('input-notas-apertura').value = '';
-                document.getElementById('producto-seleccionado-info').classList.add('d-none');
-                document.getElementById('btn-confirmar-apertura').classList.add('d-none');
             } else {
                 document.getElementById('modal-abrir-error').textContent =
                     data.error || 'Error al procesar.';
@@ -570,6 +592,31 @@
             btn.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
         }
     });
+
+    function updateProductoDepositoStock(pk, newStock) {
+        // Actualizar badge y data-stock del botón del producto en el modal
+        document.querySelectorAll('.btn-seleccionar-producto').forEach(function (btn) {
+            if (btn.dataset.pk === String(pk)) {
+                btn.dataset.stock = String(newStock);
+                const badge = btn.closest('.d-flex').querySelector('.badge');
+                if (newStock <= 0) {
+                    // Sin stock: ocultar botón, mostrar badge SIN STOCK
+                    btn.style.display = 'none';
+                    if (badge) {
+                        badge.className = 'badge bg-danger';
+                        badge.textContent = 'SIN STOCK';
+                    }
+                    btn.closest('.d-flex').classList.add('opacity-50');
+                } else {
+                    if (badge) {
+                        badge.textContent = newStock + ' en dep.';
+                    }
+                }
+            }
+        });
+        // Actualizar tabla de productos autorizados en la página
+        var rows = document.querySelectorAll('#lista-productos-autorizados ~ .card table tbody tr, .card table tbody tr');
+    }
 
     function prependAperturaRow(data) {
         const tbody = document.getElementById('tbody-aperturas');
@@ -592,12 +639,24 @@
     }
 
     // ---- AUDITORÍA ----
-    const stockSistema = parseFloat(
-        document.getElementById('auditoria-stock-sistema').value
-    );
     const inputPesoReal = document.getElementById('input-peso-real');
 
+    // Reset completo del modal de auditoría cada vez que se abre
+    modalAuditoriaEl.addEventListener('show.bs.modal', function () {
+        document.getElementById('modal-auditoria-error').classList.add('d-none');
+        inputPesoReal.value = '';
+        document.getElementById('input-motivo-auditoria').value = '';
+        document.getElementById('auditoria-preview').classList.add('d-none');
+        const btnAuditoria = document.getElementById('btn-confirmar-auditoria');
+        btnAuditoria.disabled = false;
+        btnAuditoria.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoría';
+    });
+
     inputPesoReal.addEventListener('input', function () {
+        // Leer stock actual fresco (se actualiza después de aperturas y auditorías)
+        const stockSistema = parseFloat(
+            document.getElementById('auditoria-stock-sistema').value
+        ) || 0;
         const real = parseFloat(this.value) || 0;
         const diff = stockSistema - real;
         const pct = stockSistema > 0 ? ((diff / stockSistema) * 100).toFixed(1) : '0.0';
@@ -645,7 +704,7 @@
             const data = await resp.json();
 
             if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('modalAuditoria')).hide();
+                bootstrap.Modal.getInstance(modalAuditoriaEl).hide();
                 document.getElementById('stock-display').textContent =
                     Math.round(data.nuevo_stock) + 'g';
                 document.getElementById('auditoria-stock-sistema').value =
@@ -656,8 +715,6 @@
                     `Nuevo stock: <strong>${Math.round(data.nuevo_stock)}g</strong>`,
                     'info'
                 );
-                inputPesoReal.value = '';
-                document.getElementById('auditoria-preview').classList.add('d-none');
             } else {
                 document.getElementById('modal-auditoria-error').textContent =
                     data.error || 'Error al procesar.';
@@ -673,12 +730,14 @@
     });
 
     // ---- Helper ----
+    let alertTimer = null;
     function showAlert(msg, type) {
+        if (alertTimer) clearTimeout(alertTimer);
         alertBox.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show">
             ${msg}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>`;
-        setTimeout(() => { alertBox.innerHTML = ''; }, 7000);
+        alertTimer = setTimeout(() => { alertBox.innerHTML = ''; alertTimer = null; }, 7000);
     }
 })();
 </script>
