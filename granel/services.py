@@ -22,20 +22,23 @@ class GranelService:
 
     @staticmethod
     @transaction.atomic
-    def abrir_paquete(caramelera_id, producto_deposito_id, user, notas=''):
+    def abrir_paquete(caramelera_id, producto_deposito_id, user, notas='', cantidad=1):
         """
-        Abre 1 bolsa del depósito y transfiere su contenido a la caramelera.
+        Abre `cantidad` bolsas del depósito y transfiere su contenido a la caramelera.
 
         - Valida que el producto esté autorizado para esa caramelera
-        - Valida que haya stock disponible en el depósito
-        - Descuenta 1 unidad del stock del depósito
-        - Suma los gramos a la caramelera
-        - Recalcula el costo ponderado:
-          nuevo_costo = (stock_antes * costo_antes + gramos_nuevos * costo_nuevo) / (stock_antes + gramos_nuevos)
-        - Registra AperturaBulto para trazabilidad completa
+        - Valida que haya stock suficiente en el depósito
+        - Descuenta `cantidad` unidades del stock del depósito
+        - Suma los gramos totales a la caramelera
+        - Recalcula el costo ponderado
+        - Registra AperturaBulto para trazabilidad
 
         Returns: AperturaBulto creada
         """
+        cantidad = int(cantidad)
+        if cantidad < 1:
+            raise ValueError('La cantidad debe ser al menos 1.')
+
         caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
         producto = Product.objects.select_for_update().get(pk=producto_deposito_id)
 
@@ -47,10 +50,10 @@ class GranelService:
             )
         if not producto.es_deposito_caramelera:
             raise ValueError(f'"{producto.name}" no es un producto para caramelera.')
-        if producto.current_stock < 1:
+        if producto.current_stock < cantidad:
             raise ValueError(
-                f'Sin stock de "{producto.name}" en depósito. '
-                f'Recibí mercadería primero.'
+                f'Stock insuficiente de "{producto.name}" en depósito. '
+                f'Disponible: {int(producto.current_stock)}, solicitado: {cantidad}.'
             )
         if not producto.weight_per_unit_grams or producto.weight_per_unit_grams <= 0:
             raise ValueError(
@@ -58,7 +61,8 @@ class GranelService:
                 f'Editá el producto para agregar los gramos.'
             )
 
-        gramos_nuevos = producto.weight_per_unit_grams
+        gramos_por_unidad = producto.weight_per_unit_grams
+        gramos_nuevos = gramos_por_unidad * cantidad
         costo_nuevo_por_gramo = producto.costo_por_gramo
 
         # Snapshot antes
@@ -80,11 +84,15 @@ class GranelService:
         caramelera.costo_ponderado_gramo = nuevo_costo
         caramelera.save(update_fields=['stock_gramos_actual', 'costo_ponderado_gramo', 'updated_at'])
 
-        # Descontar 1 unidad del depósito
-        producto.current_stock -= 1
+        # Descontar unidades del depósito
+        producto.current_stock -= cantidad
         producto.save(update_fields=['current_stock', 'updated_at'])
 
         # Log de apertura
+        notas_final = notas
+        if cantidad > 1:
+            notas_final = f'{cantidad} paquetes' + (f' · {notas}' if notas else '')
+
         apertura = AperturaBulto.objects.create(
             caramelera=caramelera,
             producto=producto,
@@ -96,7 +104,7 @@ class GranelService:
             stock_gramos_despues=caramelera.stock_gramos_actual,
             unidades_restantes_deposito=int(producto.current_stock),
             abierto_por=user,
-            notas=notas,
+            notas=notas_final,
         )
 
         # Sincronizar producto POS: stock y costo ponderado

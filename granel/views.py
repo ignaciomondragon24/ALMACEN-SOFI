@@ -268,26 +268,31 @@ def caramelera_detail(request, pk):
 @stock_manager_required
 @require_POST
 def api_abrir_paquete(request, pk):
-    """POST {producto_id, notas?} — Abre 1 bolsa del depósito hacia la caramelera."""
+    """POST {producto_id, cantidad?, notas?} — Abre paquetes del depósito hacia la caramelera."""
     caramelera = get_object_or_404(Caramelera, pk=pk)
     try:
         data = json.loads(request.body)
         producto_id = data.get('producto_id')
         notas = data.get('notas', '')
+        cantidad = int(data.get('cantidad', 1))
 
         if not producto_id:
             return JsonResponse({'error': 'Falta producto_id'}, status=400)
+        if cantidad < 1:
+            return JsonResponse({'error': 'La cantidad debe ser al menos 1'}, status=400)
 
         apertura = GranelService.abrir_paquete(
             caramelera_id=caramelera.pk,
             producto_deposito_id=int(producto_id),
             user=request.user,
             notas=notas,
+            cantidad=cantidad,
         )
         caramelera.refresh_from_db()
 
         return JsonResponse({
             'success': True,
+            'cantidad': cantidad,
             'gramos_agregados': float(apertura.gramos_agregados),
             'nuevo_stock': float(caramelera.stock_gramos_actual),
             'nuevo_costo_ponderado': float(caramelera.costo_ponderado_gramo),

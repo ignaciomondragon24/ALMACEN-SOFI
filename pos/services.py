@@ -33,14 +33,23 @@ class POSService:
     @staticmethod
     def create_transaction(session):
         """Create a new POS transaction."""
+        from django.db import IntegrityError
+
+        for _attempt in range(5):
+            ticket_number = POSService.generate_ticket_number(session)
+            try:
+                return POSTransaction.objects.create(
+                    session=session,
+                    ticket_number=ticket_number
+                )
+            except IntegrityError:
+                continue
+        # Último intento sin catch — si falla, que explote visible
         ticket_number = POSService.generate_ticket_number(session)
-        
-        transaction = POSTransaction.objects.create(
+        return POSTransaction.objects.create(
             session=session,
             ticket_number=ticket_number
         )
-        
-        return transaction
     
     @staticmethod
     def get_pending_transaction(session):
@@ -384,46 +393,43 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock with cascade (packaging-aware) and consume FIFO batches
-        from granel.services import BatchService
-        for item in pos_transaction.items.all():
-            units_to_deduct = item.quantity * item.packaging_units
-            pkg_note = ''
-            if item.packaging and item.packaging_units > 1:
-                pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
-            if item.product.packagings.filter(is_active=True).exists():
-                StockManagementService.deduct_stock_with_cascade(
-                    product=item.product,
-                    quantity=units_to_deduct,
-                    reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
-                    reference_id=pos_transaction.id
-                )
-            else:
-                StockManagementService.deduct_stock(
-                    product=item.product,
-                    quantity=units_to_deduct,
-                    reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
-                    reference_id=pos_transaction.id
-                )
-            BatchService.deduct_fifo(item.product.pk, units_to_deduct)
-
-        # Register granel sales for items linked to a Caramelera
-        from granel.services import GranelService
+        # Deduct stock — ruteo por tipo de producto:
+        # - Granel (caramelera): registrar_venta maneja descuento de caramelera
+        #   Y sincroniza el Product POS. Si falla, la excepción propaga y el
+        #   @transaction.atomic revierte todo (antes se tragaba el error y
+        #   el stock de la caramelera quedaba desincronizado).
+        # - No-granel: descuento estándar de stock + FIFO batches.
+        from granel.services import BatchService, GranelService
         for item in pos_transaction.items.all():
             caramelera = getattr(item.product, 'granel_caramelera', None)
+
             if caramelera is not None:
-                try:
-                    GranelService.registrar_venta(
-                        caramelera_id=caramelera.pk,
-                        gramos_vendidos=item.quantity,
-                        precio_cobrado=item.subtotal,
-                        pos_transaction_id=pos_transaction.id,
+                GranelService.registrar_venta(
+                    caramelera_id=caramelera.pk,
+                    gramos_vendidos=item.quantity,
+                    precio_cobrado=item.subtotal,
+                    pos_transaction_id=pos_transaction.id,
+                )
+            else:
+                units_to_deduct = item.quantity * item.packaging_units
+                pkg_note = ''
+                if item.packaging and item.packaging_units > 1:
+                    pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
+                if item.product.packagings.filter(is_active=True).exists():
+                    StockManagementService.deduct_stock_with_cascade(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
+                        reference_id=pos_transaction.id
                     )
-                except Exception as e:
-                    logger.error(
-                        'Fallo al registrar VentaGranel para caramelera=%s, gramos=%s, tx=%s: %s',
-                        caramelera.pk, item.quantity, pos_transaction.id, e,
+                else:
+                    StockManagementService.deduct_stock(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
+                        reference_id=pos_transaction.id
                     )
+                BatchService.deduct_fifo(item.product.pk, units_to_deduct)
 
         # Complete transaction
         pos_transaction.status = 'completed'
@@ -599,25 +605,35 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock with cascade (packaging-aware) and consume FIFO batches
-        from granel.services import BatchService
+        # Deduct stock — mismo ruteo que _process_payment_atomic
+        from granel.services import BatchService, GranelService
         for item in pos_transaction.items.all():
-            units_to_deduct = item.quantity * item.packaging_units
-            if item.product.packagings.filter(is_active=True).exists():
-                StockManagementService.deduct_stock_with_cascade(
-                    product=item.product,
-                    quantity=units_to_deduct,
-                    reference=f'Venta al costo {pos_transaction.ticket_number}',
-                    reference_id=pos_transaction.id
+            caramelera = getattr(item.product, 'granel_caramelera', None)
+
+            if caramelera is not None:
+                GranelService.registrar_venta(
+                    caramelera_id=caramelera.pk,
+                    gramos_vendidos=item.quantity,
+                    precio_cobrado=item.subtotal,
+                    pos_transaction_id=pos_transaction.id,
                 )
             else:
-                StockManagementService.deduct_stock(
-                    product=item.product,
-                    quantity=units_to_deduct,
-                    reference=f'Venta al costo {pos_transaction.ticket_number}',
-                    reference_id=pos_transaction.id
-                )
-            BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                units_to_deduct = item.quantity * item.packaging_units
+                if item.product.packagings.filter(is_active=True).exists():
+                    StockManagementService.deduct_stock_with_cascade(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Venta al costo {pos_transaction.ticket_number}',
+                        reference_id=pos_transaction.id
+                    )
+                else:
+                    StockManagementService.deduct_stock(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Venta al costo {pos_transaction.ticket_number}',
+                        reference_id=pos_transaction.id
+                    )
+                BatchService.deduct_fifo(item.product.pk, units_to_deduct)
 
         # Complete transaction
         pos_transaction.transaction_type = 'cost_sale'
@@ -679,26 +695,36 @@ class CheckoutService:
             item.save()
             total_cost += item.subtotal
         
-        # Deduct stock with cascade (packaging-aware) and consume FIFO batches
-        from granel.services import BatchService
+        # Deduct stock — mismo ruteo que _process_payment_atomic
+        from granel.services import BatchService, GranelService
         for item in pos_transaction.items.all():
-            units_to_deduct = item.quantity * item.packaging_units
-            if item.product.packagings.filter(is_active=True).exists():
-                StockManagementService.deduct_stock_with_cascade(
-                    product=item.product,
-                    quantity=units_to_deduct,
-                    reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
-                    reference_id=pos_transaction.id
+            caramelera = getattr(item.product, 'granel_caramelera', None)
+
+            if caramelera is not None:
+                GranelService.registrar_venta(
+                    caramelera_id=caramelera.pk,
+                    gramos_vendidos=item.quantity,
+                    precio_cobrado=item.subtotal,
+                    pos_transaction_id=pos_transaction.id,
                 )
             else:
-                StockManagementService.deduct_stock(
-                    product=item.product,
-                    quantity=units_to_deduct,
-                    reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
-                    reference_id=pos_transaction.id
-                )
-            BatchService.deduct_fifo(item.product.pk, units_to_deduct)
-        
+                units_to_deduct = item.quantity * item.packaging_units
+                if item.product.packagings.filter(is_active=True).exists():
+                    StockManagementService.deduct_stock_with_cascade(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
+                        reference_id=pos_transaction.id
+                    )
+                else:
+                    StockManagementService.deduct_stock(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
+                        reference_id=pos_transaction.id
+                    )
+                BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+
         # Complete transaction with zero payment
         pos_transaction.transaction_type = 'internal_consumption'
         pos_transaction.status = 'completed'

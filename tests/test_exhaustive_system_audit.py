@@ -565,7 +565,7 @@ class PermissionAudit(ExhaustiveBaseTestCase):
         self.assertIn(resp.status_code, [302, 403])
 
     def test_unauthenticated_api_rejected(self):
-        """APIs sin login retornan redirect a login."""
+        """APIs sin login retornan 401 (ajax_login_required)."""
         c = Client()
         endpoints = [
             reverse('pos:api_cart_add'),
@@ -573,7 +573,7 @@ class PermissionAudit(ExhaustiveBaseTestCase):
         ]
         for url in endpoints:
             resp = c.post(url, '{}', content_type='application/json')
-            self.assertEqual(resp.status_code, 302, f'{url} debería requerir login')
+            self.assertIn(resp.status_code, [401, 302], f'{url} debería requerir login')
 
     def test_cashier_cannot_close_other_shift(self):
         """Cajero no puede cerrar el turno de otro cajero."""

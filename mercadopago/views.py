@@ -1054,26 +1054,39 @@ def complete_pos_transaction(payment_intent):
                     reference=pos_transaction.ticket_number
                 )
             
-            # Descontar stock para cada item
+            # Descontar stock — mismo ruteo que pos/_process_payment_atomic:
+            # granel → registrar_venta, no-granel → deduct_stock.
+            from granel.services import GranelService, BatchService
             for item in pos_transaction.items.all():
-                units_to_deduct = item.quantity * item.packaging_units
-                pkg_note = ''
-                if item.packaging and item.packaging_units > 1:
-                    pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
-                if item.product.packagings.filter(is_active=True).exists():
-                    StockManagementService.deduct_stock_with_cascade(
-                        product=item.product,
-                        quantity=units_to_deduct,
-                        reference=f'Venta MP {pos_transaction.ticket_number}{pkg_note}',
-                        reference_id=pos_transaction.id
+                caramelera = getattr(item.product, 'granel_caramelera', None)
+
+                if caramelera is not None:
+                    GranelService.registrar_venta(
+                        caramelera_id=caramelera.pk,
+                        gramos_vendidos=item.quantity,
+                        precio_cobrado=item.subtotal,
+                        pos_transaction_id=pos_transaction.id,
                     )
                 else:
-                    StockManagementService.deduct_stock(
-                        product=item.product,
-                        quantity=units_to_deduct,
-                        reference=f'Venta MP {pos_transaction.ticket_number}{pkg_note}',
-                        reference_id=pos_transaction.id
-                    )
+                    units_to_deduct = item.quantity * item.packaging_units
+                    pkg_note = ''
+                    if item.packaging and item.packaging_units > 1:
+                        pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
+                    if item.product.packagings.filter(is_active=True).exists():
+                        StockManagementService.deduct_stock_with_cascade(
+                            product=item.product,
+                            quantity=units_to_deduct,
+                            reference=f'Venta MP {pos_transaction.ticket_number}{pkg_note}',
+                            reference_id=pos_transaction.id
+                        )
+                    else:
+                        StockManagementService.deduct_stock(
+                            product=item.product,
+                            quantity=units_to_deduct,
+                            reference=f'Venta MP {pos_transaction.ticket_number}{pkg_note}',
+                            reference_id=pos_transaction.id
+                        )
+                    BatchService.deduct_fifo(item.product.pk, units_to_deduct)
             
             # Actualizar totales
             pos_transaction.amount_paid = payment_intent.amount

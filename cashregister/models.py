@@ -235,7 +235,7 @@ class CashShift(models.Model):
         from django.db.models import Sum
         result = self.movements.filter(
             movement_type='income',
-            reference__startswith='Venta'
+            description__startswith='Venta'
         ).aggregate(total=Sum('amount'))
         return result['total'] or Decimal('0.00')
     

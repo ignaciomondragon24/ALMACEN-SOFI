@@ -400,10 +400,26 @@
 
                 <div id="producto-seleccionado-info" class="d-none">
                     <hr>
-                    <div class="alert alert-info">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Cantidad de paquetes</label>
+                        <div class="input-group" style="max-width:200px;">
+                            <button type="button" class="btn btn-outline-secondary" id="btn-cant-menos">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <input type="number" id="input-cantidad-paquetes" class="form-control text-center fw-bold"
+                                   value="1" min="1" max="99">
+                            <button type="button" class="btn btn-outline-secondary" id="btn-cant-mas">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mb-3" id="sel-resumen">
                         <strong id="sel-nombre"></strong><br>
-                        <span id="sel-gramos"></span>g a agregar · dep. quedará con
-                        <strong id="sel-stock-despues"></strong> unidades
+                        <span id="sel-cantidad-label"></span> ×
+                        <span id="sel-gramos-unidad"></span>g =
+                        <strong id="sel-gramos-total"></strong>g a agregar<br>
+                        <span class="text-muted small">Dep. quedará con
+                        <strong id="sel-stock-despues"></strong> unidades</span>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Notas (opcional)</label>
@@ -492,42 +508,65 @@
     // ---- ABRIR PAQUETE ----
     let productoSeleccionadoPk = null;
     let productoSeleccionadoStock = 0;
+    let productoSeleccionadoGramos = 0;
 
     const modalAbrirEl = document.getElementById('modalAbrirPaquete');
     const modalAuditoriaEl = document.getElementById('modalAuditoria');
+    const inputCantidad = document.getElementById('input-cantidad-paquetes');
+
+    function updateResumenCantidad() {
+        const cant = Math.max(1, Math.min(parseInt(inputCantidad.value) || 1, productoSeleccionadoStock));
+        inputCantidad.value = cant;
+        inputCantidad.max = productoSeleccionadoStock;
+        document.getElementById('sel-cantidad-label').textContent = cant;
+        document.getElementById('sel-gramos-total').textContent = (cant * productoSeleccionadoGramos).toString();
+        document.getElementById('sel-stock-despues').textContent = (productoSeleccionadoStock - cant).toString();
+    }
 
     // Reset completo del modal de apertura cada vez que se abre
     modalAbrirEl.addEventListener('show.bs.modal', function () {
         productoSeleccionadoPk = null;
         productoSeleccionadoStock = 0;
+        productoSeleccionadoGramos = 0;
         document.getElementById('modal-abrir-error').classList.add('d-none');
         document.getElementById('producto-seleccionado-info').classList.add('d-none');
         document.getElementById('input-notas-apertura').value = '';
+        inputCantidad.value = 1;
         const btnConfirmar = document.getElementById('btn-confirmar-apertura');
         btnConfirmar.classList.add('d-none');
         btnConfirmar.disabled = false;
         btnConfirmar.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
-        // Restaurar estilos de botones de producto
         document.querySelectorAll('.btn-seleccionar-producto').forEach(function (b) {
             b.classList.remove('btn-outline-success');
             b.classList.add('btn-success');
         });
     });
 
+    // +/- botones de cantidad
+    document.getElementById('btn-cant-menos').addEventListener('click', function () {
+        const v = parseInt(inputCantidad.value) || 1;
+        if (v > 1) { inputCantidad.value = v - 1; updateResumenCantidad(); }
+    });
+    document.getElementById('btn-cant-mas').addEventListener('click', function () {
+        const v = parseInt(inputCantidad.value) || 1;
+        if (v < productoSeleccionadoStock) { inputCantidad.value = v + 1; updateResumenCantidad(); }
+    });
+    inputCantidad.addEventListener('input', updateResumenCantidad);
+
     document.querySelectorAll('.btn-seleccionar-producto').forEach(function (btn) {
         btn.addEventListener('click', function () {
             productoSeleccionadoPk = this.dataset.pk;
             productoSeleccionadoStock = parseInt(this.dataset.stock);
+            productoSeleccionadoGramos = parseInt(this.dataset.gramos);
 
             document.getElementById('sel-nombre').textContent = this.dataset.nombre;
-            document.getElementById('sel-gramos').textContent = this.dataset.gramos;
-            document.getElementById('sel-stock-despues').textContent =
-                (productoSeleccionadoStock - 1).toString();
+            document.getElementById('sel-gramos-unidad').textContent = this.dataset.gramos;
+            inputCantidad.value = 1;
+            updateResumenCantidad();
 
             document.getElementById('producto-seleccionado-info').classList.remove('d-none');
             document.getElementById('btn-confirmar-apertura').classList.remove('d-none');
 
-            // Resaltar seleccionado
             document.querySelectorAll('.btn-seleccionar-producto').forEach(b => {
                 b.classList.remove('btn-success');
                 b.classList.add('btn-outline-success');
@@ -540,11 +579,15 @@
     document.getElementById('btn-confirmar-apertura').addEventListener('click', async function () {
         if (!productoSeleccionadoPk) return;
 
+        const cantidad = Math.max(1, parseInt(inputCantidad.value) || 1);
         const notas = document.getElementById('input-notas-apertura').value;
         const btn = this;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Procesando...';
         document.getElementById('modal-abrir-error').classList.add('d-none');
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
 
         try {
             const resp = await fetch(API_ABRIR, {
@@ -553,28 +596,32 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': CSRF,
                 },
-                body: JSON.stringify({ producto_id: parseInt(productoSeleccionadoPk), notas }),
+                body: JSON.stringify({
+                    producto_id: parseInt(productoSeleccionadoPk),
+                    cantidad: cantidad,
+                    notas,
+                }),
+                signal: controller.signal,
             });
+            clearTimeout(timeout);
             const data = await resp.json();
 
             if (data.success) {
-                // Actualizar stock del producto en el modal ANTES de cerrar
                 updateProductoDepositoStock(productoSeleccionadoPk, data.unidades_restantes_deposito);
+                productoSeleccionadoStock = data.unidades_restantes_deposito;
 
                 bootstrap.Modal.getInstance(modalAbrirEl).hide();
-                // Actualizar displays en la página
                 document.getElementById('stock-display').textContent =
                     Math.round(data.nuevo_stock) + 'g';
                 document.getElementById('costo-ponderado-display').textContent =
                     '$' + data.nuevo_costo_ponderado.toFixed(4) + '/g';
-                // Actualizar stock en modal de auditoría
                 document.getElementById('auditoria-stock-sistema').value =
                     Math.round(data.nuevo_stock);
-                // Prepend fila en historial
                 prependAperturaRow(data);
+                const cantLabel = (data.cantidad || 1) > 1 ? `${data.cantidad} paquetes · ` : '';
                 showAlert(
                     `<i class="fas fa-check-circle me-2"></i>` +
-                    `<strong>+${Math.round(data.gramos_agregados)}g</strong> de ` +
+                    `${cantLabel}<strong>+${Math.round(data.gramos_agregados)}g</strong> de ` +
                     `<strong>${data.producto_nombre}</strong> agregados. ` +
                     `Nuevo stock: <strong>${Math.round(data.nuevo_stock)}g</strong>`,
                     'success'
@@ -585,7 +632,11 @@
                 document.getElementById('modal-abrir-error').classList.remove('d-none');
             }
         } catch (e) {
-            document.getElementById('modal-abrir-error').textContent = 'Error de conexión.';
+            clearTimeout(timeout);
+            const msg = e.name === 'AbortError'
+                ? 'La operación tardó demasiado. Recargá la página y verificá si se procesó.'
+                : 'Error de conexión. Verificá tu internet y reintentá.';
+            document.getElementById('modal-abrir-error').textContent = msg;
             document.getElementById('modal-abrir-error').classList.remove('d-none');
         } finally {
             btn.disabled = false;
@@ -625,11 +676,12 @@
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-AR') + ' ' +
                         now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const cantLabel = (data.cantidad || 1) > 1 ? ` (${data.cantidad} paq.)` : '';
         const tr = document.createElement('tr');
         tr.style.background = 'rgba(25,135,84,.08)';
         tr.innerHTML = `
             <td class="text-muted small">${dateStr}</td>
-            <td><strong>${data.producto_nombre}</strong></td>
+            <td><strong>${data.producto_nombre}</strong>${cantLabel}</td>
             <td class="text-end text-success fw-semibold">+${Math.round(data.gramos_agregados)}g</td>
             <td class="text-end text-muted small">$${data.nuevo_costo_ponderado.toFixed(4)}</td>
             <td class="text-end">${Math.round(data.nuevo_stock)}g</td>
@@ -692,6 +744,9 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
         document.getElementById('modal-auditoria-error').classList.add('d-none');
 
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+
         try {
             const resp = await fetch(API_AUDITORIA, {
                 method: 'POST',
@@ -700,7 +755,9 @@
                     'X-CSRFToken': CSRF,
                 },
                 body: JSON.stringify({ peso_real: pesoReal, motivo }),
+                signal: controller.signal,
             });
+            clearTimeout(timeout);
             const data = await resp.json();
 
             if (data.success) {
@@ -721,7 +778,11 @@
                 document.getElementById('modal-auditoria-error').classList.remove('d-none');
             }
         } catch (e) {
-            document.getElementById('modal-auditoria-error').textContent = 'Error de conexión.';
+            clearTimeout(timeout);
+            const msg = e.name === 'AbortError'
+                ? 'La operación tardó demasiado. Recargá la página y verificá si se procesó.'
+                : 'Error de conexión. Verificá tu internet y reintentá.';
+            document.getElementById('modal-auditoria-error').textContent = msg;
             document.getElementById('modal-auditoria-error').classList.remove('d-none');
         } finally {
             btn.disabled = false;

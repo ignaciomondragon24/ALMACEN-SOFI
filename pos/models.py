@@ -190,8 +190,7 @@ class POSTransaction(models.Model):
     
     def calculate_totals(self):
         """Recalculate transaction totals from items."""
-        from django.db.models import Sum, F, DecimalField
-        from django.db.models.functions import Coalesce
+        from django.db.models import Sum, F, DecimalField, Case, When, Value
 
         # Use output_field to handle mixed types (DecimalField * PositiveIntegerField)
         result = self.items.aggregate(
@@ -201,7 +200,15 @@ class POSTransaction(models.Model):
             ),
             manual_discount=Sum('discount'),
             promo_discount=Sum('promotion_discount'),
-            count=Sum('quantity')
+            # Granel: quantity es gramos (250, 500…), contar como 1 item.
+            # No-granel: quantity es unidades reales.
+            count=Sum(
+                Case(
+                    When(product__is_granel=True, then=Value(1)),
+                    default=F('quantity'),
+                    output_field=DecimalField(max_digits=12, decimal_places=3),
+                )
+            ),
         )
 
         self.subtotal = result['subtotal'] or Decimal('0.00')

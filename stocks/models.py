@@ -399,16 +399,18 @@ class Product(models.Model):
 
     @property
     def margin_percent(self):
-        """Calculate profit margin percentage."""
-        if self.purchase_price and self.purchase_price > 0:
-            margin = ((self.sale_price - self.purchase_price) / self.purchase_price) * 100
+        """Calculate profit margin percentage using weighted average cost."""
+        cost = self.cost_price or self.purchase_price
+        if cost and cost > 0:
+            margin = ((self.sale_price - cost) / cost) * 100
             return round(margin, 2)
         return 0
-    
+
     @property
     def profit(self):
-        """Calculate profit per unit."""
-        return self.sale_price - self.purchase_price
+        """Calculate profit per unit using weighted average cost."""
+        cost = self.cost_price or self.purchase_price
+        return self.sale_price - cost
     
     @property
     def is_low_stock(self):

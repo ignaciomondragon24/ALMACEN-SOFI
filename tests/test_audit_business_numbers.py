@@ -368,22 +368,22 @@ class PriceAndMarginAudit(AuditBaseTestCase):
     """Verifica cálculos de margen, ganancia y valores de stock."""
 
     def test_margin_percent_formula(self):
-        """margin = (venta - compra) / compra * 100"""
-        prod = self.make_product(sale_price='130.00', purchase_price='100.00')
+        """margin = (venta - costo) / costo * 100"""
+        prod = self.make_product(sale_price='130.00', purchase_price='100.00', cost_price='100.00')
         self.assertEqual(prod.margin_percent, Decimal('30.00'))
 
     def test_margin_percent_zero_purchase(self):
-        """Si purchase_price=0, margen debe ser 0 (no dividir por cero)."""
-        prod = self.make_product(sale_price='100.00', purchase_price='0.00')
+        """Si cost_price=0, margen debe ser 0 (no dividir por cero)."""
+        prod = self.make_product(sale_price='100.00', purchase_price='0.00', cost_price='0.00')
         self.assertEqual(prod.margin_percent, 0)
 
     def test_margin_percent_negative_margin(self):
         """Si se vende por debajo del costo, margen debe ser negativo."""
-        prod = self.make_product(sale_price='80.00', purchase_price='100.00')
+        prod = self.make_product(sale_price='80.00', purchase_price='100.00', cost_price='100.00')
         self.assertEqual(prod.margin_percent, Decimal('-20.00'))
 
     def test_profit_per_unit(self):
-        prod = self.make_product(sale_price='150.00', purchase_price='100.00')
+        prod = self.make_product(sale_price='150.00', purchase_price='100.00', cost_price='100.00')
         self.assertEqual(prod.profit, Decimal('50.00'))
 
     def test_stock_value_at_cost(self):

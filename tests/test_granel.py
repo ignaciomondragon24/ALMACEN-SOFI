@@ -345,6 +345,9 @@ class POSDecimalQuantityTest(GranelBaseTestCase):
     def test_checkout_deducts_granel_stock(self):
         """Checkout should deduct grams from granel stock product."""
         caramelera = self._create_caramelera()
+        caramelera.stock_gramos_actual = Decimal('5000')
+        caramelera.costo_ponderado_gramo = Decimal('5.000000')
+        caramelera.save()
         granel = self._create_pos_granel_product(caramelera, stock=Decimal('5000'))
 
         session = POSService.get_or_create_session(self.shift)
@@ -358,7 +361,9 @@ class POSDecimalQuantityTest(GranelBaseTestCase):
         self.assertTrue(success)
 
         granel.refresh_from_db()
+        caramelera.refresh_from_db()
         self.assertEqual(granel.current_stock, Decimal('4800'))
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('4800'))
 
     def test_checkout_registers_venta_granel(self):
         """Checkout should register VentaGranel when product has granel_caramelera."""
