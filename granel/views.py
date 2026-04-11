@@ -269,7 +269,6 @@ def caramelera_detail(request, pk):
 @require_POST
 def api_abrir_paquete(request, pk):
     """POST {producto_id, cantidad?, notas?} — Abre paquetes del depósito hacia la caramelera."""
-    caramelera = get_object_or_404(Caramelera, pk=pk)
     try:
         data = json.loads(request.body)
         producto_id = data.get('producto_id')
@@ -282,20 +281,19 @@ def api_abrir_paquete(request, pk):
             return JsonResponse({'error': 'La cantidad debe ser al menos 1'}, status=400)
 
         apertura = GranelService.abrir_paquete(
-            caramelera_id=caramelera.pk,
+            caramelera_id=pk,
             producto_deposito_id=int(producto_id),
             user=request.user,
             notas=notas,
             cantidad=cantidad,
         )
-        caramelera.refresh_from_db()
 
         return JsonResponse({
             'success': True,
             'cantidad': cantidad,
             'gramos_agregados': float(apertura.gramos_agregados),
-            'nuevo_stock': float(caramelera.stock_gramos_actual),
-            'nuevo_costo_ponderado': float(caramelera.costo_ponderado_gramo),
+            'nuevo_stock': float(apertura.stock_gramos_despues),
+            'nuevo_costo_ponderado': float(apertura.costo_ponderado_despues),
             'unidades_restantes_deposito': apertura.unidades_restantes_deposito,
             'producto_nombre': apertura.producto.name,
         })
@@ -312,7 +310,6 @@ def api_abrir_paquete(request, pk):
 @require_POST
 def api_auditoria(request, pk):
     """POST {peso_real, motivo?} — Registra una auditoría y ajusta el stock."""
-    caramelera = get_object_or_404(Caramelera, pk=pk)
     try:
         data = json.loads(request.body)
         peso_real = data.get('peso_real')
@@ -325,12 +322,11 @@ def api_auditoria(request, pk):
             return JsonResponse({'error': 'El peso real no puede ser negativo'}, status=400)
 
         auditoria = GranelService.realizar_auditoria(
-            caramelera_id=caramelera.pk,
+            caramelera_id=pk,
             peso_real_balanza=peso_real,
             user=request.user,
             motivo=motivo,
         )
-        caramelera.refresh_from_db()
 
         return JsonResponse({
             'success': True,
@@ -338,8 +334,10 @@ def api_auditoria(request, pk):
             'peso_real': float(auditoria.peso_real_balanza_gramos),
             'diferencia': float(auditoria.diferencia_gramos),
             'porcentaje_merma': float(auditoria.porcentaje_merma),
-            'nuevo_stock': float(caramelera.stock_gramos_actual),
+            'nuevo_stock': float(auditoria.peso_real_balanza_gramos),
         })
+    except Caramelera.DoesNotExist:
+        return JsonResponse({'error': 'No encontrado'}, status=404)
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:

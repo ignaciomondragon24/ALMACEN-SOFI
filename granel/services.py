@@ -4,7 +4,7 @@ Granel Services — Aperturas de bulto, ventas granel, auditorías de caramelera
 El servicio legacy BatchService se mantiene para compatibilidad con pos/services.py.
 """
 from decimal import Decimal
-from django.db import transaction
+from django.db import transaction, OperationalError
 from django.utils import timezone
 
 from stocks.models import Product, StockMovement
@@ -39,8 +39,11 @@ class GranelService:
         if cantidad < 1:
             raise ValueError('La cantidad debe ser al menos 1.')
 
-        caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
-        producto = Product.objects.select_for_update().get(pk=producto_deposito_id)
+        try:
+            caramelera = Caramelera.objects.select_for_update(nowait=True).get(pk=caramelera_id)
+            producto = Product.objects.select_for_update(nowait=True).get(pk=producto_deposito_id)
+        except OperationalError:
+            raise ValueError('La caramelera o producto está siendo modificado. Intentá de nuevo.')
 
         # Validaciones
         if not caramelera.productos_autorizados.filter(pk=producto.pk).exists():
@@ -125,7 +128,10 @@ class GranelService:
 
         Returns: AuditoriaCaramelera creada
         """
-        caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
+        try:
+            caramelera = Caramelera.objects.select_for_update(nowait=True).get(pk=caramelera_id)
+        except OperationalError:
+            raise ValueError('La caramelera está siendo modificada. Intentá de nuevo.')
         peso_real = Decimal(str(peso_real_balanza))
         stock_sistema = caramelera.stock_gramos_actual
 
@@ -181,7 +187,10 @@ class GranelService:
 
         Returns: VentaGranel creada
         """
-        caramelera = Caramelera.objects.select_for_update().get(pk=caramelera_id)
+        try:
+            caramelera = Caramelera.objects.select_for_update(nowait=True).get(pk=caramelera_id)
+        except OperationalError:
+            raise ValueError('La caramelera está siendo modificada. Intentá de nuevo.')
         gramos = Decimal(str(gramos_vendidos))
         precio = Decimal(str(precio_cobrado))
 

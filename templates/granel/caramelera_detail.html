@@ -587,7 +587,7 @@
         document.getElementById('modal-abrir-error').classList.add('d-none');
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        const timeout = setTimeout(() => controller.abort(), 15000);
 
         try {
             const resp = await fetch(API_ABRIR, {
@@ -745,7 +745,7 @@
         document.getElementById('modal-auditoria-error').classList.add('d-none');
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        const timeout = setTimeout(() => controller.abort(), 15000);
 
         try {
             const resp = await fetch(API_AUDITORIA, {
