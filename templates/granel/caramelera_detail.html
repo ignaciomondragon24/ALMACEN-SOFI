@@ -503,19 +503,29 @@
     const CSRF = '{{ csrf_token }}';
     const API_ABRIR = '{% url "granel:api_abrir_paquete" caramelera.pk %}';
     const API_AUDITORIA = '{% url "granel:api_auditoria" caramelera.pk %}';
-    const alertBox = document.getElementById('alert-box');
+
+    // Mostrar mensaje guardado de operación anterior (post-reload)
+    var savedMsg = sessionStorage.getItem('caramelera_msg');
+    var savedType = sessionStorage.getItem('caramelera_msg_type');
+    if (savedMsg) {
+        sessionStorage.removeItem('caramelera_msg');
+        sessionStorage.removeItem('caramelera_msg_type');
+        document.getElementById('alert-box').innerHTML =
+            '<div class="alert alert-' + (savedType || 'success') + ' alert-dismissible fade show">' +
+            savedMsg + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+    }
 
     // ---- ABRIR PAQUETE ----
-    let productoSeleccionadoPk = null;
-    let productoSeleccionadoStock = 0;
-    let productoSeleccionadoGramos = 0;
+    var productoSeleccionadoPk = null;
+    var productoSeleccionadoStock = 0;
+    var productoSeleccionadoGramos = 0;
 
-    const modalAbrirEl = document.getElementById('modalAbrirPaquete');
-    const modalAuditoriaEl = document.getElementById('modalAuditoria');
-    const inputCantidad = document.getElementById('input-cantidad-paquetes');
+    var modalAbrirEl = document.getElementById('modalAbrirPaquete');
+    var modalAuditoriaEl = document.getElementById('modalAuditoria');
+    var inputCantidad = document.getElementById('input-cantidad-paquetes');
 
     function updateResumenCantidad() {
-        const cant = Math.max(1, Math.min(parseInt(inputCantidad.value) || 1, productoSeleccionadoStock));
+        var cant = Math.max(1, Math.min(parseInt(inputCantidad.value) || 1, productoSeleccionadoStock));
         inputCantidad.value = cant;
         inputCantidad.max = productoSeleccionadoStock;
         document.getElementById('sel-cantidad-label').textContent = cant;
@@ -523,7 +533,6 @@
         document.getElementById('sel-stock-despues').textContent = (productoSeleccionadoStock - cant).toString();
     }
 
-    // Reset completo del modal de apertura cada vez que se abre
     modalAbrirEl.addEventListener('show.bs.modal', function () {
         productoSeleccionadoPk = null;
         productoSeleccionadoStock = 0;
@@ -532,7 +541,7 @@
         document.getElementById('producto-seleccionado-info').classList.add('d-none');
         document.getElementById('input-notas-apertura').value = '';
         inputCantidad.value = 1;
-        const btnConfirmar = document.getElementById('btn-confirmar-apertura');
+        var btnConfirmar = document.getElementById('btn-confirmar-apertura');
         btnConfirmar.classList.add('d-none');
         btnConfirmar.disabled = false;
         btnConfirmar.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
@@ -542,13 +551,12 @@
         });
     });
 
-    // +/- botones de cantidad
     document.getElementById('btn-cant-menos').addEventListener('click', function () {
-        const v = parseInt(inputCantidad.value) || 1;
+        var v = parseInt(inputCantidad.value) || 1;
         if (v > 1) { inputCantidad.value = v - 1; updateResumenCantidad(); }
     });
     document.getElementById('btn-cant-mas').addEventListener('click', function () {
-        const v = parseInt(inputCantidad.value) || 1;
+        var v = parseInt(inputCantidad.value) || 1;
         if (v < productoSeleccionadoStock) { inputCantidad.value = v + 1; updateResumenCantidad(); }
     });
     inputCantidad.addEventListener('input', updateResumenCantidad);
@@ -558,16 +566,13 @@
             productoSeleccionadoPk = this.dataset.pk;
             productoSeleccionadoStock = parseInt(this.dataset.stock);
             productoSeleccionadoGramos = parseInt(this.dataset.gramos);
-
             document.getElementById('sel-nombre').textContent = this.dataset.nombre;
             document.getElementById('sel-gramos-unidad').textContent = this.dataset.gramos;
             inputCantidad.value = 1;
             updateResumenCantidad();
-
             document.getElementById('producto-seleccionado-info').classList.remove('d-none');
             document.getElementById('btn-confirmar-apertura').classList.remove('d-none');
-
-            document.querySelectorAll('.btn-seleccionar-producto').forEach(b => {
+            document.querySelectorAll('.btn-seleccionar-producto').forEach(function (b) {
                 b.classList.remove('btn-success');
                 b.classList.add('btn-outline-success');
             });
@@ -576,146 +581,90 @@
         });
     });
 
-    document.getElementById('btn-confirmar-apertura').addEventListener('click', async function () {
+    // ---- CONFIRMAR APERTURA: fetch + reload ----
+    document.getElementById('btn-confirmar-apertura').addEventListener('click', function () {
         if (!productoSeleccionadoPk) return;
 
-        const cantidad = Math.max(1, parseInt(inputCantidad.value) || 1);
-        const notas = document.getElementById('input-notas-apertura').value;
-        const btn = this;
+        var cantidad = Math.max(1, parseInt(inputCantidad.value) || 1);
+        var notas = document.getElementById('input-notas-apertura').value;
+        var btn = this;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Procesando...';
         document.getElementById('modal-abrir-error').classList.add('d-none');
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API_ABRIR, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-CSRFToken', CSRF);
+        xhr.timeout = 15000;
 
-        try {
-            const resp = await fetch(API_ABRIR, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': CSRF,
-                },
-                body: JSON.stringify({
-                    producto_id: parseInt(productoSeleccionadoPk),
-                    cantidad: cantidad,
-                    notas,
-                }),
-                signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            const data = await resp.json();
-
-            if (data.success) {
-                updateProductoDepositoStock(productoSeleccionadoPk, data.unidades_restantes_deposito);
-                productoSeleccionadoStock = data.unidades_restantes_deposito;
-
-                bootstrap.Modal.getInstance(modalAbrirEl).hide();
-                document.getElementById('stock-display').textContent =
-                    Math.round(data.nuevo_stock) + 'g';
-                document.getElementById('costo-ponderado-display').textContent =
-                    '$' + data.nuevo_costo_ponderado.toFixed(4) + '/g';
-                document.getElementById('auditoria-stock-sistema').value =
-                    Math.round(data.nuevo_stock);
-                prependAperturaRow(data);
-                const cantLabel = (data.cantidad || 1) > 1 ? `${data.cantidad} paquetes · ` : '';
-                showAlert(
-                    `<i class="fas fa-check-circle me-2"></i>` +
-                    `${cantLabel}<strong>+${Math.round(data.gramos_agregados)}g</strong> de ` +
-                    `<strong>${data.producto_nombre}</strong> agregados. ` +
-                    `Nuevo stock: <strong>${Math.round(data.nuevo_stock)}g</strong>`,
-                    'success'
-                );
-            } else {
-                document.getElementById('modal-abrir-error').textContent =
-                    data.error || 'Error al procesar.';
+        xhr.onload = function () {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.success) {
+                    var cantLabel = (data.cantidad || 1) > 1 ? data.cantidad + ' paquetes - ' : '';
+                    sessionStorage.setItem('caramelera_msg',
+                        '<i class="fas fa-check-circle me-2"></i>' +
+                        cantLabel + '<strong>+' + Math.round(data.gramos_agregados) + 'g</strong> de ' +
+                        '<strong>' + data.producto_nombre + '</strong> agregados. ' +
+                        'Nuevo stock: <strong>' + Math.round(data.nuevo_stock) + 'g</strong>');
+                    sessionStorage.setItem('caramelera_msg_type', 'success');
+                    window.location.reload();
+                    return;
+                }
+                document.getElementById('modal-abrir-error').textContent = data.error || 'Error al procesar.';
+                document.getElementById('modal-abrir-error').classList.remove('d-none');
+            } catch (e) {
+                document.getElementById('modal-abrir-error').textContent = 'Respuesta inesperada del servidor.';
                 document.getElementById('modal-abrir-error').classList.remove('d-none');
             }
-        } catch (e) {
-            clearTimeout(timeout);
-            const msg = e.name === 'AbortError'
-                ? 'La operación tardó demasiado. Recargá la página y verificá si se procesó.'
-                : 'Error de conexión. Verificá tu internet y reintentá.';
-            document.getElementById('modal-abrir-error').textContent = msg;
-            document.getElementById('modal-abrir-error').classList.remove('d-none');
-        } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
-        }
+        };
+
+        xhr.onerror = function () {
+            document.getElementById('modal-abrir-error').textContent = 'Error de conexion. Verifica tu internet.';
+            document.getElementById('modal-abrir-error').classList.remove('d-none');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
+        };
+
+        xhr.ontimeout = function () {
+            document.getElementById('modal-abrir-error').textContent = 'La operacion tardo demasiado. Recarga la pagina y verifica si se proceso.';
+            document.getElementById('modal-abrir-error').classList.remove('d-none');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar Apertura';
+        };
+
+        xhr.send(JSON.stringify({
+            producto_id: parseInt(productoSeleccionadoPk),
+            cantidad: cantidad,
+            notas: notas
+        }));
     });
 
-    function updateProductoDepositoStock(pk, newStock) {
-        // Actualizar badge y data-stock del botón del producto en el modal
-        document.querySelectorAll('.btn-seleccionar-producto').forEach(function (btn) {
-            if (btn.dataset.pk === String(pk)) {
-                btn.dataset.stock = String(newStock);
-                const badge = btn.closest('.d-flex').querySelector('.badge');
-                if (newStock <= 0) {
-                    // Sin stock: ocultar botón, mostrar badge SIN STOCK
-                    btn.style.display = 'none';
-                    if (badge) {
-                        badge.className = 'badge bg-danger';
-                        badge.textContent = 'SIN STOCK';
-                    }
-                    btn.closest('.d-flex').classList.add('opacity-50');
-                } else {
-                    if (badge) {
-                        badge.textContent = newStock + ' en dep.';
-                    }
-                }
-            }
-        });
-        // Actualizar tabla de productos autorizados en la página
-        var rows = document.querySelectorAll('#lista-productos-autorizados ~ .card table tbody tr, .card table tbody tr');
-    }
-
-    function prependAperturaRow(data) {
-        const tbody = document.getElementById('tbody-aperturas');
-        const emptyRow = document.getElementById('row-empty-aperturas');
-        if (emptyRow) emptyRow.remove();
-        const now = new Date();
-        const dateStr = now.toLocaleDateString('es-AR') + ' ' +
-                        now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-        const cantLabel = (data.cantidad || 1) > 1 ? ` (${data.cantidad} paq.)` : '';
-        const tr = document.createElement('tr');
-        tr.style.background = 'rgba(25,135,84,.08)';
-        tr.innerHTML = `
-            <td class="text-muted small">${dateStr}</td>
-            <td><strong>${data.producto_nombre}</strong>${cantLabel}</td>
-            <td class="text-end text-success fw-semibold">+${Math.round(data.gramos_agregados)}g</td>
-            <td class="text-end text-muted small">$${data.nuevo_costo_ponderado.toFixed(4)}</td>
-            <td class="text-end">${Math.round(data.nuevo_stock)}g</td>
-            <td class="text-muted small">Vos</td>
-        `;
-        tbody.prepend(tr);
-    }
-
     // ---- AUDITORÍA ----
-    const inputPesoReal = document.getElementById('input-peso-real');
+    var inputPesoReal = document.getElementById('input-peso-real');
 
-    // Reset completo del modal de auditoría cada vez que se abre
     modalAuditoriaEl.addEventListener('show.bs.modal', function () {
         document.getElementById('modal-auditoria-error').classList.add('d-none');
         inputPesoReal.value = '';
         document.getElementById('input-motivo-auditoria').value = '';
         document.getElementById('auditoria-preview').classList.add('d-none');
-        const btnAuditoria = document.getElementById('btn-confirmar-auditoria');
+        var btnAuditoria = document.getElementById('btn-confirmar-auditoria');
         btnAuditoria.disabled = false;
-        btnAuditoria.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoría';
+        btnAuditoria.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoria';
     });
 
     inputPesoReal.addEventListener('input', function () {
-        // Leer stock actual fresco (se actualiza después de aperturas y auditorías)
-        const stockSistema = parseFloat(
-            document.getElementById('auditoria-stock-sistema').value
-        ) || 0;
-        const real = parseFloat(this.value) || 0;
-        const diff = stockSistema - real;
-        const pct = stockSistema > 0 ? ((diff / stockSistema) * 100).toFixed(1) : '0.0';
-        const preview = document.getElementById('auditoria-preview');
-        const diffAlert = document.getElementById('auditoria-diff-alert');
-        const diffValor = document.getElementById('auditoria-diff-valor');
-        const diffPct = document.getElementById('auditoria-diff-pct');
+        var stockSistema = parseFloat(document.getElementById('auditoria-stock-sistema').value) || 0;
+        var real = parseFloat(this.value) || 0;
+        var diff = stockSistema - real;
+        var pct = stockSistema > 0 ? ((diff / stockSistema) * 100).toFixed(1) : '0.0';
+        var preview = document.getElementById('auditoria-preview');
+        var diffAlert = document.getElementById('auditoria-diff-alert');
+        var diffValor = document.getElementById('auditoria-diff-valor');
+        var diffPct = document.getElementById('auditoria-diff-pct');
 
         if (this.value !== '') {
             preview.classList.remove('d-none');
@@ -729,77 +678,65 @@
         }
     });
 
-    document.getElementById('btn-confirmar-auditoria').addEventListener('click', async function () {
-        const pesoReal = parseFloat(inputPesoReal.value);
+    // ---- CONFIRMAR AUDITORÍA: fetch + reload ----
+    document.getElementById('btn-confirmar-auditoria').addEventListener('click', function () {
+        var pesoReal = parseFloat(inputPesoReal.value);
         if (isNaN(pesoReal) || pesoReal < 0) {
-            document.getElementById('modal-auditoria-error').textContent =
-                'Ingresá el peso real medido en balanza.';
+            document.getElementById('modal-auditoria-error').textContent = 'Ingresa el peso real medido en balanza.';
             document.getElementById('modal-auditoria-error').classList.remove('d-none');
             return;
         }
 
-        const motivo = document.getElementById('input-motivo-auditoria').value;
-        const btn = this;
+        var motivo = document.getElementById('input-motivo-auditoria').value;
+        var btn = this;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
         document.getElementById('modal-auditoria-error').classList.add('d-none');
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API_AUDITORIA, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-CSRFToken', CSRF);
+        xhr.timeout = 15000;
 
-        try {
-            const resp = await fetch(API_AUDITORIA, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': CSRF,
-                },
-                body: JSON.stringify({ peso_real: pesoReal, motivo }),
-                signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            const data = await resp.json();
-
-            if (data.success) {
-                bootstrap.Modal.getInstance(modalAuditoriaEl).hide();
-                document.getElementById('stock-display').textContent =
-                    Math.round(data.nuevo_stock) + 'g';
-                document.getElementById('auditoria-stock-sistema').value =
-                    Math.round(data.nuevo_stock);
-                showAlert(
-                    `<i class="fas fa-balance-scale me-2"></i>Auditoría registrada. ` +
-                    `Diferencia: <strong>${data.diferencia.toFixed(0)}g</strong>. ` +
-                    `Nuevo stock: <strong>${Math.round(data.nuevo_stock)}g</strong>`,
-                    'info'
-                );
-            } else {
-                document.getElementById('modal-auditoria-error').textContent =
-                    data.error || 'Error al procesar.';
+        xhr.onload = function () {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.success) {
+                    sessionStorage.setItem('caramelera_msg',
+                        '<i class="fas fa-balance-scale me-2"></i>Auditoria registrada. ' +
+                        'Diferencia: <strong>' + parseFloat(data.diferencia).toFixed(0) + 'g</strong>. ' +
+                        'Nuevo stock: <strong>' + Math.round(data.nuevo_stock) + 'g</strong>');
+                    sessionStorage.setItem('caramelera_msg_type', 'info');
+                    window.location.reload();
+                    return;
+                }
+                document.getElementById('modal-auditoria-error').textContent = data.error || 'Error al procesar.';
+                document.getElementById('modal-auditoria-error').classList.remove('d-none');
+            } catch (e) {
+                document.getElementById('modal-auditoria-error').textContent = 'Respuesta inesperada del servidor.';
                 document.getElementById('modal-auditoria-error').classList.remove('d-none');
             }
-        } catch (e) {
-            clearTimeout(timeout);
-            const msg = e.name === 'AbortError'
-                ? 'La operación tardó demasiado. Recargá la página y verificá si se procesó.'
-                : 'Error de conexión. Verificá tu internet y reintentá.';
-            document.getElementById('modal-auditoria-error').textContent = msg;
-            document.getElementById('modal-auditoria-error').classList.remove('d-none');
-        } finally {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoría';
-        }
-    });
+            btn.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoria';
+        };
 
-    // ---- Helper ----
-    let alertTimer = null;
-    function showAlert(msg, type) {
-        if (alertTimer) clearTimeout(alertTimer);
-        alertBox.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show">
-            ${msg}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>`;
-        alertTimer = setTimeout(() => { alertBox.innerHTML = ''; alertTimer = null; }, 7000);
-    }
+        xhr.onerror = function () {
+            document.getElementById('modal-auditoria-error').textContent = 'Error de conexion. Verifica tu internet.';
+            document.getElementById('modal-auditoria-error').classList.remove('d-none');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoria';
+        };
+
+        xhr.ontimeout = function () {
+            document.getElementById('modal-auditoria-error').textContent = 'La operacion tardo demasiado. Recarga la pagina y verifica si se proceso.';
+            document.getElementById('modal-auditoria-error').classList.remove('d-none');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-1"></i>Registrar Auditoria';
+        };
+
+        xhr.send(JSON.stringify({ peso_real: pesoReal, motivo: motivo }));
+    });
 })();
 </script>
 {% endblock %}
