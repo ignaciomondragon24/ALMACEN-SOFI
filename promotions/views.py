@@ -355,17 +355,26 @@ def promotion_detail(request, pk):
 
 
 @login_required
-@group_required(['Admin', 'Cajero Manager'])
+@group_required(['Admin'])
 def promotion_delete(request, pk):
-    """Delete promotion."""
+    """Delete promotion — solo Admin, requiere confirmación escribiendo el nombre."""
     promotion = get_object_or_404(Promotion, pk=pk)
-    
+
     if request.method == 'POST':
+        confirm_name = request.POST.get('confirm_name', '').strip()
+        if confirm_name != promotion.name:
+            messages.error(
+                request,
+                f'El nombre no coincide. Escribí "{promotion.name}" exacto para confirmar.'
+            )
+            return render(request, 'promotions/promotion_confirm_delete.html', {
+                'promotion': promotion
+            })
         name = promotion.name
         promotion.delete()
         messages.success(request, f'Promoción "{name}" eliminada correctamente.')
         return redirect('promotions:promotion_list')
-    
+
     return render(request, 'promotions/promotion_confirm_delete.html', {
         'promotion': promotion
     })

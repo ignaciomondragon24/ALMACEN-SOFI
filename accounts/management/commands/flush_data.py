@@ -15,6 +15,11 @@ class Command(BaseCommand):
             '--yes', action='store_true',
             help='Skip confirmation prompt',
         )
+        parser.add_argument(
+            '--flush-promotions', action='store_true',
+            dest='flush_promotions',
+            help='Also delete promotions (by default they are preserved)',
+        )
 
     def handle(self, *args, **options):
         if not options['yes']:
@@ -43,11 +48,14 @@ class Command(BaseCommand):
             QuickAccessButton.objects.all().delete()
             self.stdout.write('  POS (transactions, items, payments, sessions): borrado')
 
-            # 2. Promotions
-            from promotions.models import PromotionProduct, Promotion
-            PromotionProduct.objects.all().delete()
-            Promotion.objects.all().delete()
-            self.stdout.write('  Promotions: borrado')
+            # 2. Promotions — NO se borran: son configuración de negocio, no datos transaccionales.
+            #    Si realmente necesitás borrarlas, usá el admin de Django o --flush-promotions.
+            self.stdout.write('  Promotions: PRESERVADAS (usar --flush-promotions para borrar)')
+            if options.get('flush_promotions'):
+                from promotions.models import PromotionProduct, Promotion
+                PromotionProduct.objects.all().delete()
+                Promotion.objects.all().delete()
+                self.stdout.write('  Promotions: borrado (--flush-promotions activado)')
 
             # 3. MercadoPago
             from mercadopago.models import PaymentIntent

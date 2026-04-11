@@ -260,23 +260,31 @@
     {% endif %}
 </div>
 
-<!-- Modal Confirmación Eliminación -->
+<!-- Modal Confirmación Eliminación — requiere escribir el nombre exacto -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirmar Eliminación</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirmar Eliminación</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>¿Está seguro de eliminar la promoción "<span id="deletePromoName"></span>"?</p>
-                <p class="text-danger"><small>Esta acción no se puede deshacer.</small></p>
+                <p>¿Estás seguro de eliminar la promoción "<strong><span id="deletePromoName"></span></strong>"?</p>
+                <p class="text-danger"><small><i class="fas fa-warning me-1"></i>Esta acción no se puede deshacer.</small></p>
+                <div class="mt-3">
+                    <label for="confirmNameInput" class="form-label">Escribí el nombre exacto de la promoción para confirmar:</label>
+                    <input type="text" class="form-control" id="confirmNameInput" autocomplete="off"
+                           placeholder="Escribí el nombre aquí...">
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <form id="deleteForm" method="post" class="d-inline">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                    <input type="hidden" name="confirm_name" id="confirmNameHidden">
+                    <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                        <i class="fas fa-trash me-1"></i>Eliminar
+                    </button>
                 </form>
             </div>
         </div>
@@ -286,10 +294,22 @@
 
 {% block extra_js %}
 <script>
+let _deleteTargetName = '';
 function confirmDelete(promoId, promoName) {
+    _deleteTargetName = promoName;
     document.getElementById('deletePromoName').textContent = promoName;
     document.getElementById('deleteForm').action = "{% url 'promotions:promotion_delete' 0 %}".replace('/0/', '/' + promoId + '/');
+    const inp = document.getElementById('confirmNameInput');
+    const btn = document.getElementById('deleteBtn');
+    inp.value = '';
+    btn.disabled = true;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    setTimeout(() => inp.focus(), 500);
 }
+document.getElementById('confirmNameInput').addEventListener('input', function() {
+    const match = this.value.trim() === _deleteTargetName;
+    document.getElementById('deleteBtn').disabled = !match;
+    document.getElementById('confirmNameHidden').value = this.value.trim();
+});
 </script>
 {% endblock %}

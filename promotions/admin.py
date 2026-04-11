@@ -27,6 +27,16 @@ class PromotionAdmin(admin.ModelAdmin):
     inlines = [PromotionProductInline]
     autocomplete_fields = ['group']
 
+    def get_actions(self, request):
+        """Deshabilitar 'delete selected' para evitar borrado masivo accidental."""
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)
+        return actions
+
+    def has_delete_permission(self, request, obj=None):
+        """Solo superusers pueden borrar promociones desde el admin."""
+        return request.user.is_superuser
+
     fieldsets = (
         ('Información Básica', {
             'fields': ('name', 'description', 'promo_type', 'status')
