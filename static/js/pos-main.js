@@ -1268,22 +1268,25 @@
     // Quick Access
     function initQuickAccess() {
         if (!quickAccessGrid) return;
-        
+
         quickAccessGrid.querySelectorAll('.quick-btn').forEach(btn => {
-            btn.addEventListener('click', async function() {
+            btn.addEventListener('click', function() {
                 const productId = this.dataset.productId;
                 if (!productId) return;
-                // Granel products need weight entry — fetch product info first
-                try {
-                    const resp = await fetch(`${API_URLS.search}?q=${encodeURIComponent(productId)}`);
-                    const data = await resp.json();
-                    const product = data.products && data.products.find(p => String(p.id) === String(productId));
-                    if (product && (product.is_bulk || product.is_granel)) {
-                        showBulkQuantityModal(product);
-                    } else {
-                        addToCart(parseInt(productId), 1);
-                    }
-                } catch {
+                const isGranel = this.dataset.isGranel === 'true';
+                const isBulk = this.dataset.isBulk === 'true';
+                if (isGranel || isBulk) {
+                    const product = {
+                        id: parseInt(productId),
+                        name: this.dataset.name || '',
+                        is_granel: isGranel,
+                        is_bulk: isBulk,
+                        unit_price: parseFloat(this.dataset.unitPrice) || 0,
+                        sale_price_250g: parseFloat(this.dataset.salePrice250g) || 0,
+                        stock: parseFloat(this.dataset.stock) || 0,
+                    };
+                    showBulkQuantityModal(product);
+                } else {
                     addToCart(parseInt(productId), 1);
                 }
             });
@@ -1300,6 +1303,12 @@
         buttons.forEach(b => {
             html += `<button type="button" class="quick-btn" tabindex="-1"
                 data-product-id="${b.product_id}"
+                data-is-granel="${b.is_granel || false}"
+                data-is-bulk="${b.is_bulk || false}"
+                data-unit-price="${b.price}"
+                data-sale-price-250g="${b.sale_price_250g || 0}"
+                data-stock="${b.stock || 0}"
+                data-name="${b.name}"
                 style="background-color: ${b.color};">
                 <span class="quick-btn-name">${b.name}</span>
                 <span class="quick-btn-price">${formatCurrency(b.price)}</span>

@@ -274,6 +274,10 @@ def api_toggle_quick_access(request):
                 'name': b.product.name[:15],
                 'price': float(b.product.sale_price),
                 'color': b.color,
+                'is_granel': b.product.is_granel,
+                'is_bulk': b.product.is_bulk,
+                'sale_price_250g': float(b.product.sale_price_250g),
+                'stock': float(b.product.current_stock),
             }
             for b in buttons
         ]

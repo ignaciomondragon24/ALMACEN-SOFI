@@ -633,6 +633,12 @@
                             class="quick-btn"
                             tabindex="-1"
                             data-product-id="{{ button.product.id }}"
+                            data-is-granel="{{ button.product.is_granel|yesno:'true,false' }}"
+                            data-is-bulk="{{ button.product.is_bulk|yesno:'true,false' }}"
+                            data-unit-price="{{ button.product.sale_price|unlocalize }}"
+                            data-sale-price-250g="{{ button.product.sale_price_250g|unlocalize }}"
+                            data-stock="{{ button.product.current_stock|unlocalize }}"
+                            data-name="{{ button.product.name }}"
                             style="background-color: {{ button.color }};">
                         <span class="quick-btn-name">{{ button.product.name|truncatechars:15 }}</span>
                         <span class="quick-btn-price">{{ button.product.sale_price|currency_ar }}</span>
