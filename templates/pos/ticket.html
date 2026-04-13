@@ -210,26 +210,8 @@
                 </span>
             </div>
             <div class="item-line2">
-                <span class="item-unit-price">
-                    {% if item.product.unit_of_measure.abbreviation == 'Kg' or item.product.unit_of_measure.abbreviation == 'g' %}
-                        (${{ item.unit_price|floatformat:0 }} x {{ item.product.unit_of_measure.abbreviation }})
-                    {% else %}
-                        (${{ item.unit_price|floatformat:0 }} c/u)
-                    {% endif %}
-                </span>
-                <span class="item-subtotal">${{ item.subtotal|floatformat:0 }}</span>
+                <span class="item-subtotal" style="margin-left:auto;">${{ item.subtotal|floatformat:0 }}</span>
             </div>
-            {% if item.promotion_name %}
-            <div class="item-line2" style="font-size: 0.72rem; color: #555;">
-                <span>* Promo {% if item.promotion.promo_type == 'nxm' %}{{ item.promotion.quantity_required }}x{{ item.promotion.quantity_charged }}{% elif item.promotion.promo_type == 'nx_fixed_price' %}{{ item.promotion.quantity_required }}x${{ item.promotion.final_price|floatformat:0 }}{% elif item.promotion.promo_type == 'quantity_discount' %}Dto. {{ item.promotion.discount_percent|floatformat:0 }}%{% elif item.promotion.promo_type == 'second_unit' %}2da un. {{ item.promotion.second_unit_discount|floatformat:0 }}%{% elif item.promotion.promo_type == 'simple_discount' %}{{ item.promotion.discount_percent|floatformat:0 }}% off{% elif item.promotion.promo_type == 'combo' %}Combo{% endif %}</span>
-            </div>
-            {% endif %}
-            {% if item.discount and item.discount > 0 %}
-            <div class="item-line2" style="font-size: 0.72rem; color: #555;">
-                <span>* Dto. manual</span>
-                <span>-${{ item.discount|floatformat:0 }}</span>
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
 
