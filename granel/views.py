@@ -250,6 +250,13 @@ def caramelera_detail(request, pk):
         total_ganancia=Sum('ganancia'),
     )
 
+    # Historial de auditorías (últimas 20)
+    auditorias = (
+        AuditoriaCaramelera.objects.filter(caramelera=caramelera)
+        .select_related('auditado_por')
+        .order_by('-auditado_en')[:20]
+    )
+
     return render(request, 'granel/caramelera_detail.html', {
         'caramelera': caramelera,
         'autorizados': autorizados,
@@ -257,6 +264,7 @@ def caramelera_detail(request, pk):
         'ranking': ranking,
         'ventas': ventas,
         'resumen_ventas': resumen_ventas,
+        'auditorias': auditorias,
     })
 
 
