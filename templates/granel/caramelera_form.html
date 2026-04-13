@@ -56,17 +56,17 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Precio 1/4 kg (250g)</label>
+                            <label class="form-label fw-semibold">Precio por Kilo Oferta</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
                                 <input type="number" name="precio_cuarto" id="input-precio-cuarto"
                                        class="form-control" step="0.01" min="0"
-                                       placeholder="Auto (2.3x precio/100g)"
+                                       placeholder="Auto (precio/100g × 10 × 0.9)"
                                        value="{{ caramelera.precio_cuarto|default:'' }}">
                             </div>
                             <div class="form-text">
-                                Precio especial por exactamente 250g. Si se deja en 0 se calcula
-                                como <span id="auto-precio-cuarto-hint">2.3x</span> el precio/100g.
+                                Se aplica desde 250g en adelante por regla de tres.
+                                Sugerido: <span id="auto-precio-cuarto-hint"></span>
                             </div>
                         </div>
                     </div>
@@ -144,15 +144,15 @@
     const precio100 = document.getElementById('input-precio-100');
     const precioCuarto = document.getElementById('input-precio-cuarto');
     const hint = document.getElementById('auto-precio-cuarto-hint');
-    const FACTOR = 2.3;
 
     precio100.addEventListener('input', function () {
         const v = parseFloat(this.value) || 0;
         if (v > 0) {
-            hint.textContent = '$' + (v * FACTOR).toFixed(2);
-            // Solo auto-completa si el campo está vacío o fue auto-generado
+            // Sugerencia: precio/100g × 10 (= precio/kg) con 10% descuento
+            const sugerido = (v * 10 * 0.9).toFixed(2);
+            hint.textContent = '$' + sugerido + '/kg';
             if (!precioCuarto.dataset.manual) {
-                precioCuarto.value = (v * FACTOR).toFixed(2);
+                precioCuarto.value = sugerido;
             }
         }
     });

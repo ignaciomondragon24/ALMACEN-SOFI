@@ -15,10 +15,10 @@
         }
         body {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             width: 58mm;
-            padding: 3mm;
+            padding: 2mm;
             background: white;
             color: black;
         }
@@ -27,16 +27,7 @@
         }
         .header {
             text-align: center;
-            margin-bottom: 10px;
-        }
-        .header h1 {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 2px;
-        }
-        .header p {
-            font-size: 11px;
-            margin: 1px 0;
+            margin-bottom: 6px;
         }
         .separator {
             border-top: 1px dashed #000;
@@ -45,42 +36,47 @@
         .info-row {
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
+            font-size: 10px;
         }
         .items-header {
-            font-size: 10px;
+            font-size: 9px;
             display: flex;
             justify-content: space-between;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
         .items-header span:first-child {
             width: 15%;
+            flex-shrink: 0;
         }
         .items-header span:nth-child(2) {
-            width: 55%;
+            width: 50%;
+            flex-shrink: 1;
         }
         .items-header span:last-child {
-            width: 30%;
+            width: 35%;
             text-align: right;
+            flex-shrink: 0;
         }
         .item {
             margin-bottom: 5px;
         }
         .item-line1 {
             display: flex;
-            font-size: 11px;
+            font-size: 10px;
         }
         .item-qty {
             width: 15%;
+            flex-shrink: 0;
         }
         .item-name {
             width: 85%;
             word-wrap: break-word;
+            overflow: hidden;
         }
         .item-line2 {
             display: flex;
             justify-content: space-between;
-            font-size: 10px;
+            font-size: 9px;
             padding-left: 15%;
         }
         .item-unit-price {
@@ -95,35 +91,35 @@
         .total-row {
             display: flex;
             justify-content: space-between;
-            font-size: 12px;
+            font-size: 11px;
             margin: 2px 0;
         }
         .total-row.big {
-            font-size: 16px;
+            font-size: 13px;
             font-weight: bold;
-            margin: 8px 0;
+            margin: 6px 0;
         }
         .total-row.discount {
             color: #c00;
         }
         .payment-info {
-            margin-top: 10px;
-            font-size: 11px;
+            margin-top: 8px;
+            font-size: 10px;
         }
         .footer {
             text-align: center;
             margin-top: 15px;
         }
         .footer .thanks {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         .footer .legal {
-            font-size: 9px;
+            font-size: 8px;
             border: 1px solid #000;
-            padding: 5px;
-            margin-top: 10px;
+            padding: 4px;
+            margin-top: 8px;
         }
         .promo-badge {
             font-size: 9px;
@@ -173,23 +169,15 @@
     </div>
 
     <div class="ticket">
-        <!-- Header -->
-        <div class="header">
-            <h1>{{ company.name|default:"CHE GOLOSO" }}</h1>
-            <p>{{ company.legal_name|default:"Kiosco & Drugstore" }}</p>
-            <p>{{ company.address|default:"Av. Rivadavia 1234, CABA" }}</p>
-            <p>CUIT: {{ company.cuit|default:"20-12345678-9" }}</p>
-        </div>
-
+        <div class="header">Kiosco</div>
         <div class="separator"></div>
-
         <!-- Transaction Info -->
         <div class="info-row">
-            <span>Fecha: {{ transaction.completed_at|date:"d/m/Y" }}</span>
-            <span>Hora: {{ transaction.completed_at|time:"H:i" }}</span>
+            <span>{{ transaction.completed_at|date:"d/m/Y" }}</span>
+            <span>{{ transaction.completed_at|time:"H:i" }}</span>
         </div>
         <div class="info-row">
-            <span>Ticket Nro: {{ transaction.ticket_number }}</span>
+            <span>Ticket: {{ transaction.ticket_number }}</span>
         </div>
         {% if transaction.transaction_type == 'cost_sale' %}
         <div class="info-row" style="font-weight: bold; text-align: center;">
@@ -200,9 +188,6 @@
             <span style="width: 100%; background: #17a2b8; color: white; padding: 2px;">*** CONSUMO INTERNO ***</span>
         </div>
         {% endif %}
-        <div class="info-row">
-            <span>Cajero: {{ transaction.session.cash_shift.cashier.first_name|default:transaction.session.cash_shift.cashier.username }}</span>
-        </div>
 
         <div class="separator"></div>
 
@@ -221,7 +206,7 @@
             <div class="item-line1">
                 <span class="item-qty">{{ item.quantity|floatformat:0 }} x</span>
                 <span class="item-name">
-                    {{ item.product.name|truncatechars:22 }}
+                    {{ item.product.name|truncatechars:18 }}
                 </span>
             </div>
             <div class="item-line2">
@@ -236,10 +221,7 @@
             </div>
             {% if item.promotion_name %}
             <div class="item-line2" style="font-size: 0.72rem; color: #555;">
-                <span>* {{ item.promotion_name }}{% if item.promotion_group_name %} (enlaz. {{ item.promotion_group_name }}){% endif %}</span>
-                {% if item.promotion_discount and item.promotion_discount > 0 %}
-                <span>-${{ item.promotion_discount|floatformat:0 }}</span>
-                {% endif %}
+                <span>* Promo {% if item.promotion.promo_type == 'nxm' %}{{ item.promotion.quantity_required }}x{{ item.promotion.quantity_charged }}{% elif item.promotion.promo_type == 'nx_fixed_price' %}{{ item.promotion.quantity_required }}x${{ item.promotion.final_price|floatformat:0 }}{% elif item.promotion.promo_type == 'quantity_discount' %}Dto. {{ item.promotion.discount_percent|floatformat:0 }}%{% elif item.promotion.promo_type == 'second_unit' %}2da un. {{ item.promotion.second_unit_discount|floatformat:0 }}%{% elif item.promotion.promo_type == 'simple_discount' %}{{ item.promotion.discount_percent|floatformat:0 }}% off{% elif item.promotion.promo_type == 'combo' %}Combo{% endif %}</span>
             </div>
             {% endif %}
             {% if item.discount and item.discount > 0 %}
@@ -261,16 +243,16 @@
             </div>
             {% if transaction.discount_total > 0 %}
             <div class="total-row discount">
-                <span>Descuento{% if payment_method_name %} ({{ payment_method_name }}){% endif %}</span>
+                <span>Dto.{% if payment_method_name %} ({{ payment_method_name }}){% endif %}</span>
                 <span>-${{ transaction.discount_total|floatformat:0 }}</span>
             </div>
             {% endif %}
-            
+
             <div class="separator"></div>
-            
+
             {% if transaction.transaction_type == 'internal_consumption' %}
             <div class="total-row big">
-                <span>VALOR COSTO</span>
+                <span>COSTO</span>
                 <span>${{ transaction.subtotal|floatformat:0 }}</span>
             </div>
             <div class="total-row" style="color: #28a745; font-weight: bold;">
@@ -279,7 +261,7 @@
             </div>
             {% else %}
             <div class="total-row big">
-                <span>TOTAL A PAGAR</span>
+                <span>TOTAL</span>
                 <span>${{ transaction.total|floatformat:0 }}</span>
             </div>
             {% endif %}
@@ -292,13 +274,13 @@
         <div class="payment-info">
             {% for payment in payments %}
             <div class="info-row">
-                <span>Pago con: {{ payment.method_name }}</span>
+                <span>{{ payment.method_name }}</span>
                 <span>${{ payment.amount|floatformat:0 }}</span>
             </div>
             {% endfor %}
             {% if transaction.change_given > 0 %}
             <div class="info-row" style="font-weight: bold;">
-                <span>Su vuelto:</span>
+                <span>Vuelto:</span>
                 <span>${{ transaction.change_given|floatformat:0 }}</span>
             </div>
             {% endif %}
@@ -325,10 +307,7 @@
             {% endif %}
             
             <div class="legal">
-                <p>********************************</p>
-                <p>Comprobante No Válido como</p>
-                <p>Factura Fiscal</p>
-                <p>********************************</p>
+                <p>No válido como factura</p>
             </div>
         </div>
     </div>

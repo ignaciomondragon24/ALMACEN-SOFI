@@ -259,18 +259,35 @@ class VentaGranelTest(GranelBaseTestCase):
             GranelService.registrar_venta(caramelera.pk, Decimal('500'), Decimal('5000'))
 
     def test_calcular_precio_libre(self):
-        """calcular_precio para gramos libres es proporcional a precio/100g."""
+        """calcular_precio para < 250g es proporcional a precio/100g."""
         caramelera = self._create_caramelera(precio_100g=Decimal('2500'))
         # 150g → (150/100) * 2500 = 3750
         self.assertEqual(caramelera.calcular_precio(150), Decimal('3750.0'))
+        # 200g → (200/100) * 2500 = 5000
+        self.assertEqual(caramelera.calcular_precio(200), Decimal('5000.0'))
 
-    def test_calcular_precio_cuarto(self):
-        """calcular_precio para múltiplos de 250g usa precio_cuarto."""
+    def test_calcular_precio_kilo_oferta(self):
+        """calcular_precio para >= 250g usa precio por kilo (regla de tres)."""
+        # precio_cuarto ahora almacena el precio por kilo oferta
         caramelera = self._create_caramelera(precio_100g=Decimal('2500'),
-                                              precio_cuarto=Decimal('5500'))
-        self.assertEqual(caramelera.calcular_precio(250), Decimal('5500'))
-        # 500g → 2 cuartos × 5500 = 11000
-        self.assertEqual(caramelera.calcular_precio(500), Decimal('11000'))
+                                              precio_cuarto=Decimal('20000'))
+        # 250g → (250/1000) * 20000 = 5000
+        self.assertEqual(caramelera.calcular_precio(250), Decimal('5000.0'))
+        # 300g → (300/1000) * 20000 = 6000
+        self.assertEqual(caramelera.calcular_precio(300), Decimal('6000.0'))
+        # 500g → (500/1000) * 20000 = 10000
+        self.assertEqual(caramelera.calcular_precio(500), Decimal('10000.0'))
+        # 1000g → (1000/1000) * 20000 = 20000
+        self.assertEqual(caramelera.calcular_precio(1000), Decimal('20000.0'))
+
+    def test_calcular_precio_bajo_250_ignora_kilo(self):
+        """calcular_precio para < 250g siempre usa precio/100g, incluso con kilo oferta."""
+        caramelera = self._create_caramelera(precio_100g=Decimal('2500'),
+                                              precio_cuarto=Decimal('20000'))
+        # 100g → (100/100) * 2500 = 2500 (NO usa kilo)
+        self.assertEqual(caramelera.calcular_precio(100), Decimal('2500.0'))
+        # 200g → (200/100) * 2500 = 5000 (NO usa kilo)
+        self.assertEqual(caramelera.calcular_precio(200), Decimal('5000.0'))
 
 
 class FIFOBatchTest(GranelBaseTestCase):

@@ -86,11 +86,11 @@ class Caramelera(models.Model):
         validators=[MinValueValidator(Decimal('0.01'))]
     )
     precio_cuarto = models.DecimalField(
-        'Precio 1/4 kg - 250g ($)',
+        'Precio por Kilo Oferta ($)',
         max_digits=10,
         decimal_places=2,
         default=Decimal('0'),
-        help_text='Precio especial por exactamente 250g'
+        help_text='Precio por kilo. Se aplica desde 250g en adelante por regla de tres.'
     )
     stock_gramos_actual = models.DecimalField(
         'Stock Actual (g)',
@@ -136,13 +136,13 @@ class Caramelera(models.Model):
     def calcular_precio(self, gramos):
         """
         Calcula el precio de venta para una cantidad de gramos.
-        Múltiplos de 250g con precio_cuarto > 0 → cuartos × precio_cuarto.
-        Sino → proporcional: (gramos / 100) × precio_100g.
+        < 250g → proporcional: (gramos / 100) × precio_100g.
+        >= 250g con precio_cuarto (kilo oferta) > 0 → regla de tres: (gramos / 1000) × precio_cuarto.
+        >= 250g sin precio_cuarto → proporcional al precio/100g.
         """
         gramos = Decimal(str(gramos))
-        if self.precio_cuarto > 0 and gramos > 0 and gramos % Decimal('250') == 0:
-            cuartos = gramos / Decimal('250')
-            return cuartos * self.precio_cuarto
+        if self.precio_cuarto > 0 and gramos >= Decimal('250'):
+            return (gramos / Decimal('1000')) * self.precio_cuarto
         return (gramos / Decimal('100')) * self.precio_100g
 
     @property
@@ -236,6 +236,7 @@ class VentaGranel(models.Model):
     Permite calcular el margen real acumulado por caramelera.
     """
     TIPO_CHOICES = [
+        ('kilo', 'Precio por kilo'),
         ('cuarto', '1/4 kg (250g)'),
         ('libre', 'Gramos libres'),
     ]

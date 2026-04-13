@@ -468,7 +468,7 @@
         const isGranel = !!product.is_granel;
         // Los productos granel de caramelera siempre usan precio/100g como base
         const priceWeight = 100;
-        const price250 = isGranel ? (product.sale_price_250g || 0) : 0;
+        const pricePerKg = isGranel ? (product.sale_price_250g || 0) : 0;
         const unitLabel = isGranel ? 'gramos' : product.unit;
         const defaultVal = isGranel ? '100' : '0.500';
         const stepVal = isGranel ? '1' : '0.001';
@@ -477,8 +477,8 @@
         let priceLabel;
         if (isGranel) {
             priceLabel = `${formatCurrency(product.unit_price)}/100g`;
-            if (price250 > 0) {
-                priceLabel += ` · ${formatCurrency(price250)}/250g`;
+            if (pricePerKg > 0) {
+                priceLabel += ` · ${formatCurrency(pricePerKg)}/kg`;
             }
         } else {
             priceLabel = `${formatCurrency(product.unit_price)}/${product.unit}`;
@@ -486,19 +486,18 @@
 
         function calcTotal(grams) {
             if (!isGranel) return grams * product.unit_price;
-            // Múltiplos de 250g: usa precio cuarto si está configurado
-            if (price250 > 0 && grams > 0 && grams % 250 === 0) {
-                return (grams / 250) * price250;
+            // >= 250g con precio por kilo: regla de tres
+            if (pricePerKg > 0 && grams >= 250) {
+                return (grams / 1000) * pricePerKg;
             }
-            // Proporcional al precio/100g
+            // < 250g o sin precio kilo: proporcional al precio/100g
             return (grams / priceWeight) * product.unit_price;
         }
 
         function priceBreakdown(grams) {
             if (!isGranel || grams <= 0) return '';
-            if (price250 > 0 && grams % 250 === 0) {
-                const qtd = grams / 250;
-                return `<small class="text-warning">${qtd === 1 ? '1 cuarto' : qtd + ' cuartos'} × ${formatCurrency(price250)}</small>`;
+            if (pricePerKg > 0 && grams >= 250) {
+                return `<small class="text-warning">${grams}g × ${formatCurrency(pricePerKg)}/kg</small>`;
             }
             return `<small class="text-muted">${grams}g × ${formatCurrency(product.unit_price)}/100g</small>`;
         }
@@ -524,10 +523,10 @@
                                 <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">
                                     100g<br><small style="color:#aaa;">${formatCurrency(calcTotal(100))}</small>
                                 </button>
-                                <button type="button" class="btn btn-sm ${price250 > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="250" style="flex:1;">
+                                <button type="button" class="btn btn-sm ${pricePerKg > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="250" style="flex:1;">
                                     ¼ kg<br><small style="color:#aaa;">${formatCurrency(calcTotal(250))}</small>
                                 </button>
-                                <button type="button" class="btn btn-sm ${price250 > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="500" style="flex:1;">
+                                <button type="button" class="btn btn-sm ${pricePerKg > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="500" style="flex:1;">
                                     ½ kg<br><small style="color:#aaa;">${formatCurrency(calcTotal(500))}</small>
                                 </button>
                             </div>` : ''}
@@ -1015,19 +1014,42 @@
                 const hasPromo       = promoDiscount > 0 || !!item.promotion_name;
                 const groupName      = item.promotion_group_name || '';
 
-                // Línea extra con la promo aplicada (nombre + monto + grupo enlazado si aplica)
+                // Etiqueta descriptiva del tipo de promo
+                let promoLabel = 'Promo';
+                if (item.promotion_type === 'nxm') {
+                    promoLabel = `${item.promotion_qty_required}x${item.promotion_qty_charged}`;
+                } else if (item.promotion_type === 'nx_fixed_price') {
+                    promoLabel = `${item.promotion_qty_required}x${formatCurrency(item.promotion_final_price)}`;
+                } else if (item.promotion_type === 'quantity_discount') {
+                    promoLabel = `Dto. ${item.promotion_discount_percent}%`;
+                } else if (item.promotion_type === 'second_unit') {
+                    promoLabel = `2da un. ${item.promotion_second_unit_discount}% off`;
+                } else if (item.promotion_type === 'simple_discount') {
+                    promoLabel = `${item.promotion_discount_percent}% off`;
+                } else if (item.promotion_type === 'combo') {
+                    promoLabel = 'Combo';
+                }
+
+                // Detalle: cantidad x precio unitario efectivo
+                let promoDetail = '';
+                if (hasPromo && item.quantity > 0) {
+                    const effectiveUnitPrice = (item.subtotal) / item.quantity;
+                    promoDetail = `${parseFloat(item.quantity)} x ${formatCurrency(effectiveUnitPrice)}`;
+                }
+
+                // Línea extra con la promo aplicada
                 const promoRow = hasPromo ? `
                     <div class="cart-item-promo-row">
                         <span class="promo-tag">
-                            <i class="fas fa-tag"></i>${item.promotion_name || 'Promo'}
+                            <i class="fas fa-tag"></i>Promo ${promoLabel}
                         </span>
                         ${groupName ? `
                             <span class="promo-group" title="Esta promoción está enlazada con otras del mismo grupo">
                                 <i class="fas fa-link"></i>Enlazada: ${groupName}
                             </span>
                         ` : ''}
-                        ${promoDiscount > 0 ? `
-                            <span class="promo-amount">-${formatCurrency(promoDiscount)}</span>
+                        ${promoDetail ? `
+                            <span class="promo-amount">${promoDetail}</span>
                         ` : ''}
                     </div>
                 ` : '';

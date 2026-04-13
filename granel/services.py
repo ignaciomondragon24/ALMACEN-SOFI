@@ -170,8 +170,8 @@ class GranelService:
         """
         Calcula el precio de venta para una cantidad de gramos.
 
-        - Múltiplos de 250g con precio_cuarto > 0 → cuartos × precio_cuarto
-        - Sino → proporcional: (gramos / 100) × precio_100g
+        - < 250g → proporcional: (gramos / 100) × precio_100g
+        - >= 250g con precio kilo oferta > 0 → regla de tres: (gramos / 1000) × precio_kilo
 
         Returns: Decimal
         """
@@ -207,7 +207,7 @@ class GranelService:
         ganancia = (precio - costo_total).quantize(Decimal('0.01'))
 
         # Determinar tipo de venta
-        tipo = 'cuarto' if gramos == Decimal('250') and caramelera.precio_cuarto > 0 else 'libre'
+        tipo = 'kilo' if gramos >= Decimal('250') and caramelera.precio_cuarto > 0 else 'libre'
 
         venta = VentaGranel.objects.create(
             caramelera=caramelera,
