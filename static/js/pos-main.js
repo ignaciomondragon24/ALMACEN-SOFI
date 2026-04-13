@@ -1282,7 +1282,7 @@
                         is_granel: isGranel,
                         is_bulk: isBulk,
                         unit_price: parseFloat(this.dataset.unitPrice) || 0,
-                        sale_price_250g: parseFloat(this.dataset.salePrice250g) || 0,
+                        sale_price_250g: parseFloat(this.dataset.pricePerKg) || 0,
                         stock: parseFloat(this.dataset.stock) || 0,
                     };
                     showBulkQuantityModal(product);
@@ -1306,7 +1306,7 @@
                 data-is-granel="${b.is_granel || false}"
                 data-is-bulk="${b.is_bulk || false}"
                 data-unit-price="${b.price}"
-                data-sale-price-250g="${b.sale_price_250g || 0}"
+                data-price-per-kg="${b.sale_price_250g || 0}"
                 data-stock="${b.stock || 0}"
                 data-name="${b.name}"
                 style="background-color: ${b.color};">
