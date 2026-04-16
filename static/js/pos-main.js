@@ -2127,6 +2127,18 @@
                     confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>COBRAR';
                 }
             }
+            // Ajustar el input "Recibe" según el método:
+            // - Efectivo: vaciar para que el cajero escriba el billete recibido y vea el vuelto al instante
+            // - Otros (MP, tarjeta, etc.): pre-cargar con el total para poder confirmar con un solo Enter
+            if (selectedCard && amountInput) {
+                const code = selectedCard.dataset.methodCode;
+                if (code === 'cash') {
+                    amountInput.value = '';
+                } else if (code !== 'mixed') {
+                    amountInput.value = totalAmt.toFixed(2);
+                }
+                updateChange();
+            }
         }
 
         function updateChange() {
@@ -2589,18 +2601,9 @@
         // Click fuera del box → cerrar
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
 
-        // Inicializar estado
-        updateChange();
-        // Si viene por atajo de pago rápido con efectivo, limpiar el input para que ingrese cuánto recibe
-        if (preselectedMethodCode) {
-            const selectedMethod = methods[selIdx];
-            if (selectedMethod && selectedMethod.code === 'cash') {
-                // Efectivo: vaciar para que ingrese el monto que paga el cliente
-                amountInput.value = '';
-                updateChange();
-            }
-            // Otros métodos: dejar el total pre-cargado (no hay vuelto)
-        }
+        // Inicializar estado: setSelected ajusta el input según el método
+        // (vacío si efectivo → vuelto al escribir; total pre-cargado si MP/tarjeta → un Enter confirma)
+        setSelected(selIdx);
         setTimeout(() => { amountInput.focus(); amountInput.select(); }, 50);
     }
 

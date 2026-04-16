@@ -387,35 +387,73 @@ def shift_data_api(request, pk):
 def shift_report_pdf(request, pk):
     """Generate PDF report for a shift."""
     shift = get_object_or_404(CashShift, pk=pk)
-    
-    # For now, return a simple text response
-    # PDF generation will be implemented with reportlab
+
     from django.http import HttpResponse
-    
-    response = HttpResponse(content_type='text/plain')
-    response['Content-Disposition'] = f'attachment; filename="turno_{shift.pk}.txt"'
-    
+
+    response = HttpResponse(content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="cierre_z_turno_{shift.pk}.txt"'
+
+    def fmt_money(val):
+        try:
+            return f"${val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        except (TypeError, ValueError):
+            return f"${val}"
+
+    # Resumen por método de pago (desde summaries guardados o en tiempo real)
+    method_lines = []
+    if shift.status == 'closed' and shift.payment_summaries.exists():
+        for summary in shift.payment_summaries.all():
+            method_lines.append(
+                f"  {summary.payment_method.name:<20} {summary.transaction_count:>4} tx   {fmt_money(summary.total_amount):>14}"
+            )
+    else:
+        for pm in shift.get_totals_by_payment_method():
+            name = pm.get('payment_method__name') or 'Sin especificar'
+            total = pm.get('total') or Decimal('0.00')
+            count = pm.get('count') or 0
+            method_lines.append(f"  {name:<20} {count:>4} tx   {fmt_money(total):>14}")
+    method_block = '\n'.join(method_lines) if method_lines else '  (sin ventas registradas)'
+
+    cash_total = shift.get_cash_total()
+    non_cash_total = shift.get_non_cash_total()
+    cash_expense = shift.movements.filter(
+        movement_type='expense',
+        payment_method__is_cash=True
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    total_sales = cash_total + non_cash_total
+
     content = f"""
-REPORTE DE TURNO
-================
+CIERRE Z - REPORTE DE TURNO
+============================
 
-Caja: {shift.cash_register.code}
-Cajero: {shift.cashier.get_full_name()}
-Apertura: {shift.opened_at.strftime('%d/%m/%Y %H:%M')}
-Cierre: {shift.closed_at.strftime('%d/%m/%Y %H:%M') if shift.closed_at else 'Abierto'}
-Estado: {shift.get_status_display()}
+Caja:      {shift.cash_register.code}
+Cajero:    {shift.cashier.get_full_name() or shift.cashier.username}
+Apertura:  {shift.opened_at.strftime('%d/%m/%Y %H:%M')}
+Cierre:    {shift.closed_at.strftime('%d/%m/%Y %H:%M') if shift.closed_at else 'Abierto'}
+Estado:    {shift.get_status_display()}
 
-MONTOS
-------
-Monto Inicial: ${shift.initial_amount}
-Monto Esperado: ${shift.expected_amount}
-Monto Real: ${shift.actual_amount or 'N/A'}
-Diferencia: ${shift.difference}
+VENTAS POR MÉTODO DE PAGO
+-------------------------
+{method_block}
+
+  {'─' * 52}
+  {'TOTAL VENTAS':<20} {'':>7}   {fmt_money(total_sales):>14}
+
+ARQUEO DE EFECTIVO
+------------------
+Fondo Inicial:         {fmt_money(shift.initial_amount):>14}
++ Ventas Efectivo:     {fmt_money(cash_total):>14}
+- Egresos Efectivo:    {fmt_money(cash_expense):>14}
+= Efectivo Esperado:   {fmt_money(shift.expected_amount or Decimal('0.00')):>14}
+  Efectivo Contado:    {(fmt_money(shift.actual_amount) if shift.actual_amount is not None else 'N/A'):>14}
+  Diferencia:          {(fmt_money(shift.difference) if shift.difference is not None else 'N/A'):>14}
+
+Ventas Digitales:      {fmt_money(non_cash_total):>14}
 
 NOTAS
 -----
 {shift.notes or 'Sin notas'}
 """
-    
+
     response.write(content)
     return response

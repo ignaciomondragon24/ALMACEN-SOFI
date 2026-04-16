@@ -284,17 +284,34 @@
                     <h5 class="z-summary-title">
                         <i class="fas fa-receipt me-2"></i>Cierre Z
                     </h5>
-                    
+
+                    <!-- Desglose de ventas por método de pago -->
+                    <div class="mb-3 pb-3" style="border-bottom: 1px solid rgba(255,255,255,0.2);">
+                        <small class="d-block opacity-75 mb-2">Ventas por Método</small>
+                        {% for method in payment_methods %}
+                        <div class="d-flex justify-content-between align-items-center mb-1" style="font-size: 0.9rem;">
+                            <span><i class="{{ method.icon }} me-1"></i>{{ method.name }}</span>
+                            <strong>{{ method.total|currency_ar }}</strong>
+                        </div>
+                        {% empty %}
+                        <small class="opacity-75 fst-italic">Sin ventas registradas</small>
+                        {% endfor %}
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2" style="border-top: 1px solid rgba(255,255,255,0.15); font-size: 0.95rem;">
+                            <span class="fw-bold">Total Ventas</span>
+                            <strong>{{ total_sales|currency_ar }}</strong>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <small class="d-block opacity-75">Fondo Inicial</small>
                         <strong class="fs-5">{{ shift.initial_amount|currency_ar }}</strong>
                     </div>
-                    
+
                     <div class="mb-3">
                         <small class="d-block opacity-75">+ Ventas Efectivo</small>
                         <strong class="fs-5 text-success">{{ cash_total|currency_ar }}</strong>
                     </div>
-                    
+
                     <div class="mb-3">
                         <small class="d-block opacity-75">- Egresos Efectivo</small>
                         <strong class="fs-5 text-danger">{{ cash_expense|currency_ar }}</strong>
