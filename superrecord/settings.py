@@ -77,6 +77,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'accounts.middleware.AjaxLoginRedirectMiddleware',
+    'superrecord.middleware.NoCacheHTMLMiddleware',
 ]
 
 ROOT_URLCONF = 'superrecord.urls'
@@ -173,11 +174,15 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# WhiteNoise for static files
-# CompressedStaticFilesStorage comprime pero NO usa manifest (evita crashes)
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+# WhiteNoise for static files — usa hash en el nombre (pos-dark.a3f5b2.css)
+# para que cada deploy invalide automaticamente la cache del navegador sin
+# requerir Ctrl+Shift+R. manifest_strict=False evita crashes por referencias
+# a archivos inexistentes.
+STATICFILES_STORAGE = 'superrecord.storage.ForgivingManifestStaticFilesStorage'
 
-# WhiteNoise - servir archivos estáticos con headers de cache
+# Cache larga para estaticos: como tienen hash en el nombre, son inmutables.
+# Cuando el archivo cambia, cambia el hash, cambia la URL, y el navegador
+# fetchea la nueva version automaticamente.
 WHITENOISE_MAX_AGE = 31536000  # 1 año
 WHITENOISE_SKIP_COMPRESS_EXTENSIONS = []
 
