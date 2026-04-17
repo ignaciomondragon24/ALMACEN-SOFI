@@ -12,17 +12,29 @@ def health_check(request):
     from django.db import connection
     from django.contrib.staticfiles.storage import staticfiles_storage
     from django.conf import settings as dj_settings
+    import os
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
         storage_cls = f"{staticfiles_storage.__class__.__module__}.{staticfiles_storage.__class__.__name__}"
         test_url = staticfiles_storage.url('js/main.js')
+        hashed_files = getattr(staticfiles_storage, 'hashed_files', None)
+        manifest_path = os.path.join(dj_settings.STATIC_ROOT, 'staticfiles.json')
+        manifest_exists = os.path.exists(manifest_path)
+        mro = [c.__name__ for c in staticfiles_storage.__class__.__mro__]
+        hashed_keys = list(hashed_files.keys())[:3] if hashed_files else []
         return JsonResponse({
             'status': 'ok',
             'db': 'ok',
             'staticfiles_storage_setting': getattr(dj_settings, 'STATICFILES_STORAGE', None),
             'staticfiles_storage_class': storage_cls,
+            'storage_mro': mro,
             'main_js_url': test_url,
+            'hashed_files_count': len(hashed_files) if hashed_files is not None else None,
+            'hashed_sample_keys': hashed_keys,
+            'manifest_path': str(manifest_path),
+            'manifest_exists': manifest_exists,
+            'has_load_manifest': hasattr(staticfiles_storage, 'load_manifest'),
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'db': str(e)}, status=503)
