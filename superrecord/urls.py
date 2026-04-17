@@ -51,6 +51,8 @@ def health_check(request):
             'pos_dark_in_hashed': pos_dark_in_hashed,
             'manifest_js_main': manifest_js_main,
             'manifest_paths_count': len(manifest_raw.get('paths', {})) if manifest_raw else 0,
+            'DEBUG': dj_settings.DEBUG,
+            'DEBUG_env': os.getenv('DEBUG', '<unset>'),
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'db': str(e)}, status=503)
