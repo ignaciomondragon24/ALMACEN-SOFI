@@ -165,23 +165,19 @@ def _save_inline_packaging(request, product):
             )
         return barcode
 
-    # Get bulk purchase price to derive display/unit costs — solo si el usuario
-    # tildo el checkbox de bulto. Si no, ignorar cualquier valor residual del form
-    # para que no pise los precios manuales de display/unit.
-    if request.POST.get('has_bulk'):
-        b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
-    else:
-        b_purchase = Decimal('0')
-
     # Stock equivalente del producto base, repartido a cada nivel cuando se crea
     # el packaging por primera vez. Mantiene el invariante: todos los niveles
     # reflejan el mismo stock real expresado en su unidad.
     base_stock = Decimal(str(product.current_stock or 0))
 
+    # WYSIWYG: persistimos EXACTAMENTE los precios que el usuario vio en el form.
+    # El cascade (si aplica) corre en el frontend antes del submit; backend no recalcula.
+
     # Bulk packaging
     if request.POST.get('has_bulk'):
         b_barcode = _check_barcode(request.POST.get('bulk_barcode', '').strip(), 'bulk')
         b_name = request.POST.get('bulk_name', '').strip()
+        b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
         b_sale = Decimal(request.POST.get('bulk_sale_price', '0').strip() or '0')
 
         bulk_pkg, created = ProductPackaging.objects.update_or_create(
@@ -201,12 +197,11 @@ def _save_inline_packaging(request, product):
             bulk_pkg.current_stock = base_stock / Decimal(str(total_units))
             bulk_pkg.save(update_fields=['current_stock'])
 
-    # Display packaging — purchase price = bulk / displays_per_bulk (fallback al input manual)
+    # Display packaging
     if request.POST.get('has_display'):
         d_barcode = _check_barcode(request.POST.get('display_barcode', '').strip(), 'display')
         d_name = request.POST.get('display_name', '').strip()
-        d_form_purchase = Decimal(request.POST.get('display_purchase_price', '0').strip() or '0')
-        d_purchase = (b_purchase / displays_per_bulk) if b_purchase > 0 else d_form_purchase
+        d_purchase = Decimal(request.POST.get('display_purchase_price', '0').strip() or '0')
         d_sale = Decimal(request.POST.get('display_sale_price', '0').strip() or '0')
 
         display_pkg, created = ProductPackaging.objects.update_or_create(
@@ -226,12 +221,11 @@ def _save_inline_packaging(request, product):
             display_pkg.current_stock = base_stock / Decimal(str(units_per_display))
             display_pkg.save(update_fields=['current_stock'])
 
-    # Unit packaging — purchase price = bulk / total_units (fallback al input manual)
+    # Unit packaging
     if request.POST.get('has_unit'):
         u_barcode = _check_barcode(request.POST.get('unit_barcode', '').strip(), 'unit')
         u_name = request.POST.get('unit_name', '').strip()
-        u_form_purchase = Decimal(request.POST.get('unit_purchase_price', '0').strip() or '0')
-        u_purchase = (b_purchase / total_units) if b_purchase > 0 else u_form_purchase
+        u_purchase = Decimal(request.POST.get('unit_purchase_price', '0').strip() or '0')
         u_sale = Decimal(request.POST.get('unit_sale_price', '0').strip() or '0')
 
         unit_pkg, created = ProductPackaging.objects.update_or_create(
