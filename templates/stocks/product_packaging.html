@@ -480,31 +480,30 @@
         }
     });
 
-    // Packaging toggle (show/hide cards). Al tildar un nivel nuevo, sincronizar
-    // los precios desde los otros niveles ya cargados (cascada bidireccional).
+    // Packaging toggle (show/hide cards). Cada nivel es independiente —
+    // el user ingresa los precios que quiere y se guardan tal cual.
+    // Sin cascades entre niveles: evita sorpresas y desconfianza.
     document.getElementById('id_has_unit').addEventListener('change', function() {
         document.getElementById('unit_fields').style.display = this.checked ? '' : 'none';
-        if (this.checked) cascadeFromQuantities();
     });
     document.getElementById('id_has_display').addEventListener('change', function() {
         document.getElementById('display_fields').style.display = this.checked ? '' : 'none';
-        if (this.checked) cascadeFromQuantities();
     });
     document.getElementById('id_has_bulk').addEventListener('change', function() {
         document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
-        if (this.checked) cascadeFromQuantities();
     });
 
-    // Bidirectional margin <-> sale price calculation
-    // - Edit purchase or sale → recalc margin
-    // - Edit margin → recalc sale price
+    // Dentro de un mismo nivel:
+    //  - editar compra o venta → recalcular margen
+    //  - editar margen → recalcular venta desde compra
+    // Ningun nivel interfiere con los otros.
     function calcMarginFromPrices(prefix) {
-        const purchaseEl = document.getElementById('id_' + prefix + '_purchase');
-        const saleEl = document.getElementById('id_' + prefix + '_sale');
-        const marginEl = document.getElementById('id_' + prefix + '_margin');
+        var purchaseEl = document.getElementById('id_' + prefix + '_purchase');
+        var saleEl = document.getElementById('id_' + prefix + '_sale');
+        var marginEl = document.getElementById('id_' + prefix + '_margin');
         if (!purchaseEl || !saleEl || !marginEl) return;
-        const purchase = parseFloat(purchaseEl.value) || 0;
-        const sale = parseFloat(saleEl.value) || 0;
+        var purchase = parseFloat(purchaseEl.value) || 0;
+        var sale = parseFloat(saleEl.value) || 0;
         if (purchase > 0 && sale > 0) {
             marginEl.value = (((sale - purchase) / purchase) * 100).toFixed(2);
         } else {
@@ -513,123 +512,25 @@
     }
 
     function calcSaleFromMargin(prefix) {
-        const purchaseEl = document.getElementById('id_' + prefix + '_purchase');
-        const marginEl = document.getElementById('id_' + prefix + '_margin');
-        const saleEl = document.getElementById('id_' + prefix + '_sale');
+        var purchaseEl = document.getElementById('id_' + prefix + '_purchase');
+        var marginEl = document.getElementById('id_' + prefix + '_margin');
+        var saleEl = document.getElementById('id_' + prefix + '_sale');
         if (!purchaseEl || !saleEl || !marginEl) return;
-        const purchase = parseFloat(purchaseEl.value) || 0;
-        const margin = parseFloat(marginEl.value) || 0;
+        var purchase = parseFloat(purchaseEl.value) || 0;
+        var margin = parseFloat(marginEl.value) || 0;
         if (purchase > 0) {
             saleEl.value = (purchase * (1 + margin / 100)).toFixed(2);
         }
-    }
-
-    // Flag para evitar loops cuando un cascade dispara 'input' en los destinos.
-    var _cascading = false;
-
-    function getQtys() {
-        return {
-            unitsPerDisplay: parseInt(document.getElementById('id_pkg_units_per_display').value) || 1,
-            displaysPerBulk: parseInt(document.getElementById('id_pkg_displays_per_bulk').value) || 1,
-        };
-    }
-
-    function isChecked(id) {
-        var el = document.getElementById(id);
-        return el && el.checked;
-    }
-
-    function setVal(id, value) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.value = (value || 0).toFixed(2);
-    }
-
-    // Cascade interactivo: cuando el user edita un precio en un nivel, derivamos
-    // los otros dos niveles y actualizamos el margen. Sobreescribe siempre, porque
-    // es una declaracion explicita del usuario sobre el precio. El flag _cascading
-    // evita loops (los eventos 'input' que disparamos al setear los destinos no
-    // vuelven a cascadear).
-    function cascadePurchaseFrom(origin) {
-        if (_cascading) return;
-        var originEl = document.getElementById('id_' + origin + '_purchase');
-        var val = parseFloat(originEl.value);
-        if (!(val > 0)) return;
-        var q = getQtys();
-        _cascading = true;
-        if (origin === 'unit') {
-            if (isChecked('id_has_display')) setVal('id_display_purchase', val * q.unitsPerDisplay);
-            if (isChecked('id_has_bulk')) setVal('id_bulk_purchase', val * q.unitsPerDisplay * q.displaysPerBulk);
-        } else if (origin === 'display') {
-            if (isChecked('id_has_unit') && q.unitsPerDisplay > 0) setVal('id_unit_purchase', val / q.unitsPerDisplay);
-            if (isChecked('id_has_bulk')) setVal('id_bulk_purchase', val * q.displaysPerBulk);
-        } else if (origin === 'bulk') {
-            var total = q.unitsPerDisplay * q.displaysPerBulk;
-            if (isChecked('id_has_display') && q.displaysPerBulk > 0) setVal('id_display_purchase', val / q.displaysPerBulk);
-            if (isChecked('id_has_unit') && total > 0) setVal('id_unit_purchase', val / total);
-        }
-        ['unit', 'display', 'bulk'].forEach(calcMarginFromPrices);
-        _cascading = false;
-    }
-
-    function cascadeSaleFrom(origin) {
-        if (_cascading) return;
-        var originEl = document.getElementById('id_' + origin + '_sale');
-        var val = parseFloat(originEl.value);
-        if (!(val > 0)) return;
-        var q = getQtys();
-        _cascading = true;
-        if (origin === 'unit') {
-            if (isChecked('id_has_display')) setVal('id_display_sale', val * q.unitsPerDisplay);
-            if (isChecked('id_has_bulk')) setVal('id_bulk_sale', val * q.unitsPerDisplay * q.displaysPerBulk);
-        } else if (origin === 'display') {
-            if (isChecked('id_has_unit') && q.unitsPerDisplay > 0) setVal('id_unit_sale', val / q.unitsPerDisplay);
-            if (isChecked('id_has_bulk')) setVal('id_bulk_sale', val * q.displaysPerBulk);
-        } else if (origin === 'bulk') {
-            var total = q.unitsPerDisplay * q.displaysPerBulk;
-            if (isChecked('id_has_display') && q.displaysPerBulk > 0) setVal('id_display_sale', val / q.displaysPerBulk);
-            if (isChecked('id_has_unit') && total > 0) setVal('id_unit_sale', val / total);
-        }
-        ['unit', 'display', 'bulk'].forEach(calcMarginFromPrices);
-        _cascading = false;
-    }
-
-    // Cuando cambian cantidades, recascadar desde el primer nivel con valor.
-    // Prioridad: unit > display > bulk (natural en un minimarket — el user suele
-    // pensar en el precio unitario primero, y usa display/bulto como derivados).
-    function cascadeFromQuantities() {
-        var unit = parseFloat(document.getElementById('id_unit_purchase').value) || 0;
-        var display = parseFloat(document.getElementById('id_display_purchase').value) || 0;
-        var bulk = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
-        if (unit > 0) cascadePurchaseFrom('unit');
-        else if (display > 0) cascadePurchaseFrom('display');
-        else if (bulk > 0) cascadePurchaseFrom('bulk');
-
-        var unitS = parseFloat(document.getElementById('id_unit_sale').value) || 0;
-        var displayS = parseFloat(document.getElementById('id_display_sale').value) || 0;
-        var bulkS = parseFloat(document.getElementById('id_bulk_sale').value) || 0;
-        if (unitS > 0) cascadeSaleFrom('unit');
-        else if (displayS > 0) cascadeSaleFrom('display');
-        else if (bulkS > 0) cascadeSaleFrom('bulk');
     }
 
     ['unit', 'display', 'bulk'].forEach(function(prefix) {
         var purchaseEl = document.getElementById('id_' + prefix + '_purchase');
         var saleEl = document.getElementById('id_' + prefix + '_sale');
         var marginEl = document.getElementById('id_' + prefix + '_margin');
-        if (purchaseEl) purchaseEl.addEventListener('input', function() {
-            calcMarginFromPrices(prefix);
-            cascadePurchaseFrom(prefix);
-        });
-        if (saleEl) saleEl.addEventListener('input', function() {
-            calcMarginFromPrices(prefix);
-            cascadeSaleFrom(prefix);
-        });
+        if (purchaseEl) purchaseEl.addEventListener('input', function() { calcMarginFromPrices(prefix); });
+        if (saleEl) saleEl.addEventListener('input', function() { calcMarginFromPrices(prefix); });
         if (marginEl) marginEl.addEventListener('input', function() { calcSaleFromMargin(prefix); });
         calcMarginFromPrices(prefix);
     });
-
-    document.getElementById('id_pkg_displays_per_bulk').addEventListener('input', cascadeFromQuantities);
-    document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadeFromQuantities);
 </script>
 {% endblock %}
