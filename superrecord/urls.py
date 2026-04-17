@@ -10,10 +10,20 @@ from django.http import JsonResponse
 
 def health_check(request):
     from django.db import connection
+    from django.contrib.staticfiles.storage import staticfiles_storage
+    from django.conf import settings as dj_settings
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
-        return JsonResponse({'status': 'ok', 'db': 'ok'})
+        storage_cls = f"{staticfiles_storage.__class__.__module__}.{staticfiles_storage.__class__.__name__}"
+        test_url = staticfiles_storage.url('js/main.js')
+        return JsonResponse({
+            'status': 'ok',
+            'db': 'ok',
+            'staticfiles_storage_setting': getattr(dj_settings, 'STATICFILES_STORAGE', None),
+            'staticfiles_storage_class': storage_cls,
+            'main_js_url': test_url,
+        })
     except Exception as e:
         return JsonResponse({'status': 'error', 'db': str(e)}, status=503)
 
