@@ -340,6 +340,56 @@ with connection.cursor() as c:
         print('  Marked pos.0009 as applied')
 " 2>&1 || echo "WARNING: pos promo fields repair skipped"
 
+# Defensive: ensure purchase_purchaseitem.packaging_id exists (migration 0005).
+# Sin esto, crear una OC con empaque explota con:
+#   column "packaging_id" of relation "purchase_purchaseitem" does not exist
+echo "Verifying purchase_purchaseitem.packaging_id..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    print('  SQLite: skip')
+    sys.exit(0)
+with connection.cursor() as c:
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='purchase_purchaseitem')\")
+    if not c.fetchone()[0]:
+        print('  purchase_purchaseitem no existe aun, skip')
+        sys.exit(0)
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='stocks_productpackaging')\")
+    if not c.fetchone()[0]:
+        print('  stocks_productpackaging no existe aun, skip')
+        sys.exit(0)
+
+    # 1) Agregar columna packaging_id si falta
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='purchase_purchaseitem' AND column_name='packaging_id'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding purchase_purchaseitem.packaging_id ...')
+        c.execute(\"\"\"
+            ALTER TABLE purchase_purchaseitem
+            ADD COLUMN packaging_id bigint NULL
+                REFERENCES stocks_productpackaging(id)
+                DEFERRABLE INITIALLY DEFERRED
+        \"\"\")
+        c.execute('CREATE INDEX purchase_purchaseitem_packaging_id_idx ON purchase_purchaseitem(packaging_id)')
+        print('  packaging_id column added OK')
+    else:
+        print('  purchase_purchaseitem.packaging_id OK')
+
+    # 2) Marcar migración 0005 como aplicada para que Django no la reintente
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='purchase' AND name='0005_purchaseitem_packaging_alter_purchaseitem_quantity_and_more'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('purchase', '0005_purchaseitem_packaging_alter_purchaseitem_quantity_and_more', NOW())
+        \"\"\")
+        print('  Marked purchase.0005 as applied')
+" 2>&1 || echo "WARNING: purchase packaging field repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."
