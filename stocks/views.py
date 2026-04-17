@@ -16,71 +16,6 @@ from .services import StockManagementService, BarcodeService
 from decorators.decorators import group_required
 
 
-def _sync_packaging_prices(product, saved_packaging):
-    """
-    When a packaging is saved, sync related packaging prices and the product's base prices.
-    - If bulk saved: derive display and unit prices, update product.sale_price/purchase_price
-    - If display saved: update unit prices and product
-    - If unit saved: update product
-    """
-    unit_pkg = ProductPackaging.objects.filter(product=product, packaging_type='unit', is_active=True).first()
-    display_pkg = ProductPackaging.objects.filter(product=product, packaging_type='display', is_active=True).first()
-    bulk_pkg = ProductPackaging.objects.filter(product=product, packaging_type='bulk', is_active=True).first()
-    
-    # Derive unit prices from the highest-level packaging available
-    if bulk_pkg:
-        total_units = bulk_pkg.units_quantity or 1
-        unit_purchase = bulk_pkg.purchase_price / total_units if total_units > 0 else Decimal('0')
-        unit_sale = bulk_pkg.sale_price / total_units if total_units > 0 else Decimal('0')
-        
-        # Update display packaging derived prices if it doesn't have its own sale price
-        if display_pkg and saved_packaging.packaging_type == 'bulk':
-            displays_per_bulk = bulk_pkg.displays_per_bulk or 1
-            if display_pkg.purchase_price == Decimal('0'):
-                display_pkg.purchase_price = bulk_pkg.purchase_price / displays_per_bulk
-            if display_pkg.sale_price == Decimal('0'):
-                display_pkg.sale_price = bulk_pkg.sale_price / displays_per_bulk
-                if display_pkg.purchase_price > 0:
-                    display_pkg.margin_percent = ((display_pkg.sale_price - display_pkg.purchase_price) / display_pkg.purchase_price) * 100
-                display_pkg.save()
-        
-        # Update unit packaging derived prices if it doesn't have its own sale price
-        if unit_pkg and saved_packaging.packaging_type in ('bulk', 'display'):
-            if unit_pkg.purchase_price == Decimal('0'):
-                unit_pkg.purchase_price = unit_purchase
-            if unit_pkg.sale_price == Decimal('0'):
-                unit_pkg.sale_price = unit_sale
-                if unit_pkg.purchase_price > 0:
-                    unit_pkg.margin_percent = ((unit_pkg.sale_price - unit_pkg.purchase_price) / unit_pkg.purchase_price) * 100
-                unit_pkg.save()
-        
-        # Always update the Product's base prices from unit-level
-        product.purchase_price = unit_purchase
-        product.sale_price = unit_sale
-        product.save(update_fields=['purchase_price', 'sale_price'])
-    
-    elif display_pkg:
-        units_per_display = display_pkg.units_per_display or 1
-        unit_purchase = display_pkg.purchase_price / units_per_display
-        unit_sale = display_pkg.sale_price / units_per_display
-        
-        if unit_pkg and saved_packaging.packaging_type == 'display':
-            if unit_pkg.purchase_price == Decimal('0'):
-                unit_pkg.purchase_price = unit_purchase
-            if unit_pkg.sale_price == Decimal('0'):
-                unit_pkg.sale_price = unit_sale
-                if unit_pkg.purchase_price > 0:
-                    unit_pkg.margin_percent = ((unit_pkg.sale_price - unit_pkg.purchase_price) / unit_pkg.purchase_price) * 100
-                unit_pkg.save()
-        
-        product.purchase_price = unit_purchase
-        product.sale_price = unit_sale
-        product.save(update_fields=['purchase_price', 'sale_price'])
-    
-    elif unit_pkg:
-        product.purchase_price = unit_pkg.purchase_price
-        product.sale_price = unit_pkg.sale_price
-        product.save(update_fields=['purchase_price', 'sale_price'])
 
 
 @login_required
@@ -1607,10 +1542,6 @@ def product_packaging_view(request, pk):
         elif action == 'save_pkg':
             try:
                 _save_inline_packaging(request, product)
-                # Sync prices with the product base
-                bulk_pkg_saved = product.packagings.filter(packaging_type='bulk', is_active=True).first()
-                if bulk_pkg_saved:
-                    _sync_packaging_prices(product, bulk_pkg_saved)
                 messages.success(request, 'Empaques actualizados correctamente.')
             except Exception as e:
                 messages.error(request, f'Error al guardar empaques: {e}')
