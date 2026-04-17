@@ -165,8 +165,13 @@ def _save_inline_packaging(request, product):
             )
         return barcode
 
-    # Get bulk purchase price to derive display/unit costs
-    b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
+    # Get bulk purchase price to derive display/unit costs — solo si el usuario
+    # tildo el checkbox de bulto. Si no, ignorar cualquier valor residual del form
+    # para que no pise los precios manuales de display/unit.
+    if request.POST.get('has_bulk'):
+        b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
+    else:
+        b_purchase = Decimal('0')
 
     # Stock equivalente del producto base, repartido a cada nivel cuando se crea
     # el packaging por primera vez. Mantiene el invariante: todos los niveles

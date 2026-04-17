@@ -290,11 +290,11 @@
                                            placeholder="Ej: Unidad" value="{% if unit_pkg %}{{ unit_pkg.name }}{% else %}{{ product.name }}{% endif %}">
                                 </div>
                                 <div class="col-md-4 mb-2">
-                                    <label class="form-label small">Precio Compra <small class="text-muted">(auto)</small></label>
+                                    <label class="form-label small">Precio Compra</label>
                                     <div class="input-group input-group-sm">
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="unit_purchase_price" id="id_unit_purchase"
-                                               class="form-control text-end bg-light" step="0.01" min="0" readonly
+                                               class="form-control text-end" step="0.01" min="0"
                                                value="{% if unit_pkg %}{{ unit_pkg.purchase_price|unlocalize }}{% else %}{{ product.cost_price|unlocalize|default:'0' }}{% endif %}">
                                     </div>
                                 </div>
@@ -345,11 +345,11 @@
                                            placeholder="Ej: Display x 12" value="{{ display_pkg.name|default:'' }}">
                                 </div>
                                 <div class="col-md-4 mb-2">
-                                    <label class="form-label small">Precio Compra <small class="text-muted">(auto)</small></label>
+                                    <label class="form-label small">Precio Compra</label>
                                     <div class="input-group input-group-sm">
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="display_purchase_price" id="id_display_purchase"
-                                               class="form-control text-end bg-light" step="0.01" min="0" readonly
+                                               class="form-control text-end" step="0.01" min="0"
                                                value="{{ display_pkg.purchase_price|unlocalize|default:'0' }}">
                                     </div>
                                 </div>
@@ -472,15 +472,27 @@
         el.textContent = qty + ' empaque(s) → ' + total + ' ' + _openUnit;
     }
 
-    // Packaging toggle (show/hide cards)
+    // Prevenir submit del form cuando el scanner/usuario presiona Enter
+    // dentro de un input (los lectores de codigo emiten Enter al final).
+    document.getElementById('formEditPkg').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'submit') {
+            e.preventDefault();
+        }
+    });
+
+    // Packaging toggle (show/hide cards). Al tildar un nivel nuevo, sincronizar
+    // los precios desde los otros niveles ya cargados (cascada bidireccional).
     document.getElementById('id_has_unit').addEventListener('change', function() {
         document.getElementById('unit_fields').style.display = this.checked ? '' : 'none';
+        if (this.checked) cascadeFromQuantities();
     });
     document.getElementById('id_has_display').addEventListener('change', function() {
         document.getElementById('display_fields').style.display = this.checked ? '' : 'none';
+        if (this.checked) cascadeFromQuantities();
     });
     document.getElementById('id_has_bulk').addEventListener('change', function() {
         document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
+        if (this.checked) cascadeFromQuantities();
     });
 
     // Bidirectional margin <-> sale price calculation
@@ -506,6 +518,88 @@
         }
     }
 
+    // Flag para evitar loops entre las cascadas (unit↔display↔bulk).
+    var _cascading = false;
+
+    function getQtys() {
+        return {
+            unitsPerDisplay: parseInt(document.getElementById('id_pkg_units_per_display').value) || 1,
+            displaysPerBulk: parseInt(document.getElementById('id_pkg_displays_per_bulk').value) || 1,
+        };
+    }
+
+    function isChecked(id) {
+        var el = document.getElementById(id);
+        return el && el.checked;
+    }
+
+    // Bulk → display, unit (hacia abajo). Solo si el origen es > 0 y el destino esta activo.
+    function cascadeFromBulk() {
+        if (_cascading) return;
+        var bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
+        if (bulkPurchase <= 0) return;
+        var q = getQtys();
+        var totalUnits = q.displaysPerBulk * q.unitsPerDisplay;
+        _cascading = true;
+        if (isChecked('id_has_display')) {
+            document.getElementById('id_display_purchase').value = (bulkPurchase / q.displaysPerBulk).toFixed(2);
+            calcMarginFromPrices('display');
+        }
+        if (isChecked('id_has_unit')) {
+            document.getElementById('id_unit_purchase').value = (bulkPurchase / totalUnits).toFixed(2);
+            calcMarginFromPrices('unit');
+        }
+        _cascading = false;
+    }
+
+    // Unit → display, bulk (hacia arriba). Solo si el origen es > 0 y el destino esta activo.
+    function cascadeFromUnit() {
+        if (_cascading) return;
+        var unitPurchase = parseFloat(document.getElementById('id_unit_purchase').value) || 0;
+        if (unitPurchase <= 0) return;
+        var q = getQtys();
+        _cascading = true;
+        if (isChecked('id_has_display')) {
+            document.getElementById('id_display_purchase').value = (unitPurchase * q.unitsPerDisplay).toFixed(2);
+            calcMarginFromPrices('display');
+        }
+        if (isChecked('id_has_bulk')) {
+            document.getElementById('id_bulk_purchase').value = (unitPurchase * q.unitsPerDisplay * q.displaysPerBulk).toFixed(2);
+            calcMarginFromPrices('bulk');
+        }
+        _cascading = false;
+    }
+
+    // Display → unit (hacia abajo) y bulk (hacia arriba). Solo si display > 0.
+    function cascadeFromDisplay() {
+        if (_cascading) return;
+        var displayPurchase = parseFloat(document.getElementById('id_display_purchase').value) || 0;
+        if (displayPurchase <= 0) return;
+        var q = getQtys();
+        _cascading = true;
+        if (isChecked('id_has_unit')) {
+            document.getElementById('id_unit_purchase').value = (displayPurchase / q.unitsPerDisplay).toFixed(2);
+            calcMarginFromPrices('unit');
+        }
+        if (isChecked('id_has_bulk')) {
+            document.getElementById('id_bulk_purchase').value = (displayPurchase * q.displaysPerBulk).toFixed(2);
+            calcMarginFromPrices('bulk');
+        }
+        _cascading = false;
+    }
+
+    // Cuando cambian las cantidades (uds/display o displays/bulto), recalcular
+    // desde el primer origen disponible, priorizando unit (mas natural) > display > bulk.
+    // Solo si ese origen tiene valor > 0, asi no pisa con 0.
+    function cascadeFromQuantities() {
+        var unit = parseFloat(document.getElementById('id_unit_purchase').value) || 0;
+        var display = parseFloat(document.getElementById('id_display_purchase').value) || 0;
+        var bulk = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
+        if (unit > 0) { cascadeFromUnit(); }
+        else if (display > 0) { cascadeFromDisplay(); }
+        else if (bulk > 0) { cascadeFromBulk(); }
+    }
+
     ['unit', 'display', 'bulk'].forEach(function(prefix) {
         var purchaseEl = document.getElementById('id_' + prefix + '_purchase');
         var saleEl = document.getElementById('id_' + prefix + '_sale');
@@ -516,26 +610,10 @@
         calcMarginFromPrices(prefix);
     });
 
-    // Auto-calculate display & unit purchase prices from bulk
-    function cascadePurchasePrices() {
-        var bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
-        var displaysPerBulk = parseInt(document.getElementById('id_pkg_displays_per_bulk').value) || 1;
-        var unitsPerDisplay = parseInt(document.getElementById('id_pkg_units_per_display').value) || 1;
-        var totalUnits = displaysPerBulk * unitsPerDisplay;
-
-        if (bulkPurchase > 0) {
-            document.getElementById('id_display_purchase').value = (bulkPurchase / displaysPerBulk).toFixed(2);
-            document.getElementById('id_unit_purchase').value = (bulkPurchase / totalUnits).toFixed(2);
-        } else {
-            document.getElementById('id_display_purchase').value = '0';
-            document.getElementById('id_unit_purchase').value = '0';
-        }
-        calcMarginFromPrices('display');
-        calcMarginFromPrices('unit');
-    }
-
-    document.getElementById('id_bulk_purchase').addEventListener('input', cascadePurchasePrices);
-    document.getElementById('id_pkg_displays_per_bulk').addEventListener('input', cascadePurchasePrices);
-    document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadePurchasePrices);
+    document.getElementById('id_bulk_purchase').addEventListener('input', cascadeFromBulk);
+    document.getElementById('id_unit_purchase').addEventListener('input', cascadeFromUnit);
+    document.getElementById('id_display_purchase').addEventListener('input', cascadeFromDisplay);
+    document.getElementById('id_pkg_displays_per_bulk').addEventListener('input', cascadeFromQuantities);
+    document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadeFromQuantities);
 </script>
 {% endblock %}
