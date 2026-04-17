@@ -249,10 +249,10 @@
                                       class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
                         </div>
 
-                        <!-- Packaging: inline for create, link for edit -->
+                        <!-- Packaging: solo desde edit del producto (Gestor de Empaques).
+                             En create mode ni se muestra — user termina y despues configura. -->
                         <hr class="my-4">
                         {% if product %}
-                        <!-- Edit mode: link to packaging manager -->
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6 class="text-muted mb-0"><i class="fas fa-boxes-stacked me-2"></i>Empaques</h6>
                             <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn btn-sm" style="background:#E91E8C;color:#fff;">
@@ -261,12 +261,12 @@
                         </div>
                         <p class="text-muted small">Para configurar empaques (unidad, display, bulto), usa el Gestor de Empaques dedicado.</p>
                         {% else %}
-                        <!-- Create mode: inline packaging -->
-                        <h6 class="text-muted mb-3" data-bs-toggle="collapse" data-bs-target="#packagingSection"
-                            style="cursor:pointer;">
-                            <i class="fas fa-boxes-stacked me-2"></i>Empaques (opcional)
-                            <i class="fas fa-chevron-down ms-2 small"></i>
-                        </h6>
+                        <div class="alert alert-info small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Al guardar, se crea la <b>unidad</b> del producto. Luego configurá display y bulto desde <b>Gestionar Empaques</b> en la edicion.
+                        </div>
+                        {% comment %}legacy inline packaging section — retenida en comment para referencia historica{% endcomment %}
+                        {% if False %}
                         <div class="collapse" id="packagingSection">
                             <div class="row mb-3">
                                 <div class="col-md-6">
@@ -440,10 +440,11 @@
                                 </div>
                             </div>
                         </div>
-                        {% endif %}
-                        
+                        {% endif %}{# cierra {% if False %} legacy packaging section #}
+                        {% endif %}{# cierra {% if product %} #}
+
                         <hr class="my-4">
-                        
+
                         <div class="d-flex gap-2">
                             <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left me-1"></i>Cancelar
@@ -561,6 +562,15 @@
             return el && el.checked;
         }
 
+        // Cascada: solo escribe al destino si esta vacio (== 0). Unit es fuente de verdad.
+        function setIfEmpty(id, value) {
+            var el = document.getElementById(id);
+            var current = parseFloat(el.value) || 0;
+            if (current > 0) return false;
+            el.value = value.toFixed(2);
+            return true;
+        }
+
         function cascadeFromBulk() {
             if (_cascading) return;
             var bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
@@ -568,12 +578,10 @@
             var q = getQtys();
             var totalUnits = q.displaysPerBulk * q.unitsPerDisplay;
             _cascading = true;
-            if (isChecked('id_has_display')) {
-                document.getElementById('id_display_purchase').value = (bulkPurchase / q.displaysPerBulk).toFixed(2);
+            if (isChecked('id_has_display') && setIfEmpty('id_display_purchase', bulkPurchase / q.displaysPerBulk)) {
                 calcMarginFromPrices('display');
             }
-            if (isChecked('id_has_unit')) {
-                document.getElementById('id_unit_purchase').value = (bulkPurchase / totalUnits).toFixed(2);
+            if (isChecked('id_has_unit') && setIfEmpty('id_unit_purchase', bulkPurchase / totalUnits)) {
                 calcMarginFromPrices('unit');
             }
             _cascading = false;
@@ -585,12 +593,10 @@
             if (unitPurchase <= 0) return;
             var q = getQtys();
             _cascading = true;
-            if (isChecked('id_has_display')) {
-                document.getElementById('id_display_purchase').value = (unitPurchase * q.unitsPerDisplay).toFixed(2);
+            if (isChecked('id_has_display') && setIfEmpty('id_display_purchase', unitPurchase * q.unitsPerDisplay)) {
                 calcMarginFromPrices('display');
             }
-            if (isChecked('id_has_bulk')) {
-                document.getElementById('id_bulk_purchase').value = (unitPurchase * q.unitsPerDisplay * q.displaysPerBulk).toFixed(2);
+            if (isChecked('id_has_bulk') && setIfEmpty('id_bulk_purchase', unitPurchase * q.unitsPerDisplay * q.displaysPerBulk)) {
                 calcMarginFromPrices('bulk');
             }
             _cascading = false;
@@ -602,12 +608,10 @@
             if (displayPurchase <= 0) return;
             var q = getQtys();
             _cascading = true;
-            if (isChecked('id_has_unit')) {
-                document.getElementById('id_unit_purchase').value = (displayPurchase / q.unitsPerDisplay).toFixed(2);
+            if (isChecked('id_has_unit') && setIfEmpty('id_unit_purchase', displayPurchase / q.unitsPerDisplay)) {
                 calcMarginFromPrices('unit');
             }
-            if (isChecked('id_has_bulk')) {
-                document.getElementById('id_bulk_purchase').value = (displayPurchase * q.displaysPerBulk).toFixed(2);
+            if (isChecked('id_has_bulk') && setIfEmpty('id_bulk_purchase', displayPurchase * q.displaysPerBulk)) {
                 calcMarginFromPrices('bulk');
             }
             _cascading = false;

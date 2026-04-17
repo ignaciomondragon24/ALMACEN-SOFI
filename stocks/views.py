@@ -251,19 +251,56 @@ def _save_inline_packaging(request, product):
             unit_pkg.current_stock = base_stock
             unit_pkg.save(update_fields=['current_stock'])
 
+    # Al destildar un nivel, desactivar (is_active=False) el packaging existente.
+    # Esto evita "empaques fantasma" con precio 0 que quedaban si el user destildaba
+    # y volvia a guardar — bug real reportado con un "Bulto x 144" en araniitas.
+    # No hard-delete: preserva historial de movimientos y ventas previas.
+    for pkg_type, flag in [('unit', 'has_unit'), ('display', 'has_display'), ('bulk', 'has_bulk')]:
+        if not request.POST.get(flag):
+            ProductPackaging.objects.filter(
+                product=product, packaging_type=pkg_type, is_active=True
+            ).update(is_active=False)
+
 
 @login_required
 @group_required(['Admin', 'Cajero Manager'])
 def product_create(request):
-    """Create new product."""
+    """Create new product.
+
+    Flujo: al guardar un producto nuevo, se crea automaticamente su packaging
+    nivel `unit` con los precios del producto base (cost_price/sale_price) y se
+    redirige al Gestor de Empaques para que el usuario pueda agregar display/bulto
+    si los necesita. Asi nunca se crean empaques "fantasma" por error (has_bulk
+    tildado sin querer) y la unidad siempre arranca con el precio correcto.
+    """
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
             product = form.save()
-            # Process inline packaging if provided
-            _save_inline_packaging(request, product)
-            messages.success(request, f'Producto "{product.name}" creado correctamente.')
-            return redirect('stocks:product_list')
+            # Crear automaticamente el packaging unit con los precios del producto base.
+            unit_purchase = product.cost_price or product.purchase_price or Decimal('0')
+            unit_sale = product.sale_price or Decimal('0')
+            margin = Decimal('0')
+            if unit_purchase > 0 and unit_sale > 0:
+                margin = ((unit_sale - unit_purchase) / unit_purchase) * 100
+            ProductPackaging.objects.create(
+                product=product,
+                packaging_type='unit',
+                name=product.name,
+                barcode=product.barcode or None,
+                units_per_display=1,
+                displays_per_bulk=1,
+                purchase_price=unit_purchase,
+                sale_price=unit_sale,
+                margin_percent=margin,
+                current_stock=Decimal(str(product.current_stock or 0)),
+                is_active=True,
+            )
+            messages.success(
+                request,
+                f'Producto "{product.name}" creado. Configurá display y bulto si los necesitás.'
+            )
+            return redirect('stocks:product_packaging', pk=product.pk)
     else:
         form = ProductForm()
     

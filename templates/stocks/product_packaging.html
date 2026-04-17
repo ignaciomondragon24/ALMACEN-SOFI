@@ -533,7 +533,19 @@
         return el && el.checked;
     }
 
-    // Bulk → display, unit (hacia abajo). Solo si el origen es > 0 y el destino esta activo.
+    // Cascada: solo escribe al destino si esta VACIO (== 0). Esto evita que
+    // al escribir en display/bulk se pisen precios que la unidad ya tenia
+    // (prellenados del producto o ingresados manualmente). Unit es siempre la
+    // fuente de verdad, los demas niveles derivan cuando no tienen valor propio.
+    function setIfEmpty(id, value) {
+        var el = document.getElementById(id);
+        var current = parseFloat(el.value) || 0;
+        if (current > 0) return false;
+        el.value = value.toFixed(2);
+        return true;
+    }
+
+    // Bulk → display, unit (hacia abajo). No pisa valores ya cargados.
     function cascadeFromBulk() {
         if (_cascading) return;
         var bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
@@ -541,48 +553,42 @@
         var q = getQtys();
         var totalUnits = q.displaysPerBulk * q.unitsPerDisplay;
         _cascading = true;
-        if (isChecked('id_has_display')) {
-            document.getElementById('id_display_purchase').value = (bulkPurchase / q.displaysPerBulk).toFixed(2);
+        if (isChecked('id_has_display') && setIfEmpty('id_display_purchase', bulkPurchase / q.displaysPerBulk)) {
             calcMarginFromPrices('display');
         }
-        if (isChecked('id_has_unit')) {
-            document.getElementById('id_unit_purchase').value = (bulkPurchase / totalUnits).toFixed(2);
+        if (isChecked('id_has_unit') && setIfEmpty('id_unit_purchase', bulkPurchase / totalUnits)) {
             calcMarginFromPrices('unit');
         }
         _cascading = false;
     }
 
-    // Unit → display, bulk (hacia arriba). Solo si el origen es > 0 y el destino esta activo.
+    // Unit → display, bulk. Unit siempre pisa hacia arriba (es fuente de verdad).
     function cascadeFromUnit() {
         if (_cascading) return;
         var unitPurchase = parseFloat(document.getElementById('id_unit_purchase').value) || 0;
         if (unitPurchase <= 0) return;
         var q = getQtys();
         _cascading = true;
-        if (isChecked('id_has_display')) {
-            document.getElementById('id_display_purchase').value = (unitPurchase * q.unitsPerDisplay).toFixed(2);
+        if (isChecked('id_has_display') && setIfEmpty('id_display_purchase', unitPurchase * q.unitsPerDisplay)) {
             calcMarginFromPrices('display');
         }
-        if (isChecked('id_has_bulk')) {
-            document.getElementById('id_bulk_purchase').value = (unitPurchase * q.unitsPerDisplay * q.displaysPerBulk).toFixed(2);
+        if (isChecked('id_has_bulk') && setIfEmpty('id_bulk_purchase', unitPurchase * q.unitsPerDisplay * q.displaysPerBulk)) {
             calcMarginFromPrices('bulk');
         }
         _cascading = false;
     }
 
-    // Display → unit (hacia abajo) y bulk (hacia arriba). Solo si display > 0.
+    // Display → unit, bulk. No pisa si ya tienen valor.
     function cascadeFromDisplay() {
         if (_cascading) return;
         var displayPurchase = parseFloat(document.getElementById('id_display_purchase').value) || 0;
         if (displayPurchase <= 0) return;
         var q = getQtys();
         _cascading = true;
-        if (isChecked('id_has_unit')) {
-            document.getElementById('id_unit_purchase').value = (displayPurchase / q.unitsPerDisplay).toFixed(2);
+        if (isChecked('id_has_unit') && setIfEmpty('id_unit_purchase', displayPurchase / q.unitsPerDisplay)) {
             calcMarginFromPrices('unit');
         }
-        if (isChecked('id_has_bulk')) {
-            document.getElementById('id_bulk_purchase').value = (displayPurchase * q.displaysPerBulk).toFixed(2);
+        if (isChecked('id_has_bulk') && setIfEmpty('id_bulk_purchase', displayPurchase * q.displaysPerBulk)) {
             calcMarginFromPrices('bulk');
         }
         _cascading = false;
