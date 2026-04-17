@@ -54,6 +54,14 @@
     color: #f9a8d4;
 }
 
+/* Brand accent link: púrpura en light, rosa claro en dark para legibilidad */
+[data-theme="dark"] .link-che-accent {
+    color: #f472b6 !important;
+}
+[data-theme="dark"] .link-che-accent:hover {
+    color: #f9a8d4 !important;
+}
+
 /* ─── Cards ────────────────────────────────────────── */
 [data-theme="dark"] .card {
     background-color: var(--dm-bg-card) !important;

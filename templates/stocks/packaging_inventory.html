@@ -62,7 +62,7 @@
                         {% for row in page_obj %}
                         <tr>
                             <td>
-                                <a href="{% url 'stocks:product_packaging' row.product.pk %}" class="text-decoration-none fw-semibold" style="color:var(--che-accent,#2D1E5F);">
+                                <a href="{% url 'stocks:product_packaging' row.product.pk %}" class="text-decoration-none fw-semibold link-che-accent">
                                     {{ row.product.name }}
                                 </a>
                             </td>

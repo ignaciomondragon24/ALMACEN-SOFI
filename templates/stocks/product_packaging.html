@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load currency_filters %}
+{% load currency_filters l10n %}
 
 {% block title %}Empaques - {{ product.name }}{% endblock %}
 
@@ -295,7 +295,7 @@
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="unit_purchase_price" id="id_unit_purchase"
                                                class="form-control text-end bg-light" step="0.01" min="0" readonly
-                                               value="{% if unit_pkg %}{{ unit_pkg.purchase_price }}{% else %}{{ product.purchase_price|default:'0' }}{% endif %}">
+                                               value="{% if unit_pkg %}{{ unit_pkg.purchase_price|unlocalize }}{% else %}{{ product.cost_price|unlocalize|default:'0' }}{% endif %}">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-2">
@@ -304,7 +304,7 @@
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="unit_sale_price" id="id_unit_sale"
                                                class="form-control text-end" step="0.01" min="0"
-                                               value="{% if unit_pkg %}{{ unit_pkg.sale_price }}{% else %}{{ product.sale_price|default:'0' }}{% endif %}">
+                                               value="{% if unit_pkg %}{{ unit_pkg.sale_price|unlocalize }}{% else %}{{ product.sale_price|unlocalize|default:'0' }}{% endif %}">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-2">
@@ -312,7 +312,7 @@
                                     <div class="input-group input-group-sm">
                                         <input type="number" id="id_unit_margin"
                                                class="form-control text-end" step="0.01"
-                                               value="{% if unit_pkg %}{{ unit_pkg.margin_percent }}{% else %}0{% endif %}">
+                                               value="{% if unit_pkg %}{{ unit_pkg.margin_percent|unlocalize }}{% else %}0{% endif %}">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>
@@ -350,7 +350,7 @@
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="display_purchase_price" id="id_display_purchase"
                                                class="form-control text-end bg-light" step="0.01" min="0" readonly
-                                               value="{{ display_pkg.purchase_price|default:'0' }}">
+                                               value="{{ display_pkg.purchase_price|unlocalize|default:'0' }}">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-2">
@@ -359,7 +359,7 @@
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="display_sale_price" id="id_display_sale"
                                                class="form-control text-end" step="0.01" min="0"
-                                               value="{{ display_pkg.sale_price|default:'0' }}">
+                                               value="{{ display_pkg.sale_price|unlocalize|default:'0' }}">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-2">
@@ -367,7 +367,7 @@
                                     <div class="input-group input-group-sm">
                                         <input type="number" id="id_display_margin"
                                                class="form-control text-end" step="0.01"
-                                               value="{{ display_pkg.margin_percent|default:'0' }}">
+                                               value="{{ display_pkg.margin_percent|unlocalize|default:'0' }}">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>
@@ -405,7 +405,7 @@
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="bulk_purchase_price" id="id_bulk_purchase"
                                                class="form-control text-end" step="0.01" min="0"
-                                               value="{{ bulk_pkg.purchase_price|default:'0' }}">
+                                               value="{{ bulk_pkg.purchase_price|unlocalize|default:'0' }}">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-2">
@@ -414,7 +414,7 @@
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="bulk_sale_price" id="id_bulk_sale"
                                                class="form-control text-end" step="0.01" min="0"
-                                               value="{{ bulk_pkg.sale_price|default:'0' }}">
+                                               value="{{ bulk_pkg.sale_price|unlocalize|default:'0' }}">
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-2">
@@ -422,7 +422,7 @@
                                     <div class="input-group input-group-sm">
                                         <input type="number" id="id_bulk_margin"
                                                class="form-control text-end" step="0.01"
-                                               value="{{ bulk_pkg.margin_percent|default:'0' }}">
+                                               value="{{ bulk_pkg.margin_percent|unlocalize|default:'0' }}">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>

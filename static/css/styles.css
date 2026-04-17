@@ -25,6 +25,13 @@
     --font-body: 'Nunito', sans-serif;      /* Textos, formularios */
 }
 
+.link-che-accent {
+    color: var(--che-accent, #2D1E5F);
+}
+.link-che-accent:hover {
+    color: var(--che-primary, #E91E8C);
+}
+
 /* General Styles */
 body {
     font-family: var(--font-body);
