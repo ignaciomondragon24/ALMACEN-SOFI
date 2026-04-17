@@ -245,6 +245,24 @@ def _save_inline_packaging(request, product):
             unit_pkg.current_stock = base_stock
             unit_pkg.save(update_fields=['current_stock'])
 
+        # Sincronizar Product base con el packaging unit. El POS (api_search,
+        # api_cart_add) usa Product.sale_price y Product.cost_price como fuente
+        # de verdad al buscar por el barcode del producto; si el user edita el
+        # precio en el modal de empaques y no sincronizamos, el POS sigue cobrando
+        # el precio viejo (o $0 si nunca se cargo).
+        updated_fields = []
+        if product.sale_price != u_sale:
+            product.sale_price = u_sale
+            updated_fields.append('sale_price')
+        if product.cost_price != u_purchase:
+            product.cost_price = u_purchase
+            updated_fields.append('cost_price')
+        if product.purchase_price != u_purchase:
+            product.purchase_price = u_purchase
+            updated_fields.append('purchase_price')
+        if updated_fields:
+            product.save(update_fields=updated_fields)
+
     # Al destildar un nivel, desactivar (is_active=False) el packaging existente.
     # Esto evita "empaques fantasma" con precio 0 que quedaban si el user destildaba
     # y volvia a guardar — bug real reportado con un "Bulto x 144" en araniitas.
