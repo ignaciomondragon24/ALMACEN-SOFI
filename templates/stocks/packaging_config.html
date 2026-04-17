@@ -506,6 +506,14 @@
 <script>
 const modal = new bootstrap.Modal(document.getElementById('packagingModal'));
 
+// Prevenir submit accidental cuando el scanner/usuario presiona Enter
+// dentro de un input (los lectores de codigo emiten Enter al final).
+document.getElementById('packagingForm').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'submit') {
+        e.preventDefault();
+    }
+});
+
 function createPackaging(type) {
     // Reset form
     document.getElementById('packagingForm').reset();

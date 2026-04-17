@@ -305,12 +305,12 @@
                                                    placeholder="Ej: Unidad">
                                         </div>
                                         <div class="col-md-4 mb-2">
-                                            <label class="form-label small">Precio Compra <small class="text-muted">(auto)</small></label>
+                                            <label class="form-label small">Precio Compra</label>
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text">$</span>
                                                 <input type="number" name="unit_purchase_price" id="id_unit_purchase"
-                                                       class="form-control text-end pkg-price bg-light" data-pkg="unit"
-                                                       step="0.01" min="0" readonly value="0">
+                                                       class="form-control text-end pkg-price" data-pkg="unit"
+                                                       step="0.01" min="0" value="0">
                                             </div>
                                         </div>
                                         <div class="col-md-4 mb-2">
@@ -358,12 +358,12 @@
                                                    placeholder="Ej: Display x 12">
                                         </div>
                                         <div class="col-md-4 mb-2">
-                                            <label class="form-label small">Precio Compra <small class="text-muted">(auto)</small></label>
+                                            <label class="form-label small">Precio Compra</label>
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text">$</span>
                                                 <input type="number" name="display_purchase_price" id="id_display_purchase"
-                                                       class="form-control text-end pkg-price bg-light" data-pkg="display"
-                                                       step="0.01" min="0" readonly value="0">
+                                                       class="form-control text-end pkg-price" data-pkg="display"
+                                                       step="0.01" min="0" value="0">
                                             </div>
                                         </div>
                                         <div class="col-md-4 mb-2">
@@ -509,16 +509,20 @@
         }
     });
 
-    // Packaging toggle (only in create mode)
+    // Packaging toggle (only in create mode). Cascada bidireccional:
+    // bulk <-> display <-> unit. Nunca escribe 0 sobre un valor manual.
     if (document.getElementById('id_has_unit')) {
         document.getElementById('id_has_unit').addEventListener('change', function() {
             document.getElementById('unit_fields').style.display = this.checked ? '' : 'none';
+            if (this.checked) cascadeFromQuantities();
         });
         document.getElementById('id_has_display').addEventListener('change', function() {
             document.getElementById('display_fields').style.display = this.checked ? '' : 'none';
+            if (this.checked) cascadeFromQuantities();
         });
         document.getElementById('id_has_bulk').addEventListener('change', function() {
             document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
+            if (this.checked) cascadeFromQuantities();
         });
 
         // Bidirectional margin <-> sale price calculation
@@ -542,39 +546,96 @@
             }
         }
 
+        // Flag para evitar loops entre las cascadas (unit↔display↔bulk).
+        var _cascading = false;
+
+        function getQtys() {
+            return {
+                unitsPerDisplay: parseInt(document.getElementById('id_pkg_units_per_display').value) || 1,
+                displaysPerBulk: parseInt(document.getElementById('id_pkg_displays_per_bulk').value) || 1,
+            };
+        }
+
+        function isChecked(id) {
+            var el = document.getElementById(id);
+            return el && el.checked;
+        }
+
+        function cascadeFromBulk() {
+            if (_cascading) return;
+            var bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
+            if (bulkPurchase <= 0) return;
+            var q = getQtys();
+            var totalUnits = q.displaysPerBulk * q.unitsPerDisplay;
+            _cascading = true;
+            if (isChecked('id_has_display')) {
+                document.getElementById('id_display_purchase').value = (bulkPurchase / q.displaysPerBulk).toFixed(2);
+                calcMarginFromPrices('display');
+            }
+            if (isChecked('id_has_unit')) {
+                document.getElementById('id_unit_purchase').value = (bulkPurchase / totalUnits).toFixed(2);
+                calcMarginFromPrices('unit');
+            }
+            _cascading = false;
+        }
+
+        function cascadeFromUnit() {
+            if (_cascading) return;
+            var unitPurchase = parseFloat(document.getElementById('id_unit_purchase').value) || 0;
+            if (unitPurchase <= 0) return;
+            var q = getQtys();
+            _cascading = true;
+            if (isChecked('id_has_display')) {
+                document.getElementById('id_display_purchase').value = (unitPurchase * q.unitsPerDisplay).toFixed(2);
+                calcMarginFromPrices('display');
+            }
+            if (isChecked('id_has_bulk')) {
+                document.getElementById('id_bulk_purchase').value = (unitPurchase * q.unitsPerDisplay * q.displaysPerBulk).toFixed(2);
+                calcMarginFromPrices('bulk');
+            }
+            _cascading = false;
+        }
+
+        function cascadeFromDisplay() {
+            if (_cascading) return;
+            var displayPurchase = parseFloat(document.getElementById('id_display_purchase').value) || 0;
+            if (displayPurchase <= 0) return;
+            var q = getQtys();
+            _cascading = true;
+            if (isChecked('id_has_unit')) {
+                document.getElementById('id_unit_purchase').value = (displayPurchase / q.unitsPerDisplay).toFixed(2);
+                calcMarginFromPrices('unit');
+            }
+            if (isChecked('id_has_bulk')) {
+                document.getElementById('id_bulk_purchase').value = (displayPurchase * q.displaysPerBulk).toFixed(2);
+                calcMarginFromPrices('bulk');
+            }
+            _cascading = false;
+        }
+
+        function cascadeFromQuantities() {
+            var unit = parseFloat(document.getElementById('id_unit_purchase').value) || 0;
+            var display = parseFloat(document.getElementById('id_display_purchase').value) || 0;
+            var bulk = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
+            if (unit > 0) { cascadeFromUnit(); }
+            else if (display > 0) { cascadeFromDisplay(); }
+            else if (bulk > 0) { cascadeFromBulk(); }
+        }
+
         ['unit', 'display', 'bulk'].forEach(function(prefix) {
             const purchaseEl = document.getElementById('id_' + prefix + '_purchase');
             const saleEl = document.getElementById('id_' + prefix + '_sale');
             const marginEl = document.getElementById('id_' + prefix + '_margin');
-            if (purchaseEl) purchaseEl.addEventListener('input', function() { calcMarginFromPrices(prefix); });
             if (saleEl) saleEl.addEventListener('input', function() { calcMarginFromPrices(prefix); });
             if (marginEl) marginEl.addEventListener('input', function() { calcSaleFromMargin(prefix); });
             calcMarginFromPrices(prefix);
         });
 
-        // Auto-calculate display & unit purchase prices from bulk
-        function cascadePurchasePrices() {
-            const bulkPurchase = parseFloat(document.getElementById('id_bulk_purchase').value) || 0;
-            const displaysPerBulk = parseInt(document.getElementById('id_pkg_displays_per_bulk').value) || 1;
-            const unitsPerDisplay = parseInt(document.getElementById('id_pkg_units_per_display').value) || 1;
-            const totalUnits = displaysPerBulk * unitsPerDisplay;
-
-            if (bulkPurchase > 0) {
-                const displayPrice = (bulkPurchase / displaysPerBulk).toFixed(2);
-                const unitPrice = (bulkPurchase / totalUnits).toFixed(2);
-                document.getElementById('id_display_purchase').value = displayPrice;
-                document.getElementById('id_unit_purchase').value = unitPrice;
-            } else {
-                document.getElementById('id_display_purchase').value = '0';
-                document.getElementById('id_unit_purchase').value = '0';
-            }
-            calcMarginFromPrices('display');
-            calcMarginFromPrices('unit');
-        }
-
-        document.getElementById('id_bulk_purchase').addEventListener('input', cascadePurchasePrices);
-        document.getElementById('id_pkg_displays_per_bulk').addEventListener('input', cascadePurchasePrices);
-        document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadePurchasePrices);
+        document.getElementById('id_bulk_purchase').addEventListener('input', function() { cascadeFromBulk(); calcMarginFromPrices('bulk'); });
+        document.getElementById('id_unit_purchase').addEventListener('input', function() { cascadeFromUnit(); calcMarginFromPrices('unit'); });
+        document.getElementById('id_display_purchase').addEventListener('input', function() { cascadeFromDisplay(); calcMarginFromPrices('display'); });
+        document.getElementById('id_pkg_displays_per_bulk').addEventListener('input', cascadeFromQuantities);
+        document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadeFromQuantities);
     }
 
     // Toggle caramelera deposit fields
