@@ -168,13 +168,18 @@ def _save_inline_packaging(request, product):
     # Get bulk purchase price to derive display/unit costs
     b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
 
+    # Stock equivalente del producto base, repartido a cada nivel cuando se crea
+    # el packaging por primera vez. Mantiene el invariante: todos los niveles
+    # reflejan el mismo stock real expresado en su unidad.
+    base_stock = Decimal(str(product.current_stock or 0))
+
     # Bulk packaging
     if request.POST.get('has_bulk'):
         b_barcode = _check_barcode(request.POST.get('bulk_barcode', '').strip(), 'bulk')
         b_name = request.POST.get('bulk_name', '').strip()
         b_sale = Decimal(request.POST.get('bulk_sale_price', '0').strip() or '0')
 
-        ProductPackaging.objects.update_or_create(
+        bulk_pkg, created = ProductPackaging.objects.update_or_create(
             product=product, packaging_type='bulk',
             defaults={
                 'barcode': b_barcode or None,
@@ -187,6 +192,9 @@ def _save_inline_packaging(request, product):
                 'is_active': True,
             }
         )
+        if created and total_units > 0:
+            bulk_pkg.current_stock = base_stock / Decimal(str(total_units))
+            bulk_pkg.save(update_fields=['current_stock'])
 
     # Display packaging — purchase price = bulk / displays_per_bulk
     if request.POST.get('has_display'):
@@ -195,7 +203,7 @@ def _save_inline_packaging(request, product):
         d_purchase = (b_purchase / displays_per_bulk) if b_purchase > 0 else Decimal('0')
         d_sale = Decimal(request.POST.get('display_sale_price', '0').strip() or '0')
 
-        ProductPackaging.objects.update_or_create(
+        display_pkg, created = ProductPackaging.objects.update_or_create(
             product=product, packaging_type='display',
             defaults={
                 'barcode': d_barcode or None,
@@ -208,6 +216,9 @@ def _save_inline_packaging(request, product):
                 'is_active': True,
             }
         )
+        if created and units_per_display > 0:
+            display_pkg.current_stock = base_stock / Decimal(str(units_per_display))
+            display_pkg.save(update_fields=['current_stock'])
 
     # Unit packaging — purchase price = bulk / total_units
     if request.POST.get('has_unit'):
@@ -216,7 +227,7 @@ def _save_inline_packaging(request, product):
         u_purchase = (b_purchase / total_units) if b_purchase > 0 else Decimal('0')
         u_sale = Decimal(request.POST.get('unit_sale_price', '0').strip() or '0')
 
-        ProductPackaging.objects.update_or_create(
+        unit_pkg, created = ProductPackaging.objects.update_or_create(
             product=product, packaging_type='unit',
             defaults={
                 'barcode': u_barcode or None,
@@ -229,6 +240,9 @@ def _save_inline_packaging(request, product):
                 'is_active': True,
             }
         )
+        if created:
+            unit_pkg.current_stock = base_stock
+            unit_pkg.save(update_fields=['current_stock'])
 
 
 @login_required

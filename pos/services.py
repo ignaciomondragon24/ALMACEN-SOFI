@@ -429,7 +429,15 @@ class CheckoutService:
                         reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
                         reference_id=pos_transaction.id
                     )
-                BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                deductions = BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                # Sobrescribir unit_cost con el costo FIFO real del lote consumido,
+                # para que el reporte de ganancia refleje precio de costo real.
+                # Si no hay lotes (producto sin compras registradas), conserva
+                # el costo promedio que ya tenía el item.
+                if deductions and item.quantity > 0:
+                    fifo_cost_total = sum(b.purchase_price * qty for b, qty in deductions)
+                    item.unit_cost = (fifo_cost_total / item.quantity).quantize(Decimal('0.01'))
+                    item.save(update_fields=['unit_cost'])
 
         # Complete transaction
         pos_transaction.status = 'completed'
@@ -633,7 +641,11 @@ class CheckoutService:
                         reference=f'Venta al costo {pos_transaction.ticket_number}',
                         reference_id=pos_transaction.id
                     )
-                BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                deductions = BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                if deductions and item.quantity > 0:
+                    fifo_cost_total = sum(b.purchase_price * qty for b, qty in deductions)
+                    item.unit_cost = (fifo_cost_total / item.quantity).quantize(Decimal('0.01'))
+                    item.save(update_fields=['unit_cost'])
 
         # Complete transaction
         pos_transaction.transaction_type = 'cost_sale'
@@ -723,7 +735,11 @@ class CheckoutService:
                         reference=f'Consumo interno {pos_transaction.ticket_number} - {consumer_note}',
                         reference_id=pos_transaction.id
                     )
-                BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                deductions = BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                if deductions and item.quantity > 0:
+                    fifo_cost_total = sum(b.purchase_price * qty for b, qty in deductions)
+                    item.unit_cost = (fifo_cost_total / item.quantity).quantize(Decimal('0.01'))
+                    item.save(update_fields=['unit_cost'])
 
         # Complete transaction with zero payment
         pos_transaction.transaction_type = 'internal_consumption'

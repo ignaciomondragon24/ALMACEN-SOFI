@@ -35,18 +35,40 @@ class StockManagementService:
 
         stock_before = product.current_stock
         stock_after = stock_before + quantity
-        
+
         # Update product stock
         product.current_stock = stock_after
-        
+
         # Update average cost if cost provided
         if cost and cost > 0:
             total_value = (product.cost_price * stock_before) + (cost * quantity)
             if stock_after > 0:
                 product.cost_price = total_value / stock_after
-        
+
         product.save()
-        
+
+        # Cascade into active packagings (mirror of deduct_stock_with_cascade)
+        packagings = {
+            p.packaging_type: p
+            for p in product.packagings.filter(is_active=True).select_for_update()
+        }
+        unit_pkg = packagings.get('unit')
+        if unit_pkg:
+            unit_pkg.current_stock = unit_pkg.current_stock + quantity
+            unit_pkg.save(update_fields=['current_stock'])
+        display_pkg = packagings.get('display')
+        if display_pkg and display_pkg.units_per_display > 0:
+            display_pkg.current_stock = display_pkg.current_stock + (
+                quantity / Decimal(str(display_pkg.units_per_display))
+            )
+            display_pkg.save(update_fields=['current_stock'])
+        bulk_pkg = packagings.get('bulk')
+        if bulk_pkg and bulk_pkg.units_quantity > 0:
+            bulk_pkg.current_stock = bulk_pkg.current_stock + (
+                quantity / Decimal(str(bulk_pkg.units_quantity))
+            )
+            bulk_pkg.save(update_fields=['current_stock'])
+
         # Create movement record
         movement = StockMovement.objects.create(
             product=product,
@@ -60,7 +82,7 @@ class StockManagementService:
             notes=notes,
             created_by=user
         )
-        
+
         return movement
     
     @staticmethod
