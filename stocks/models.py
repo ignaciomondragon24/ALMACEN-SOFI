@@ -31,7 +31,7 @@ class ProductCategory(models.Model):
     )
     default_margin_percent = models.DecimalField(
         'Margen por defecto (%)',
-        max_digits=5,
+        max_digits=8,
         decimal_places=2,
         default=30.00,
         validators=[MinValueValidator(Decimal('0'))]
@@ -828,7 +828,7 @@ class ProductPackaging(models.Model):
     )
     margin_percent = models.DecimalField(
         'Margen de Ganancia (%)',
-        max_digits=5,
+        max_digits=8,
         decimal_places=2,
         default=Decimal('30.00'),
         validators=[MinValueValidator(Decimal('0'))]
