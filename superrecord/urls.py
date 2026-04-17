@@ -23,6 +23,17 @@ def health_check(request):
         manifest_exists = os.path.exists(manifest_path)
         mro = [c.__name__ for c in staticfiles_storage.__class__.__mro__]
         hashed_keys = list(hashed_files.keys())[:3] if hashed_files else []
+        js_main_in_hashed = 'js/main.js' in (hashed_files or {})
+        js_keys_sample = [k for k in (hashed_files or {}).keys() if k.startswith('js/')][:10]
+        pos_dark_in_hashed = 'css/pos-dark.css' in (hashed_files or {})
+        manifest_raw = None
+        try:
+            with open(manifest_path, 'r') as mf:
+                import json as _json
+                manifest_raw = _json.load(mf)
+                manifest_js_main = manifest_raw.get('paths', {}).get('js/main.js')
+        except Exception as me:
+            manifest_js_main = f'err: {me}'
         return JsonResponse({
             'status': 'ok',
             'db': 'ok',
@@ -35,6 +46,11 @@ def health_check(request):
             'manifest_path': str(manifest_path),
             'manifest_exists': manifest_exists,
             'has_load_manifest': hasattr(staticfiles_storage, 'load_manifest'),
+            'js_main_in_hashed': js_main_in_hashed,
+            'js_keys_sample': js_keys_sample,
+            'pos_dark_in_hashed': pos_dark_in_hashed,
+            'manifest_js_main': manifest_js_main,
+            'manifest_paths_count': len(manifest_raw.get('paths', {})) if manifest_raw else 0,
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'db': str(e)}, status=503)
