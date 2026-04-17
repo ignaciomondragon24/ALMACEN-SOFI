@@ -165,15 +165,25 @@ class PurchaseItem(models.Model):
         related_name='purchase_items',
         verbose_name='Producto'
     )
+    packaging = models.ForeignKey(
+        'stocks.ProductPackaging',
+        on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name='purchase_items',
+        verbose_name='Empaque',
+        help_text='Si se indica, quantity es cantidad de este empaque (bulto/display/unidad). Si es null, quantity es en unidades base.',
+    )
     quantity = models.PositiveIntegerField(
         'Cantidad',
-        validators=[MinValueValidator(1)]
+        validators=[MinValueValidator(1)],
+        help_text='Cantidad expresada en la unidad del empaque seleccionado (o unidades base si no hay empaque).',
     )
     unit_cost = models.DecimalField(
         'Costo Unitario',
         max_digits=10,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01'))]
+        validators=[MinValueValidator(Decimal('0.01'))],
+        help_text='Costo por unidad del empaque seleccionado (ej: costo del bulto si packaging es bulto).',
     )
     sale_price = models.DecimalField(
         'Precio de Venta',

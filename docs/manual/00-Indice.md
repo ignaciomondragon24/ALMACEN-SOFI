@@ -33,7 +33,7 @@ Cada sección tiene dos partes:
 
 **3. Cascada automática en empaques.** Cuando sumás 288 unidades al stock base, el sistema actualiza automáticamente el stock de *unidad*, *display* (288÷12=24) y *bulto* (288÷144=2). Nunca tenés que hacer la cuenta a mano. Al vender pasa lo mismo en sentido contrario.
 
-**4. Las compras se cargan en unidades base.** Si comprás 2 bultos de 144, tenés que cargar `288` en la cantidad, no `2`. El sistema después reparte a los empaques automáticamente.
+**4. Las compras detectan el empaque automáticamente.** Al escanear el código de barras del bulto, el sistema reconoce que es un bulto y sabe cuántas unidades contiene. Podés cargar la OC diciendo "2 bultos" o "3 displays" o "50 unidades" — el sistema calcula las unidades base solo y las distribuye a todos los niveles al recibir. Si el código no corresponde a ningún empaque configurado, se carga como unidad base.
 
 **5. Stock negativo está permitido.** Si vendés sin tener stock el sistema te deja y marca una alerta en el movimiento. Nunca te bloquea una venta por falta de stock registrado (porque a veces hay mercadería que todavía no fue cargada).
 

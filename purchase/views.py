@@ -14,7 +14,7 @@ from decimal import Decimal
 from decorators.decorators import group_required
 from .models import Supplier, Purchase, PurchaseItem
 from .forms import SupplierForm, PurchaseForm, PurchaseItemFormSet
-from stocks.models import Product, StockBatch
+from stocks.models import Product, ProductPackaging, StockBatch
 from stocks.services import StockManagementService
 from expenses.models import Expense, ExpenseCategory
 
@@ -198,6 +198,7 @@ def purchase_create(request):
                 subtotal = Decimal('0')
                 for row in items:
                     product_id = row.get('product_id')
+                    packaging_id = row.get('packaging_id') or None
                     quantity = int(row.get('quantity', 0))
                     unit_cost = Decimal(str(row.get('unit_cost', '0')))
                     sale_price_val = row.get('sale_price')
@@ -209,10 +210,18 @@ def purchase_create(request):
                     if not Product.objects.filter(pk=product_id, is_active=True).exists():
                         raise ValueError(f'Producto con id={product_id} no existe o está inactivo.')
 
+                    if packaging_id:
+                        pkg_ok = ProductPackaging.objects.filter(
+                            pk=packaging_id, product_id=product_id, is_active=True
+                        ).exists()
+                        if not pkg_ok:
+                            raise ValueError(f'Empaque {packaging_id} no corresponde al producto {product_id}.')
+
                     item_subtotal = unit_cost * quantity
                     PurchaseItem.objects.create(
                         purchase=purchase,
                         product_id=product_id,
+                        packaging_id=packaging_id,
                         quantity=quantity,
                         unit_cost=unit_cost,
                         sale_price=sale_price,
@@ -295,17 +304,30 @@ def purchase_receive(request, pk):
     if request.method == 'POST':
         with transaction.atomic():
             for item in purchase.items.all():
-                # Update stock and weighted average cost
+                # Convertir cantidad y costo a unidades base si se compró por
+                # bulto/display/unidad. Si el item no tiene packaging, se asume
+                # que quantity ya está en unidades base (retrocompatibilidad).
+                if item.packaging and item.packaging.units_quantity > 0:
+                    units_per_pkg = Decimal(str(item.packaging.units_quantity))
+                    base_qty = Decimal(str(item.quantity)) * units_per_pkg
+                    unit_cost_base = (item.unit_cost / units_per_pkg).quantize(Decimal('0.0001'))
+                    ref_detail = f'{item.packaging.name} x{item.quantity}'
+                else:
+                    base_qty = Decimal(str(item.quantity))
+                    unit_cost_base = item.unit_cost
+                    ref_detail = f'unidades x{item.quantity}'
+
+                # Update stock and weighted average cost (cascadea a packagings)
                 StockManagementService.add_stock(
                     product=item.product,
-                    quantity=item.quantity,
-                    cost=item.unit_cost,
+                    quantity=base_qty,
+                    cost=unit_cost_base,
                     user=request.user,
-                    notes=f'Recepción de compra {purchase.order_number}',
+                    notes=f'Recepción {purchase.order_number} ({ref_detail})',
                     reference=purchase.order_number
                 )
 
-                # Create stock batch for FIFO tracking
+                # Create stock batch for FIFO tracking (en unidades base, costo base)
                 from datetime import datetime
                 batch_date = (
                     datetime.combine(purchase.received_date, datetime.min.time())
@@ -315,12 +337,12 @@ def purchase_receive(request, pk):
                     product=item.product,
                     purchase=purchase,
                     supplier_name=purchase.supplier.name,
-                    quantity_purchased=item.quantity,
-                    quantity_remaining=item.quantity,
-                    purchase_price=item.unit_cost,
+                    quantity_purchased=base_qty,
+                    quantity_remaining=base_qty,
+                    purchase_price=unit_cost_base,
                     purchased_at=batch_date,
                     created_by=request.user,
-                    notes=f'OC {purchase.order_number}',
+                    notes=f'OC {purchase.order_number} ({ref_detail})',
                 )
 
                 # Update product sale_price if specified
@@ -399,10 +421,46 @@ def purchase_detail(request, pk):
 
 
 # API Views
+def _serialize_packaging(pkg):
+    """Serializa un ProductPackaging para el selector de la OC."""
+    return {
+        'id': pkg.id,
+        'type': pkg.packaging_type,
+        'type_display': pkg.get_packaging_type_display(),
+        'name': pkg.name,
+        'barcode': pkg.barcode or '',
+        'units_quantity': pkg.units_quantity,
+        'purchase_price': str(pkg.purchase_price or 0),
+        'sale_price': str(pkg.sale_price or 0),
+    }
+
+
+def _serialize_product(p, matched_packaging=None):
+    """Serializa un Product con sus empaques activos."""
+    pkgs = [
+        _serialize_packaging(pk)
+        for pk in p.packagings.filter(is_active=True).order_by('-units_quantity')
+    ]
+    return {
+        'id': p.id,
+        'name': p.name,
+        'barcode': p.barcode or '',
+        'cost_price': str(p.cost_price),
+        'sale_price': str(p.sale_price),
+        'packagings': pkgs,
+        'matched_packaging_id': matched_packaging.id if matched_packaging else None,
+    }
+
+
 @login_required
 @group_required(['Admin'])
 def api_search_products(request):
-    """API to search products for purchase form. Supports exact barcode lookup."""
+    """API de búsqueda de productos para la OC. Soporta:
+    - Búsqueda por texto (nombre/sku/barcode).
+    - Escaneo de barcode exacto, que también detecta si el código pertenece
+      a un ProductPackaging (bulto/display/unidad) y devuelve el empaque
+      matcheado en matched_packaging_id.
+    """
     query = request.GET.get('q', '')
     is_barcode_scan = request.GET.get('barcode') == '1'
 
@@ -410,13 +468,22 @@ def api_search_products(request):
         return JsonResponse({'results': []})
 
     if is_barcode_scan:
-        # Exact barcode match first, then fallback to contains
-        products = list(Product.objects.filter(barcode=query, is_active=True)[:1])
-        if not products:
-            products = list(Product.objects.filter(
-                Q(barcode__icontains=query) | Q(sku__icontains=query) | Q(name__icontains=query),
-                is_active=True
-            )[:10])
+        # 1. Match exacto en Product.barcode
+        product = Product.objects.filter(barcode=query, is_active=True).first()
+        if product:
+            return JsonResponse({'results': [_serialize_product(product)]})
+        # 2. Match exacto en ProductPackaging.barcode → devuelvo el producto padre
+        #    con matched_packaging_id señalando el empaque detectado
+        pkg = ProductPackaging.objects.select_related('product').filter(
+            barcode=query, is_active=True, product__is_active=True
+        ).first()
+        if pkg:
+            return JsonResponse({'results': [_serialize_product(pkg.product, matched_packaging=pkg)]})
+        # 3. Fallback: búsqueda amplia
+        products = list(Product.objects.filter(
+            Q(barcode__icontains=query) | Q(sku__icontains=query) | Q(name__icontains=query),
+            is_active=True
+        )[:10])
     else:
         products = list(Product.objects.filter(
             Q(name__icontains=query) |
@@ -425,12 +492,5 @@ def api_search_products(request):
             is_active=True
         )[:20])
 
-    results = [{
-        'id': p.id,
-        'name': p.name,
-        'barcode': p.barcode or '',
-        'cost_price': str(p.cost_price),
-        'sale_price': str(p.sale_price),
-    } for p in products]
-
+    results = [_serialize_product(p) for p in products]
     return JsonResponse({'results': results})

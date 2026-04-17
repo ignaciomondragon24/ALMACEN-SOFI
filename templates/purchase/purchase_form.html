@@ -112,8 +112,9 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Producto</th>
+                                        <th style="width:150px;">Empaque</th>
                                         <th style="width:90px;">Cant.</th>
-                                        <th style="width:120px;">Costo unit.</th>
+                                        <th style="width:130px;" title="Costo por unidad del empaque">Costo</th>
                                         <th style="width:120px;">P. Venta</th>
                                         <th style="width:110px;" class="text-end">Subtotal</th>
                                         <th style="width:40px;"></th>
@@ -171,16 +172,18 @@ function recalc() {
 }
 
 /* ─── Rows ───────────────────────────────── */
-function addRow() {
-    const id = ++rowCount;
-    rowProducts[id] = null;
-    const tr = document.createElement('tr');
-    tr.id = 'r' + id;
-    tr.innerHTML =
+function rowHtml(id) {
+    return (
         '<td>' +
             '<input class="form-control form-control-sm r-search" data-row="'+id+'" placeholder="Buscar..." autocomplete="off">' +
             '<input type="hidden" class="r-pid" data-row="'+id+'">' +
             '<small class="r-pname text-muted" data-row="'+id+'"></small>' +
+        '</td>' +
+        '<td>' +
+            '<select class="form-select form-select-sm r-pkg" data-row="'+id+'">' +
+                '<option value="">Unidad base</option>' +
+            '</select>' +
+            '<small class="r-pkg-hint text-muted" data-row="'+id+'" style="font-size:.72rem;"></small>' +
         '</td>' +
         '<td><input class="form-control form-control-sm r-qty" data-row="'+id+'" type="number" min="1" step="1" value="1"></td>' +
         '<td><input class="form-control form-control-sm r-cost" data-row="'+id+'" type="number" min="0" step="0.01" placeholder="0"></td>' +
@@ -190,7 +193,48 @@ function addRow() {
             '<button type="button" class="btn btn-sm btn-outline-danger py-0 r-del" data-row="'+id+'">'+
                 '<i class="fas fa-trash"></i>' +
             '</button>' +
-        '</td>';
+        '</td>'
+    );
+}
+
+function populatePackagingSelect(rowId, product, selectedPkgId) {
+    const sel = document.querySelector('.r-pkg[data-row="'+rowId+'"]');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Unidad base</option>';
+    const pkgs = (product && product.packagings) || [];
+    pkgs.forEach(function(pk) {
+        const opt = document.createElement('option');
+        opt.value = pk.id;
+        opt.textContent = pk.type_display + ' — ' + pk.name + ' (x' + pk.units_quantity + ')';
+        opt.dataset.units = pk.units_quantity;
+        opt.dataset.price = pk.purchase_price || '';
+        opt.dataset.sale = pk.sale_price || '';
+        if (selectedPkgId && pk.id === selectedPkgId) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    updatePkgHint(rowId);
+}
+
+function updatePkgHint(rowId) {
+    const sel = document.querySelector('.r-pkg[data-row="'+rowId+'"]');
+    const hint = document.querySelector('.r-pkg-hint[data-row="'+rowId+'"]');
+    if (!sel || !hint) return;
+    const opt = sel.options[sel.selectedIndex];
+    const units = opt ? parseInt(opt.dataset.units || '0', 10) : 0;
+    const qty = parseFloat(document.querySelector('.r-qty[data-row="'+rowId+'"]').value) || 0;
+    if (units > 1 && qty > 0) {
+        hint.textContent = '= ' + (qty*units).toLocaleString('es-AR') + ' unidades base';
+    } else {
+        hint.textContent = '';
+    }
+}
+
+function addRow() {
+    const id = ++rowCount;
+    rowProducts[id] = null;
+    const tr = document.createElement('tr');
+    tr.id = 'r' + id;
+    tr.innerHTML = rowHtml(id);
     document.getElementById('items-body').appendChild(tr);
     document.getElementById('no-rows-msg').style.display = 'none';
     tr.querySelector('.r-search').focus();
@@ -234,10 +278,16 @@ function showDrop(input, results) {
                 input.value = p.name;
                 document.querySelector('.r-pid[data-row="'+row+'"]').value = p.id;
                 document.querySelector('.r-pname[data-row="'+row+'"]').textContent = '';
+                populatePackagingSelect(row, p, p.matched_packaging_id || null);
                 const costEl = document.querySelector('.r-cost[data-row="'+row+'"]');
                 const saleEl = document.querySelector('.r-sale[data-row="'+row+'"]');
-                if (!costEl.value) costEl.value = parseFloat(p.cost_price) || '';
-                if (!saleEl.value) saleEl.value = parseFloat(p.sale_price) || '';
+                // Autoprecio: si se detectó un packaging, usa su precio; si no, el del producto base
+                const sel = document.querySelector('.r-pkg[data-row="'+row+'"]');
+                const selOpt = sel ? sel.options[sel.selectedIndex] : null;
+                const autoPrice = selOpt && selOpt.dataset.price ? selOpt.dataset.price : p.cost_price;
+                const autoSale = selOpt && selOpt.dataset.sale ? selOpt.dataset.sale : p.sale_price;
+                if (!costEl.value) costEl.value = parseFloat(autoPrice) || '';
+                if (!saleEl.value) saleEl.value = parseFloat(autoSale) || '';
                 recalc();
                 closeDrop();
             });
@@ -267,7 +317,27 @@ document.getElementById('items-body').addEventListener('input', function(e) {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(function(){ doSearch(e.target); }, 300);
     }
-    if (e.target.classList.contains('r-qty') || e.target.classList.contains('r-cost')) recalc();
+    if (e.target.classList.contains('r-qty') || e.target.classList.contains('r-cost')) {
+        recalc();
+        if (e.target.classList.contains('r-qty')) updatePkgHint(e.target.dataset.row);
+    }
+});
+document.getElementById('items-body').addEventListener('change', function(e) {
+    if (e.target.classList.contains('r-pkg')) {
+        var row = e.target.dataset.row;
+        var opt = e.target.options[e.target.selectedIndex];
+        // Al cambiar empaque, sugerir costo y precio venta del empaque si están disponibles
+        var costEl = document.querySelector('.r-cost[data-row="'+row+'"]');
+        var saleEl = document.querySelector('.r-sale[data-row="'+row+'"]');
+        if (opt && opt.dataset.price && parseFloat(opt.dataset.price) > 0) {
+            costEl.value = parseFloat(opt.dataset.price);
+        }
+        if (opt && opt.dataset.sale && parseFloat(opt.dataset.sale) > 0) {
+            saleEl.value = parseFloat(opt.dataset.sale);
+        }
+        updatePkgHint(row);
+        recalc();
+    }
 });
 document.getElementById('items-body').addEventListener('focusout', function(e) {
     if (e.target.classList.contains('r-search')) setTimeout(closeDrop, 200);
@@ -333,48 +403,49 @@ document.addEventListener('click', function(e){ if (!drop.contains(e.target)) cl
     }
 
     function addRowForProduct(product) {
-        // Check if product already exists in a row
+        // Buscar fila existente con MISMO producto Y mismo empaque detectado
+        var matchedPkgId = product.matched_packaging_id || null;
         var existingRow = null;
         document.querySelectorAll('#items-body tr').forEach(function(tr) {
-            if (tr.querySelector('.r-pid').value == product.id) {
-                existingRow = tr;
-            }
+            var sameProd = tr.querySelector('.r-pid').value == product.id;
+            var pkgSel = tr.querySelector('.r-pkg');
+            var samePkg = (pkgSel ? (parseInt(pkgSel.value) || null) : null) === matchedPkgId;
+            if (sameProd && samePkg) existingRow = tr;
         });
 
         if (existingRow) {
-            // Increment quantity
             var qtyInput = existingRow.querySelector('.r-qty');
             qtyInput.value = (parseFloat(qtyInput.value) || 0) + 1;
             recalc();
+            updatePkgHint(existingRow.querySelector('.r-pkg').dataset.row);
             existingRow.classList.add('table-success');
             setTimeout(function(){ existingRow.classList.remove('table-success'); }, 800);
             return;
         }
 
-        // New row
+        // Nueva fila
         var id = ++rowCount;
         rowProducts[id] = product;
         var tr = document.createElement('tr');
         tr.id = 'r' + id;
-        tr.innerHTML =
-            '<td>' +
-                '<input class="form-control form-control-sm r-search" data-row="'+id+'" value="'+product.name+'" autocomplete="off">' +
-                '<input type="hidden" class="r-pid" data-row="'+id+'" value="'+product.id+'">' +
-                '<small class="r-pname text-muted" data-row="'+id+'"></small>' +
-            '</td>' +
-            '<td><input class="form-control form-control-sm r-qty" data-row="'+id+'" type="number" min="1" step="1" value="1"></td>' +
-            '<td><input class="form-control form-control-sm r-cost" data-row="'+id+'" type="number" min="0" step="0.01" value="'+(parseFloat(product.cost_price)||'')+'"></td>' +
-            '<td><input class="form-control form-control-sm r-sale" data-row="'+id+'" type="number" min="0" step="0.01" value="'+(parseFloat(product.sale_price)||'')+'"></td>' +
-            '<td class="text-end align-middle r-sub" data-row="'+id+'">$0</td>' +
-            '<td class="align-middle">' +
-                '<button type="button" class="btn btn-sm btn-outline-danger py-0 r-del" data-row="'+id+'">'+
-                    '<i class="fas fa-trash"></i>' +
-                '</button>' +
-            '</td>';
+        tr.innerHTML = rowHtml(id);
         document.getElementById('items-body').appendChild(tr);
         document.getElementById('no-rows-msg').style.display = 'none';
-        recalc();
 
+        // Setear producto y packaging detectado
+        tr.querySelector('.r-search').value = product.name;
+        tr.querySelector('.r-pid').value = product.id;
+        populatePackagingSelect(id, product, matchedPkgId);
+
+        // Autoprecio: si hay empaque detectado, usar su precio; si no, el del producto base
+        var pkgSel = tr.querySelector('.r-pkg');
+        var selOpt = pkgSel.options[pkgSel.selectedIndex];
+        var autoCost = selOpt && selOpt.dataset.price ? selOpt.dataset.price : product.cost_price;
+        var autoSale = selOpt && selOpt.dataset.sale ? selOpt.dataset.sale : product.sale_price;
+        tr.querySelector('.r-cost').value = parseFloat(autoCost) || '';
+        tr.querySelector('.r-sale').value = parseFloat(autoSale) || '';
+
+        recalc();
         tr.classList.add('table-success');
         setTimeout(function(){ tr.classList.remove('table-success'); }, 800);
     }
@@ -416,17 +487,19 @@ document.getElementById('btn-submit-oc').addEventListener('click', function() {
     rows.forEach(function(tr, i) {
         if (rowErr) return;
         var pid  = tr.querySelector('.r-pid').value;
+        var pkg  = tr.querySelector('.r-pkg') ? tr.querySelector('.r-pkg').value : '';
         var qty  = parseFloat(tr.querySelector('.r-qty').value);
         var cost = parseFloat(tr.querySelector('.r-cost').value);
         var sale = tr.querySelector('.r-sale').value;
         if (!pid)             { rowErr = 'Fila '+(i+1)+': elegí un producto del buscador.'; return; }
         if (!qty || qty < 1)  { rowErr = 'Fila '+(i+1)+': la cantidad debe ser mayor a 0.'; return; }
-        if (!cost || cost<=0) { rowErr = 'Fila '+(i+1)+': ingresá el costo unitario.'; return; }
+        if (!cost || cost<=0) { rowErr = 'Fila '+(i+1)+': ingresá el costo.'; return; }
         items.push({
-            product_id: parseInt(pid),
-            quantity:   qty,
-            unit_cost:  cost,
-            sale_price: sale ? parseFloat(sale) : null
+            product_id:    parseInt(pid),
+            packaging_id:  pkg ? parseInt(pkg) : null,
+            quantity:      qty,
+            unit_cost:     cost,
+            sale_price:    sale ? parseFloat(sale) : null
         });
     });
 

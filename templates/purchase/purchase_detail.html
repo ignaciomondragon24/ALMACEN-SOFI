@@ -113,8 +113,18 @@
                         <tbody>
                             {% for item in items %}
                             <tr>
-                                <td>{{ item.product.name }}</td>
-                                <td class="text-center">{{ item.quantity }}</td>
+                                <td>
+                                    {{ item.product.name }}
+                                    {% if item.packaging %}
+                                    <br><small class="badge bg-secondary">{{ item.packaging.get_packaging_type_display }} · {{ item.packaging.name }} (x{{ item.packaging.units_quantity }})</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {{ item.quantity }}
+                                    {% if item.packaging and item.packaging.units_quantity > 1 %}
+                                    <br><small class="text-muted">= {{ item.quantity|add:0|stringformat:"d" }} × {{ item.packaging.units_quantity }} uds.</small>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">{{ item.unit_cost|currency }}</td>
                                 <td class="text-end">{% if item.sale_price %}{{ item.sale_price|currency }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
                                 <td class="text-end">{{ item.subtotal|currency }}</td>
