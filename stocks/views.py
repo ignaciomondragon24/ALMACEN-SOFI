@@ -87,7 +87,13 @@ def _save_inline_packaging(request, product):
         return Decimal('0')
 
     def _check_barcode(barcode, pkg_type):
-        """Validate barcode is not used by another packaging record."""
+        """Validate barcode is not used by another packaging or another Product.
+
+        La validacion cruzada contra Product evita el bug silencioso donde un
+        Product legacy y un ProductPackaging comparten barcode: el POS encontraba
+        el Product y nunca llegaba al packaging. Ahora bloqueamos el conflicto
+        al guardar y forzamos al user a limpiar el duplicado.
+        """
         if not barcode:
             return None
         dup = ProductPackaging.objects.filter(barcode=barcode).exclude(
@@ -97,6 +103,14 @@ def _save_inline_packaging(request, product):
             raise ValueError(
                 f'El código de barras {barcode} ya está en uso por '
                 f'{dup.product.name} - {dup.get_packaging_type_display()}'
+            )
+        dup_prod = Product.objects.filter(barcode=barcode).exclude(pk=product.pk).first()
+        if dup_prod:
+            raise ValueError(
+                f'El código de barras {barcode} ya está asignado al producto '
+                f'"{dup_prod.name}" (SKU {dup_prod.sku}). Desactivalo o cambiale '
+                f'el código antes de usarlo como empaque — si no, el POS siempre '
+                f'va a cobrar del producto viejo en lugar del empaque.'
             )
         return barcode
 

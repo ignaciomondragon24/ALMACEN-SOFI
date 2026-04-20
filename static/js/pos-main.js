@@ -444,6 +444,10 @@
                 // For bulk/granel products, show quantity/weight modal
                 if (product.is_bulk || product.is_granel) {
                     showBulkQuantityModal(product);
+                } else if (!product.packaging_id && product.packagings && product.packagings.length > 1) {
+                    // Producto con varios niveles de empaque y no matchee por barcode
+                    // → pedir al usuario que elija unidad / display / bulto.
+                    showPackagingSelector(product);
                 } else {
                     addToCart(product.id, 1, product.packaging_id || null);
                     hideSearchResults();
@@ -464,6 +468,80 @@
         });
     }
     
+    function showPackagingSelector(product) {
+        const pkgs = product.packagings || [];
+        const unitOption = {
+            id: null,
+            type_display: 'Unidad',
+            name: product.name,
+            sale_price: product.unit_price,
+            stock_in_packaging: product.stock,
+            units_quantity: 1,
+            packaging_type: 'unit',
+        };
+        const options = [unitOption, ...pkgs.filter(p => p.packaging_type !== 'unit')];
+
+        const rowsHtml = options.map((o, i) => {
+            const typeClass = o.packaging_type === 'bulk' ? 'primary'
+                : o.packaging_type === 'display' ? 'info'
+                : 'success';
+            return `
+            <button type="button" class="list-group-item list-group-item-action pkg-select-btn d-flex justify-content-between align-items-center"
+                    data-pkg-id="${o.id || ''}" data-idx="${i}">
+                <div class="text-start">
+                    <div class="fw-bold">
+                        <span class="badge bg-${typeClass} me-1">${o.type_display}</span>
+                        ${o.name}
+                    </div>
+                    <small class="text-muted">Stock: ${o.stock_in_packaging} · ${o.units_quantity} u/empaque</small>
+                </div>
+                <span class="fs-5 fw-bold">${formatCurrency(o.sale_price)}</span>
+            </button>`;
+        }).join('');
+
+        const modalHtml = `
+        <div class="modal fade" id="packagingSelectorModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Elegí el empaque · ${product.name}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="list-group list-group-flush">
+                            ${rowsHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        // Reemplazar modal previo si quedo en el DOM
+        const prev = document.getElementById('packagingSelectorModal');
+        if (prev) prev.remove();
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        const modalEl = document.getElementById('packagingSelectorModal');
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+
+        modalEl.querySelectorAll('.pkg-select-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.idx);
+                const chosen = options[idx];
+                bsModal.hide();
+                addToCart(product.id, 1, chosen.id || null);
+                hideSearchResults();
+                if (productSearch) {
+                    productSearch.value = '';
+                    productSearch.focus();
+                }
+            });
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove());
+    }
+
     function showBulkQuantityModal(product) {
         const isGranel = !!product.is_granel;
         // Los productos granel de caramelera siempre usan precio/100g como base

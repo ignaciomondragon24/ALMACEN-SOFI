@@ -128,19 +128,21 @@ def api_search(request):
     # Normalize query (remove accents)
     query_normalized = normalize_text(query)
     
-    # For barcode searches, also check ProductPackaging barcodes
+    # For barcode searches, check ProductPackaging barcodes FIRST.
+    # Si un Product legacy y un ProductPackaging activo comparten el mismo EAN-13
+    # (caso tipico: un viejo producto "X 20u" creado como Product independiente y
+    # el nuevo ProductPackaging display del producto base), el packaging gana —
+    # es la fuente de verdad para precio y stock.
     packaging_match = None
     if query.isdigit() and 8 <= len(query) <= 13:
-        # First try Product.barcode
-        products = Product.objects.filter(is_active=True, barcode=query)
-        
-        # If not found, try ProductPackaging.barcode
-        if not products.exists():
-            packaging_match = ProductPackaging.objects.filter(
-                barcode=query, is_active=True, product__is_active=True
-            ).select_related('product', 'product__unit_of_measure', 'product__category').first()
-            if packaging_match:
-                products = Product.objects.filter(id=packaging_match.product_id)
+        packaging_match = ProductPackaging.objects.filter(
+            barcode=query, is_active=True, product__is_active=True
+        ).select_related('product', 'product__unit_of_measure', 'product__category').first()
+        if packaging_match:
+            products = Product.objects.filter(id=packaging_match.product_id)
+        else:
+            # Fallback: Product.barcode directo
+            products = Product.objects.filter(is_active=True, barcode=query)
     elif len(query) >= 1:
         # Get all active products and filter in Python for accent-insensitive search
         all_products = Product.objects.filter(is_active=True).select_related('unit_of_measure', 'category')
@@ -197,7 +199,31 @@ def api_search(request):
             if packaging_match.units_quantity > 1:
                 stock_in_pkg = float(p.current_stock) / packaging_match.units_quantity
                 product_data['stock_in_packaging'] = round(stock_in_pkg, 1)
-        
+        else:
+            # Si no fue match por barcode pero el producto tiene empaques activos,
+            # devolver todos los niveles para que el POS pueda mostrar un selector
+            # al hacer click (unidad / display / bulto).
+            pkgs = list(p.packagings.filter(is_active=True).order_by('packaging_type'))
+            if pkgs:
+                options = []
+                for pkg in pkgs:
+                    units = pkg.units_quantity or 1
+                    stock_in_pkg = (float(p.current_stock) / units) if units > 0 else 0
+                    options.append({
+                        'id': pkg.id,
+                        'packaging_type': pkg.packaging_type,
+                        'type_display': pkg.get_packaging_type_display(),
+                        'name': pkg.name,
+                        'barcode': pkg.barcode or '',
+                        'sale_price': float(pkg.sale_price),
+                        'units_quantity': units,
+                        'stock_in_packaging': round(stock_in_pkg, 2),
+                    })
+                # Solo exponer el selector si hay mas de un nivel real
+                # (un solo packaging unit no agrega valor — el user ya ve el precio base).
+                if len(options) > 1:
+                    product_data['packagings'] = options
+
         products_data.append(product_data)
     
     data = {'products': products_data}
