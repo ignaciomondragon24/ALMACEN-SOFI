@@ -278,7 +278,7 @@
 
 {% block extra_js %}
 <script>
-    const expectedAmount = parseFloat('{{ expected|default:0 }}'.replace(',', '.')) || 0;
+    const expectedAmount = parseFloat('{{ expected|default:0|unlocalize }}') || 0;
 
     function formatCurrency(amount) {
         return '$' + (amount || 0).toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
