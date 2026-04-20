@@ -125,6 +125,51 @@ def dashboard_view(request):
         context['total_products'] = Product.objects.filter(is_active=True).count()
         context['total_categories'] = ProductCategory.objects.filter(is_active=True).count()
     
+    # === PERDIDAS DEL MES (merma/vencido/robo/otro) ===
+    # Visible para roles de gestion: muestran el impacto real de ajustes de
+    # salida en el negocio. Clasificacion por keywords en la nota — sin migracion.
+    if is_cajero_manager or is_admin:
+        from stocks.models import StockMovement
+        from decimal import Decimal
+        month_start = today.replace(day=1)
+        losses_qs = StockMovement.objects.filter(
+            movement_type='adjustment_out',
+            created_at__date__gte=month_start,
+        ).select_related('product')
+
+        def _classify(ref_text):
+            t = (ref_text or '').lower()
+            if any(k in t for k in ('vencid', 'expir', 'caduc')):
+                return 'expired'
+            if 'robo' in t or 'hurto' in t or 'theft' in t:
+                return 'theft'
+            if 'merma' in t or 'dano' in t or 'daño' in t or 'rotur' in t or 'roto' in t:
+                return 'damage'
+            return 'other'
+
+        losses_summary = {
+            'expired':  {'label': 'Vencidos',   'qty': Decimal('0'), 'amount': Decimal('0'), 'color': '#f39c12', 'icon': 'fa-calendar-times'},
+            'theft':    {'label': 'Robo',       'qty': Decimal('0'), 'amount': Decimal('0'), 'color': '#c0392b', 'icon': 'fa-user-secret'},
+            'damage':   {'label': 'Merma/Daño', 'qty': Decimal('0'), 'amount': Decimal('0'), 'color': '#e67e22', 'icon': 'fa-triangle-exclamation'},
+            'other':    {'label': 'Otros',      'qty': Decimal('0'), 'amount': Decimal('0'), 'color': '#7f8c8d', 'icon': 'fa-question'},
+        }
+        total_loss_amount = Decimal('0')
+        total_loss_qty = Decimal('0')
+        for mv in losses_qs:
+            bucket = _classify(mv.reference or mv.notes)
+            qty_abs = abs(mv.quantity)
+            cost_each = mv.product.cost_price or mv.product.purchase_price or Decimal('0')
+            amount = qty_abs * cost_each
+            losses_summary[bucket]['qty'] += qty_abs
+            losses_summary[bucket]['amount'] += amount
+            total_loss_qty += qty_abs
+            total_loss_amount += amount
+
+        context['losses_summary'] = losses_summary
+        context['losses_total_amount'] = total_loss_amount
+        context['losses_total_qty'] = total_loss_qty
+        context['losses_month_label'] = month_start.strftime('%B %Y').capitalize()
+
     # === DATOS PARA ADMIN ===
     if is_admin:
         # Ventas del día (global)
