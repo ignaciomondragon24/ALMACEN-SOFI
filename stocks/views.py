@@ -665,30 +665,46 @@ def price_list(request):
 
 @login_required
 def api_search_products(request):
-    """API: Search products."""
+    """API: Search products.
+
+    Busca tanto en Product.barcode como en ProductPackaging.barcode. Un
+    mismo producto puede tener 3 barcodes distintos (unit/display/bulk)
+    apuntando al mismo Product base; al escanear cualquiera se devuelve
+    ese producto.
+    """
     query = request.GET.get('q', '')
-    
+
     if not query or len(query) < 2:
         return JsonResponse({'products': []})
-    
+
     products = Product.objects.filter(is_active=True)
-    
+
+    def _ids_from_packaging(lookup):
+        return ProductPackaging.objects.filter(
+            is_active=True, product__is_active=True, **lookup
+        ).values_list('product_id', flat=True)
+
     # Check if it's a barcode search (8-13 digits) - exact match
     if query.isdigit() and 8 <= len(query) <= 13:
-        products = products.filter(barcode=query)
+        pkg_ids = list(_ids_from_packaging({'barcode': query}))
+        products = products.filter(Q(barcode=query) | Q(id__in=pkg_ids))
     elif query.isdigit():
+        pkg_ids = list(_ids_from_packaging({'barcode__istartswith': query}))
         products = products.filter(
             Q(sku__istartswith=query) |
-            Q(barcode__istartswith=query)
+            Q(barcode__istartswith=query) |
+            Q(id__in=pkg_ids)
         )
     else:
+        pkg_ids = list(_ids_from_packaging({'barcode__icontains': query}))
         products = products.filter(
             Q(name__icontains=query) |
             Q(sku__icontains=query) |
-            Q(barcode__icontains=query)
+            Q(barcode__icontains=query) |
+            Q(id__in=pkg_ids)
         )
-    
-    products = products[:20]
+
+    products = products.distinct()[:20]
     
     data = {
         'products': [
