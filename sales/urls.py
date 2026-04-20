@@ -10,7 +10,8 @@ urlpatterns = [
     # Reports Dashboard
     path('', views.reports_dashboard, name='dashboard'),
     path('sales/', views.sale_list, name='sale_list'),
-    
+    path('balance/', views.balance_consolidado, name='balance_consolidado'),
+
     # Reports
     path('reports/daily/', views.daily_report, name='daily_report'),
     path('reports/period/', views.period_report, name='period_report'),

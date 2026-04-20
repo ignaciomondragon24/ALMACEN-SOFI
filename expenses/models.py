@@ -28,12 +28,22 @@ class ExpenseCategory(models.Model):
         'Activa',
         default=True
     )
-    
+    is_investment = models.BooleanField(
+        'Inversión (no resta del balance)',
+        default=False,
+        help_text=(
+            'Marcá esta opción si los gastos de esta categoría representan '
+            'inversión y no deben restarse de las ganancias en el balance. '
+            'Caso típico: Compras de mercadería — ese dinero se convierte '
+            'en productos para revender, no es un gasto puro del negocio.'
+        ),
+    )
+
     class Meta:
         verbose_name = 'Categoría de Gasto'
         verbose_name_plural = 'Categorías de Gastos'
         ordering = ['name']
-    
+
     def __str__(self):
         return self.name
 

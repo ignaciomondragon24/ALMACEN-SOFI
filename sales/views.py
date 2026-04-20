@@ -82,6 +82,89 @@ def reports_dashboard(request):
 
 @login_required
 @group_required(['Admin'])
+def balance_consolidado(request):
+    """Reporte unificado de Ventas vs Gastos con neto operativo.
+
+    Pensado para que el dueño vea de un vistazo cuanta plata le quedo al
+    final del periodo sin tener que cruzar dos reportes. Las categorias
+    marcadas como inversion (Compras de mercaderia) se muestran aparte y
+    NO se restan del neto — a pedido explicito del cliente porque ese
+    dinero se convierte en stock, no es gasto puro.
+    """
+    from expenses.models import Expense
+
+    today = timezone.localdate()
+    period = (request.GET.get('period') or 'month').lower()
+    date_from_str = request.GET.get('date_from', '')
+    date_to_str = request.GET.get('date_to', '')
+
+    if period == 'today':
+        date_from, date_to = today, today
+    elif period == 'week':
+        date_from = today - timedelta(days=6)
+        date_to = today
+    elif period == 'custom' and date_from_str and date_to_str:
+        date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+        date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+    else:
+        period = 'month'
+        date_from = today.replace(day=1)
+        date_to = today
+
+    # Ventas completadas en el rango
+    sales_qs = POSTransaction.objects.filter(
+        status='completed',
+        completed_at__date__gte=date_from,
+        completed_at__date__lte=date_to,
+    )
+    total_sales = sales_qs.aggregate(total=Sum('total'))['total'] or Decimal('0')
+    sales_count = sales_qs.count()
+
+    # Gastos del rango, separados entre operativos (restan) e inversion (no)
+    expenses_qs = Expense.objects.filter(
+        expense_date__gte=date_from,
+        expense_date__lte=date_to,
+    ).select_related('category')
+
+    operating_expenses = expenses_qs.filter(category__is_investment=False)
+    investment_expenses = expenses_qs.filter(category__is_investment=True)
+
+    total_operating = operating_expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    total_investment = investment_expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    # Breakdown por categoria
+    operating_by_cat = (
+        operating_expenses
+        .values('category__name', 'category__color')
+        .annotate(total=Sum('amount'), count=Count('id'))
+        .order_by('-total')
+    )
+    investment_by_cat = (
+        investment_expenses
+        .values('category__name', 'category__color')
+        .annotate(total=Sum('amount'), count=Count('id'))
+        .order_by('-total')
+    )
+
+    neto_operativo = total_sales - total_operating
+
+    context = {
+        'period': period,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_sales': total_sales,
+        'sales_count': sales_count,
+        'total_operating': total_operating,
+        'total_investment': total_investment,
+        'operating_by_cat': operating_by_cat,
+        'investment_by_cat': investment_by_cat,
+        'neto_operativo': neto_operativo,
+    }
+    return render(request, 'sales/balance_consolidado.html', context)
+
+
+@login_required
+@group_required(['Admin'])
 def sale_list(request):
     """List sales/transactions."""
     transactions = POSTransaction.objects.filter(
