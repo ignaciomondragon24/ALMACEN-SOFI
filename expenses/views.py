@@ -64,14 +64,17 @@ def expense_create(request):
     if request.method == 'POST':
         form = ExpenseForm(request.POST, request.FILES)
         if form.is_valid():
-            # Block cash expenses when no shift is open
-            if form.cleaned_data.get('payment_method') == 'cash':
+            # Solo bloqueamos por turno cerrado si el gasto AFECTA el cajon —
+            # un gasto operativo pagado por fuera (alquiler, sueldos) no necesita
+            # turno abierto.
+            if (form.cleaned_data.get('payment_method') == 'cash'
+                    and form.cleaned_data.get('affects_cash_drawer')):
                 active_shift = CashShift.objects.filter(status='open').first()
                 if not active_shift:
                     messages.error(
                         request,
-                        'No se puede registrar un gasto en efectivo sin un turno de caja abierto. '
-                        'Abra un turno primero o seleccione otro método de pago.'
+                        'Marcaste "sale del cajón" pero no hay turno abierto. '
+                        'Abrí un turno o dejá el checkbox sin marcar.'
                     )
                     context = {'form': form, 'title': 'Nuevo Gasto'}
                     return render(request, 'expenses/expense_form.html', context)
@@ -81,8 +84,8 @@ def expense_create(request):
                 expense.created_by = request.user
                 expense.save()
 
-                # If cash expense, create CashMovement on the active shift
-                if expense.payment_method == 'cash':
+                # CashMovement solo si el gasto sale del cajon del POS.
+                if expense.payment_method == 'cash' and expense.affects_cash_drawer:
                     active_shift = CashShift.objects.filter(
                         status='open'
                     ).first()
@@ -116,16 +119,17 @@ def expense_edit(request, pk):
     if request.method == 'POST':
         form = ExpenseForm(request.POST, request.FILES, instance=expense)
         if form.is_valid():
-            # Block switching to cash when no shift is open and no existing movement
             ref = f'EXP-{expense.id}'
             existing_mov = CashMovement.objects.filter(reference=ref).first()
-            if form.cleaned_data.get('payment_method') == 'cash' and not existing_mov:
+            wants_drawer = (form.cleaned_data.get('payment_method') == 'cash'
+                            and form.cleaned_data.get('affects_cash_drawer'))
+            if wants_drawer and not existing_mov:
                 active_shift = CashShift.objects.filter(status='open').first()
                 if not active_shift:
                     messages.error(
                         request,
-                        'No se puede cambiar a efectivo sin un turno de caja abierto. '
-                        'Abra un turno primero o seleccione otro método de pago.'
+                        'Marcaste "sale del cajón" pero no hay turno abierto. '
+                        'Abrí un turno o dejá el checkbox sin marcar.'
                     )
                     context = {
                         'form': form, 'expense': expense,
@@ -136,9 +140,8 @@ def expense_edit(request, pk):
             with transaction.atomic():
                 form.save()
 
-                # Update linked CashMovement
                 existing_mov = CashMovement.objects.filter(reference=ref).first()
-                if expense.payment_method == 'cash':
+                if expense.payment_method == 'cash' and expense.affects_cash_drawer:
                     active_shift = CashShift.objects.filter(status='open').first()
                     cash_pm = PaymentMethod.objects.filter(is_cash=True).first()
                     if existing_mov:
@@ -156,7 +159,8 @@ def expense_edit(request, pk):
                             created_by=request.user,
                         )
                 elif existing_mov:
-                    # Changed from cash to non-cash: remove the CashMovement
+                    # Ya no sale del cajon (cambio de metodo o destildo el flag):
+                    # eliminamos el CashMovement para no afectar el cierre Z.
                     existing_mov.delete()
 
             messages.success(request, 'Gasto actualizado exitosamente.')

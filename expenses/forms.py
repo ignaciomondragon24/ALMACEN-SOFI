@@ -41,12 +41,16 @@ class ExpenseForm(forms.ModelForm):
         model = Expense
         fields = [
             'category', 'description', 'amount', 'expense_date',
-            'payment_method', 'receipt_number', 'supplier',
+            'payment_method', 'affects_cash_drawer',
+            'receipt_number', 'supplier',
             'notes', 'receipt_image'
         ]
         widgets = {
             'category': forms.Select(attrs={
                 'class': 'form-select'
+            }),
+            'affects_cash_drawer': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
             }),
             'description': forms.TextInput(attrs={
                 'class': 'form-control',

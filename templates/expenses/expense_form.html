@@ -60,11 +60,27 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">N° Recibo/Factura</label>
-                                <input type="text" name="receipt_number" class="form-control" 
+                                <input type="text" name="receipt_number" class="form-control"
                                        value="{{ form.instance.receipt_number|default:'' }}">
                             </div>
                         </div>
-                        
+
+                        <div class="mb-3 p-3 rounded" style="background:#fff3cd;border:1px solid #ffe69c;" id="affectsDrawerBox">
+                            <div class="form-check">
+                                <input type="checkbox" name="affects_cash_drawer" id="id_affects_cash_drawer"
+                                       class="form-check-input" value="on"
+                                       {% if form.instance.affects_cash_drawer %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="id_affects_cash_drawer">
+                                    <i class="fas fa-cash-register me-1"></i>Sale del cajón de la caja (POS)
+                                </label>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                Marcá esto <b>solo</b> si el gasto salió físicamente del cajón del POS (ej: cajero paga el delivery
+                                con plata de la caja). Gastos operativos pagados por fuera — alquiler, sueldos, servicios —
+                                dejalo desmarcado para que no afecte el cierre Z.
+                            </small>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label">Proveedor</label>
                             <select name="supplier" class="form-select">

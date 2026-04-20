@@ -478,6 +478,45 @@ with connection.cursor() as c:
         print('  Marked promotions.0005 as applied')
 " 2>&1 || echo "WARNING: promotions applies_to_packaging_type repair skipped"
 
+# Defensive: ensure expenses_expense.affects_cash_drawer exists (migration 0005).
+# Sin esto, crear/editar gastos explota con:
+#   column expenses_expense.affects_cash_drawer does not exist
+# Y el cierre Z sigue contando gastos operativos como egresos del cajon.
+echo "Verifying expenses_expense.affects_cash_drawer..."
+python -c "
+import os, django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+django.setup()
+from django.db import connection
+with connection.cursor() as c:
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='expenses_expense')\")
+    if not c.fetchone()[0]:
+        print('  expenses_expense no existe aun, skip')
+        raise SystemExit(0)
+
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='expenses_expense' AND column_name='affects_cash_drawer'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding expenses_expense.affects_cash_drawer ...')
+        c.execute(\"\"\"
+            ALTER TABLE expenses_expense
+            ADD COLUMN affects_cash_drawer boolean NOT NULL DEFAULT false
+        \"\"\")
+        print('  affects_cash_drawer column added OK')
+    else:
+        print('  affects_cash_drawer OK')
+
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='expenses' AND name='0005_expense_affects_cash_drawer'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('expenses', '0005_expense_affects_cash_drawer', NOW())
+        \"\"\")
+        print('  Marked expenses.0005 as applied')
+" 2>&1 || echo "WARNING: expenses affects_cash_drawer repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."

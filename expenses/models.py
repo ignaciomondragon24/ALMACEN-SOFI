@@ -107,6 +107,16 @@ class Expense(models.Model):
         blank=True,
         null=True
     )
+    affects_cash_drawer = models.BooleanField(
+        'Sale del cajón de la caja',
+        default=False,
+        help_text=(
+            'Activar solo si este gasto se pagó con efectivo del cajón del POS '
+            '(ej: cajero paga el delivery con la plata de la caja). '
+            'Gastos operativos generales (alquiler, sueldos, servicios) suelen '
+            'pagarse por fuera y deben dejarse desmarcado.'
+        )
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
