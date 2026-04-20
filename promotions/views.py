@@ -162,6 +162,9 @@ def promotion_create(request):
                 status=post_data.get('status', 'active'),
                 priority=safe_int(post_data.get('priority'), 50),
                 is_combinable=post_data.get('is_combinable') == 'on',
+                applies_to_packaging_type=(
+                    post_data.get('applies_to_packaging_type') or 'unit'
+                ),
                 # Days
                 **day_values,
                 # NxM / nx_fixed_price config
@@ -289,6 +292,9 @@ def promotion_edit(request, pk):
             promotion.status = post_data.get('status', promotion.status) or 'active'
             promotion.priority = safe_int(post_data.get('priority'), 50)
             promotion.is_combinable = post_data.get('is_combinable') == 'on'
+            promotion.applies_to_packaging_type = (
+                post_data.get('applies_to_packaging_type') or 'unit'
+            )
             # Days: if no day checkbox present in POST, keep existing values
             day_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
             any_day_in_post = any(d in post_data for d in day_fields)
