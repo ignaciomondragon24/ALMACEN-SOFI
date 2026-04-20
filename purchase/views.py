@@ -452,6 +452,40 @@ def _serialize_product(p, matched_packaging=None):
     }
 
 
+def _resolve_legacy_duplicate(p):
+    """Si el Product p tiene un barcode que coincide con un ProductPackaging
+    activo de OTRO producto, devuelve (parent_product, packaging) para
+    redirigir al producto "correcto" con el empaque detectado.
+    Esto previene que Products legacy "fantasma" (mismo barcode que un display
+    ya existente) aparezcan sin empaques en el selector."""
+    if not p.barcode:
+        return None
+    pkg = ProductPackaging.objects.select_related('product').filter(
+        barcode=p.barcode, is_active=True, product__is_active=True
+    ).exclude(product=p).first()
+    return (pkg.product, pkg) if pkg else None
+
+
+def _dedup_results(products):
+    """Serializa la lista de products aplicando deduplicación legacy."""
+    seen_ids = set()
+    results = []
+    for p in products:
+        resolved = _resolve_legacy_duplicate(p)
+        if resolved:
+            parent, pkg = resolved
+            if parent.id in seen_ids:
+                continue
+            seen_ids.add(parent.id)
+            results.append(_serialize_product(parent, matched_packaging=pkg))
+        else:
+            if p.id in seen_ids:
+                continue
+            seen_ids.add(p.id)
+            results.append(_serialize_product(p))
+    return results
+
+
 @login_required
 @group_required(['Admin'])
 def api_search_products(request):
@@ -460,6 +494,8 @@ def api_search_products(request):
     - Escaneo de barcode exacto, que también detecta si el código pertenece
       a un ProductPackaging (bulto/display/unidad) y devuelve el empaque
       matcheado en matched_packaging_id.
+    Aplica deduplicación de Products legacy que duplican barcode con un
+    ProductPackaging activo (redirige al padre con el empaque matcheado).
     """
     query = request.GET.get('q', '')
     is_barcode_scan = request.GET.get('barcode') == '1'
@@ -468,17 +504,18 @@ def api_search_products(request):
         return JsonResponse({'results': []})
 
     if is_barcode_scan:
-        # 1. Match exacto en Product.barcode
-        product = Product.objects.filter(barcode=query, is_active=True).first()
-        if product:
-            return JsonResponse({'results': [_serialize_product(product)]})
-        # 2. Match exacto en ProductPackaging.barcode → devuelvo el producto padre
-        #    con matched_packaging_id señalando el empaque detectado
+        # 1. Match exacto en ProductPackaging.barcode (tiene prioridad sobre
+        #    Product.barcode para evitar que un Product legacy con barcode
+        #    duplicado gane al empaque real).
         pkg = ProductPackaging.objects.select_related('product').filter(
             barcode=query, is_active=True, product__is_active=True
         ).first()
         if pkg:
             return JsonResponse({'results': [_serialize_product(pkg.product, matched_packaging=pkg)]})
+        # 2. Match exacto en Product.barcode
+        product = Product.objects.filter(barcode=query, is_active=True).first()
+        if product:
+            return JsonResponse({'results': [_serialize_product(product)]})
         # 3. Fallback: búsqueda amplia
         products = list(Product.objects.filter(
             Q(barcode__icontains=query) | Q(sku__icontains=query) | Q(name__icontains=query),
@@ -492,5 +529,4 @@ def api_search_products(request):
             is_active=True
         )[:20])
 
-    results = [_serialize_product(p) for p in products]
-    return JsonResponse({'results': results})
+    return JsonResponse({'results': _dedup_results(products)})
