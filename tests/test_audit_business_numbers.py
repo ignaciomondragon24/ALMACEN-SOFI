@@ -360,11 +360,10 @@ class StockPackagingCascadeAudit(AuditBaseTestCase):
         self.assertEqual(unit_pkg.current_stock, Decimal('312'))
 
     def test_adjust_stock_cascades_up(self):
-        """Conteo físico POR ARRIBA: cascada proporcional a todos los niveles."""
+        """Conteo físico POR ARRIBA: resync absoluto de todos los niveles."""
         prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
             stock=Decimal('288'),
         )
-        # Usuario cuenta físicamente 312 unidades (encontró 24 unidades extra)
         StockManagementService.adjust_stock(prod, Decimal('312'), 'Conteo físico')
 
         prod.refresh_from_db()
@@ -372,21 +371,18 @@ class StockPackagingCascadeAudit(AuditBaseTestCase):
         display_pkg.refresh_from_db()
         bulk_pkg.refresh_from_db()
 
-        # Producto: 312
         self.assertEqual(prod.current_stock, Decimal('312'))
-        # Unidad: sincronizada con producto
         self.assertEqual(unit_pkg.current_stock, Decimal('312'))
-        # Display: 24 + 24/12 = 26
+        # Display: 312/12 = 26
         self.assertEqual(display_pkg.current_stock, Decimal('26'))
-        # Bulto: 12 + 24/24 = 13
+        # Bulto: 312/24 = 13
         self.assertEqual(bulk_pkg.current_stock, Decimal('13'))
 
     def test_adjust_stock_cascades_down(self):
-        """Conteo físico POR DEBAJO: cascada proporcional a todos los niveles."""
+        """Conteo físico POR DEBAJO: resync absoluto de todos los niveles."""
         prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
             stock=Decimal('288'),
         )
-        # Usuario cuenta físicamente 240 (faltan 48 unidades = 4 displays = 2 bultos)
         StockManagementService.adjust_stock(prod, Decimal('240'), 'Merma')
 
         prod.refresh_from_db()
@@ -396,9 +392,34 @@ class StockPackagingCascadeAudit(AuditBaseTestCase):
 
         self.assertEqual(prod.current_stock, Decimal('240'))
         self.assertEqual(unit_pkg.current_stock, Decimal('240'))
-        # Display: 24 - 48/12 = 20
+        # Display: 240/12 = 20
         self.assertEqual(display_pkg.current_stock, Decimal('20'))
-        # Bulto: 12 - 48/24 = 10
+        # Bulto: 240/24 = 10
+        self.assertEqual(bulk_pkg.current_stock, Decimal('10'))
+
+    def test_adjust_stock_repairs_desync(self):
+        """Si los packagings venían desincronizados, el ajuste los repara."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        # Simular estado corrupto (el bug histórico): display y bulto
+        # quedaron viejos mientras el producto ya se actualizó por el lado.
+        display_pkg.current_stock = Decimal('999')
+        display_pkg.save()
+        bulk_pkg.current_stock = Decimal('999')
+        bulk_pkg.save()
+
+        # El cajero cuenta 240 físicamente → los 3 niveles deben quedar consistentes
+        StockManagementService.adjust_stock(prod, Decimal('240'), 'Conteo físico')
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        self.assertEqual(prod.current_stock, Decimal('240'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('240'))
+        self.assertEqual(display_pkg.current_stock, Decimal('20'))
         self.assertEqual(bulk_pkg.current_stock, Decimal('10'))
 
     def test_adjust_stock_unit_always_matches_product(self):

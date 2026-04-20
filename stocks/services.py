@@ -191,31 +191,26 @@ class StockManagementService:
         product.current_stock = new_quantity
         product.save()
 
-        # Cascade the difference to active packagings so every level keeps
-        # reflecting the same real stock expressed in its own unit.
-        # unit_pkg stays anchored to Product.current_stock; display/bulk
-        # absorb the diff proportionally to their units_quantity.
-        if difference != 0:
-            packagings = {
-                p.packaging_type: p
-                for p in product.packagings.filter(is_active=True).select_for_update()
-            }
-            unit_pkg = packagings.get('unit')
-            if unit_pkg:
-                unit_pkg.current_stock = new_quantity
-                unit_pkg.save(update_fields=['current_stock'])
-            display_pkg = packagings.get('display')
-            if display_pkg and display_pkg.units_per_display > 0:
-                display_pkg.current_stock = display_pkg.current_stock + (
-                    difference / Decimal(str(display_pkg.units_per_display))
-                )
-                display_pkg.save(update_fields=['current_stock'])
-            bulk_pkg = packagings.get('bulk')
-            if bulk_pkg and bulk_pkg.units_quantity > 0:
-                bulk_pkg.current_stock = bulk_pkg.current_stock + (
-                    difference / Decimal(str(bulk_pkg.units_quantity))
-                )
-                bulk_pkg.save(update_fields=['current_stock'])
+        # Resync active packagings to the new total. Un ajuste manual es
+        # una CORRECCIÓN: cada nivel se recalcula absoluto sobre el nuevo
+        # stock, no con += diff. Si el packaging ya venía desincronizado
+        # de un bug previo, esto lo repara en vez de arrastrar el error.
+        packagings = {
+            p.packaging_type: p
+            for p in product.packagings.filter(is_active=True).select_for_update()
+        }
+        unit_pkg = packagings.get('unit')
+        if unit_pkg:
+            unit_pkg.current_stock = new_quantity
+            unit_pkg.save(update_fields=['current_stock'])
+        display_pkg = packagings.get('display')
+        if display_pkg and display_pkg.units_per_display > 0:
+            display_pkg.current_stock = new_quantity / Decimal(str(display_pkg.units_per_display))
+            display_pkg.save(update_fields=['current_stock'])
+        bulk_pkg = packagings.get('bulk')
+        if bulk_pkg and bulk_pkg.units_quantity > 0:
+            bulk_pkg.current_stock = new_quantity / Decimal(str(bulk_pkg.units_quantity))
+            bulk_pkg.save(update_fields=['current_stock'])
 
         # Create movement record:
         # - reference = motivo legible (Robo, Rotura, Conteo físico, etc.)
