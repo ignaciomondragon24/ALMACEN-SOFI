@@ -31,17 +31,32 @@ def product_list(request):
     stock_alert = request.GET.get('stock_alert', '')
     
     if search:
+        # Tambien busca en barcodes de ProductPackaging: escanear el codigo
+        # del display/bulto debe encontrar el Product base en el inventario.
         if search.isdigit():
+            pkg_ids = list(
+                ProductPackaging.objects.filter(
+                    is_active=True, barcode__istartswith=search
+                ).values_list('product_id', flat=True)
+            )
             products = products.filter(
                 Q(sku__istartswith=search) |
-                Q(barcode__istartswith=search)
+                Q(barcode__istartswith=search) |
+                Q(id__in=pkg_ids)
             )
         else:
+            pkg_ids = list(
+                ProductPackaging.objects.filter(
+                    is_active=True, barcode__icontains=search
+                ).values_list('product_id', flat=True)
+            )
             products = products.filter(
                 Q(name__icontains=search) |
                 Q(sku__icontains=search) |
-                Q(barcode__icontains=search)
+                Q(barcode__icontains=search) |
+                Q(id__in=pkg_ids)
             )
+        products = products.distinct()
     
     if category:
         products = products.filter(category_id=category)
@@ -408,10 +423,16 @@ def product_movement_list(request, pk=None):
     date_to = request.GET.get('date_to', '')
 
     if search and not pk:
+        pkg_product_ids = list(
+            ProductPackaging.objects.filter(
+                is_active=True, barcode__icontains=search
+            ).values_list('product_id', flat=True)
+        )
         movements = movements.filter(
             Q(product__name__icontains=search) |
             Q(product__sku__icontains=search) |
-            Q(product__barcode__icontains=search)
+            Q(product__barcode__icontains=search) |
+            Q(product_id__in=pkg_product_ids)
         )
 
     if movement_type:
