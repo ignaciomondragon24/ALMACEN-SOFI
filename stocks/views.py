@@ -31,6 +31,22 @@ def product_list(request):
     stock_alert = request.GET.get('stock_alert', '')
     
     if search:
+        # Si el search es un barcode completo (8-13 digitos exactos) y
+        # coincide con un ProductPackaging de tipo display o bulto (no unit),
+        # redirigimos al Gestor de Empaques. Asi el usuario ve stock y precio
+        # del empaque escaneado en lugar del Product base, que mostraria el
+        # mismo nombre y unidades sueltas.
+        if search.isdigit() and 8 <= len(search) <= 13:
+            if not Product.objects.filter(is_active=True, barcode=search).exists():
+                pkg = (ProductPackaging.objects
+                       .filter(is_active=True, barcode=search,
+                               packaging_type__in=['display', 'bulk'],
+                               product__is_active=True)
+                       .select_related('product')
+                       .first())
+                if pkg:
+                    return redirect('stocks:product_packaging', pk=pkg.product_id)
+
         # Tambien busca en barcodes de ProductPackaging: escanear el codigo
         # del display/bulto debe encontrar el Product base en el inventario.
         if search.isdigit():
