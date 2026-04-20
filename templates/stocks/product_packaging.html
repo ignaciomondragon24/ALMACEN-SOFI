@@ -246,7 +246,10 @@
             <input type="hidden" name="action" value="save_pkg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-boxes-stacked me-2"></i>Empaques</h5>
+                    <h5 class="modal-title">
+                        <i class="fas fa-boxes-stacked me-2"></i>
+                        {% if unit_pkg or display_pkg or bulk_pkg %}Editar Empaques{% else %}Crear Empaques{% endif %}
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -268,14 +271,23 @@
 
                     <!-- Unit Packaging -->
                     <div class="card mb-3 border">
-                        <div class="card-header bg-light py-2">
+                        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                            {% if unit_pkg %}
+                            <span class="fw-bold">
+                                <i class="fas fa-cube me-1"></i>Unidad
+                                <span class="badge bg-success ms-1">Configurada</span>
+                            </span>
+                            <small class="text-muted">Modificá los campos para actualizar</small>
+                            <input type="hidden" name="has_unit" value="1">
+                            {% else %}
                             <div class="form-check">
                                 <input type="checkbox" name="has_unit" id="id_has_unit"
                                        class="form-check-input" value="1" checked>
                                 <label class="form-check-label fw-bold" for="id_has_unit">
-                                    <i class="fas fa-cube me-1"></i>Unidad
+                                    <i class="fas fa-cube me-1"></i>Unidad <small class="text-muted">(nueva)</small>
                                 </label>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="card-body" id="unit_fields">
                             <div class="row">
@@ -322,15 +334,23 @@
 
                     <!-- Display Packaging -->
                     <div class="card mb-3 border">
-                        <div class="card-header bg-light py-2">
+                        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                            {% if display_pkg %}
+                            <span class="fw-bold">
+                                <i class="fas fa-box me-1"></i>Display
+                                <span class="badge bg-success ms-1">Configurado</span>
+                            </span>
+                            <small class="text-muted">Modificá los campos para actualizar</small>
+                            <input type="hidden" name="has_display" value="1">
+                            {% else %}
                             <div class="form-check">
                                 <input type="checkbox" name="has_display" id="id_has_display"
-                                       class="form-check-input" value="1"
-                                       {% if display_pkg %}checked{% endif %}>
+                                       class="form-check-input" value="1">
                                 <label class="form-check-label fw-bold" for="id_has_display">
-                                    <i class="fas fa-box me-1"></i>Display
+                                    <i class="fas fa-box me-1"></i>Display <small class="text-muted">(agregar)</small>
                                 </label>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="card-body" id="display_fields" style="{% if not display_pkg %}display:none{% endif %}">
                             <div class="row">
@@ -377,15 +397,23 @@
 
                     <!-- Bulk Packaging -->
                     <div class="card mb-3 border">
-                        <div class="card-header bg-light py-2">
+                        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                            {% if bulk_pkg %}
+                            <span class="fw-bold">
+                                <i class="fas fa-boxes-stacked me-1"></i>Bulto
+                                <span class="badge bg-success ms-1">Configurado</span>
+                            </span>
+                            <small class="text-muted">Modificá los campos para actualizar</small>
+                            <input type="hidden" name="has_bulk" value="1">
+                            {% else %}
                             <div class="form-check">
                                 <input type="checkbox" name="has_bulk" id="id_has_bulk"
-                                       class="form-check-input" value="1"
-                                       {% if bulk_pkg %}checked{% endif %}>
+                                       class="form-check-input" value="1">
                                 <label class="form-check-label fw-bold" for="id_has_bulk">
-                                    <i class="fas fa-boxes-stacked me-1"></i>Bulto
+                                    <i class="fas fa-boxes-stacked me-1"></i>Bulto <small class="text-muted">(agregar)</small>
                                 </label>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="card-body" id="bulk_fields" style="{% if not bulk_pkg %}display:none{% endif %}">
                             <div class="row">
@@ -482,15 +510,16 @@
 
     // Packaging toggle (show/hide cards). Cada nivel es independiente —
     // el user ingresa los precios que quiere y se guardan tal cual.
-    // Sin cascades entre niveles: evita sorpresas y desconfianza.
-    document.getElementById('id_has_unit').addEventListener('change', function() {
-        document.getElementById('unit_fields').style.display = this.checked ? '' : 'none';
-    });
-    document.getElementById('id_has_display').addEventListener('change', function() {
-        document.getElementById('display_fields').style.display = this.checked ? '' : 'none';
-    });
-    document.getElementById('id_has_bulk').addEventListener('change', function() {
-        document.getElementById('bulk_fields').style.display = this.checked ? '' : 'none';
+    // Solo existen los checkboxes cuando el empaque NO esta creado aun
+    // (empaques existentes se muestran como "ya configurados" sin checkbox).
+    [['id_has_unit', 'unit_fields'],
+     ['id_has_display', 'display_fields'],
+     ['id_has_bulk', 'bulk_fields']].forEach(([chkId, fieldsId]) => {
+        const chk = document.getElementById(chkId);
+        if (!chk) return;
+        chk.addEventListener('change', function() {
+            document.getElementById(fieldsId).style.display = this.checked ? '' : 'none';
+        });
     });
 
     // Dentro de un mismo nivel:
