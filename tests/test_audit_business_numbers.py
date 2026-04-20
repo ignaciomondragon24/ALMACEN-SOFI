@@ -359,6 +359,379 @@ class StockPackagingCascadeAudit(AuditBaseTestCase):
         # Unidad: 288 + 2*12 = 312
         self.assertEqual(unit_pkg.current_stock, Decimal('312'))
 
+    def test_adjust_stock_cascades_up(self):
+        """Conteo físico POR ARRIBA: cascada proporcional a todos los niveles."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        # Usuario cuenta físicamente 312 unidades (encontró 24 unidades extra)
+        StockManagementService.adjust_stock(prod, Decimal('312'), 'Conteo físico')
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        # Producto: 312
+        self.assertEqual(prod.current_stock, Decimal('312'))
+        # Unidad: sincronizada con producto
+        self.assertEqual(unit_pkg.current_stock, Decimal('312'))
+        # Display: 24 + 24/12 = 26
+        self.assertEqual(display_pkg.current_stock, Decimal('26'))
+        # Bulto: 12 + 24/24 = 13
+        self.assertEqual(bulk_pkg.current_stock, Decimal('13'))
+
+    def test_adjust_stock_cascades_down(self):
+        """Conteo físico POR DEBAJO: cascada proporcional a todos los niveles."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        # Usuario cuenta físicamente 240 (faltan 48 unidades = 4 displays = 2 bultos)
+        StockManagementService.adjust_stock(prod, Decimal('240'), 'Merma')
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        self.assertEqual(prod.current_stock, Decimal('240'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('240'))
+        # Display: 24 - 48/12 = 20
+        self.assertEqual(display_pkg.current_stock, Decimal('20'))
+        # Bulto: 12 - 48/24 = 10
+        self.assertEqual(bulk_pkg.current_stock, Decimal('10'))
+
+    def test_adjust_stock_unit_always_matches_product(self):
+        """Tras adjust_stock, unit_pkg.current_stock == product.current_stock."""
+        prod, unit_pkg, _, _ = self._setup_product_with_packaging(Decimal('288'))
+        StockManagementService.adjust_stock(prod, Decimal('17'), 'Reconteo')
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        self.assertEqual(prod.current_stock, unit_pkg.current_stock)
+
+
+class EndToEndSaleAndPurchaseCascade(AuditBaseTestCase):
+    """Tests de producción: venta real por packaging y recepción de compra real."""
+
+    def _setup_product_with_packaging(self, stock=Decimal('288')):
+        """Producto Chicle: 1u, 1 display = 12u, 1 bulto = 24u (2 displays)."""
+        prod = self.make_product(
+            name='Chicle',
+            sale_price='15.00',
+            purchase_price='10.00',
+            cost_price='10.00',
+            current_stock=str(stock),
+        )
+        unit_pkg = ProductPackaging.objects.create(
+            product=prod, packaging_type='unit', name='Unidad',
+            barcode='1000000000001',
+            units_per_display=12, displays_per_bulk=2,
+            purchase_price=Decimal('10'), sale_price=Decimal('15'),
+            current_stock=stock,
+        )
+        display_pkg = ProductPackaging.objects.create(
+            product=prod, packaging_type='display', name='Display x12',
+            barcode='1000000000002',
+            units_per_display=12, displays_per_bulk=2,
+            purchase_price=Decimal('100'), sale_price=Decimal('150'),
+            current_stock=stock / 12,
+        )
+        bulk_pkg = ProductPackaging.objects.create(
+            product=prod, packaging_type='bulk', name='Bulto x24',
+            barcode='1000000000003',
+            units_per_display=12, displays_per_bulk=2,
+            purchase_price=Decimal('200'), sale_price=Decimal('280'),
+            current_stock=stock / 24,
+        )
+        return prod, unit_pkg, display_pkg, bulk_pkg
+
+    # ----- VENTAS -----
+
+    def test_sell_one_display_cascades_all_levels(self):
+        """Vender 1 display via POS: descuenta 12 unidades y cascade a los 3 niveles."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        txn, shift = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('1'), packaging_id=display_pkg.id)
+        txn.refresh_from_db()
+        # 1 display a $150
+        self.assertEqual(txn.total, Decimal('150.00'))
+
+        ok, result = CheckoutService.process_payment(
+            txn.id,
+            [{'method_id': self.cash_method.id, 'amount': 150}],
+        )
+        self.assertTrue(ok)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        # Producto base: 288 - 12 = 276
+        self.assertEqual(prod.current_stock, Decimal('276'))
+        # Unidad: mirror de producto
+        self.assertEqual(unit_pkg.current_stock, Decimal('276'))
+        # Display: 24 - 1 = 23
+        self.assertEqual(display_pkg.current_stock, Decimal('23'))
+        # Bulto: 12 - 12/24 = 11.5
+        self.assertEqual(bulk_pkg.current_stock, Decimal('11.5'))
+
+    def test_sell_two_bulks_cascades_all_levels(self):
+        """Vender 2 bultos: descuenta 48 unidades y cascade correcta."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('2'), packaging_id=bulk_pkg.id)
+        txn.refresh_from_db()
+        # 2 bultos x $280
+        self.assertEqual(txn.total, Decimal('560.00'))
+
+        ok, _ = CheckoutService.process_payment(
+            txn.id,
+            [{'method_id': self.cash_method.id, 'amount': 560}],
+        )
+        self.assertTrue(ok)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        # Producto: 288 - 48 = 240
+        self.assertEqual(prod.current_stock, Decimal('240'))
+        # Unidad: 240
+        self.assertEqual(unit_pkg.current_stock, Decimal('240'))
+        # Display: 24 - 48/12 = 20
+        self.assertEqual(display_pkg.current_stock, Decimal('20'))
+        # Bulto: 12 - 2 = 10
+        self.assertEqual(bulk_pkg.current_stock, Decimal('10'))
+
+    def test_sell_five_units_cascades(self):
+        """Vender 5 unidades sueltas: cascade a display y bulto en fracciones."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('5'), packaging_id=unit_pkg.id)
+        txn.refresh_from_db()
+        self.assertEqual(txn.total, Decimal('75.00'))
+
+        ok, _ = CheckoutService.process_payment(
+            txn.id,
+            [{'method_id': self.cash_method.id, 'amount': 75}],
+        )
+        self.assertTrue(ok)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        self.assertEqual(prod.current_stock, Decimal('283'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('283'))
+        # Display: 24 - 5/12 = 23.583 (DB redondea a 3 decimales)
+        q = Decimal('0.001')
+        expected_display = (Decimal('24') - Decimal('5') / Decimal('12')).quantize(q)
+        self.assertEqual(display_pkg.current_stock.quantize(q), expected_display)
+        # Bulto: 12 - 5/24
+        expected_bulk = (Decimal('12') - Decimal('5') / Decimal('24')).quantize(q)
+        self.assertEqual(bulk_pkg.current_stock.quantize(q), expected_bulk)
+
+    def test_sale_keeps_invariant_unit_equals_product(self):
+        """Invariante post-venta: unit_pkg.current_stock == product.current_stock."""
+        prod, unit_pkg, display_pkg, _ = self._setup_product_with_packaging(
+            stock=Decimal('288'),
+        )
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('3'), packaging_id=display_pkg.id)
+        CheckoutService.process_payment(
+            txn.id,
+            [{'method_id': self.cash_method.id, 'amount': 450}],
+        )
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        self.assertEqual(prod.current_stock, unit_pkg.current_stock)
+
+    # ----- RECEPCIÓN DE COMPRA -----
+
+    def _make_purchase(self, product, packaging, quantity, unit_cost):
+        """Crea una orden de compra pendiente de recepción."""
+        supplier, _ = Supplier.objects.get_or_create(name='Proveedor Test')
+        purchase = Purchase.objects.create(
+            supplier=supplier,
+            order_number=f'OC-{Purchase.objects.count()+1:04d}',
+            status='ordered',
+            subtotal=Decimal(unit_cost) * Decimal(quantity),
+            total=Decimal(unit_cost) * Decimal(quantity),
+            created_by=self.admin,
+        )
+        PurchaseItem.objects.create(
+            purchase=purchase,
+            product=product,
+            packaging=packaging,
+            quantity=quantity,
+            unit_cost=Decimal(unit_cost),
+        )
+        return purchase
+
+    def _receive_purchase(self, purchase):
+        """Replica la lógica de purchase_receive (add_stock en cascada + batch)."""
+        from stocks.models import StockBatch
+        from datetime import datetime
+        for item in purchase.items.all():
+            if item.packaging and item.packaging.units_quantity > 0:
+                units_per_pkg = Decimal(str(item.packaging.units_quantity))
+                base_qty = Decimal(str(item.quantity)) * units_per_pkg
+                unit_cost_base = (
+                    item.unit_cost / units_per_pkg
+                ).quantize(Decimal('0.0001'))
+            else:
+                base_qty = Decimal(str(item.quantity))
+                unit_cost_base = item.unit_cost
+            StockManagementService.add_stock(
+                product=item.product,
+                quantity=base_qty,
+                cost=unit_cost_base,
+                reference=purchase.order_number,
+                user=self.admin,
+            )
+            StockBatch.objects.create(
+                product=item.product,
+                purchase=purchase,
+                supplier_name=purchase.supplier.name,
+                quantity_purchased=base_qty,
+                quantity_remaining=base_qty,
+                purchase_price=unit_cost_base,
+                purchased_at=timezone.now(),
+                created_by=self.admin,
+            )
+        purchase.status = 'received'
+        purchase.received_date = timezone.now().date()
+        purchase.save()
+
+    def test_receive_bulks_cascades_all_levels(self):
+        """Recibir 3 bultos (72u) via add_stock: cascade a producto + 3 packagings."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('0'),
+        )
+        # Reset stocks a 0 (el helper pone fracciones)
+        for p in (unit_pkg, display_pkg, bulk_pkg):
+            p.current_stock = Decimal('0')
+            p.save()
+
+        purchase = self._make_purchase(prod, bulk_pkg, quantity=3, unit_cost='200')
+        self._receive_purchase(purchase)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        # Producto: 0 + 3*24 = 72
+        self.assertEqual(prod.current_stock, Decimal('72'))
+        # Unidad: mirror
+        self.assertEqual(unit_pkg.current_stock, Decimal('72'))
+        # Display: 0 + 72/12 = 6
+        self.assertEqual(display_pkg.current_stock, Decimal('6'))
+        # Bulto: 0 + 72/24 = 3
+        self.assertEqual(bulk_pkg.current_stock, Decimal('3'))
+
+    def test_receive_displays_cascades_all_levels(self):
+        """Recibir 5 displays (60u) via add_stock."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('0'),
+        )
+        for p in (unit_pkg, display_pkg, bulk_pkg):
+            p.current_stock = Decimal('0')
+            p.save()
+
+        purchase = self._make_purchase(prod, display_pkg, quantity=5, unit_cost='100')
+        self._receive_purchase(purchase)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        # 5 displays x 12u = 60u
+        self.assertEqual(prod.current_stock, Decimal('60'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('60'))
+        self.assertEqual(display_pkg.current_stock, Decimal('5'))
+        # Bulto: 0 + 60/24 = 2.5
+        self.assertEqual(bulk_pkg.current_stock, Decimal('2.5'))
+
+    def test_receive_units_cascades_all_levels(self):
+        """Recibir 100 unidades sueltas via add_stock."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('0'),
+        )
+        for p in (unit_pkg, display_pkg, bulk_pkg):
+            p.current_stock = Decimal('0')
+            p.save()
+
+        purchase = self._make_purchase(prod, unit_pkg, quantity=100, unit_cost='10')
+        self._receive_purchase(purchase)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        self.assertEqual(prod.current_stock, Decimal('100'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('100'))
+        q = Decimal('0.001')
+        self.assertEqual(
+            display_pkg.current_stock.quantize(q),
+            (Decimal('100') / Decimal('12')).quantize(q),
+        )
+        self.assertEqual(
+            bulk_pkg.current_stock.quantize(q),
+            (Decimal('100') / Decimal('24')).quantize(q),
+        )
+
+    # ----- CICLOS COMPLETOS COMPRA → VENTA -----
+
+    def test_full_cycle_buy_then_sell(self):
+        """Compra de 2 bultos + venta de 1 display: stocks finales consistentes."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup_product_with_packaging(
+            stock=Decimal('0'),
+        )
+        for p in (unit_pkg, display_pkg, bulk_pkg):
+            p.current_stock = Decimal('0')
+            p.save()
+
+        # Comprar 2 bultos = 48 unidades
+        purchase = self._make_purchase(prod, bulk_pkg, quantity=2, unit_cost='200')
+        self._receive_purchase(purchase)
+
+        prod.refresh_from_db()
+        self.assertEqual(prod.current_stock, Decimal('48'))
+
+        # Vender 1 display = 12 unidades
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('1'), packaging_id=display_pkg.id)
+        CheckoutService.process_payment(
+            txn.id,
+            [{'method_id': self.cash_method.id, 'amount': 150}],
+        )
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+
+        # 48 - 12 = 36
+        self.assertEqual(prod.current_stock, Decimal('36'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('36'))
+        # Display: 0 + 48/12 - 1 = 3
+        self.assertEqual(display_pkg.current_stock, Decimal('3'))
+        # Bulto: 0 + 2 - 12/24 = 1.5
+        self.assertEqual(bulk_pkg.current_stock, Decimal('1.5'))
+
 
 # ============================================================
 # 2. AUDITORÍA DE PRECIOS Y MÁRGENES
@@ -1038,6 +1411,208 @@ class PromotionEngineAudit(AuditBaseTestCase):
         self.assertEqual(result['original_total'], 0)
         self.assertEqual(result['discount_total'], 0)
         self.assertEqual(result['final_total'], 0)
+
+
+class PromoWithPackagingEndToEnd(AuditBaseTestCase):
+    """Promos aplicadas sobre displays/bultos: verifica precio con descuento
+    y cascada de stock a todos los niveles tras el checkout real."""
+
+    def _setup(self, stock=Decimal('288')):
+        prod = self.make_product(
+            name='Chicle',
+            sale_price='15.00',
+            purchase_price='10.00',
+            cost_price='10.00',
+            current_stock=str(stock),
+        )
+        unit_pkg = ProductPackaging.objects.create(
+            product=prod, packaging_type='unit', name='Unidad',
+            barcode='2000000000001',
+            units_per_display=12, displays_per_bulk=2,
+            purchase_price=Decimal('10'), sale_price=Decimal('15'),
+            current_stock=stock,
+        )
+        display_pkg = ProductPackaging.objects.create(
+            product=prod, packaging_type='display', name='Display x12',
+            barcode='2000000000002',
+            units_per_display=12, displays_per_bulk=2,
+            purchase_price=Decimal('100'), sale_price=Decimal('150'),
+            current_stock=stock / 12,
+        )
+        bulk_pkg = ProductPackaging.objects.create(
+            product=prod, packaging_type='bulk', name='Bulto x24',
+            barcode='2000000000003',
+            units_per_display=12, displays_per_bulk=2,
+            purchase_price=Decimal('200'), sale_price=Decimal('280'),
+            current_stock=stock / 24,
+        )
+        return prod, unit_pkg, display_pkg, bulk_pkg
+
+    def _make_promo(self, promo_type, products, scope='unit', **kwargs):
+        defaults = {
+            'name': f'Test {promo_type} {scope}',
+            'promo_type': promo_type,
+            'status': 'active',
+            'priority': 50,
+            'is_combinable': True,
+            'quantity_required': 2,
+            'quantity_charged': 1,
+            'min_quantity': 1,
+            'discount_percent': Decimal('0'),
+            'discount_amount': Decimal('0'),
+            'second_unit_discount': Decimal('50'),
+            'applies_to_packaging_type': scope,
+        }
+        defaults.update(kwargs)
+        promo = Promotion.objects.create(**defaults)
+        for p in products:
+            PromotionProduct.objects.create(promotion=promo, product=p)
+        return promo
+
+    # ----- Promo 2x1 sobre display -----
+
+    def test_promo_2x1_on_displays_applies_and_cascades(self):
+        """Promo 2x1 sobre displays: 2 displays = pagás 1 + descuento cascade."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup(stock=Decimal('288'))
+        self._make_promo('nxm', [prod], scope='display',
+                         quantity_required=2, quantity_charged=1)
+
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('2'), packaging_id=display_pkg.id)
+        # apply_promotions se re-ejecuta al add_item
+        txn.refresh_from_db()
+
+        # 2 displays x $150 = $300 original; 2x1 descuenta $150 → total $150
+        item = txn.items.first()
+        self.assertEqual(item.promotion_discount, Decimal('150.00'))
+        self.assertEqual(txn.total, Decimal('150.00'))
+
+        ok, _ = CheckoutService.process_payment(
+            txn.id, [{'method_id': self.cash_method.id, 'amount': 150}],
+        )
+        self.assertTrue(ok)
+
+        # Stock: aunque el cliente pagó por 1, se ENTREGAN 2 displays = 24u
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+        self.assertEqual(prod.current_stock, Decimal('264'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('264'))
+        self.assertEqual(display_pkg.current_stock, Decimal('22'))
+        self.assertEqual(bulk_pkg.current_stock, Decimal('11'))
+
+    def test_promo_scope_display_does_not_match_units(self):
+        """Promo con scope=display NO se dispara al vender solo unidades."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup(stock=Decimal('288'))
+        self._make_promo('nxm', [prod], scope='display',
+                         quantity_required=2, quantity_charged=1)
+
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('2'), packaging_id=unit_pkg.id)
+        txn.refresh_from_db()
+
+        item = txn.items.first()
+        self.assertEqual(item.promotion_discount, Decimal('0.00'))
+        # 2 unidades a $15 = $30 (sin promo)
+        self.assertEqual(txn.total, Decimal('30.00'))
+
+    def test_promo_scope_unit_does_not_match_displays(self):
+        """Promo con scope=unit NO se dispara al vender displays."""
+        prod, unit_pkg, display_pkg, _ = self._setup(stock=Decimal('288'))
+        self._make_promo('nxm', [prod], scope='unit',
+                         quantity_required=2, quantity_charged=1)
+
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('2'), packaging_id=display_pkg.id)
+        txn.refresh_from_db()
+
+        item = txn.items.first()
+        self.assertEqual(item.promotion_discount, Decimal('0.00'))
+        self.assertEqual(txn.total, Decimal('300.00'))
+
+    # ----- Promo Nx$ fijo sobre display -----
+
+    def test_promo_nx_fixed_price_on_displays(self):
+        """Promo 2x$250 sobre displays: 2 displays se cobran a $250 en total."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup(stock=Decimal('288'))
+        self._make_promo('nx_fixed_price', [prod], scope='display',
+                         quantity_required=2,
+                         final_price=Decimal('250'))  # precio fijo total
+
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('2'), packaging_id=display_pkg.id)
+        txn.refresh_from_db()
+
+        # Original: 2 x $150 = $300. Fijo: $250. Descuento: $50.
+        self.assertEqual(txn.total, Decimal('250.00'))
+
+        ok, _ = CheckoutService.process_payment(
+            txn.id, [{'method_id': self.cash_method.id, 'amount': 250}],
+        )
+        self.assertTrue(ok)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+        self.assertEqual(prod.current_stock, Decimal('264'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('264'))
+        self.assertEqual(display_pkg.current_stock, Decimal('22'))
+        self.assertEqual(bulk_pkg.current_stock, Decimal('11'))
+
+    # ----- Descuento % sobre bulto -----
+
+    def test_promo_simple_discount_on_bulk(self):
+        """15% OFF sobre bulto: 1 bulto $280 → $238 + cascade 24u."""
+        prod, unit_pkg, display_pkg, bulk_pkg = self._setup(stock=Decimal('288'))
+        self._make_promo('simple_discount', [prod], scope='bulk',
+                         discount_percent=Decimal('15'))
+
+        txn, _ = self.make_pos_transaction()
+        CartService.add_item(txn, prod.id, Decimal('1'), packaging_id=bulk_pkg.id)
+        txn.refresh_from_db()
+
+        # $280 * 15% = $42 descuento → total $238
+        item = txn.items.first()
+        self.assertEqual(item.promotion_discount, Decimal('42.00'))
+        self.assertEqual(txn.total, Decimal('238.00'))
+
+        ok, _ = CheckoutService.process_payment(
+            txn.id, [{'method_id': self.cash_method.id, 'amount': 238}],
+        )
+        self.assertTrue(ok)
+
+        prod.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+        bulk_pkg.refresh_from_db()
+        # 1 bulto = 24 unidades
+        self.assertEqual(prod.current_stock, Decimal('264'))
+        self.assertEqual(unit_pkg.current_stock, Decimal('264'))
+        self.assertEqual(display_pkg.current_stock, Decimal('22'))
+        self.assertEqual(bulk_pkg.current_stock, Decimal('11'))
+
+    # ----- Scope=any funciona para cualquier empaque -----
+
+    def test_promo_scope_any_matches_all_packagings(self):
+        """Promo scope=any: aplica sobre display Y unit por igual."""
+        prod, unit_pkg, display_pkg, _ = self._setup(stock=Decimal('288'))
+        self._make_promo('simple_discount', [prod], scope='any',
+                         discount_percent=Decimal('10'))
+
+        # Caso 1: vender display
+        txn1, _ = self.make_pos_transaction()
+        CartService.add_item(txn1, prod.id, Decimal('1'), packaging_id=display_pkg.id)
+        txn1.refresh_from_db()
+        self.assertEqual(txn1.total, Decimal('135.00'))  # 150 - 10%
+
+        # Caso 2: nuevo shift+txn para vender unidades
+        txn2, _ = self.make_pos_transaction(shift=self.make_shift())
+        CartService.add_item(txn2, prod.id, Decimal('5'), packaging_id=unit_pkg.id)
+        txn2.refresh_from_db()
+        # 5 * 15 = 75. 10% = 7.5 → 67.5
+        self.assertEqual(txn2.total, Decimal('67.50'))
 
 
 # ============================================================
