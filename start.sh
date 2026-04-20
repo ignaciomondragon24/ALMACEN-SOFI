@@ -390,6 +390,55 @@ with connection.cursor() as c:
         print('  Marked purchase.0005 as applied')
 " 2>&1 || echo "WARNING: purchase packaging field repair skipped"
 
+# Defensive: ensure expenses_expensecategory.is_investment exists (migration 0004).
+# Sin esto, cualquier view que cargue ExpenseCategory explota con:
+#   column expenses_expensecategory.is_investment does not exist
+# Pasa por ejemplo al recibir una OC (purchase_receive crea Expense -> ExpenseCategory).
+echo "Verifying expenses_expensecategory.is_investment..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+if connection.vendor != 'postgresql':
+    print('  SQLite: skip')
+    sys.exit(0)
+with connection.cursor() as c:
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='expenses_expensecategory')\")
+    if not c.fetchone()[0]:
+        print('  expenses_expensecategory no existe aun, skip')
+        sys.exit(0)
+
+    # 1) Agregar columna is_investment si falta
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='expenses_expensecategory' AND column_name='is_investment'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding expenses_expensecategory.is_investment ...')
+        c.execute(\"\"\"
+            ALTER TABLE expenses_expensecategory
+            ADD COLUMN is_investment boolean NOT NULL DEFAULT false
+        \"\"\")
+        print('  is_investment column added OK')
+
+        # Marcar Compras/mercaderia como inversion (mismo data migration que 0004)
+        c.execute(\"UPDATE expenses_expensecategory SET is_investment=true WHERE LOWER(name)='compras'\")
+        c.execute(\"UPDATE expenses_expensecategory SET is_investment=true WHERE LOWER(name) LIKE '%mercaderia%' OR LOWER(name) LIKE '%mercaderia%'\")
+        print('  Marked Compras/mercaderia as investment OK')
+    else:
+        print('  expenses_expensecategory.is_investment OK')
+
+    # 2) Marcar migración 0004 como aplicada para que Django no la reintente
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='expenses' AND name='0004_expensecategory_is_investment'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('expenses', '0004_expensecategory_is_investment', NOW())
+        \"\"\")
+        print('  Marked expenses.0004 as applied')
+" 2>&1 || echo "WARNING: expenses is_investment repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."
