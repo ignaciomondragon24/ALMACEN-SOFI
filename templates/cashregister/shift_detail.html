@@ -117,6 +117,21 @@
                             <td class="text-muted">Apertura:</td>
                             <td>{{ shift.opened_at|date:"d/m/Y H:i" }}</td>
                         </tr>
+                        <tr>
+                            <td class="text-muted">Duración:</td>
+                            <td>
+                                <strong id="shift-duration"
+                                        data-opened-at="{{ shift.opened_at|date:'c' }}"
+                                        {% if shift.closed_at %}data-closed-at="{{ shift.closed_at|date:'c' }}"{% endif %}>
+                                    {{ shift.duration_display }}
+                                </strong>
+                                {% if shift.status == 'open' and shift.hours_open >= 10 %}
+                                <span class="badge bg-danger ms-2" title="Este turno lleva mucho tiempo abierto — verificar si se olvidaron de cerrarlo.">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Sesión muy larga
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
                         {% if shift.closed_at %}
                         <tr>
                             <td class="text-muted">Cierre:</td>
@@ -416,9 +431,38 @@
     
     // Actualizar cada 15 segundos solo si el turno está abierto
     setInterval(updateShiftData, updateInterval);
-    
+
     // Primera actualización después de 5 segundos
     setTimeout(updateShiftData, 5000);
+
+    // Cronometro de duracion: recalcula contra Date.now() en cada tick, no
+    // incrementa un contador — si la pestana quedo congelada y luego el
+    // usuario vuelve, al primer tick ya refleja el tiempo real transcurrido.
+    const durationEl = document.getElementById('shift-duration');
+    if (durationEl) {
+        const openedAt = new Date(durationEl.dataset.openedAt);
+        const closedAtAttr = durationEl.dataset.closedAt;
+        const closedAt = closedAtAttr ? new Date(closedAtAttr) : null;
+
+        function formatDuration(ms) {
+            const total = Math.max(0, Math.floor(ms / 1000));
+            const days = Math.floor(total / 86400);
+            const hours = Math.floor((total % 86400) / 3600);
+            const minutes = Math.floor((total % 3600) / 60);
+            const seconds = total % 60;
+            if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+            if (hours > 0) return `${hours}h ${minutes}m ${String(seconds).padStart(2,'0')}s`;
+            return `${minutes}m ${String(seconds).padStart(2,'0')}s`;
+        }
+
+        function tickDuration() {
+            const end = closedAt || new Date();
+            durationEl.textContent = formatDuration(end - openedAt);
+        }
+
+        tickDuration();
+        if (!closedAt) setInterval(tickDuration, 1000);
+    }
 })();
 </script>
 {% endif %}

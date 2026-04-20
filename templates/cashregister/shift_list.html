@@ -61,6 +61,7 @@
                             <th>Cajero</th>
                             <th>Apertura</th>
                             <th>Cierre</th>
+                            <th>Duración</th>
                             <th class="text-end">Monto Inicial</th>
                             <th class="text-end">Total Ventas</th>
                             <th class="text-end">Diferencia</th>
@@ -83,6 +84,14 @@
                                 {{ shift.closed_at|date:"d/m/Y H:i" }}
                                 {% else %}
                                 <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ shift.duration_display }}
+                                {% if shift.status == 'open' and shift.hours_open >= 10 %}
+                                <br><span class="badge bg-danger mt-1" title="Este turno lleva mucho tiempo abierto — verificar si se olvidaron de cerrarlo.">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Sesión muy larga
+                                </span>
                                 {% endif %}
                             </td>
                             <td class="text-end">{{ shift.initial_amount|currency_ar }}</td>
@@ -120,7 +129,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="10" class="text-center text-muted py-4">
+                            <td colspan="11" class="text-center text-muted py-4">
                                 No se encontraron turnos
                             </td>
                         </tr>

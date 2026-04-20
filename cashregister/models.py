@@ -219,6 +219,36 @@ class CashShift(models.Model):
         expected += income - expense
         return expected
     
+    @property
+    def duration(self):
+        """timedelta desde apertura hasta cierre (o ahora si sigue abierto).
+
+        Siempre calculado desde el DB contra `timezone.now()` — no depende de
+        que un cliente tenga la pestana abierta. Si un turno quedo abierto por
+        olvido, este valor refleja el tiempo real transcurrido.
+        """
+        from django.utils import timezone
+        end = self.closed_at or timezone.now()
+        return end - self.opened_at
+
+    @property
+    def hours_open(self):
+        """Total de horas (float) que lleva abierto o duro el turno."""
+        return self.duration.total_seconds() / 3600
+
+    @property
+    def duration_display(self):
+        """String legible tipo "2h 15m" o "5d 3h" para mostrar en UI."""
+        total = int(self.duration.total_seconds())
+        days, rem = divmod(total, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, _ = divmod(rem, 60)
+        if days > 0:
+            return f'{days}d {hours}h {minutes}m'
+        if hours > 0:
+            return f'{hours}h {minutes}m'
+        return f'{minutes}m'
+
     def close(self, actual_amount, notes=''):
         """Close the shift."""
         self.expected_amount = self.calculate_expected()
