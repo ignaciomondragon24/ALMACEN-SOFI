@@ -530,7 +530,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const item = document.createElement('a');
                 item.href = '#';
                 item.className = 'list-group-item list-group-item-action';
-                item.innerHTML = `<strong>${product.name}</strong> <small class="text-muted">$${product.sale_price}</small>`;
+                const pkgBadge = product.matched_packaging
+                    ? ` <span class="badge bg-info ms-1">${product.matched_packaging.type_display} x${product.matched_packaging.units_quantity}</span>`
+                    : '';
+                const price = product.matched_packaging
+                    ? product.matched_packaging.sale_price
+                    : product.sale_price;
+                item.innerHTML = `<strong>${product.name}</strong>${pkgBadge} <small class="text-muted">$${price}</small>`;
                 item.addEventListener('click', (e) => {
                     e.preventDefault();
                     addProduct(product);
@@ -562,7 +568,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         const item = document.createElement('a');
                         item.href = '#';
                         item.className = 'list-group-item list-group-item-action';
-                        item.innerHTML = `<strong>${product.name}</strong> <small class="text-muted">$${product.sale_price}</small>`;
+                        const pkgBadge = product.matched_packaging
+                            ? ` <span class="badge bg-info ms-1">${product.matched_packaging.type_display} x${product.matched_packaging.units_quantity}</span>`
+                            : '';
+                        const price = product.matched_packaging
+                            ? product.matched_packaging.sale_price
+                            : product.sale_price;
+                        item.innerHTML = `<strong>${product.name}</strong>${pkgBadge} <small class="text-muted">$${price}</small>`;
                         item.addEventListener('click', (e) => {
                             e.preventDefault();
                             addProduct(product);
@@ -575,11 +587,35 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 300);
     });
-    
+
+    // Aviso visual cuando auto-cambiamos el scope por scanear un display/bulk.
+    const scopeHint = document.createElement('div');
+    scopeHint.className = 'alert alert-info mt-2 py-2 px-3';
+    scopeHint.style.display = 'none';
+    scopeHint.style.fontSize = '0.875rem';
+    const scopeSelect = document.getElementById('id_applies_to_packaging_type');
+    if (scopeSelect && scopeSelect.parentElement) {
+        scopeSelect.parentElement.appendChild(scopeHint);
+    }
+
+    function maybeAutoSetScope(matched) {
+        if (!matched || !scopeSelect) return;
+        const desired = matched.packaging_type;
+        if (scopeSelect.value === desired) return;
+        const prev = scopeSelect.options[scopeSelect.selectedIndex]?.textContent || '';
+        scopeSelect.value = desired;
+        const now = scopeSelect.options[scopeSelect.selectedIndex]?.textContent || '';
+        scopeHint.innerHTML = `<i class="fas fa-info-circle me-1"></i>` +
+            `Escaneaste un <b>${matched.type_display}</b> (x${matched.units_quantity} unidades). ` +
+            `Cambié "Aplica a" de <b>${prev}</b> a <b>${now}</b> para que la promo se dispare en el POS al vender ese empaque.`;
+        scopeHint.style.display = '';
+    }
+
     function addProduct(product) {
         if (!selectedProducts.includes(product.id)) {
             selectedProducts.push(product.id);
             updateSelectedProducts(product);
+            maybeAutoSetScope(product.matched_packaging);
         }
     }
     
@@ -605,7 +641,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const badge = document.createElement('span');
         badge.className = 'badge bg-primary me-2 mb-2';
         badge.dataset.id = product.id;
-        badge.innerHTML = `${product.name} <button type="button" class="btn-close btn-close-white ms-1" aria-label="Quitar" onclick="removeProduct(${product.id})"></button>`;
+        const pkgLabel = product.matched_packaging
+            ? ` · ${product.matched_packaging.type_display} x${product.matched_packaging.units_quantity}`
+            : '';
+        badge.innerHTML = `${product.name}${pkgLabel} <button type="button" class="btn-close btn-close-white ms-1" aria-label="Quitar" onclick="removeProduct(${product.id})"></button>`;
         container.appendChild(badge);
         updateProductIds();
         productResults.innerHTML = '';

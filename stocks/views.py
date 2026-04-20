@@ -716,6 +716,20 @@ def api_search_products(request):
 
     products = Product.objects.filter(is_active=True)
 
+    # Si el query es un barcode exacto que matchea un ProductPackaging (display/bulk),
+    # guardamos el match para devolverlo al frontend. Asi la promo puede setearse
+    # automaticamente al scope correcto (display/bulk) en lugar de quedar en 'unit'
+    # y nunca matchear en el POS.
+    matched_pkg = None
+    if query.isdigit() and 8 <= len(query) <= 13:
+        matched_pkg = (
+            ProductPackaging.objects
+            .filter(barcode=query, is_active=True, product__is_active=True)
+            .exclude(packaging_type='unit')
+            .select_related('product')
+            .first()
+        )
+
     def _ids_from_packaging(lookup):
         return ProductPackaging.objects.filter(
             is_active=True, product__is_active=True, **lookup
@@ -742,23 +756,34 @@ def api_search_products(request):
         )
 
     products = products.distinct()[:20]
-    
-    data = {
-        'products': [
-            {
-                'id': p.id,
-                'name': p.name,
-                'sku': p.sku,
-                'barcode': p.barcode or '',
-                'sale_price': float(p.sale_price),
-                'current_stock': float(p.current_stock),
-                'unit': p.unit_of_measure.abbreviation if p.unit_of_measure else 'u'
+
+    items = []
+    for p in products:
+        item = {
+            'id': p.id,
+            'name': p.name,
+            'sku': p.sku,
+            'barcode': p.barcode or '',
+            'sale_price': float(p.sale_price),
+            'current_stock': float(p.current_stock),
+            'unit': p.unit_of_measure.abbreviation if p.unit_of_measure else 'u',
+            'matched_packaging': None,
+        }
+        # Si el query matcheó un packaging display/bulk de este producto,
+        # adjuntar info para que el form de promo auto-setee el scope.
+        if matched_pkg and matched_pkg.product_id == p.id:
+            item['matched_packaging'] = {
+                'id': matched_pkg.id,
+                'packaging_type': matched_pkg.packaging_type,
+                'type_display': matched_pkg.get_packaging_type_display(),
+                'name': matched_pkg.name,
+                'units_quantity': matched_pkg.units_quantity,
+                'sale_price': float(matched_pkg.sale_price),
+                'barcode': matched_pkg.barcode or '',
             }
-            for p in products
-        ]
-    }
-    
-    return JsonResponse(data)
+        items.append(item)
+
+    return JsonResponse({'products': items})
 
 
 @login_required
