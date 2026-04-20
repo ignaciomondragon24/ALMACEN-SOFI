@@ -71,12 +71,6 @@
                         <tr><td class="text-muted">Unidades:</td><td class="text-end">{{ pkg.units_quantity }}</td></tr>
                     </table>
                     <div class="d-flex flex-wrap gap-1">
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalReceive" onclick="setReceive({{ pkg.id }},'{{ pkg.get_packaging_type_display }}')">
-                            <i class="fas fa-truck-loading me-1"></i>Recibir
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalAdjust" onclick="setAdjust({{ pkg.id }},'{{ pkg.get_packaging_type_display }}',{{ pkg.current_stock|floatformat:2 }})">
-                            <i class="fas fa-sliders-h me-1"></i>Ajustar
-                        </button>
                         <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalEditPkg">
                             <i class="fas fa-edit me-1"></i>Editar
                         </button>
@@ -141,73 +135,6 @@
 </div>
 
 <!-- ==================== MODALES ==================== -->
-
-<!-- Modal Recibir Mercadería -->
-<div class="modal fade" id="modalReceive" tabindex="-1">
-    <div class="modal-dialog">
-        <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="receive">
-            <input type="hidden" name="packaging_id" id="receive_pkg_id">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-truck-loading me-2"></i>Recibir Mercadería</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p id="receive_label" class="text-muted"></p>
-                    <div class="mb-3">
-                        <label class="form-label">Cantidad recibida</label>
-                        <input type="number" name="quantity" class="form-control form-control-lg text-center" step="1" min="1" value="1" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Precio de compra (opcional)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="number" name="cost" class="form-control" step="1" min="0">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-check me-1"></i>Confirmar</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Ajustar Stock -->
-<div class="modal fade" id="modalAdjust" tabindex="-1">
-    <div class="modal-dialog">
-        <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="adjust">
-            <input type="hidden" name="packaging_id" id="adjust_pkg_id">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-sliders-h me-2"></i>Ajustar Stock</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p id="adjust_label" class="text-muted"></p>
-                    <div class="mb-3">
-                        <label class="form-label">Nuevo stock</label>
-                        <input type="number" name="new_stock" id="adjust_new_stock" class="form-control form-control-lg text-center" step="0.01" min="0" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Motivo</label>
-                        <textarea name="reason" class="form-control" rows="2" placeholder="Motivo del ajuste..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-warning"><i class="fas fa-check me-1"></i>Ajustar</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
 
 <!-- Modal Abrir Empaque -->
 <div class="modal fade" id="modalOpen" tabindex="-1">
@@ -470,17 +397,6 @@
 
 {% block extra_js %}
 <script>
-    function setReceive(pkgId, typeLabel) {
-        document.getElementById('receive_pkg_id').value = pkgId;
-        document.getElementById('receive_label').textContent = 'Recibir ' + typeLabel;
-    }
-
-    function setAdjust(pkgId, typeLabel, currentStock) {
-        document.getElementById('adjust_pkg_id').value = pkgId;
-        document.getElementById('adjust_label').textContent = 'Ajustar stock de ' + typeLabel + ' (actual: ' + currentStock + ')';
-        document.getElementById('adjust_new_stock').value = currentStock;
-    }
-
     let _openConvertQty = 1;
     let _openUnit = '';
     function setOpen(pkgId, typeLabel, convertQty, unit) {
