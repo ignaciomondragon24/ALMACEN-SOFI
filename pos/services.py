@@ -272,7 +272,8 @@ class CartService:
                 'item_id': item.id,
                 'product_id': item.product_id,
                 'quantity': float(item.quantity),
-                'unit_price': float(item.unit_price)
+                'unit_price': float(item.unit_price),
+                'packaging_units': int(item.packaging_units or 1),
             }
             for item in items
         ]

@@ -94,11 +94,16 @@ class PromotionEngine:
                 leader = promo
                 promo_product_ids = set(promo.products.values_list('id', flat=True))
 
-            # Find matching items in cart
+            # Find matching items in cart.
+            # Excluimos empaques multi-unidad (display/bulto): las promos se
+            # definen por unidad suelta, contar un display como "1" haría que
+            # 4 displays dispare una promo 4x$ y liquide 48 unidades al precio
+            # de 4. Si el empaque tiene packaging_units > 1, no participa.
             matching_items = [
                 item for item in cart_items
                 if item.get('product_id') in promo_product_ids
                 and item.get('item_id') not in affected_items
+                and int(item.get('packaging_units') or 1) <= 1
             ]
 
             if not matching_items:
