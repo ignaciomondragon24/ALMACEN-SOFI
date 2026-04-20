@@ -439,6 +439,45 @@ with connection.cursor() as c:
         print('  Marked expenses.0004 as applied')
 " 2>&1 || echo "WARNING: expenses is_investment repair skipped"
 
+# Defensive: ensure promotions_promotion.applies_to_packaging_type exists (migration 0005).
+# Mismo patron: si la migracion 0005 no corrio pero el codigo la usa, el POS
+# rompe en apply_promotions. Se agrega columna con default 'unit' y se marca la
+# migracion como aplicada.
+echo "Verifying promotions_promotion.applies_to_packaging_type..."
+python -c "
+import os, django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+django.setup()
+from django.db import connection
+with connection.cursor() as c:
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='promotions_promotion')\")
+    if not c.fetchone()[0]:
+        print('  promotions_promotion no existe aun, skip')
+        raise SystemExit(0)
+
+    c.execute(\"\"\"
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='promotions_promotion' AND column_name='applies_to_packaging_type'
+    \"\"\")
+    if not c.fetchone():
+        print('  Adding promotions_promotion.applies_to_packaging_type ...')
+        c.execute(\"\"\"
+            ALTER TABLE promotions_promotion
+            ADD COLUMN applies_to_packaging_type varchar(20) NOT NULL DEFAULT 'unit'
+        \"\"\")
+        print('  applies_to_packaging_type column added OK')
+    else:
+        print('  applies_to_packaging_type OK')
+
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='promotions' AND name='0005_promotion_applies_to_packaging_type'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('promotions', '0005_promotion_applies_to_packaging_type', NOW())
+        \"\"\")
+        print('  Marked promotions.0005 as applied')
+" 2>&1 || echo "WARNING: promotions applies_to_packaging_type repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."

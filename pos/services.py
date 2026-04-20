@@ -266,7 +266,9 @@ class CartService:
             item.promotion_group_name = ''
             item.save()
 
-        # Get cart items data
+        # Get cart items data. Prefetch packaging para evitar N+1 al leer
+        # packaging_type dentro del list-comp.
+        items = items.select_related('packaging')
         cart_items = [
             {
                 'item_id': item.id,
@@ -274,6 +276,8 @@ class CartService:
                 'quantity': float(item.quantity),
                 'unit_price': float(item.unit_price),
                 'packaging_units': int(item.packaging_units or 1),
+                'packaging_type': (item.packaging.packaging_type
+                                   if item.packaging_id else 'unit'),
             }
             for item in items
         ]

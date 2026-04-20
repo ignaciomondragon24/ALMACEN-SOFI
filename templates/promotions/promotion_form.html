@@ -375,6 +375,23 @@
                                 Combinable con otras promociones
                             </label>
                         </div>
+                        <div class="mb-3">
+                            <label for="id_applies_to_packaging_type" class="form-label">
+                                <i class="fas fa-box me-1"></i>Aplica a
+                            </label>
+                            <select class="form-select" id="id_applies_to_packaging_type" name="applies_to_packaging_type">
+                                {% with current=form.applies_to_packaging_type.value|default:'unit' %}
+                                <option value="unit"    {% if current == 'unit' %}selected{% endif %}>Solo unidad suelta</option>
+                                <option value="display" {% if current == 'display' %}selected{% endif %}>Solo display / paquete</option>
+                                <option value="bulk"    {% if current == 'bulk' %}selected{% endif %}>Solo bulto / caja</option>
+                                <option value="any"     {% if current == 'any' %}selected{% endif %}>Cualquier empaque</option>
+                                {% endwith %}
+                            </select>
+                            <small class="text-muted d-block mt-1">
+                                Elegí a qué empaque se le aplica esta promo. Podés crear dos promos del mismo producto
+                                con precios distintos (ej: unidad 4x$1.800 y display 2x$9.000).
+                            </small>
+                        </div>
                         <hr>
                         <div class="mb-2">
                             <label for="id_group_name" class="form-label">

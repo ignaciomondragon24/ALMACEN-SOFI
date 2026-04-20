@@ -24,6 +24,7 @@ class PromotionForm(forms.ModelForm):
         fields = [
             'name', 'description', 'promo_type', 'status',
             'start_date', 'end_date', 'priority', 'is_combinable',
+            'applies_to_packaging_type',
             'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
             'hour_start', 'hour_end',
             'min_quantity', 'min_purchase_amount', 'max_uses_per_sale',
@@ -40,6 +41,7 @@ class PromotionForm(forms.ModelForm):
             'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'priority': forms.NumberInput(attrs={'class': 'form-control'}),
             'is_combinable': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'applies_to_packaging_type': forms.Select(attrs={'class': 'form-select'}),
             'monday': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'tuesday': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'wednesday': forms.CheckboxInput(attrs={'class': 'form-check-input'}),

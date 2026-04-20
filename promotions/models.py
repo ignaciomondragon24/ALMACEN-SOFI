@@ -96,6 +96,20 @@ class Promotion(models.Model):
         help_text='¿Se puede combinar con otras promociones?'
     )
 
+    PACKAGING_SCOPE_CHOICES = [
+        ('unit', 'Solo unidad suelta'),
+        ('display', 'Solo display / paquete'),
+        ('bulk', 'Solo bulto / caja'),
+        ('any', 'Cualquier empaque'),
+    ]
+    applies_to_packaging_type = models.CharField(
+        'Empaque al que aplica',
+        max_length=20,
+        choices=PACKAGING_SCOPE_CHOICES,
+        default='unit',
+        help_text='Empaque al que se le aplica la promo. Permite precios distintos por unidad y por display.'
+    )
+
     # Linking: dos o más promos en el mismo grupo se tratan como una sola
     # virtual al momento de calcular descuentos en el carrito.
     group = models.ForeignKey(
