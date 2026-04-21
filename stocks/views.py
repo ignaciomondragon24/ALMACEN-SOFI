@@ -112,22 +112,35 @@ def _save_inline_packaging(request, product):
     displays_per_bulk = int(request.POST.get('pkg_displays_per_bulk', 1) or 1)
     total_units = units_per_display * displays_per_bulk
 
+    # Factor de conversión a unidades base por tipo de packaging. Sirve para
+    # absorber un Product legacy al stock del padre: si el legacy tiene 5
+    # "displays" y el nuevo display envuelve 6 unidades, suma 30 unidades.
+    factor_for = {
+        'unit': Decimal('1'),
+        'display': Decimal(str(units_per_display)),
+        'bulk': Decimal(str(total_units)),
+    }
+
     def _calc_margin(purchase, sale):
         if purchase and purchase > 0 and sale and sale > 0:
             return ((sale - purchase) / purchase) * 100
         return Decimal('0')
 
-    def _check_barcode(barcode, pkg_type):
-        """Validar el barcode antes de guardar el packaging.
+    absorbed = []
 
-        Bloqueamos solo cuando otro packaging ya usa el mismo código (conflicto
-        real: la DB tiene unique=True). Si existe un Product legacy con el
-        mismo barcode, NO bloqueamos — el POS ya prioriza ProductPackaging
-        sobre Product al escanear (pos/views.py:137-145). Liberamos el barcode
-        del Product viejo (lo pasamos a NULL) para que no ensucie el listado
-        de inventario ni la búsqueda manual. El Product viejo sigue existiendo
-        con su stock, su historial de ventas y su SKU — solo deja de competir
-        por el scan.
+    def _check_barcode(barcode, pkg_type):
+        """Validar el barcode y absorber Product legacy si lo hubiera.
+
+        Bloqueamos cuando otro ProductPackaging activo ya usa el código
+        (conflicto real a nivel DB, unique=True).
+
+        Si existe un Product legacy con el mismo barcode (distinto del
+        padre), lo absorbemos: convertimos su stock a unidades base
+        mediante factor_for[pkg_type] y lo sumamos al Product padre. El
+        legacy queda desactivado con stock 0 y sin barcode, pero
+        preserva SKU e historial. Así un viejo "Display x 6" creado
+        como Product independiente pasa a ser el display del padre y
+        su stock no se pierde — se re-expresa en unidades base.
         """
         if not barcode:
             return None
@@ -139,22 +152,68 @@ def _save_inline_packaging(request, product):
                 f'El código de barras {barcode} ya está en uso por '
                 f'{dup.product.name} - {dup.get_packaging_type_display()}'
             )
-        dup_prods = Product.objects.filter(barcode=barcode).exclude(pk=product.pk)
-        freed = list(dup_prods.values_list('name', flat=True))
-        if freed:
-            dup_prods.update(barcode=None)
-            _freed_barcodes.append((barcode, pkg_type, freed))
+        legacy = (Product.objects
+                  .filter(barcode=barcode)
+                  .exclude(pk=product.pk)
+                  .first())
+        if legacy:
+            factor = factor_for.get(pkg_type, Decimal('1'))
+            legacy_stock = Decimal(str(legacy.current_stock or 0))
+            extra_units = legacy_stock * factor
+
+            if extra_units > 0:
+                # Movimiento de salida en el legacy (queda en 0)
+                StockMovement.objects.create(
+                    product=legacy,
+                    movement_type='adjustment_out',
+                    quantity=-legacy_stock,
+                    stock_before=legacy_stock,
+                    stock_after=Decimal('0'),
+                    reference='Corrección de Error',
+                    notes=(
+                        f'Absorbido como {pkg_type} de "{product.name}" '
+                        f'(SKU {product.sku}). Stock convertido a '
+                        f'{extra_units} unidades base (× {factor}).'
+                    ),
+                    created_by=request.user,
+                )
+                # Movimiento de entrada al padre (en unidades base)
+                stock_before_padre = Decimal(str(product.current_stock or 0))
+                stock_after_padre = stock_before_padre + extra_units
+                StockMovement.objects.create(
+                    product=product,
+                    movement_type='adjustment_in',
+                    quantity=extra_units,
+                    stock_before=stock_before_padre,
+                    stock_after=stock_after_padre,
+                    reference='Corrección de Error',
+                    notes=(
+                        f'Absorción del producto "{legacy.name}" '
+                        f'(SKU {legacy.sku}) como {pkg_type}: '
+                        f'{legacy_stock} × {factor} = {extra_units} unidades.'
+                    ),
+                    created_by=request.user,
+                )
+                product.current_stock = stock_after_padre
+                product.save(update_fields=['current_stock'])
+
+            legacy.barcode = None
+            legacy.current_stock = Decimal('0')
+            legacy.is_active = False
+            legacy.save(update_fields=['barcode', 'current_stock', 'is_active'])
+            absorbed.append({
+                'legacy_name': legacy.name,
+                'pkg_type': pkg_type,
+                'legacy_stock': legacy_stock,
+                'extra_units': extra_units,
+                'factor': factor,
+            })
         return barcode
-
-    _freed_barcodes = []
-
-    # Stock equivalente del producto base, repartido a cada nivel cuando se crea
-    # el packaging por primera vez. Mantiene el invariante: todos los niveles
-    # reflejan el mismo stock real expresado en su unidad.
-    base_stock = Decimal(str(product.current_stock or 0))
 
     # WYSIWYG: persistimos EXACTAMENTE los precios que el usuario vio en el form.
     # El cascade (si aplica) corre en el frontend antes del submit; backend no recalcula.
+    # base_stock se recalcula just-in-time en cada bloque porque la absorción
+    # puede haber aumentado product.current_stock entre niveles.
 
     # Bulk packaging
     if request.POST.get('has_bulk'):
@@ -177,6 +236,7 @@ def _save_inline_packaging(request, product):
             }
         )
         if created and total_units > 0:
+            base_stock = Decimal(str(product.current_stock or 0))
             bulk_pkg.current_stock = base_stock / Decimal(str(total_units))
             bulk_pkg.save(update_fields=['current_stock'])
 
@@ -201,6 +261,7 @@ def _save_inline_packaging(request, product):
             }
         )
         if created and units_per_display > 0:
+            base_stock = Decimal(str(product.current_stock or 0))
             display_pkg.current_stock = base_stock / Decimal(str(units_per_display))
             display_pkg.save(update_fields=['current_stock'])
 
@@ -225,7 +286,7 @@ def _save_inline_packaging(request, product):
             }
         )
         if created:
-            unit_pkg.current_stock = base_stock
+            unit_pkg.current_stock = Decimal(str(product.current_stock or 0))
             unit_pkg.save(update_fields=['current_stock'])
 
         # Sincronizar Product base con el packaging unit. El POS (api_search,
@@ -256,17 +317,27 @@ def _save_inline_packaging(request, product):
                 product=product, packaging_type=pkg_type, is_active=True
             ).update(is_active=False)
 
-    # Avisar al usuario cuando liberamos el barcode de un Product viejo para
-    # asignárselo a un packaging. No es un error — es un efecto colateral que
-    # el dueño tiene que saber (por si le preocupa el Product huérfano).
-    for bc, pkg_type, freed in _freed_barcodes:
-        names = ', '.join(f'"{n}"' for n in freed)
-        messages.info(
-            request,
-            f'El código {bc} estaba asignado al producto {names}; se lo moví al '
-            f'empaque {pkg_type}. El producto viejo sigue activo, pero sin código '
-            f'de barras para que el POS no lo confunda con el empaque nuevo.'
-        )
+    # Si hubo absorción, resync ABSOLUTO de todos los packagings activos al
+    # nuevo product.current_stock. Sin esto un packaging pre-existente (ej:
+    # unit creado antes) queda con stock viejo y la cascada se desincroniza.
+    # Misma lógica que StockManagementService.adjust_stock (ver commit e3231ff).
+    if absorbed:
+        final_stock = Decimal(str(product.current_stock or 0))
+        for pkg in product.packagings.filter(is_active=True):
+            if pkg.packaging_type == 'unit':
+                pkg.current_stock = final_stock
+            elif pkg.units_quantity and pkg.units_quantity > 0:
+                pkg.current_stock = final_stock / Decimal(str(pkg.units_quantity))
+            pkg.save(update_fields=['current_stock'])
+
+        for info in absorbed:
+            messages.info(
+                request,
+                f'Absorbí el producto "{info["legacy_name"]}" como '
+                f'{info["pkg_type"]}: {info["legacy_stock"]} × {info["factor"]} '
+                f'= {info["extra_units"]} unidades sumadas al stock base. El '
+                f'producto viejo quedó desactivado (stock 0, sin código).'
+            )
 
 
 @login_required
