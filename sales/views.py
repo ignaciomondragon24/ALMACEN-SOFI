@@ -92,6 +92,8 @@ def balance_consolidado(request):
     dinero se convierte en stock, no es gasto puro.
     """
     from expenses.models import Expense
+    from stocks.models import StockMovement
+    from django.db.models import ExpressionWrapper, DecimalField
 
     today = timezone.localdate()
     period = (request.GET.get('period') or 'month').lower()
@@ -146,7 +148,68 @@ def balance_consolidado(request):
         .order_by('-total')
     )
 
-    neto_operativo = total_sales - total_operating
+    # Pérdidas de mercadería (valuadas al costo). Tomamos salidas de stock
+    # cuyo motivo (reference) corresponde a merma real: robo, daño, vencimiento,
+    # consumo interno. Excluimos "Corrección de Error" y "Devolución" porque no
+    # son pérdidas económicas. "Conteo Físico" se incluye solo cuando el ajuste
+    # fue a la baja (adjustment_out), porque representa faltante detectado.
+    LOSS_REASONS = [
+        'Robo / Pérdida',
+        'Mercadería Dañada',
+        'Mercadería Vencida',
+        'Consumo Interno',
+        'Conteo Físico / Inventario',
+    ]
+
+    losses_qs = StockMovement.objects.filter(
+        movement_type='adjustment_out',
+        created_at__date__gte=date_from,
+        created_at__date__lte=date_to,
+        reference__in=LOSS_REASONS,
+    ).select_related('product')
+
+    # Pérdida al costo = |quantity| * unit_cost (quantity es negativa en salidas)
+    cost_expr = ExpressionWrapper(
+        F('quantity') * F('unit_cost') * Decimal('-1'),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+
+    total_losses = losses_qs.aggregate(
+        total=Sum(cost_expr)
+    )['total'] or Decimal('0')
+
+    # Agregado por motivo con detalle de productos embebido.
+    # Estructura final: [{reference, total_cost, total_qty, movement_count, products: [...]}, ...]
+    reason_aggregates = (
+        losses_qs.values('reference')
+        .annotate(
+            total_cost=Sum(cost_expr),
+            total_qty=Sum(F('quantity') * Decimal('-1')),
+            movement_count=Count('id'),
+        )
+        .order_by('-total_cost')
+    )
+    product_rows = (
+        losses_qs.values('reference', 'product__id', 'product__name')
+        .annotate(
+            total_cost=Sum(cost_expr),
+            total_qty=Sum(F('quantity') * Decimal('-1')),
+            movement_count=Count('id'),
+        )
+        .order_by('reference', '-total_cost')
+    )
+    products_by_reason = {}
+    for row in product_rows:
+        products_by_reason.setdefault(row['reference'], []).append(row)
+
+    losses_by_reason = []
+    for agg in reason_aggregates:
+        losses_by_reason.append({
+            **agg,
+            'products': products_by_reason.get(agg['reference'], []),
+        })
+
+    neto_operativo = total_sales - total_operating - total_losses
 
     context = {
         'period': period,
@@ -156,8 +219,10 @@ def balance_consolidado(request):
         'sales_count': sales_count,
         'total_operating': total_operating,
         'total_investment': total_investment,
+        'total_losses': total_losses,
         'operating_by_cat': operating_by_cat,
         'investment_by_cat': investment_by_cat,
+        'losses_by_reason': losses_by_reason,
         'neto_operativo': neto_operativo,
     }
     return render(request, 'sales/balance_consolidado.html', context)

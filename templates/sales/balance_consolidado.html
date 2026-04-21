@@ -9,7 +9,7 @@
         <div>
             <h2 class="mb-1"><i class="fas fa-scale-balanced me-2" style="color:var(--che-primary,#E91E8C);"></i>Balance Consolidado</h2>
             <p class="text-muted mb-0">
-                Ventas menos gastos operativos = neto del negocio. Las inversiones (Compras) se listan aparte sin restar.
+                Ventas menos gastos operativos menos pérdidas al costo = neto del negocio. Las inversiones (Compras) se listan aparte sin restar.
             </p>
         </div>
         <a href="{% url 'sales:dashboard' %}" class="btn btn-outline-secondary">
@@ -48,7 +48,7 @@
 
     <!-- Resumen grande arriba -->
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card shadow-sm h-100 border-success border-opacity-25">
                 <div class="card-body">
                     <div class="text-uppercase small text-muted mb-1">
@@ -59,7 +59,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card shadow-sm h-100 border-danger border-opacity-25">
                 <div class="card-body">
                     <div class="text-uppercase small text-muted mb-1">
@@ -70,14 +70,25 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100 border-warning border-opacity-50">
+                <div class="card-body">
+                    <div class="text-uppercase small text-muted mb-1">
+                        <i class="fas fa-triangle-exclamation me-1"></i>Pérdidas al costo <span class="badge bg-warning bg-opacity-25 text-warning-emphasis ms-1">restan</span>
+                    </div>
+                    <div class="display-6 fw-bold text-warning-emphasis">{{ total_losses|currency_ar }}</div>
+                    <small class="text-muted">Robo, vencido, dañado, consumo interno</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card shadow-sm h-100" style="border:2px solid var(--che-primary,#E91E8C);">
                 <div class="card-body">
                     <div class="text-uppercase small text-muted mb-1">
                         <i class="fas fa-scale-balanced me-1"></i>Neto Operativo
                     </div>
                     <div class="display-6 fw-bold" style="color:var(--che-primary,#E91E8C);">{{ neto_operativo|currency_ar }}</div>
-                    <small class="text-muted">Ventas − Gastos operativos</small>
+                    <small class="text-muted">Ventas − Gastos − Pérdidas</small>
                 </div>
             </div>
         </div>
@@ -163,6 +174,89 @@
                         <a href="{% url 'expenses:category_list' %}">Categorías de Gastos</a>.
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pérdidas de mercadería -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-warning-emphasis">
+                <i class="fas fa-triangle-exclamation me-2"></i>Pérdidas de mercadería (restan del neto)
+            </h5>
+            <strong class="text-warning-emphasis">− {{ total_losses|currency_ar }}</strong>
+        </div>
+        <div class="card-body p-0">
+            {% if losses_by_reason %}
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light small">
+                    <tr>
+                        <th>Motivo</th>
+                        <th class="text-center">Movimientos</th>
+                        <th class="text-end">Cantidad total</th>
+                        <th class="text-end">Pérdida al costo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in losses_by_reason %}
+                    <tr class="fw-semibold table-warning">
+                        <td>
+                            <button class="btn btn-sm btn-link text-decoration-none p-0 me-1"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#loss-detail-{{ forloop.counter }}"
+                                    aria-expanded="false">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                            {{ row.reference }}
+                        </td>
+                        <td class="text-center">{{ row.movement_count }}</td>
+                        <td class="text-end">{{ row.total_qty|floatformat:2 }}</td>
+                        <td class="text-end text-warning-emphasis">{{ row.total_cost|currency_ar }}</td>
+                    </tr>
+                    <tr class="collapse" id="loss-detail-{{ forloop.counter }}">
+                        <td colspan="4" class="p-0">
+                            <table class="table table-sm mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="padding-left:3rem;">Producto</th>
+                                        <th class="text-center">Movimientos</th>
+                                        <th class="text-end">Cantidad</th>
+                                        <th class="text-end">Pérdida al costo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in row.products %}
+                                    <tr>
+                                        <td style="padding-left:3rem;">{{ item.product__name }}</td>
+                                        <td class="text-center">{{ item.movement_count }}</td>
+                                        <td class="text-end">{{ item.total_qty|floatformat:2 }}</td>
+                                        <td class="text-end">{{ item.total_cost|currency_ar }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">Total pérdidas:</td>
+                        <td class="text-end text-warning-emphasis">{{ total_losses|currency_ar }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-4 mb-0">Sin pérdidas registradas en el período.</p>
+            {% endif %}
+            <div class="p-3 small text-muted bg-light">
+                <i class="fas fa-info-circle me-1"></i>
+                Se contabiliza como pérdida cualquier ajuste de stock a la baja con motivo
+                <strong>Robo / Pérdida</strong>, <strong>Mercadería Dañada</strong>, <strong>Mercadería Vencida</strong>,
+                <strong>Consumo Interno</strong> o <strong>Conteo Físico</strong> con faltante.
+                Los ajustes por <em>Corrección de Error</em> y <em>Devolución</em> no cuentan como pérdida.
+                Hacé clic en el motivo para ver los productos.
             </div>
         </div>
     </div>
