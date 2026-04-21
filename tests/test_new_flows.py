@@ -492,6 +492,110 @@ class PurchaseConfirmationStockTest(TestCase):
         self.assertEqual(oc.supplier, self.supplier)
         self.assertEqual(oc.items.count(), 1)
 
+    def test_receive_with_display_packaging_does_not_overwrite_unit_price(self):
+        """Al recibir un item cuyo packaging es display (o bulk), el
+        sale_price del item es el precio del display, no el de la unidad.
+        No debe sobreescribir product.sale_price ni packaging unit."""
+        from stocks.models import ProductPackaging
+        product = self._make_product(stock=0, name='Prod Con Display')
+        product.sale_price = Decimal('100')  # precio unitario original
+        product.cost_price = Decimal('40')
+        product.save()
+
+        unit_pkg = ProductPackaging.objects.create(
+            product=product, packaging_type='unit', name='Unidad',
+            units_per_display=1, displays_per_bulk=1,
+            purchase_price=Decimal('40'), sale_price=Decimal('100'),
+        )
+        display_pkg = ProductPackaging.objects.create(
+            product=product, packaging_type='display', name='Display x 6',
+            units_per_display=6, displays_per_bulk=1,
+            purchase_price=Decimal('240'), sale_price=Decimal('500'),
+        )
+
+        purchase = Purchase.objects.create(
+            supplier=self.supplier,
+            order_number='OC-TEST-0010',
+            status='draft',
+            created_by=self.user,
+        )
+        PurchaseItem.objects.create(
+            purchase=purchase, product=product, packaging=display_pkg,
+            quantity=2, unit_cost=Decimal('240'),
+            sale_price=Decimal('600'),  # precio del display, no de la unidad
+        )
+
+        c = Client()
+        c.login(username='admin_purchase', password='pass123')
+        c.post(reverse('purchase:purchase_receive', args=[purchase.pk]))
+
+        product.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        display_pkg.refresh_from_db()
+
+        # El display subió a $600 (lo que cargó el comprador)
+        self.assertEqual(display_pkg.sale_price, Decimal('600'))
+        # La unidad quedó como estaba (NO se cambió a $600)
+        self.assertEqual(product.sale_price, Decimal('100'))
+        self.assertEqual(unit_pkg.sale_price, Decimal('100'))
+
+    def test_receive_without_packaging_updates_unit_price(self):
+        """Sin packaging, el sale_price del item es el unitario y debe
+        propagarse a product.sale_price como siempre."""
+        product = self._make_product(stock=0, name='Prod Sin Pkg')
+        product.sale_price = Decimal('100')
+        product.save()
+
+        purchase = Purchase.objects.create(
+            supplier=self.supplier, order_number='OC-TEST-0011',
+            status='draft', created_by=self.user,
+        )
+        PurchaseItem.objects.create(
+            purchase=purchase, product=product,
+            quantity=10, unit_cost=Decimal('50'),
+            sale_price=Decimal('120'),
+        )
+
+        c = Client()
+        c.login(username='admin_purchase', password='pass123')
+        c.post(reverse('purchase:purchase_receive', args=[purchase.pk]))
+
+        product.refresh_from_db()
+        self.assertEqual(product.sale_price, Decimal('120'))
+
+    def test_receive_with_unit_packaging_updates_both_product_and_unit(self):
+        """Si el item usa el packaging unit, el precio es el de la unidad
+        — hay que actualizar product.sale_price Y unit_pkg.sale_price para
+        mantener el invariante."""
+        from stocks.models import ProductPackaging
+        product = self._make_product(stock=0, name='Prod Con Unit Pkg')
+        product.sale_price = Decimal('100')
+        product.save()
+        unit_pkg = ProductPackaging.objects.create(
+            product=product, packaging_type='unit', name='Unidad',
+            units_per_display=1, displays_per_bulk=1,
+            purchase_price=Decimal('40'), sale_price=Decimal('100'),
+        )
+
+        purchase = Purchase.objects.create(
+            supplier=self.supplier, order_number='OC-TEST-0012',
+            status='draft', created_by=self.user,
+        )
+        PurchaseItem.objects.create(
+            purchase=purchase, product=product, packaging=unit_pkg,
+            quantity=5, unit_cost=Decimal('50'),
+            sale_price=Decimal('150'),
+        )
+
+        c = Client()
+        c.login(username='admin_purchase', password='pass123')
+        c.post(reverse('purchase:purchase_receive', args=[purchase.pk]))
+
+        product.refresh_from_db()
+        unit_pkg.refresh_from_db()
+        self.assertEqual(product.sale_price, Decimal('150'))
+        self.assertEqual(unit_pkg.sale_price, Decimal('150'))
+
     def test_cannot_receive_same_purchase_twice(self):
         """Una compra ya recibida no se puede recibir de nuevo."""
         product = self._make_product(stock=0)

@@ -345,10 +345,26 @@ def purchase_receive(request, pk):
                     notes=f'OC {purchase.order_number} ({ref_detail})',
                 )
 
-                # Update product sale_price if specified
+                # Update sale_price si se especificó. El precio del item se
+                # corresponde con el nivel elegido: si el comprador cargó un
+                # display, item.sale_price es el precio de venta de un display,
+                # NO el precio unitario. Escribirlo en product.sale_price haría
+                # que cada unidad cobrara al precio del display (bug reportado).
                 if item.sale_price:
-                    item.product.sale_price = item.sale_price
-                    item.product.save(update_fields=['sale_price'])
+                    if item.packaging and item.packaging.packaging_type != 'unit':
+                        # display/bulk → solo actualizar el nivel correspondiente;
+                        # el precio unitario queda como estaba.
+                        item.packaging.sale_price = item.sale_price
+                        item.packaging.save(update_fields=['sale_price'])
+                    else:
+                        # Sin packaging o packaging unit → actualizar product
+                        # (y el packaging unit, si existe, para que el invariante
+                        # product.sale_price == unit_pkg.sale_price se preserve).
+                        item.product.sale_price = item.sale_price
+                        item.product.save(update_fields=['sale_price'])
+                        if item.packaging and item.packaging.packaging_type == 'unit':
+                            item.packaging.sale_price = item.sale_price
+                            item.packaging.save(update_fields=['sale_price'])
 
                 item.received_quantity = item.quantity
                 item.save()
