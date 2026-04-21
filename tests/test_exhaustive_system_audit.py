@@ -737,15 +737,14 @@ class PurchaseFlowAudit(ExhaustiveBaseTestCase):
 class ExpenseAudit(ExhaustiveBaseTestCase):
     """Auditoría de gastos."""
 
-    def test_cash_expense_creates_cash_movement(self):
+    def test_cash_expense_with_drawer_flag_creates_cash_movement(self):
         """
-        CORREGIDO: Los gastos en efectivo ahora crean CashMovement
-        a través de la vista, reflejándose en el cierre de caja.
+        Gasto en efectivo con `affects_cash_drawer=True` crea CashMovement
+        en el turno activo (salió físicamente del cajón del POS).
         """
         exp_category = ExpenseCategory.objects.create(name='Limpieza')
         shift = self.make_shift()
 
-        # Crear gasto via view (para que se cree el CashMovement)
         c = self.login_as(self.admin)
         resp = c.post(reverse('expenses:expense_create'), {
             'category': exp_category.id,
@@ -753,6 +752,7 @@ class ExpenseAudit(ExhaustiveBaseTestCase):
             'amount': '500.00',
             'expense_date': timezone.now().date().isoformat(),
             'payment_method': 'cash',
+            'affects_cash_drawer': 'on',
         })
         self.assertEqual(resp.status_code, 302)
 
@@ -763,10 +763,23 @@ class ExpenseAudit(ExhaustiveBaseTestCase):
             movement_type='expense',
             reference=f'EXP-{expense.id}',
         )
-        self.assertEqual(
-            movements.count(), 1,
-            'Un gasto en efectivo debe crear un CashMovement en el turno activo',
-        )
+        self.assertEqual(movements.count(), 1)
+
+    def test_cash_expense_without_drawer_flag_no_cash_movement(self):
+        """Gasto efectivo sin el flag (pago externo) NO afecta el cierre Z."""
+        exp_category = ExpenseCategory.objects.create(name='Alquiler')
+        shift = self.make_shift()
+
+        c = self.login_as(self.admin)
+        c.post(reverse('expenses:expense_create'), {
+            'category': exp_category.id,
+            'description': 'Alquiler del mes',
+            'amount': '100000.00',
+            'expense_date': timezone.now().date().isoformat(),
+            'payment_method': 'cash',
+        })
+        movements = CashMovement.objects.filter(cash_shift=shift, movement_type='expense')
+        self.assertEqual(movements.count(), 0)
 
     def test_non_cash_expense_no_cash_movement(self):
         """Gastos que no son en efectivo NO crean CashMovement."""
@@ -786,7 +799,7 @@ class ExpenseAudit(ExhaustiveBaseTestCase):
         self.assertEqual(movements.count(), 0)
 
     def test_delete_expense_removes_cash_movement(self):
-        """Eliminar un gasto en efectivo también elimina su CashMovement."""
+        """Eliminar un gasto con affects_cash_drawer también elimina su CashMovement."""
         exp_category = ExpenseCategory.objects.create(name='Varios')
         shift = self.make_shift()
 
@@ -797,6 +810,7 @@ class ExpenseAudit(ExhaustiveBaseTestCase):
             'amount': '200.00',
             'expense_date': timezone.now().date().isoformat(),
             'payment_method': 'cash',
+            'affects_cash_drawer': 'on',
         })
         expense = Expense.objects.get(description='Compra menor')
         self.assertEqual(CashMovement.objects.filter(reference=f'EXP-{expense.id}').count(), 1)
