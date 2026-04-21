@@ -93,7 +93,7 @@ def balance_consolidado(request):
     """
     from expenses.models import Expense
     from stocks.models import StockMovement
-    from django.db.models import ExpressionWrapper, DecimalField
+    from django.db.models import ExpressionWrapper, DecimalField, Q, Case, When, Value, CharField
 
     today = timezone.localdate()
     period = (request.GET.get('period') or 'month').lower()
@@ -148,11 +148,13 @@ def balance_consolidado(request):
         .order_by('-total')
     )
 
-    # Pérdidas de mercadería (valuadas al costo). Tomamos salidas de stock
-    # cuyo motivo (reference) corresponde a merma real: robo, daño, vencimiento,
-    # consumo interno. Excluimos "Corrección de Error" y "Devolución" porque no
-    # son pérdidas económicas. "Conteo Físico" se incluye solo cuando el ajuste
-    # fue a la baja (adjustment_out), porque representa faltante detectado.
+    # Pérdidas de mercadería (valuadas al costo). Unificamos dos fuentes:
+    #   1) Ajustes manuales de stock con motivo de merma (movement_type='adjustment_out').
+    #   2) Consumo interno cargado desde el POS (movement_type='sale' con reference que
+    #      empieza con 'Consumo interno ', ver pos/services.py:733).
+    # Excluimos "Corrección de Error" y "Devolución" porque no son pérdidas económicas.
+    # Normalizamos todas las referencias del POS al bucket 'Consumo Interno' para que
+    # aparezcan junto con los ajustes manuales del mismo motivo.
     LOSS_REASONS = [
         'Robo / Pérdida',
         'Mercadería Dañada',
@@ -162,11 +164,18 @@ def balance_consolidado(request):
     ]
 
     losses_qs = StockMovement.objects.filter(
-        movement_type='adjustment_out',
         created_at__date__gte=date_from,
         created_at__date__lte=date_to,
-        reference__in=LOSS_REASONS,
-    ).select_related('product')
+    ).filter(
+        Q(movement_type='adjustment_out', reference__in=LOSS_REASONS)
+        | Q(movement_type='sale', reference__startswith='Consumo interno ')
+    ).select_related('product').annotate(
+        loss_reason=Case(
+            When(movement_type='sale', then=Value('Consumo Interno')),
+            default=F('reference'),
+            output_field=CharField(),
+        )
+    )
 
     # Pérdida al costo = |quantity| * unit_cost (quantity es negativa en salidas)
     cost_expr = ExpressionWrapper(
@@ -181,7 +190,7 @@ def balance_consolidado(request):
     # Agregado por motivo con detalle de productos embebido.
     # Estructura final: [{reference, total_cost, total_qty, movement_count, products: [...]}, ...]
     reason_aggregates = (
-        losses_qs.values('reference')
+        losses_qs.values('loss_reason')
         .annotate(
             total_cost=Sum(cost_expr),
             total_qty=Sum(F('quantity') * Decimal('-1')),
@@ -190,23 +199,26 @@ def balance_consolidado(request):
         .order_by('-total_cost')
     )
     product_rows = (
-        losses_qs.values('reference', 'product__id', 'product__name')
+        losses_qs.values('loss_reason', 'product__id', 'product__name')
         .annotate(
             total_cost=Sum(cost_expr),
             total_qty=Sum(F('quantity') * Decimal('-1')),
             movement_count=Count('id'),
         )
-        .order_by('reference', '-total_cost')
+        .order_by('loss_reason', '-total_cost')
     )
     products_by_reason = {}
     for row in product_rows:
-        products_by_reason.setdefault(row['reference'], []).append(row)
+        products_by_reason.setdefault(row['loss_reason'], []).append(row)
 
     losses_by_reason = []
     for agg in reason_aggregates:
         losses_by_reason.append({
-            **agg,
-            'products': products_by_reason.get(agg['reference'], []),
+            'reference': agg['loss_reason'],
+            'total_cost': agg['total_cost'],
+            'total_qty': agg['total_qty'],
+            'movement_count': agg['movement_count'],
+            'products': products_by_reason.get(agg['loss_reason'], []),
         })
 
     neto_operativo = total_sales - total_operating - total_losses
