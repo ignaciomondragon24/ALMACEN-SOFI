@@ -118,12 +118,16 @@ def _save_inline_packaging(request, product):
         return Decimal('0')
 
     def _check_barcode(barcode, pkg_type):
-        """Validate barcode is not used by another packaging or another Product.
+        """Validar el barcode antes de guardar el packaging.
 
-        La validacion cruzada contra Product evita el bug silencioso donde un
-        Product legacy y un ProductPackaging comparten barcode: el POS encontraba
-        el Product y nunca llegaba al packaging. Ahora bloqueamos el conflicto
-        al guardar y forzamos al user a limpiar el duplicado.
+        Bloqueamos solo cuando otro packaging ya usa el mismo código (conflicto
+        real: la DB tiene unique=True). Si existe un Product legacy con el
+        mismo barcode, NO bloqueamos — el POS ya prioriza ProductPackaging
+        sobre Product al escanear (pos/views.py:137-145). Liberamos el barcode
+        del Product viejo (lo pasamos a NULL) para que no ensucie el listado
+        de inventario ni la búsqueda manual. El Product viejo sigue existiendo
+        con su stock, su historial de ventas y su SKU — solo deja de competir
+        por el scan.
         """
         if not barcode:
             return None
@@ -135,15 +139,14 @@ def _save_inline_packaging(request, product):
                 f'El código de barras {barcode} ya está en uso por '
                 f'{dup.product.name} - {dup.get_packaging_type_display()}'
             )
-        dup_prod = Product.objects.filter(barcode=barcode).exclude(pk=product.pk).first()
-        if dup_prod:
-            raise ValueError(
-                f'El código de barras {barcode} ya está asignado al producto '
-                f'"{dup_prod.name}" (SKU {dup_prod.sku}). Desactivalo o cambiale '
-                f'el código antes de usarlo como empaque — si no, el POS siempre '
-                f'va a cobrar del producto viejo en lugar del empaque.'
-            )
+        dup_prods = Product.objects.filter(barcode=barcode).exclude(pk=product.pk)
+        freed = list(dup_prods.values_list('name', flat=True))
+        if freed:
+            dup_prods.update(barcode=None)
+            _freed_barcodes.append((barcode, pkg_type, freed))
         return barcode
+
+    _freed_barcodes = []
 
     # Stock equivalente del producto base, repartido a cada nivel cuando se crea
     # el packaging por primera vez. Mantiene el invariante: todos los niveles
@@ -252,6 +255,18 @@ def _save_inline_packaging(request, product):
             ProductPackaging.objects.filter(
                 product=product, packaging_type=pkg_type, is_active=True
             ).update(is_active=False)
+
+    # Avisar al usuario cuando liberamos el barcode de un Product viejo para
+    # asignárselo a un packaging. No es un error — es un efecto colateral que
+    # el dueño tiene que saber (por si le preocupa el Product huérfano).
+    for bc, pkg_type, freed in _freed_barcodes:
+        names = ', '.join(f'"{n}"' for n in freed)
+        messages.info(
+            request,
+            f'El código {bc} estaba asignado al producto {names}; se lo moví al '
+            f'empaque {pkg_type}. El producto viejo sigue activo, pero sin código '
+            f'de barras para que el POS no lo confunda con el empaque nuevo.'
+        )
 
 
 @login_required
