@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load currency_filters %}
+{% load currency_filters l10n %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -51,7 +51,7 @@
                                 <input type="number" name="precio_100g" id="input-precio-100"
                                        class="form-control" step="0.01" min="0.01" required
                                        placeholder="Ej: 2500"
-                                       value="{{ caramelera.precio_100g|default:'' }}">
+                                       value="{{ caramelera.precio_100g|unlocalize|default:'' }}">
                             </div>
                         </div>
 
@@ -62,7 +62,7 @@
                                 <input type="number" name="precio_cuarto" id="input-precio-cuarto"
                                        class="form-control" step="0.01" min="0"
                                        placeholder="Auto (precio/100g × 10 × 0.9)"
-                                       value="{{ caramelera.precio_cuarto|default:'' }}">
+                                       value="{{ caramelera.precio_cuarto|unlocalize|default:'' }}">
                             </div>
                             <div class="form-text">
                                 Se aplica desde 250g en adelante por regla de tres.

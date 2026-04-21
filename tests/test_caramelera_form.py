@@ -148,6 +148,25 @@ class CarameleraFormTestCase(TestCase):
         resp = self.client.get(reverse('granel:caramelera_edit', args=[caramelera.pk]))
         self.assertEqual(resp.status_code, 200)
 
+    def test_caramelera_edit_rendera_precios_con_punto_decimal(self):
+        """El value de los inputs type=number debe venir sin localizar
+        (punto decimal, sin separador de miles) — si no, el browser los
+        descarta y el form queda en blanco."""
+        caramelera = Caramelera.objects.create(
+            nombre='Gomitas Precio Alto',
+            precio_100g=Decimal('2500.50'),
+            precio_cuarto=Decimal('22500.75'),
+        )
+        resp = self.client.get(reverse('granel:caramelera_edit', args=[caramelera.pk]))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode('utf-8')
+        # Debe aparecer con punto y sin separador de miles
+        self.assertIn('value="2500.50"', content)
+        self.assertIn('value="22500.75"', content)
+        # No debe haber formato localizado con coma / puntos de miles
+        self.assertNotIn('value="2.500,50"', content)
+        self.assertNotIn('value="22.500,75"', content)
+
     # ------ Caramelera detail ------
 
     def test_caramelera_detail_returns_200(self):
