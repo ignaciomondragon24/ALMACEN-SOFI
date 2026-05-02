@@ -133,16 +133,18 @@ def api_search(request):
     # (caso tipico: un viejo producto "X 20u" creado como Product independiente y
     # el nuevo ProductPackaging display del producto base), el packaging gana —
     # es la fuente de verdad para precio y stock.
-    packaging_match = None
-    if query.isdigit() and 8 <= len(query) <= 13:
-        packaging_match = ProductPackaging.objects.filter(
-            barcode=query, is_active=True, product__is_active=True
-        ).select_related('product', 'product__unit_of_measure', 'product__category').first()
-        if packaging_match:
-            products = Product.objects.filter(id=packaging_match.product_id)
-        else:
-            # Fallback: Product.barcode directo
-            products = Product.objects.filter(is_active=True, barcode=query)
+    #
+    # Match exacto contra packaging.barcode SIEMPRE primero (cualquier formato),
+    # para soportar códigos internos auto-generados tipo "INT-PRD123-DISP" cuando
+    # el display no tiene EAN-13 fisico (caso real: alfajores Juanino).
+    packaging_match = ProductPackaging.objects.filter(
+        barcode=query, is_active=True, product__is_active=True
+    ).select_related('product', 'product__unit_of_measure', 'product__category').first()
+    if packaging_match:
+        products = Product.objects.filter(id=packaging_match.product_id)
+    elif query.isdigit() and 8 <= len(query) <= 13:
+        # Fallback: Product.barcode directo (EAN-13 estándar)
+        products = Product.objects.filter(is_active=True, barcode=query)
     elif len(query) >= 1:
         # Get all active products and filter in Python for accent-insensitive search
         all_products = Product.objects.filter(is_active=True).select_related('unit_of_measure', 'category')

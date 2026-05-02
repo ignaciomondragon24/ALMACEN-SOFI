@@ -215,9 +215,42 @@ def _save_inline_packaging(request, product):
     # base_stock se recalcula just-in-time en cada bloque porque la absorción
     # puede haber aumentado product.current_stock entre niveles.
 
+    # Si el usuario no carga barcode, autogeneramos un código interno tipo
+    # INT-{SKU}-{TIPO}. Caso real (alfajor Juanino): el display no tiene EAN
+    # impreso, pero el dueño quiere un código para imprimir como etiqueta y
+    # poder buscar/escanear desde el sistema.
+    type_short_map = {'unit': 'UNI', 'display': 'DISP', 'bulk': 'BULK'}
+
+    def _generate_internal_code(pkg_type):
+        base = f'INT-{product.sku}-{type_short_map[pkg_type]}'
+        if not ProductPackaging.objects.filter(barcode=base).exists():
+            return base
+        n = 2
+        while ProductPackaging.objects.filter(barcode=f'{base}-{n}').exists():
+            n += 1
+        return f'{base}-{n}'
+
+    def _resolve_barcode(input_value, pkg_type, existing_pkg):
+        """Decide qué barcode persistir.
+
+        - Si el usuario ingresó algo: validar con _check_barcode (absorbe legacy
+          si corresponde, bloquea si choca con otro packaging activo).
+        - Si quedó vacío y el packaging ya tenía barcode (escaneado o INT- previo):
+          mantenerlo. Evita borrar accidentalmente un EAN real al re-guardar.
+        - Si quedó vacío y no hay barcode previo: autogenerar INT-{SKU}-{TIPO}.
+        """
+        if input_value:
+            return _check_barcode(input_value, pkg_type)
+        if existing_pkg and existing_pkg.barcode:
+            return existing_pkg.barcode
+        return _generate_internal_code(pkg_type)
+
     # Bulk packaging
     if request.POST.get('has_bulk'):
-        b_barcode = _check_barcode(request.POST.get('bulk_barcode', '').strip(), 'bulk')
+        existing_bulk = product.packagings.filter(packaging_type='bulk').first()
+        b_barcode = _resolve_barcode(
+            request.POST.get('bulk_barcode', '').strip(), 'bulk', existing_bulk
+        )
         b_name = request.POST.get('bulk_name', '').strip()
         b_purchase = Decimal(request.POST.get('bulk_purchase_price', '0').strip() or '0')
         b_sale = Decimal(request.POST.get('bulk_sale_price', '0').strip() or '0')
@@ -225,7 +258,7 @@ def _save_inline_packaging(request, product):
         bulk_pkg, created = ProductPackaging.objects.update_or_create(
             product=product, packaging_type='bulk',
             defaults={
-                'barcode': b_barcode or None,
+                'barcode': b_barcode,
                 'name': b_name or f'Bulto x {total_units}',
                 'units_per_display': units_per_display,
                 'displays_per_bulk': displays_per_bulk,
@@ -242,7 +275,10 @@ def _save_inline_packaging(request, product):
 
     # Display packaging
     if request.POST.get('has_display'):
-        d_barcode = _check_barcode(request.POST.get('display_barcode', '').strip(), 'display')
+        existing_display = product.packagings.filter(packaging_type='display').first()
+        d_barcode = _resolve_barcode(
+            request.POST.get('display_barcode', '').strip(), 'display', existing_display
+        )
         d_name = request.POST.get('display_name', '').strip()
         d_purchase = Decimal(request.POST.get('display_purchase_price', '0').strip() or '0')
         d_sale = Decimal(request.POST.get('display_sale_price', '0').strip() or '0')
@@ -250,7 +286,7 @@ def _save_inline_packaging(request, product):
         display_pkg, created = ProductPackaging.objects.update_or_create(
             product=product, packaging_type='display',
             defaults={
-                'barcode': d_barcode or None,
+                'barcode': d_barcode,
                 'name': d_name or f'Display x {units_per_display}',
                 'units_per_display': units_per_display,
                 'displays_per_bulk': 1,
@@ -267,7 +303,10 @@ def _save_inline_packaging(request, product):
 
     # Unit packaging
     if request.POST.get('has_unit'):
-        u_barcode = _check_barcode(request.POST.get('unit_barcode', '').strip(), 'unit')
+        existing_unit = product.packagings.filter(packaging_type='unit').first()
+        u_barcode = _resolve_barcode(
+            request.POST.get('unit_barcode', '').strip(), 'unit', existing_unit
+        )
         u_name = request.POST.get('unit_name', '').strip()
         u_purchase = Decimal(request.POST.get('unit_purchase_price', '0').strip() or '0')
         u_sale = Decimal(request.POST.get('unit_sale_price', '0').strip() or '0')
@@ -275,7 +314,7 @@ def _save_inline_packaging(request, product):
         unit_pkg, created = ProductPackaging.objects.update_or_create(
             product=product, packaging_type='unit',
             defaults={
-                'barcode': u_barcode or None,
+                'barcode': u_barcode,
                 'name': u_name or 'Unidad',
                 'units_per_display': 1,
                 'displays_per_bulk': 1,

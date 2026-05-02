@@ -219,9 +219,11 @@
                         <div class="card-body" id="unit_fields">
                             <div class="row">
                                 <div class="col-md-6 mb-2">
-                                    <label class="form-label small">Código de Barras</label>
+                                    <label class="form-label small">Código de Barras / Interno</label>
                                     <input type="text" name="unit_barcode" class="form-control form-control-sm"
-                                           placeholder="EAN-13 unidad" value="{% if unit_pkg %}{{ unit_pkg.barcode }}{% else %}{{ product.barcode|default:'' }}{% endif %}">
+                                           placeholder="Escaneá EAN-13 o dejá vacío"
+                                           value="{% if unit_pkg %}{{ unit_pkg.barcode|default:'' }}{% else %}{{ product.barcode|default:'' }}{% endif %}">
+                                    <small class="text-muted">Sin código se genera uno interno automático.</small>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small">Nombre</label>
@@ -282,9 +284,11 @@
                         <div class="card-body" id="display_fields" style="{% if not display_pkg %}display:none{% endif %}">
                             <div class="row">
                                 <div class="col-md-6 mb-2">
-                                    <label class="form-label small">Código de Barras</label>
+                                    <label class="form-label small">Código de Barras / Interno</label>
                                     <input type="text" name="display_barcode" class="form-control form-control-sm"
-                                           placeholder="EAN-13 del display" value="{{ display_pkg.barcode|default:'' }}">
+                                           placeholder="Escaneá EAN-13 o dejá vacío"
+                                           value="{{ display_pkg.barcode|default:'' }}">
+                                    <small class="text-muted">Sin código se genera uno interno automático.</small>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small">Nombre</label>
@@ -345,9 +349,11 @@
                         <div class="card-body" id="bulk_fields" style="{% if not bulk_pkg %}display:none{% endif %}">
                             <div class="row">
                                 <div class="col-md-6 mb-2">
-                                    <label class="form-label small">Código de Barras</label>
+                                    <label class="form-label small">Código de Barras / Interno</label>
                                     <input type="text" name="bulk_barcode" class="form-control form-control-sm"
-                                           placeholder="EAN-13 del bulto" value="{{ bulk_pkg.barcode|default:'' }}">
+                                           placeholder="Escaneá EAN-13 o dejá vacío"
+                                           value="{{ bulk_pkg.barcode|default:'' }}">
+                                    <small class="text-muted">Sin código se genera uno interno automático.</small>
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label small">Nombre</label>
