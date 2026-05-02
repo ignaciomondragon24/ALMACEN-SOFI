@@ -1,0 +1,67 @@
+{% comment %}
+Paginación compacta con elipsis y flechas siempre visibles.
+
+Uso (preserva todos los filtros del querystring automaticamente):
+    {% include 'includes/pagination.html' with page_obj=products %}
+
+`page_obj` es el Page de Django (django.core.paginator.Page).
+`request.GET` se usa para preservar filtros — solo se reemplaza `page`.
+{% endcomment %}
+{% if page_obj.has_other_pages %}
+{% with current=page_obj.number total=page_obj.paginator.num_pages %}
+{% spaceless %}
+{# Armar querystring sin `page` para preservar filtros #}
+{% with qs=request.GET.urlencode %}
+<nav aria-label="Paginación" class="mt-3">
+    <ul class="pagination justify-content-center pagination-smart mb-0">
+        {# Anterior — flecha grande siempre visible (deshabilitada si estás en la 1) #}
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+            {% if page_obj.has_previous %}
+            <a class="page-link" href="?{% for k, v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" aria-label="Anterior">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            {% else %}
+            <span class="page-link" aria-disabled="true"><i class="fas fa-chevron-left"></i></span>
+            {% endif %}
+        </li>
+
+        {# Página 1 + elipsis si la actual está lejos del inicio #}
+        {% if current > 3 %}
+        <li class="page-item"><a class="page-link" href="?{% for k, v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page=1">1</a></li>
+        {% if current > 4 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+        {% endif %}
+
+        {# Ventana de páginas alrededor de la actual (current ± 2) #}
+        {% for num in page_obj.paginator.page_range %}
+            {% if num >= current|add:'-2' and num <= current|add:'2' %}
+            <li class="page-item {% if current == num %}active{% endif %}">
+                <a class="page-link" href="?{% for k, v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+
+        {# Elipsis + última página si la actual está lejos del final #}
+        {% if current < total|add:'-2' %}
+        {% if current < total|add:'-3' %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+        <li class="page-item"><a class="page-link" href="?{% for k, v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ total }}">{{ total }}</a></li>
+        {% endif %}
+
+        {# Siguiente — flecha grande siempre visible (deshabilitada si estás en la última) #}
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+            {% if page_obj.has_next %}
+            <a class="page-link" href="?{% for k, v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" aria-label="Siguiente">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+            {% else %}
+            <span class="page-link" aria-disabled="true"><i class="fas fa-chevron-right"></i></span>
+            {% endif %}
+        </li>
+    </ul>
+</nav>
+{% endwith %}
+{% endspaceless %}
+<p class="text-center text-muted small mt-2 mb-0">
+    Página {{ current }} de {{ total }} · {{ page_obj.paginator.count }} resultado{{ page_obj.paginator.count|pluralize:"s" }}
+</p>
+{% endwith %}
+{% endif %}

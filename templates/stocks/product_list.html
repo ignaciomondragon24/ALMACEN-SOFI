@@ -157,35 +157,7 @@
             </div>
             
             <!-- Pagination -->
-            {% if products.has_other_pages %}
-            <nav aria-label="Paginación">
-                <ul class="pagination justify-content-center">
-                    {% if products.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ products.previous_page_number }}&search={{ search }}&category={{ selected_category }}&status={{ selected_status }}&stock_alert={{ stock_alert }}">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                    
-                    {% for num in products.paginator.page_range %}
-                    <li class="page-item {% if products.number == num %}active{% endif %}">
-                        <a class="page-link" href="?page={{ num }}&search={{ search }}&category={{ selected_category }}&status={{ selected_status }}&stock_alert={{ stock_alert }}">
-                            {{ num }}
-                        </a>
-                    </li>
-                    {% endfor %}
-                    
-                    {% if products.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ products.next_page_number }}&search={{ search }}&category={{ selected_category }}&status={{ selected_status }}&stock_alert={{ stock_alert }}">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </nav>
-            {% endif %}
+            {% include 'includes/pagination.html' with page_obj=products %}
         </div>
     </div>
 </div>
