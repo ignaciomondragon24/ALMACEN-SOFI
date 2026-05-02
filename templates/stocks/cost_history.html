@@ -308,33 +308,7 @@
         <!-- Pagination -->
         {% if batches.has_other_pages %}
         <div class="card-footer">
-            <nav>
-                <ul class="pagination justify-content-center mb-0">
-                    {% if batches.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ batches.previous_page_number }}&search={{ search }}&supplier={{ supplier }}&date_from={{ date_from }}&date_to={{ date_to }}&depleted={{ show_depleted }}">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% for num in batches.paginator.page_range %}
-                        {% if batches.number == num %}
-                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                        {% elif num > batches.number|add:'-3' and num < batches.number|add:'3' %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}&search={{ search }}&supplier={{ supplier }}&date_from={{ date_from }}&date_to={{ date_to }}&depleted={{ show_depleted }}">{{ num }}</a>
-                        </li>
-                        {% endif %}
-                    {% endfor %}
-                    {% if batches.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ batches.next_page_number }}&search={{ search }}&supplier={{ supplier }}&date_from={{ date_from }}&date_to={{ date_to }}&depleted={{ show_depleted }}">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </nav>
+            {% include 'includes/pagination.html' with page_obj=batches %}
         </div>
         {% endif %}
     </div>

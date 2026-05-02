@@ -178,32 +178,6 @@
     </div>
 
     <!-- Pagination -->
-    {% if movements.has_other_pages %}
-    <nav aria-label="Paginacion" class="mt-3">
-        <ul class="pagination justify-content-center">
-            {% if movements.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ movements.previous_page_number }}&search={{ search }}&type={{ selected_type }}&reason={{ reason_filter }}&date_from={{ date_from }}&date_to={{ date_to }}">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-            </li>
-            {% endif %}
-            {% for num in movements.paginator.page_range %}
-            <li class="page-item {% if movements.number == num %}active{% endif %}">
-                <a class="page-link" href="?page={{ num }}&search={{ search }}&type={{ selected_type }}&reason={{ reason_filter }}&date_from={{ date_from }}&date_to={{ date_to }}">
-                    {{ num }}
-                </a>
-            </li>
-            {% endfor %}
-            {% if movements.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ movements.next_page_number }}&search={{ search }}&type={{ selected_type }}&reason={{ reason_filter }}&date_from={{ date_from }}&date_to={{ date_to }}">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-            </li>
-            {% endif %}
-        </ul>
-    </nav>
-    {% endif %}
+    {% include 'includes/pagination.html' with page_obj=movements %}
 </div>
 {% endblock %}

@@ -233,31 +233,7 @@
     </div>
 
     <!-- Pagination -->
-    {% if promotions.has_other_pages %}
-    <nav aria-label="Page navigation" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if promotions.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ promotions.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if type %}&type={{ type }}{% endif %}{% if status %}&status={{ status }}{% endif %}">
-                    &laquo; Anterior
-                </a>
-            </li>
-            {% endif %}
-            
-            <li class="page-item disabled">
-                <span class="page-link">Página {{ promotions.number }} de {{ promotions.paginator.num_pages }}</span>
-            </li>
-            
-            {% if promotions.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ promotions.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if type %}&type={{ type }}{% endif %}{% if status %}&status={{ status }}{% endif %}">
-                    Siguiente &raquo;
-                </a>
-            </li>
-            {% endif %}
-        </ul>
-    </nav>
-    {% endif %}
+    {% include 'includes/pagination.html' with page_obj=promotions %}
 </div>
 
 <!-- Modal Confirmación Eliminación — requiere escribir el nombre exacto -->
