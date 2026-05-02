@@ -166,11 +166,17 @@
         }
     }
 
-    // Clock
+    // Clock — siempre en hora de Argentina, independiente de la zona horaria del navegador
     function initClock() {
+        const TZ_OPTS = {
+            timeZone: 'America/Argentina/Buenos_Aires',
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        };
         function updateClock() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('es-AR');
+            const timeStr = new Date().toLocaleTimeString('es-AR', TZ_OPTS);
             const clockEl = document.getElementById('pos-clock');
             if (clockEl) {
                 clockEl.innerHTML = `<i class="fas fa-clock me-1"></i>${timeStr}`;

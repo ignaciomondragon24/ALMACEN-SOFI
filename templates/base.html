@@ -77,38 +77,37 @@
     <style>
         .assistant-widget {
             position: fixed;
-            bottom: 24px;
-            left: 24px;
+            bottom: 18px;
+            left: 18px;
             z-index: 9999;
         }
         .assistant-widget-btn {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 56px;
-            height: 56px;
+            width: 44px;
+            height: 44px;
             background: linear-gradient(135deg, #E91E8C, #2D1E5F);
             border-radius: 50%;
             color: white;
-            font-size: 1.5rem;
+            font-size: 1.05rem;
             text-decoration: none;
-            box-shadow: 0 4px 15px rgba(233, 30, 140, 0.4);
-            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(233, 30, 140, 0.25);
+            transition: all 0.2s ease;
+            opacity: 0.85;
         }
         .assistant-widget-btn:hover {
-            transform: scale(1.1);
+            transform: scale(1.08);
             color: white;
-            box-shadow: 0 6px 20px rgba(233, 30, 140, 0.5);
+            box-shadow: 0 4px 12px rgba(233, 30, 140, 0.4);
+            opacity: 1;
         }
         .assistant-widget-btn:active {
             transform: scale(0.95);
         }
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 4px 15px rgba(233, 30, 140, 0.4); }
-            50% { box-shadow: 0 4px 25px rgba(233, 30, 140, 0.6); }
-        }
-        .assistant-widget-btn {
-            animation: pulse 2s infinite;
+        /* Evitar que la paginación / contenido al pie quede tapado por el widget */
+        body:not(.pos-body) {
+            padding-bottom: 70px;
         }
     </style>
     {% endif %}
