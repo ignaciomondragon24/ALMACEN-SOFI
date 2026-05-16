@@ -4,9 +4,28 @@ Stocks Models - Products, Categories, Units of Measure, Stock Movements
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from decimal import Decimal
 import random
 import string
+
+
+# Sufijo aplicado al barcode al hacer soft-delete. Libera el valor original
+# para que pueda reutilizarse, pero conserva trazabilidad del código viejo.
+DELETED_BARCODE_MARKER = '_deleted_'
+
+
+def _release_barcode(barcode, pk):
+    """Construye el barcode sufijado para soft-delete.
+
+    Idempotente: si el código ya tiene el marcador, lo deja igual (evita
+    doble-sufijo si se "elimina" un registro ya soft-deleted).
+    """
+    if not barcode:
+        return barcode
+    if DELETED_BARCODE_MARKER in barcode:
+        return barcode
+    return f'{barcode}{DELETED_BARCODE_MARKER}{pk}'
 
 
 class ProductCategory(models.Model):
@@ -368,8 +387,34 @@ class Product(models.Model):
     
     def __str__(self):
         return self.name
-    
+
+    def clean(self):
+        """Garantiza que al menos uno de barcode o sku esté presente.
+
+        save() autogenera SKU si quedó vacío, así que esta validación corre
+        a nivel form (ModelForm.full_clean) para forzar al usuario a definir
+        un identificador antes de auto-generar uno aleatorio.
+        """
+        super().clean()
+        barcode_val = (self.barcode or '').strip()
+        sku_val = (self.sku or '').strip()
+        if not barcode_val and not sku_val:
+            raise ValidationError({
+                'barcode': 'Debe ingresar un código de barras o un SKU manual.',
+                'sku': 'Debe ingresar un código de barras o un SKU manual.',
+            })
+
+    # Campos del Product que se reflejan en el unit packaging. Si una
+    # llamada a save() toca alguno de estos, propagamos al unit_pkg. Stock
+    # u otros campos NO disparan el sync (ahorra queries en hot paths como
+    # cascadas de stock o ajustes de inventario).
+    _UNIT_PKG_SYNC_FIELDS = frozenset({
+        'name', 'sale_price', 'cost_price', 'purchase_price', 'barcode',
+    })
+
     def save(self, *args, **kwargs):
+        update_fields = kwargs.get('update_fields')
+
         # Auto-generate SKU if not provided
         if not self.sku:
             self.sku = self.generate_sku()
@@ -380,7 +425,84 @@ class Product(models.Model):
         if self.weight_per_unit_grams is None:
             self.weight_per_unit_grams = Decimal('0.00')
         super().save(*args, **kwargs)
-    
+
+        # Propaga al unit packaging cuando cambió algo relevante. Sin esto,
+        # editar el Product (nombre, precio, etc.) dejaba el unit_pkg con
+        # datos viejos y el cliente tenía que repetir la edición ahí.
+        if update_fields is None or any(
+            f in self._UNIT_PKG_SYNC_FIELDS for f in update_fields
+        ):
+            self._sync_unit_packaging()
+
+    def _sync_unit_packaging(self):
+        """Propaga name/precios/barcode del Product al unit packaging activo.
+
+        El unit packaging duplica datos del Product (name, sale_price,
+        purchase_price, barcode) porque el sistema modela una jerarquía
+        Unit/Display/Bulk con FKs separadas. Los display/bulk tienen vida
+        propia (precios diferentes por nivel) y NO se tocan acá.
+
+        Reglas:
+        - name y precios se sobrescriben siempre que difieran.
+        - barcode sólo se llena si el unit_pkg no tiene uno propio
+          (preserva un EAN escaneado distinto al del Product).
+        """
+        if not self.pk:
+            return
+
+        unit_pkg = self.packagings.filter(
+            packaging_type='unit', is_active=True
+        ).first()
+        if not unit_pkg:
+            return
+
+        update_fields = []
+        if unit_pkg.name != self.name:
+            unit_pkg.name = self.name
+            update_fields.append('name')
+        if unit_pkg.sale_price != self.sale_price:
+            unit_pkg.sale_price = self.sale_price
+            update_fields.append('sale_price')
+
+        new_purchase = self.cost_price or self.purchase_price or Decimal('0')
+        if unit_pkg.purchase_price != new_purchase:
+            unit_pkg.purchase_price = new_purchase
+            update_fields.append('purchase_price')
+
+        # Barcode: rellena si vacío, no pisa un EAN ya escaneado en el unit.
+        if not unit_pkg.barcode and self.barcode:
+            unit_pkg.barcode = self.barcode
+            update_fields.append('barcode')
+
+        if update_fields:
+            unit_pkg.save(update_fields=update_fields)
+
+    def delete(self, using=None, keep_parents=False, hard=False):
+        """Soft-delete por defecto: marca is_active=False y libera el barcode.
+
+        El constraint unique=True en barcode dejaba el código atrapado en la
+        DB tras un "borrado" lógico, impidiendo recategorizar o re-cargar el
+        mismo producto. Apendeamos `_deleted_{pk}` al valor original para
+        liberarlo, conservando rastro auditable. Pasar hard=True ejecuta el
+        DELETE real (cascadea FKs).
+        """
+        if hard:
+            return super().delete(using=using, keep_parents=keep_parents)
+
+        update_fields = []
+        if self.is_active:
+            self.is_active = False
+            update_fields.append('is_active')
+
+        new_barcode = _release_barcode(self.barcode, self.pk)
+        if new_barcode != self.barcode:
+            self.barcode = new_barcode
+            update_fields.append('barcode')
+
+        if update_fields:
+            self.save(update_fields=update_fields)
+        return (1, {self._meta.label: 1})
+
     def generate_sku(self):
         """Generate a unique SKU."""
         prefix = 'PRD'
@@ -874,9 +996,37 @@ class ProductPackaging(models.Model):
             self.units_quantity = self.units_per_display
         elif self.packaging_type == 'bulk':
             self.units_quantity = self.units_per_display * self.displays_per_bulk
-        
+
+        # Empty barcode -> None (PostgreSQL unique constraint with NULL).
+        if not self.barcode:
+            self.barcode = None
+
         super().save(*args, **kwargs)
-    
+
+    def delete(self, using=None, keep_parents=False, hard=False):
+        """Soft-delete: libera el barcode aplicando el sufijo `_deleted_{pk}`.
+
+        Resuelve el caso de usuario: cargar un empaque como "Bulto" cuando era
+        "Display", soft-deletearlo, y querer crear un nuevo packaging con el
+        mismo barcode original. Sin liberación, el unique=True bloquea el alta.
+        """
+        if hard:
+            return super().delete(using=using, keep_parents=keep_parents)
+
+        update_fields = []
+        if self.is_active:
+            self.is_active = False
+            update_fields.append('is_active')
+
+        new_barcode = _release_barcode(self.barcode, self.pk)
+        if new_barcode != self.barcode:
+            self.barcode = new_barcode
+            update_fields.append('barcode')
+
+        if update_fields:
+            self.save(update_fields=update_fields)
+        return (1, {self._meta.label: 1})
+
     @property
     def unit_purchase_price(self):
         """Precio de compra por unidad."""

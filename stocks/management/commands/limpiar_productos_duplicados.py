@@ -63,8 +63,10 @@ class Command(BaseCommand):
         self.stdout.write('')
         desactivados = 0
         for prod, _ in duplicates:
-            prod.is_active = False
-            prod.save(update_fields=['is_active'])
+            # Product.delete() es soft-delete: marca is_active=False y libera
+            # el barcode (sufijo `_deleted_{pk}`). Necesario para que el
+            # packaging "ganador" pueda quedarse con ese código sin chocar.
+            prod.delete()
             desactivados += 1
         self.stdout.write(self.style.SUCCESS(
             f'Desactivados {desactivados} Products duplicados. '

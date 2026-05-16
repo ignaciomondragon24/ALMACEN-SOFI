@@ -2,6 +2,7 @@
 Stocks Forms
 """
 from django import forms
+from django.db.models import Q
 from decimal import Decimal
 from .models import Product, ProductCategory, UnitOfMeasure, ProductPackaging
 
@@ -44,20 +45,56 @@ class ProductForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Tanto barcode como sku son opcionales a nivel form: el usuario
+        # puede ingresar uno u otro. La validación cruzada está en clean().
+        self.fields['barcode'].required = False
+        self.fields['sku'].required = False
         self.fields['quick_access_color'].required = False
         self.fields['quick_access_icon'].required = False
         self.fields['quick_access_position'].required = False
         self.fields['weight_per_unit_grams'].required = False
 
     def clean_barcode(self):
-        val = self.cleaned_data.get('barcode')
-        return val if val else None
+        val = (self.cleaned_data.get('barcode') or '').strip()
+        return val or None
+
+    def clean_sku(self):
+        # SKU también se normaliza (espacios) — vacío se deja para que
+        # save() autogenere uno si tampoco se proveyó barcode.
+        return (self.cleaned_data.get('sku') or '').strip()
 
     def clean_weight_per_unit_grams(self):
         val = self.cleaned_data.get('weight_per_unit_grams')
         if val is None:
             return Decimal('0.00')
         return val
+
+    def clean(self):
+        """Reglas a nivel form:
+        - Al menos uno de barcode o sku debe estar presente (manual).
+        - El barcode no debe colisionar con OTRO producto activo. Productos
+          inactivos con sufijo `_deleted_` no compiten porque su valor real
+          fue liberado.
+        """
+        cleaned = super().clean()
+        barcode = cleaned.get('barcode')
+        sku = (cleaned.get('sku') or '').strip()
+
+        if not barcode and not sku:
+            raise forms.ValidationError(
+                'Debe ingresar un código de barras o un SKU manual.'
+            )
+
+        if barcode:
+            qs = Product.objects.filter(barcode=barcode, is_active=True)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                self.add_error(
+                    'barcode',
+                    'Ya existe un producto activo con este código de barras.'
+                )
+        return cleaned
 
 
 class CategoryForm(forms.ModelForm):
@@ -129,8 +166,13 @@ class StockAdjustmentForm(forms.Form):
 
 
 class ProductPackagingForm(forms.ModelForm):
-    """Formulario para configurar empaques de productos."""
-    
+    """Formulario para configurar empaques de productos.
+
+    Permite cambiar `packaging_type` libremente (Unidad/Display/Bulto). El
+    barcode es siempre opcional: si queda vacío, la view auto-genera un
+    código interno `INT-{SKU}-{TIPO}`. La unicidad activa se valida acá.
+    """
+
     class Meta:
         model = ProductPackaging
         fields = [
@@ -144,7 +186,7 @@ class ProductPackagingForm(forms.ModelForm):
             'packaging_type': forms.Select(attrs={'class': 'form-select'}),
             'barcode': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Escanee o ingrese el código de barras'
+                'placeholder': 'Opcional — se genera INT-{SKU}-{TIPO} si se deja vacío'
             }),
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -178,3 +220,32 @@ class ProductPackagingForm(forms.ModelForm):
             'is_default': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['barcode'].required = False
+
+    def clean_barcode(self):
+        val = (self.cleaned_data.get('barcode') or '').strip()
+        return val or None
+
+    def clean(self):
+        """Valida unicidad de barcode contra empaques activos.
+
+        Empaques inactivos con sufijo `_deleted_` no chocan porque su
+        valor real fue liberado al hacer soft-delete.
+        """
+        cleaned = super().clean()
+        barcode = cleaned.get('barcode')
+        if not barcode:
+            return cleaned
+
+        qs = ProductPackaging.objects.filter(barcode=barcode, is_active=True)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            self.add_error(
+                'barcode',
+                'Ya existe un empaque activo con este código de barras.'
+            )
+        return cleaned

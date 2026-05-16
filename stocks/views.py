@@ -77,11 +77,17 @@ def product_list(request):
     if category:
         products = products.filter(category_id=category)
     
-    if status == 'active':
-        products = products.filter(is_active=True)
+    # Default = solo activos. El cliente reportó productos viejos
+    # desactivados (ej. "-750") apareciendo en el listado; antes el filtro
+    # vacío mostraba TODOS. Ahora hay que elegir status="all" o "inactive"
+    # explícitamente para ver los inactivos.
+    if status == 'all':
+        pass
     elif status == 'inactive':
         products = products.filter(is_active=False)
-    
+    else:
+        products = products.filter(is_active=True)
+
     if stock_alert == 'low':
         products = products.filter(current_stock__lte=F('min_stock'))
     elif stock_alert == 'out':
@@ -94,15 +100,19 @@ def product_list(request):
     
     categories = ProductCategory.objects.filter(is_active=True)
     
+    # Para el template: status efectivo (vacío en GET == "active" por default).
+    effective_status = status or 'active'
+
     context = {
         'products': products,
         'categories': categories,
         'search': search,
         'selected_category': category,
         'selected_status': status,
+        'effective_status': effective_status,
         'stock_alert': stock_alert,
     }
-    
+
     return render(request, 'stocks/product_list.html', context)
 
 
@@ -245,9 +255,28 @@ def _save_inline_packaging(request, product):
             return existing_pkg.barcode
         return _generate_internal_code(pkg_type)
 
+    # PRIMERO: soft-deletear los niveles destildados. Iteramos para invocar
+    # Model.delete() y liberar el barcode con sufijo `_deleted_{pk}`. Hacerlo
+    # ANTES de los bloques de creación es clave: si el usuario destilda un
+    # Bulto y tilda un Display con el MISMO código en el mismo submit, el
+    # Bulto debe liberar la EAN antes de que el Display intente tomarla, si
+    # no `_check_barcode` aborta con "código en uso".
+    for pkg_type, flag in [('unit', 'has_unit'), ('display', 'has_display'), ('bulk', 'has_bulk')]:
+        if not request.POST.get(flag):
+            stale = ProductPackaging.objects.filter(
+                product=product, packaging_type=pkg_type, is_active=True
+            )
+            for pkg in stale:
+                pkg.delete()  # soft-delete: libera barcode
+
     # Bulk packaging
     if request.POST.get('has_bulk'):
-        existing_bulk = product.packagings.filter(packaging_type='bulk').first()
+        # Filtramos por is_active=True: un soft-deleted del mismo tipo tiene
+        # barcode con sufijo `_deleted_` que NO queremos preservar al
+        # re-tildar el nivel. _resolve_barcode caerá a INT- generation.
+        existing_bulk = product.packagings.filter(
+            packaging_type='bulk', is_active=True
+        ).first()
         b_barcode = _resolve_barcode(
             request.POST.get('bulk_barcode', '').strip(), 'bulk', existing_bulk
         )
@@ -275,7 +304,9 @@ def _save_inline_packaging(request, product):
 
     # Display packaging
     if request.POST.get('has_display'):
-        existing_display = product.packagings.filter(packaging_type='display').first()
+        existing_display = product.packagings.filter(
+            packaging_type='display', is_active=True
+        ).first()
         d_barcode = _resolve_barcode(
             request.POST.get('display_barcode', '').strip(), 'display', existing_display
         )
@@ -303,7 +334,9 @@ def _save_inline_packaging(request, product):
 
     # Unit packaging
     if request.POST.get('has_unit'):
-        existing_unit = product.packagings.filter(packaging_type='unit').first()
+        existing_unit = product.packagings.filter(
+            packaging_type='unit', is_active=True
+        ).first()
         u_barcode = _resolve_barcode(
             request.POST.get('unit_barcode', '').strip(), 'unit', existing_unit
         )
@@ -315,7 +348,10 @@ def _save_inline_packaging(request, product):
             product=product, packaging_type='unit',
             defaults={
                 'barcode': u_barcode,
-                'name': u_name or 'Unidad',
+                # Default a product.name (no al literal 'Unidad'): así el
+                # unit_pkg arranca alineado con el Product. El sync en
+                # Product.save() también lo mantiene en línea después.
+                'name': u_name or product.name,
                 'units_per_display': 1,
                 'displays_per_bulk': 1,
                 'purchase_price': u_purchase,
@@ -345,16 +381,6 @@ def _save_inline_packaging(request, product):
             updated_fields.append('purchase_price')
         if updated_fields:
             product.save(update_fields=updated_fields)
-
-    # Al destildar un nivel, desactivar (is_active=False) el packaging existente.
-    # Esto evita "empaques fantasma" con precio 0 que quedaban si el user destildaba
-    # y volvia a guardar — bug real reportado con un "Bulto x 144" en araniitas.
-    # No hard-delete: preserva historial de movimientos y ventas previas.
-    for pkg_type, flag in [('unit', 'has_unit'), ('display', 'has_display'), ('bulk', 'has_bulk')]:
-        if not request.POST.get(flag):
-            ProductPackaging.objects.filter(
-                product=product, packaging_type=pkg_type, is_active=True
-            ).update(is_active=False)
 
     # Si hubo absorción, resync ABSOLUTO de todos los packagings activos al
     # nuevo product.current_stock. Sin esto un packaging pre-existente (ej:
@@ -452,16 +478,76 @@ def product_edit(request, pk):
 @login_required
 @group_required(['Admin', 'Cajero Manager'])
 def product_delete(request, pk):
-    """Delete product (soft delete)."""
+    """Soft-delete del producto.
+
+    Delegamos en Product.delete(): marca is_active=False y libera el barcode
+    aplicando el sufijo `_deleted_{pk}`. Así el código original puede
+    reutilizarse al re-cargar el producto.
+    """
     product = get_object_or_404(Product, pk=pk)
-    
+
     if request.method == 'POST':
-        product.is_active = False
-        product.save()
+        product.delete()  # soft-delete + libera barcode
         messages.success(request, f'Producto "{product.name}" desactivado correctamente.')
         return redirect('stocks:product_list')
-    
+
     return render(request, 'stocks/product_confirm_delete.html', {'product': product})
+
+
+@login_required
+@group_required(['Admin'])
+def product_hard_delete(request, pk):
+    """Eliminación DEFINITIVA del producto (hard delete).
+
+    Solo Admin. Caso real del cliente: productos creados por error
+    (ej. "-750") que ya están desactivados pero siguen ocupando lugar en
+    el listado. Esta vista los borra de la DB.
+
+    Validaciones:
+    - El producto debe estar desactivado (is_active=False). Para borrar uno
+      activo, primero hay que desactivarlo (evita borrados accidentales).
+    - Si hay FKs con on_delete=PROTECT (POSTransactionItem, PurchaseItem)
+      con referencias al producto, el DELETE falla y se devuelve un mensaje
+      explicando por qué — el cliente conserva la trazabilidad de ventas.
+    """
+    from django.db.models.deletion import ProtectedError
+
+    product = get_object_or_404(Product, pk=pk)
+
+    if product.is_active:
+        messages.error(
+            request,
+            f'No se puede eliminar definitivamente "{product.name}" porque está '
+            f'activo. Desactivalo primero.'
+        )
+        return redirect('stocks:product_detail', pk=product.pk)
+
+    if request.method == 'POST':
+        nombre = product.name
+        try:
+            product.delete(hard=True)
+            messages.success(
+                request,
+                f'Producto "{nombre}" eliminado definitivamente.'
+            )
+            return redirect('stocks:product_list')
+        except ProtectedError as exc:
+            # PROTECT en POSTransactionItem / PurchaseItem: el producto fue
+            # vendido o comprado, no podemos romper la trazabilidad histórica.
+            referencias = ', '.join(
+                obj._meta.verbose_name for obj in exc.protected_objects
+            )
+            messages.error(
+                request,
+                f'No se puede eliminar "{nombre}" porque tiene historial '
+                f'asociado ({referencias}). Quedará desactivado pero conservado '
+                f'para auditoría.'
+            )
+            return redirect('stocks:product_detail', pk=product.pk)
+
+    return render(
+        request, 'stocks/product_confirm_hard_delete.html', {'product': product}
+    )
 
 
 @login_required

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Eliminar Definitivamente{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-trash-alt me-2"></i>Eliminar Definitivamente
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <i class="fas fa-skull-crossbones fa-4x text-danger mb-3"></i>
+
+                    <h4 class="mb-3">¿Eliminar este producto de forma DEFINITIVA?</h4>
+
+                    <div class="alert alert-secondary text-start">
+                        <strong>{{ product.name }}</strong>
+                        <div class="small text-muted mt-1">
+                            SKU: {{ product.sku }}
+                            {% if product.barcode %} | Código: {{ product.barcode }}{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger text-start small">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>Esta acción no se puede deshacer.</strong>
+                        El producto desaparecerá del sistema junto con sus empaques,
+                        movimientos de stock y lotes asociados. Si fue vendido o
+                        comprado alguna vez, la operación se cancelará para preservar
+                        la trazabilidad — en ese caso quedará desactivado.
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="fas fa-trash me-2"></i>Sí, eliminar definitivamente
+                            </button>
+                            <a href="{% url 'stocks:product_detail' product.pk %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

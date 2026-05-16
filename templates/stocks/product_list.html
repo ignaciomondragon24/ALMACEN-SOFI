@@ -42,10 +42,12 @@
                 </div>
                 <div class="col-md-2">
                     <select name="status" class="form-select">
-                        <option value="">Todos los estados</option>
-                        <option value="active" {% if status == 'active' %}selected{% endif %}>Activos</option>
-                        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactivos</option>
-                        <option value="low_stock" {% if status == 'low_stock' %}selected{% endif %}>Stock Bajo</option>
+                        {# Default = Activos (selected_status vacío). "Todos" requiere status=all explícito. #}
+                        {# OJO: el contexto pasa `selected_status` (no `status`). #}
+                        <option value="" {% if not selected_status or selected_status == 'active' %}selected{% endif %}>Activos</option>
+                        <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Inactivos</option>
+                        <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Todos</option>
+                        <option value="low_stock" {% if selected_status == 'low_stock' %}selected{% endif %}>Stock Bajo</option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -134,11 +136,20 @@
                                         <i class="fas fa-clipboard-check"></i>
                                     </a>
                                     {% endif %}
-                                    {% if is_cajero_manager %}
+                                    {% if is_cajero_manager and product.is_active %}
                                     <a href="{% url 'stocks:product_delete' product.pk %}"
                                        class="btn btn-outline-danger"
-                                       title="Eliminar">
-                                        <i class="fas fa-trash"></i>
+                                       title="Desactivar">
+                                        <i class="fas fa-ban"></i>
+                                    </a>
+                                    {% endif %}
+                                    {# Hard-delete: solo Admin y solo sobre inactivos. Permite quitar #}
+                                    {# del sistema productos viejos creados por error (caso "-750"). #}
+                                    {% if is_admin and not product.is_active %}
+                                    <a href="{% url 'stocks:product_hard_delete' product.pk %}"
+                                       class="btn btn-danger"
+                                       title="Eliminar definitivamente">
+                                        <i class="fas fa-trash-alt"></i>
                                     </a>
                                     {% endif %}
                                 </div>
