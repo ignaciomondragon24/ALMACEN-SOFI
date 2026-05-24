@@ -66,6 +66,7 @@
         initActionButtons();
         initKeyboardShortcuts();
         initQuickAddProduct();
+        initLinkBarcodeFlow();
         initHeaderSuspended();
         loadCart();
     });
@@ -288,7 +289,7 @@
     window.openQuickAddProduct = function(barcode) {
         const modal = document.getElementById('quickAddProductModal');
         if (!modal) return;
-        
+
         // Reset form
         document.getElementById('quick-add-barcode').value = barcode;
         document.getElementById('quick-add-name').value = '';
@@ -297,21 +298,205 @@
         document.getElementById('quick-add-category').value = '';
         document.getElementById('quick-add-stock').value = '1';
         document.getElementById('quick-add-to-cart').checked = true;
-        
+
+        // Reset el subpanel "vincular": empieza siempre en modo "Producto Nuevo".
+        switchBarcodeNotFoundMode('quick-add');
+        const linkInput = document.getElementById('link-search-input');
+        const linkResults = document.getElementById('link-search-results');
+        if (linkInput) linkInput.value = '';
+        if (linkResults) {
+            linkResults.innerHTML = '<div class="text-center text-muted py-3" style="font-size:0.85rem;">Tipeá para buscar…</div>';
+        }
+
         // Hide search results
         hideSearchResults();
-        
+
         // Clear search input
         if (productSearch) productSearch.value = '';
-        
+
         // Show modal
         new bootstrap.Modal(modal).show();
-        
+
         // Focus on name field
         setTimeout(() => {
             document.getElementById('quick-add-name').focus();
         }, 500);
     };
+
+    // ── Modal "código no encontrado": alternar entre "Producto Nuevo" y "Vincular" ──
+    function switchBarcodeNotFoundMode(mode) {
+        const btnQuick = document.getElementById('option-quick-add');
+        const btnLink = document.getElementById('option-link-existing');
+        const form = document.getElementById('quick-add-product-form');
+        const linkPanel = document.getElementById('link-existing-panel');
+        const confirmBtn = document.getElementById('confirm-quick-add');
+        if (!btnQuick || !btnLink || !form || !linkPanel) return;
+
+        // Estilos visuales: el activo va con borde verde fuerte; el otro queda
+        // atenuado pero clickeable.
+        const activeStyle = {
+            quick: 'background:rgba(46,204,113,0.18);border:1.5px solid rgba(46,204,113,0.5);color:#2ecc71;font-weight:600;border-radius:8px;',
+            link:  'background:rgba(0,210,211,0.18);border:1.5px solid rgba(0,210,211,0.5);color:#00d2d3;font-weight:600;border-radius:8px;',
+        };
+        const inactiveStyle = {
+            quick: 'background:rgba(46,204,113,0.06);border:1.5px solid rgba(46,204,113,0.15);color:#9fdcb4;font-weight:500;border-radius:8px;',
+            link:  'background:rgba(0,210,211,0.06);border:1.5px solid rgba(0,210,211,0.15);color:#7fd6d7;font-weight:500;border-radius:8px;',
+        };
+
+        if (mode === 'link-existing') {
+            btnQuick.setAttribute('style', inactiveStyle.quick);
+            btnLink.setAttribute('style', activeStyle.link);
+            form.style.display = 'none';
+            linkPanel.style.display = 'block';
+            if (confirmBtn) confirmBtn.style.display = 'none';
+            setTimeout(() => {
+                const input = document.getElementById('link-search-input');
+                if (input) input.focus();
+            }, 100);
+        } else {
+            btnQuick.setAttribute('style', activeStyle.quick);
+            btnLink.setAttribute('style', inactiveStyle.link);
+            form.style.display = 'block';
+            linkPanel.style.display = 'none';
+            if (confirmBtn) confirmBtn.style.display = '';
+        }
+    }
+
+    let _linkSearchTimer = null;
+    function initLinkBarcodeFlow() {
+        const btnQuick = document.getElementById('option-quick-add');
+        const btnLink = document.getElementById('option-link-existing');
+        const input = document.getElementById('link-search-input');
+        if (!btnLink || !input) return;
+
+        btnQuick?.addEventListener('click', () => switchBarcodeNotFoundMode('quick-add'));
+        btnLink.addEventListener('click', () => switchBarcodeNotFoundMode('link-existing'));
+
+        input.addEventListener('input', () => {
+            clearTimeout(_linkSearchTimer);
+            _linkSearchTimer = setTimeout(runLinkSearch, 200);
+        });
+    }
+
+    async function runLinkSearch() {
+        const input = document.getElementById('link-search-input');
+        const resultsEl = document.getElementById('link-search-results');
+        if (!input || !resultsEl) return;
+        const q = input.value.trim();
+        if (q.length < 2) {
+            resultsEl.innerHTML = '<div class="text-center text-muted py-3" style="font-size:0.85rem;">Tipeá para buscar…</div>';
+            return;
+        }
+        try {
+            const r = await fetch(`${API_URLS.searchForLink}?q=${encodeURIComponent(q)}`);
+            const data = await r.json();
+            renderLinkResults(data.results || []);
+        } catch (err) {
+            console.error('link search error', err);
+            resultsEl.innerHTML = '<div class="text-center text-danger py-3" style="font-size:0.85rem;">Error al buscar.</div>';
+        }
+    }
+
+    function renderLinkResults(results) {
+        const resultsEl = document.getElementById('link-search-results');
+        if (!resultsEl) return;
+        if (!results.length) {
+            resultsEl.innerHTML = '<div class="text-center text-muted py-3" style="font-size:0.85rem;">Sin resultados.</div>';
+            return;
+        }
+        const typeBadge = (t) => {
+            const map = { bulk: ['#ff6b6b','Bulto'], display: ['#feca57','Display'], unit: ['#48dbfb','Unidad'] };
+            const [c, label] = map[t] || ['#aaa', t];
+            return `<span style="display:inline-block;padding:1px 7px;border-radius:6px;background:${c}22;color:${c};font-size:0.7rem;font-weight:700;">${label}</span>`;
+        };
+        resultsEl.innerHTML = results.map(prod => {
+            const levels = prod.levels.map(lvl => {
+                const hasCode = lvl.barcode && !lvl.barcode.startsWith('INT-');
+                const codeHint = lvl.barcode
+                    ? (lvl.barcode.startsWith('INT-')
+                        ? `<small style="color:#f5a623;">código interno: ${lvl.barcode}</small>`
+                        : `<small class="text-muted">código: ${lvl.barcode}</small>`)
+                    : `<small style="color:#888;">sin código</small>`;
+                return `
+                    <button type="button" class="link-result-row w-100 text-start"
+                            data-target-type="${lvl.target_type}" data-target-id="${lvl.target_id}"
+                            data-product-name="${escapeAttr(prod.product_name)}" data-level-name="${escapeAttr(lvl.name)}"
+                            style="background:rgba(255,255,255,0.03);border:1px solid rgba(45,45,68,0.6);color:#eee;padding:6px 10px;margin:3px 0;border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                        <span>
+                            ${typeBadge(lvl.packaging_type)}
+                            <span style="margin-left:6px;">${escapeHtml(lvl.name)}</span>
+                            <span class="text-muted" style="margin-left:6px;font-size:0.78rem;">x${lvl.units_quantity}</span>
+                            <span style="margin-left:10px;">${codeHint}</span>
+                        </span>
+                        <span style="font-weight:700;color:#2ecc71;">$${formatNumber(lvl.sale_price)}</span>
+                    </button>
+                `;
+            }).join('');
+            return `
+                <div style="padding:6px 4px;border-bottom:1px solid rgba(45,45,68,0.4);">
+                    <div style="color:#eee;font-weight:600;font-size:0.92rem;">${escapeHtml(prod.product_name)}</div>
+                    <div class="text-muted" style="font-size:0.75rem;">SKU: ${escapeHtml(prod.sku || '—')}${prod.category ? ' · ' + escapeHtml(prod.category) : ''}</div>
+                    ${levels}
+                </div>
+            `;
+        }).join('');
+
+        resultsEl.querySelectorAll('.link-result-row').forEach(btn => {
+            btn.addEventListener('click', () => handleLinkBarcode(btn));
+        });
+    }
+
+    async function handleLinkBarcode(btn) {
+        const barcode = document.getElementById('quick-add-barcode').value;
+        if (!barcode) {
+            showToast('Sin código para vincular', 'error');
+            return;
+        }
+        const targetType = btn.dataset.targetType;
+        const targetId = parseInt(btn.dataset.targetId, 10);
+        const prodName = btn.dataset.productName || '';
+        const levelName = btn.dataset.levelName || '';
+        const ok = confirm(`Vincular el código ${barcode} a "${prodName}" (${levelName})?`);
+        if (!ok) return;
+
+        try {
+            const r = await fetch(API_URLS.linkBarcode, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                body: JSON.stringify({ barcode, target_type: targetType, target_id: targetId }),
+            });
+            const data = await r.json();
+            if (!data.success) {
+                showToast(data.error || 'No se pudo vincular el código', 'error');
+                return;
+            }
+            showToast(data.message || 'Código vinculado', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('quickAddProductModal'));
+            if (modal) modal.hide();
+
+            // Agregar al carrito usando los datos devueltos (sin segundo viaje a la API).
+            const prod = data.product;
+            await addToCart(prod.id, 1, prod.packaging_id || null);
+
+            if (productSearch) {
+                productSearch.value = '';
+                productSearch.focus();
+            }
+        } catch (err) {
+            console.error('link barcode error', err);
+            showToast('Error al vincular el código', 'error');
+        }
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+    function escapeAttr(s) {
+        return escapeHtml(s);
+    }
+    function formatNumber(n) {
+        return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
 
     function handleSearchKeydown(e) {
         if (e.key === 'Enter') {

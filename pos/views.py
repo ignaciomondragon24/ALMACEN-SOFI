@@ -1064,6 +1064,184 @@ def api_quick_add_product(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+@login_required
+@group_required(['Admin', 'Cajero Manager', 'Cashier'])
+@require_POST
+def api_link_barcode(request):
+    """Vincula un código de barras escaneado a un Product o ProductPackaging existente.
+
+    Caso real: el cliente carga un bulto cuyo `barcode` en DB es un código interno
+    `INT-{SKU}-BULK` (asignado por la migración 0021 cuando quedó vacío). En el POS
+    intenta escanear el EAN físico impreso en la caja y no lo encuentra. Con este
+    endpoint el cajero puede, desde el mismo modal de "código no encontrado",
+    buscar el producto/empaque, vincularle el código escaneado y agregarlo al
+    carrito sin tener que salir al gestor de empaques.
+
+    Input (JSON):
+        - barcode (str, requerido): el código que se va a vincular.
+        - target_type ('packaging'|'product', requerido).
+        - target_id (int, requerido): id del ProductPackaging o Product destino.
+
+    Output (JSON):
+        - success: bool
+        - product: dict similar al de api_search para que el frontend pueda agregar
+          al carrito sin un viaje extra a la API.
+        - error: str si falló.
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+
+    barcode = (data.get('barcode') or '').strip()
+    target_type = data.get('target_type')
+    target_id = data.get('target_id')
+
+    if not barcode:
+        return JsonResponse({'success': False, 'error': 'Código vacío'}, status=400)
+    if target_type not in ('packaging', 'product'):
+        return JsonResponse({'success': False, 'error': 'target_type inválido'}, status=400)
+    if not target_id:
+        return JsonResponse({'success': False, 'error': 'target_id requerido'}, status=400)
+
+    # Validar unicidad. El barcode no debe estar tomado por otro Product activo
+    # ni por otro ProductPackaging activo.
+    pkg_dup = ProductPackaging.objects.filter(barcode=barcode, is_active=True)
+    prod_dup = Product.objects.filter(barcode=barcode, is_active=True)
+    if target_type == 'packaging':
+        pkg_dup = pkg_dup.exclude(pk=target_id)
+    else:
+        prod_dup = prod_dup.exclude(pk=target_id)
+    if pkg_dup.exists() or prod_dup.exists():
+        return JsonResponse({
+            'success': False,
+            'error': 'El código ya está vinculado a otro producto/empaque activo.'
+        }, status=409)
+
+    if target_type == 'packaging':
+        try:
+            pkg = ProductPackaging.objects.select_related('product').get(
+                pk=target_id, is_active=True, product__is_active=True
+            )
+        except ProductPackaging.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Empaque no encontrado'}, status=404)
+        pkg.barcode = barcode
+        pkg.save(update_fields=['barcode'])
+        product = pkg.product
+        product_data = {
+            'id': product.id,
+            'name': product.name,
+            'barcode': barcode,
+            'sku': product.sku,
+            'unit_price': float(pkg.sale_price),
+            'stock': float(product.current_stock),
+            'unit': product.get_unit_display(),
+            'is_bulk': product.is_bulk,
+            'is_granel': product.is_granel,
+            'packaging_id': pkg.id,
+            'packaging_type': pkg.packaging_type,
+            'packaging_name': pkg.name,
+            'packaging_units': pkg.units_quantity,
+        }
+    else:
+        try:
+            product = Product.objects.get(pk=target_id, is_active=True)
+        except Product.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Producto no encontrado'}, status=404)
+        product.barcode = barcode
+        product.save(update_fields=['barcode'])
+        product_data = {
+            'id': product.id,
+            'name': product.name,
+            'barcode': barcode,
+            'sku': product.sku,
+            'unit_price': float(product.sale_price),
+            'stock': float(product.current_stock),
+            'unit': product.get_unit_display(),
+            'is_bulk': product.is_bulk,
+            'is_granel': product.is_granel,
+            'packaging_id': None,
+            'packaging_type': None,
+            'packaging_name': None,
+            'packaging_units': 1,
+        }
+
+    return JsonResponse({
+        'success': True,
+        'product': product_data,
+        'message': f'Código {barcode} vinculado a {product.name}.',
+    })
+
+
+@login_required
+@require_GET
+def api_search_for_link(request):
+    """Busca productos activos por nombre/SKU para el flujo de "vincular código".
+
+    Devuelve cada producto con TODOS sus niveles de empaque activos como filas
+    seleccionables. Distinto a api_search, que prioriza match exacto por barcode
+    y devuelve un único nivel; acá queremos exponer la jerarquía completa para
+    que el cajero elija explícitamente si vincula el código al bulto, display o
+    unidad.
+    """
+    query = (request.GET.get('q') or '').strip()
+    if len(query) < 2:
+        return JsonResponse({'results': []})
+
+    query_normalized = normalize_text(query)
+    products = Product.objects.filter(is_active=True).select_related(
+        'unit_of_measure', 'category'
+    ).prefetch_related('packagings')
+
+    matched = []
+    for p in products:
+        name_n = normalize_text(p.name)
+        sku_n = normalize_text(p.sku) if p.sku else ''
+        if query_normalized in name_n or query_normalized in sku_n:
+            matched.append(p)
+        if len(matched) >= 15:
+            break
+
+    results = []
+    for p in matched:
+        levels = []
+        active_pkgs = list(p.packagings.filter(is_active=True).order_by('packaging_type'))
+        if active_pkgs:
+            for pkg in active_pkgs:
+                levels.append({
+                    'target_type': 'packaging',
+                    'target_id': pkg.id,
+                    'packaging_type': pkg.packaging_type,
+                    'type_display': pkg.get_packaging_type_display(),
+                    'name': pkg.name,
+                    'barcode': pkg.barcode or '',
+                    'sale_price': float(pkg.sale_price),
+                    'units_quantity': pkg.units_quantity,
+                })
+        else:
+            # Producto sin empaques: ofrecemos vincular directo al Product.
+            levels.append({
+                'target_type': 'product',
+                'target_id': p.id,
+                'packaging_type': 'unit',
+                'type_display': 'Unidad',
+                'name': p.name,
+                'barcode': p.barcode or '',
+                'sale_price': float(p.sale_price),
+                'units_quantity': 1,
+            })
+        results.append({
+            'product_id': p.id,
+            'product_name': p.name,
+            'sku': p.sku or '',
+            'product_barcode': p.barcode or '',
+            'category': p.category.name if p.category else '',
+            'levels': levels,
+        })
+
+    return JsonResponse({'results': results})
+
+
 # ─────────────────────────────────────────────────────────────
 #  API: Atajos de teclado configurables
 # ─────────────────────────────────────────────────────────────

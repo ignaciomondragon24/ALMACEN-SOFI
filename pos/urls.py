@@ -38,6 +38,8 @@ urlpatterns = [
     path('api/last-transaction/', views.api_last_transaction, name='api_last_transaction'),
     path('api/suspended-transactions/', views.api_suspended_transactions, name='api_suspended_transactions'),
     path('api/quick-add-product/', views.api_quick_add_product, name='api_quick_add_product'),
+    path('api/link-barcode/', views.api_link_barcode, name='api_link_barcode'),
+    path('api/search-for-link/', views.api_search_for_link, name='api_search_for_link'),
     # Nuevas APIs
     path('api/keyboard-shortcuts/', views.api_keyboard_shortcuts, name='api_keyboard_shortcuts'),
     path('api/keyboard-shortcuts/update/', views.api_update_keyboard_shortcut, name='api_update_keyboard_shortcut'),

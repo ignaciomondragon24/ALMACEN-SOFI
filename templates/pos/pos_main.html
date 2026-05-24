@@ -1136,15 +1136,36 @@
                     Código de barras no encontrado. ¿Qué deseas hacer?
                 </div>
                 
-                <!-- Options: Quick Add -->
+                <!-- Options: Quick Add vs Link to Existing -->
                 <div class="d-flex gap-2 mb-3" id="barcode-not-found-options">
                     <button type="button" class="btn flex-fill btn-option-selected" id="option-quick-add"
                         style="background:rgba(46,204,113,0.12);border:1.5px solid rgba(46,204,113,0.3);color:#2ecc71;font-weight:600;border-radius:8px;">
                         <i class="fas fa-plus-circle me-2"></i>Producto Nuevo
                     </button>
+                    <button type="button" class="btn flex-fill" id="option-link-existing"
+                        style="background:rgba(0,210,211,0.08);border:1.5px solid rgba(0,210,211,0.25);color:#00d2d3;font-weight:600;border-radius:8px;">
+                        <i class="fas fa-link me-2"></i>Vincular a Existente
+                    </button>
                 </div>
                 <hr style="border-color:rgba(45,45,68,0.6);">
-                
+
+                <!-- Subpanel: Link to existing product/packaging -->
+                <div id="link-existing-panel" style="display:none;">
+                    <div style="background:rgba(0,210,211,0.06);border:1px solid rgba(0,210,211,0.12);border-radius:8px;padding:0.5rem 0.85rem;margin-bottom:0.75rem;color:#bbb;font-size:0.8rem;">
+                        <i class="fas fa-info-circle me-1" style="color:#00d2d3;"></i>
+                        Buscá el producto y elegí el nivel (unidad/display/bulto) al que querés vincular el código escaneado.
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" style="color:#aaa;font-size:0.85rem;">Buscar producto existente</label>
+                        <input type="text" class="form-control" id="link-search-input" autocomplete="off"
+                               placeholder="Nombre o SKU (mín. 2 letras)"
+                               style="background:#0d0d1f;border:1.5px solid rgba(0,210,211,0.3);color:#eee;">
+                    </div>
+                    <div id="link-search-results" style="max-height:320px;overflow-y:auto;border:1px solid rgba(45,45,68,0.6);border-radius:8px;padding:0.25rem;background:#0d0d1f;">
+                        <div class="text-center text-muted py-3" style="font-size:0.85rem;">Tipeá para buscar…</div>
+                    </div>
+                </div>
+
                 <form id="quick-add-product-form">
                     <div class="mb-3">
                         <label class="form-label" style="color:#aaa;font-size:0.85rem;">Código de Barras</label>
@@ -1254,6 +1275,8 @@
         cartItemDiscount: '/pos/api/cart/item/',  // + {id}/discount/
         allProducts: '/pos/api/all-products/',
         toggleQuickAccess: '/pos/api/toggle-quick-access/',
+        linkBarcode: '{% url "pos:api_link_barcode" %}',
+        searchForLink: '{% url "pos:api_search_for_link" %}',
     };
 
     // CSRF Token
