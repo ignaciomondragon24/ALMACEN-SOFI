@@ -231,3 +231,92 @@ class SearchForLinkEndpointTests(_BaseLinkBarcodeTest):
         # Solo aparece el actual ('pic nic nevares x40'), no el inactivo.
         for r in resp.json()['results']:
             self.assertNotEqual(r['sku'], 'VIEJO-1')
+
+
+class APISearchAcepta14DigitosTests(TestCase):
+    """Regresión: el POS debe encontrar bultos con barcode de 14 dígitos.
+
+    Caso reportado por el cliente (alfajor Genio Triple Chocolate):
+    el bulto trae impreso un ITF-14 / GS1-14 (EAN-13 con un dígito de embalaje
+    delante, ej. 17798094220953). El api_search debe matchear tanto:
+    - via packaging_match (cuando el bulto está cargado como ProductPackaging),
+    - como via Product.barcode (fallback para productos sin empaques).
+
+    El bug original en el frontend era el regex `/^\\d{8,13}$/` en
+    handleSearchKeydown — no aceptaba 14 dígitos y el scan caía en una rama
+    inútil. El test de frontend no lo cubre acá; este test cierra el lado del
+    backend para que cualquier cliente del API pueda buscar por 14 dígitos.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin_group, _ = Group.objects.get_or_create(name='Admin')
+        cls.user = User.objects.create_user(
+            username='itf14_admin', password='pass123',
+            is_superuser=True, is_staff=True,
+        )
+        cls.user.groups.add(cls.admin_group)
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_api_search_encuentra_packaging_por_barcode_de_14_digitos(self):
+        product = Product.objects.create(
+            name='Genio Triple Chocolate', sku='GENIO-TCH',
+            barcode='7798094220956',  # EAN-13 unidad
+            sale_price=Decimal('600'), purchase_price=Decimal('300'),
+            cost_price=Decimal('300'),
+        )
+        bulk = ProductPackaging.objects.create(
+            product=product, packaging_type='bulk',
+            name='Bulto x 24', barcode='17798094220953',  # ITF-14 bulto
+            units_per_display=1, displays_per_bulk=24,
+            purchase_price=Decimal('7200'), sale_price=Decimal('14400'),
+            is_active=True,
+        )
+
+        resp = self.client.get('/pos/api/search/?q=17798094220953')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['products']), 1, msg=data)
+        prod = data['products'][0]
+        self.assertEqual(prod['id'], product.pk)
+        self.assertEqual(prod['packaging_id'], bulk.pk)
+        self.assertEqual(prod['packaging_type'], 'bulk')
+        self.assertEqual(prod['packaging_units'], 24)
+        self.assertEqual(prod['unit_price'], 14400.0)
+
+    def test_api_search_encuentra_product_por_barcode_de_14_digitos(self):
+        """Fallback: Product.barcode de 14 dígitos también matchea."""
+        product = Product.objects.create(
+            name='Bulto suelto', sku='BS-1',
+            barcode='12345678901234',  # 14 dígitos
+            sale_price=Decimal('1000'), purchase_price=Decimal('500'),
+            cost_price=Decimal('500'),
+        )
+        resp = self.client.get('/pos/api/search/?q=12345678901234')
+        data = resp.json()
+        self.assertEqual(len(data['products']), 1)
+        self.assertEqual(data['products'][0]['id'], product.pk)
+
+    def test_api_search_packaging_gana_sobre_product_legacy_con_14d(self):
+        """Defensa: si un Product legacy comparte ITF-14 con un Packaging
+        activo, el Packaging tiene prioridad (devuelve precio del bulto)."""
+        product_a = Product.objects.create(
+            name='Producto A', sku='A-1',
+            sale_price=Decimal('100'), purchase_price=Decimal('50'),
+            cost_price=Decimal('50'),
+        )
+        bulk = ProductPackaging.objects.create(
+            product=product_a, packaging_type='bulk',
+            name='Bulto x 24', barcode='17798094220953',
+            units_per_display=1, displays_per_bulk=24,
+            purchase_price=Decimal('1000'), sale_price=Decimal('9999'),
+            is_active=True,
+        )
+        # El Product legacy queda sin barcode (la unicidad lo impediría).
+        resp = self.client.get('/pos/api/search/?q=17798094220953')
+        data = resp.json()
+        self.assertEqual(data['products'][0]['unit_price'], 9999.0)
+        self.assertEqual(data['products'][0]['packaging_id'], bulk.pk)

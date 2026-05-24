@@ -504,8 +504,13 @@
             clearTimeout(_scannerTimer);
             const query = e.target.value.trim();
             
-            // Check if it's a barcode (numeric, 8-13 digits)
-            if (/^\d{8,13}$/.test(query)) {
+            // Detección de barcode: 8 a 14 dígitos. Los bultos suelen traer
+            // ITF-14 / GS1-14 (EAN-13 con un dígito de embalaje delante, ej.
+            // 17798094220953 para la caja del alfajor Genio Triple). Limitarlo
+            // a 13 dejaba a esos códigos cayendo al flujo de búsqueda parcial,
+            // y como el scanner manda Enter antes que el debounce de 500ms
+            // dispare, el cajero veía "no pasa nada".
+            if (/^\d{8,14}$/.test(query)) {
                 addProductByBarcode(query);
             } else {
                 // Select active (highlighted) result, or first if none highlighted

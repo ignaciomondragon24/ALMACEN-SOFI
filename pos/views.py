@@ -142,8 +142,11 @@ def api_search(request):
     ).select_related('product', 'product__unit_of_measure', 'product__category').first()
     if packaging_match:
         products = Product.objects.filter(id=packaging_match.product_id)
-    elif query.isdigit() and 8 <= len(query) <= 13:
-        # Fallback: Product.barcode directo (EAN-13 estándar)
+    elif query.isdigit() and 8 <= len(query) <= 14:
+        # Fallback: Product.barcode directo. Aceptamos hasta 14 dígitos para
+        # cubrir ITF-14 / GS1-14 (típico en cajas de bultos: el EAN-13 con un
+        # dígito de embalaje delante, ej. 17798094220953 para el bulto del
+        # alfajor Genio Triple Chocolate).
         products = Product.objects.filter(is_active=True, barcode=query)
     elif len(query) >= 1:
         # Get all active products and filter in Python for accent-insensitive search
