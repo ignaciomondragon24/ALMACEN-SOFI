@@ -489,6 +489,12 @@ class Product(models.Model):
         if hard:
             return super().delete(using=using, keep_parents=keep_parents)
 
+        # Cascade: soft-delete active packagings so their barcodes are freed.
+        # Without this, a packaging can remain is_active=True with its original
+        # barcode after the product is deactivated, blocking reuse of that EAN.
+        for pkg in self.packagings.filter(is_active=True):
+            pkg.delete()
+
         update_fields = []
         if self.is_active:
             self.is_active = False

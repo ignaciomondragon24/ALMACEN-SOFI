@@ -463,6 +463,128 @@ class ProductToUnitPackagingSyncTests(_BaseStocksTest):
         self.assertEqual(self.unit_pkg.purchase_price, Decimal('80'))
 
 
+class ProductDeleteCascadesPackagingsTests(_BaseStocksTest):
+    """Product.delete() debe cascadear soft-delete a sus packagings activos."""
+
+    def setUp(self):
+        super().setUp()
+        self.product = Product.objects.create(
+            name='Prod Con Empaques', sku='PCE-001', barcode='7796000000001',
+            category=self.category,
+            sale_price=Decimal('100'), purchase_price=Decimal('40'),
+            cost_price=Decimal('40'), current_stock=Decimal('60'),
+        )
+        self.unit_pkg = ProductPackaging.objects.create(
+            product=self.product, packaging_type='unit',
+            name='Unidad', barcode='7796000000001',
+            units_per_display=1, displays_per_bulk=1,
+            purchase_price=Decimal('40'), sale_price=Decimal('100'),
+        )
+        self.display_pkg = ProductPackaging.objects.create(
+            product=self.product, packaging_type='display',
+            name='Display x 12', barcode='7796000000099',
+            units_per_display=12, displays_per_bulk=1,
+            purchase_price=Decimal('480'), sale_price=Decimal('1100'),
+        )
+
+    def test_soft_delete_producto_cascadea_packagings(self):
+        self.product.delete()
+
+        self.unit_pkg.refresh_from_db()
+        self.display_pkg.refresh_from_db()
+
+        self.assertFalse(self.unit_pkg.is_active)
+        self.assertFalse(self.display_pkg.is_active)
+        self.assertIn(DELETED_BARCODE_MARKER, self.unit_pkg.barcode)
+        self.assertIn(DELETED_BARCODE_MARKER, self.display_pkg.barcode)
+
+    def test_barcode_reutilizable_tras_cascade_delete(self):
+        """Después de borrar el producto, el barcode del display queda libre."""
+        barcode_display = self.display_pkg.barcode
+        self.product.delete()
+
+        otro_prod = Product.objects.create(
+            name='Otro Producto', sku='OTR-001', barcode='7796111000001',
+            category=self.category,
+            sale_price=Decimal('50'), purchase_price=Decimal('20'),
+            cost_price=Decimal('20'), current_stock=Decimal('0'),
+        )
+        # No debe lanzar IntegrityError: el barcode fue liberado por la cascada
+        pkg_nuevo = ProductPackaging.objects.create(
+            product=otro_prod, packaging_type='display',
+            name='Display nuevo', barcode=barcode_display,
+            units_per_display=12, displays_per_bulk=1,
+            purchase_price=Decimal('200'), sale_price=Decimal('500'),
+        )
+        self.assertTrue(pkg_nuevo.is_active)
+        self.assertEqual(pkg_nuevo.barcode, barcode_display)
+
+
+class OrphanedPackagingAutoReleaseTests(_BaseStocksTest):
+    """_check_barcode libera automáticamente packagings de productos inactivos."""
+
+    def setUp(self):
+        super().setUp()
+        self.parent = Product.objects.create(
+            name='Producto Padre', sku='PP-900', barcode='7797000000001',
+            category=self.category,
+            sale_price=Decimal('100'), purchase_price=Decimal('40'),
+            cost_price=Decimal('40'), current_stock=Decimal('0'),
+        )
+
+    def test_check_barcode_libera_packaging_huerfano(self):
+        """Si un packaging activo pertenece a un producto inactivo,
+        _check_barcode lo debe liberar en vez de bloquear al usuario."""
+        # Simular el estado huérfano: producto inactivo, packaging activo
+        inactive_prod = Product.objects.create(
+            name='Producto Inactivo', sku='PI-900', barcode=None,
+            category=self.category,
+            sale_price=Decimal('50'), purchase_price=Decimal('20'),
+            cost_price=Decimal('20'), current_stock=Decimal('0'),
+            is_active=False,
+        )
+        orphaned_pkg = ProductPackaging.objects.create(
+            product=inactive_prod, packaging_type='bulk',
+            name='Bulto Huerfano', barcode='7797000000099',
+            units_per_display=6, displays_per_bulk=4,
+            purchase_price=Decimal('200'), sale_price=Decimal('500'),
+            is_active=True,
+        )
+
+        # Intentar registrar ese barcode en el producto padre debe funcionar.
+        # No usamos follow=True para evitar el render del template (bug de
+        # compatibilidad Python 3.14 / Django 4.2 en context.__copy__).
+        resp = self.client.post(
+            reverse('stocks:product_packaging', args=[self.parent.pk]),
+            {
+                'action': 'save_pkg',
+                'pkg_units_per_display': '6',
+                'pkg_displays_per_bulk': '4',
+                'has_unit': '1',
+                'unit_barcode': '7797000000001',
+                'unit_name': 'Unidad',
+                'unit_purchase_price': '40',
+                'unit_sale_price': '100',
+                'has_bulk': '1',
+                'bulk_barcode': '7797000000099',
+                'bulk_name': 'Bulto x 24',
+                'bulk_purchase_price': '200',
+                'bulk_sale_price': '500',
+            },
+        )
+        # Debe redirigir (302) — sin error 500
+        self.assertEqual(resp.status_code, 302)
+        # El packaging huérfano debe haber sido soft-deleted
+        orphaned_pkg.refresh_from_db()
+        self.assertFalse(orphaned_pkg.is_active)
+        self.assertIn(DELETED_BARCODE_MARKER, orphaned_pkg.barcode)
+        # El nuevo bulk del padre debe existir con ese barcode
+        new_bulk = ProductPackaging.objects.filter(
+            product=self.parent, packaging_type='bulk', is_active=True
+        ).first()
+        self.assertIsNotNone(new_bulk)
+        self.assertEqual(new_bulk.barcode, '7797000000099')
+
 class ReleaseBarcodeHelperTests(TestCase):
     """Sanity check del helper directamente."""
 

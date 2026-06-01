@@ -154,14 +154,22 @@ def _save_inline_packaging(request, product):
         """
         if not barcode:
             return None
-        dup = ProductPackaging.objects.filter(barcode=barcode).exclude(
+        dup = ProductPackaging.objects.select_related('product').filter(
+            barcode=barcode
+        ).exclude(
             product=product, packaging_type=pkg_type
         ).first()
         if dup:
-            raise ValueError(
-                f'El código de barras {barcode} ya está en uso por '
-                f'{dup.product.name} - {dup.get_packaging_type_display()}'
-            )
+            if not dup.product.is_active:
+                # Empaque huérfano: el producto fue desactivado pero su empaque
+                # quedó con is_active=True y el barcode sin liberar. Lo
+                # soft-deletemos para liberar el código automáticamente.
+                dup.delete()
+            else:
+                raise ValueError(
+                    f'El código de barras {barcode} ya está en uso por '
+                    f'{dup.product.name} - {dup.get_packaging_type_display()}'
+                )
         legacy = (Product.objects
                   .filter(barcode=barcode)
                   .exclude(pk=product.pk)

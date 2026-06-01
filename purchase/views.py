@@ -532,7 +532,20 @@ def api_search_products(request):
         product = Product.objects.filter(barcode=query, is_active=True).first()
         if product:
             return JsonResponse({'results': [_serialize_product(product)]})
-        # 3. Fallback: búsqueda amplia
+        # 3. EAN-14 → EAN-13: displays y cajas suelen tener un código de 14
+        #    dígitos (indicador de empaque + EAN-13 interno). Si no se encontró
+        #    con 14 dígitos, probar con los últimos 13.
+        if len(query) == 14 and query.isdigit():
+            stripped = query[1:]
+            pkg = ProductPackaging.objects.select_related('product').filter(
+                barcode=stripped, is_active=True, product__is_active=True
+            ).first()
+            if pkg:
+                return JsonResponse({'results': [_serialize_product(pkg.product, matched_packaging=pkg)]})
+            product = Product.objects.filter(barcode=stripped, is_active=True).first()
+            if product:
+                return JsonResponse({'results': [_serialize_product(product)]})
+        # 4. Fallback: búsqueda amplia
         products = list(Product.objects.filter(
             Q(barcode__icontains=query) | Q(sku__icontains=query) | Q(name__icontains=query),
             is_active=True

@@ -313,3 +313,80 @@ class PurchaseReceiveAuditWithPackagingTests(TestCase):
         unit_batch = next(b for b in batches if b.quantity_purchased == Decimal('10'))
         self.assertEqual(display_batch.purchase_price, Decimal('50'))
         self.assertEqual(unit_batch.purchase_price, Decimal('45'))
+
+
+class PurchaseApiSearchEan14Tests(TestCase):
+    """api_search_products: escanear un EAN-14 de display debe encontrar
+    el producto usando los 13 dígitos internos (EAN-13)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin_group, _ = Group.objects.get_or_create(name='Admin')
+        cls.admin = User.objects.create_user(
+            username='ean14_admin', password='pass123',
+            is_superuser=True, is_staff=True,
+        )
+        cls.admin.groups.add(cls.admin_group)
+        cls.category = ProductCategory.objects.create(name='EAN14 Cat')
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.product = Product.objects.create(
+            name='Producto EAN14', sku='E14-001', barcode='7790001000001',
+            category=self.category,
+            sale_price=Decimal('100'), purchase_price=Decimal('40'),
+            cost_price=Decimal('40'), current_stock=Decimal('0'),
+        )
+        self.display_pkg = ProductPackaging.objects.create(
+            product=self.product, packaging_type='display',
+            name='Display x 12', barcode='7790001000099',
+            units_per_display=12, displays_per_bulk=1,
+            purchase_price=Decimal('480'), sale_price=Decimal('1100'),
+            is_active=True,
+        )
+
+    def _search(self, code, barcode=True):
+        url = reverse('purchase:api_search_products')
+        params = f'?q={code}&barcode={"1" if barcode else "0"}'
+        return self.client.get(url + params)
+
+    def test_ean13_exacto_encuentra_packaging(self):
+        """Escanear el EAN-13 exacto del display lo devuelve con matched_packaging_id."""
+        resp = self._search('7790001000099')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(data['results'][0]['matched_packaging_id'], self.display_pkg.id)
+
+    def test_ean14_con_indicador_0_encuentra_packaging(self):
+        """Escanear 0 + EAN-13 del display debe encontrar el packaging."""
+        resp = self._search('07790001000099')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(data['results'][0]['matched_packaging_id'], self.display_pkg.id)
+
+    def test_ean14_con_indicador_1_encuentra_packaging(self):
+        """Escanear 1 + EAN-13 del display también debe encontrar el packaging."""
+        resp = self._search('17790001000099')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(data['results'][0]['matched_packaging_id'], self.display_pkg.id)
+
+    def test_ean14_producto_base(self):
+        """Escanear 0 + EAN-13 del producto base lo devuelve correctamente."""
+        resp = self._search('07790001000001')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(data['results'][0]['id'], self.product.id)
+
+    def test_ean14_no_numerico_no_intenta_stripping(self):
+        """Un código de 14 caracteres no numérico no debe intentar stripping."""
+        resp = self._search('ABCD1234567890')
+        self.assertEqual(resp.status_code, 200)
+        # Ningún resultado esperado para un código inventado
+        data = resp.json()
+        self.assertEqual(len(data['results']), 0)
