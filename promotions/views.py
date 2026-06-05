@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 import json
 
-from .models import Promotion, PromotionProduct, PromotionGroup
+from .models import Promotion, PromotionProduct, PromotionGroup, PromotionSubgroup
 from .forms import PromotionForm
 from .engine import PromotionEngine
 from decorators.decorators import group_required
@@ -89,17 +89,30 @@ def promotion_create(request):
             post_data['final_price'] = post_data.get('combo_price') or '0'
         elif promo_type == 'simple_discount':
             post_data['discount_percent'] = post_data.get('discount_percent_simple') or '0'
-            
+        elif promo_type == 'subgroup_combo':
+            post_data['final_price'] = post_data.get('subgroup_combo_price') or '0'
+
         # Set default status to active if not provided
         if not post_data.get('status'):
             post_data['status'] = 'active'
-            
+
         # Handle products - convert comma-separated string to list
         products_str = post_data.get('products', '')
         product_ids = []
         if products_str:
             product_ids = [int(pid.strip()) for pid in products_str.split(',') if pid.strip().isdigit()]
-            
+
+        # For subgroup_combo parse per-group product lists
+        product_ids_a = []
+        product_ids_b = []
+        if promo_type == 'subgroup_combo':
+            for pid in post_data.get('products_a', '').split(','):
+                if pid.strip().isdigit():
+                    product_ids_a.append(int(pid.strip()))
+            for pid in post_data.get('products_b', '').split(','):
+                if pid.strip().isdigit():
+                    product_ids_b.append(int(pid.strip()))
+
         # Create promotion directly without the form for products
         try:
             from stocks.models import Product
@@ -129,8 +142,15 @@ def promotion_create(request):
             elif promo_type in ('quantity_discount', 'simple_discount'):
                 if safe_decimal(post_data.get('discount_percent'), '0') <= 0:
                     validation_errors.append('Debe ingresar el porcentaje de descuento.')
+            elif promo_type == 'subgroup_combo':
+                if safe_decimal(post_data.get('final_price'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el precio del combo.')
+                if not product_ids_a:
+                    validation_errors.append('Debe seleccionar al menos un producto para el Grupo A.')
+                if not product_ids_b:
+                    validation_errors.append('Debe seleccionar al menos un producto para el Grupo B.')
 
-            if not product_ids:
+            if promo_type != 'subgroup_combo' and not product_ids:
                 validation_errors.append('Debe seleccionar al menos un producto.')
 
             if validation_errors:
@@ -145,6 +165,10 @@ def promotion_create(request):
                     'selected_products': selected_products,
                     'existing_groups': PromotionGroup.objects.all(),
                     'current_group_name': post_data.get('group_name', ''),
+                    'selected_products_a': Product.objects.filter(id__in=product_ids_a),
+                    'selected_products_b': Product.objects.filter(id__in=product_ids_b),
+                    'group_a_quantity': post_data.get('group_a_quantity', '2'),
+                    'group_b_quantity': post_data.get('group_b_quantity', '1'),
                 })
 
             # Days: if no day checkbox is present in POST, default all to True
@@ -189,13 +213,24 @@ def promotion_create(request):
                 promotion.end_date = end_date
                 
             promotion.save()
-            
-            # Add products
-            if product_ids:
-                products = Product.objects.filter(id__in=product_ids)
-                for product in products:
-                    PromotionProduct.objects.create(promotion=promotion, product=product)
-            
+
+            if promo_type == 'subgroup_combo':
+                sg_a, _ = PromotionSubgroup.objects.get_or_create(promotion=promotion, slot='a')
+                sg_a.quantity_required = safe_int(post_data.get('group_a_quantity'), 1)
+                sg_a.save()
+                sg_a.products.set(Product.objects.filter(id__in=product_ids_a))
+
+                sg_b, _ = PromotionSubgroup.objects.get_or_create(promotion=promotion, slot='b')
+                sg_b.quantity_required = safe_int(post_data.get('group_b_quantity'), 1)
+                sg_b.save()
+                sg_b.products.set(Product.objects.filter(id__in=product_ids_b))
+            else:
+                # Add products
+                if product_ids:
+                    products = Product.objects.filter(id__in=product_ids)
+                    for product in products:
+                        PromotionProduct.objects.create(promotion=promotion, product=product)
+
             messages.success(request, f'Promoción "{promotion.name}" creada correctamente.')
             return redirect('promotions:promotion_list')
             
@@ -240,6 +275,19 @@ def promotion_edit(request, pk):
             post_data['final_price'] = post_data.get('combo_price') or '0'
         elif promo_type == 'simple_discount':
             post_data['discount_percent'] = post_data.get('discount_percent_simple') or '0'
+        elif promo_type == 'subgroup_combo':
+            post_data['final_price'] = post_data.get('subgroup_combo_price') or '0'
+
+        # For subgroup_combo parse per-group product lists
+        product_ids_a = []
+        product_ids_b = []
+        if promo_type == 'subgroup_combo':
+            for pid in post_data.get('products_a', '').split(','):
+                if pid.strip().isdigit():
+                    product_ids_a.append(int(pid.strip()))
+            for pid in post_data.get('products_b', '').split(','):
+                if pid.strip().isdigit():
+                    product_ids_b.append(int(pid.strip()))
 
         try:
             from stocks.models import Product
@@ -268,8 +316,15 @@ def promotion_edit(request, pk):
             elif promo_type in ('quantity_discount', 'simple_discount'):
                 if safe_decimal(post_data.get('discount_percent'), '0') <= 0:
                     validation_errors.append('Debe ingresar el porcentaje de descuento.')
+            elif promo_type == 'subgroup_combo':
+                if safe_decimal(post_data.get('final_price'), '0') <= 0:
+                    validation_errors.append('Debe ingresar el precio del combo.')
+                if not product_ids_a:
+                    validation_errors.append('Debe seleccionar al menos un producto para el Grupo A.')
+                if not product_ids_b:
+                    validation_errors.append('Debe seleccionar al menos un producto para el Grupo B.')
 
-            if not product_ids:
+            if promo_type != 'subgroup_combo' and not product_ids:
                 validation_errors.append('Debe seleccionar al menos un producto.')
 
             if validation_errors:
@@ -277,6 +332,7 @@ def promotion_edit(request, pk):
                     messages.error(request, error)
                 form = PromotionForm(post_data, instance=promotion)
                 selected_products = Product.objects.filter(id__in=product_ids) if product_ids else list(promotion.products.all())
+                existing_sg = {sg.slot: sg for sg in promotion.subgroups.prefetch_related('products').all()}
                 return render(request, 'promotions/promotion_form.html', {
                     'form': form,
                     'title': 'Editar Promoción',
@@ -284,6 +340,10 @@ def promotion_edit(request, pk):
                     'selected_products': selected_products,
                     'existing_groups': PromotionGroup.objects.all(),
                     'current_group_name': post_data.get('group_name', promotion.group.name if promotion.group else ''),
+                    'selected_products_a': Product.objects.filter(id__in=product_ids_a) if product_ids_a else (existing_sg['a'].products.all() if 'a' in existing_sg else []),
+                    'selected_products_b': Product.objects.filter(id__in=product_ids_b) if product_ids_b else (existing_sg['b'].products.all() if 'b' in existing_sg else []),
+                    'group_a_quantity': post_data.get('group_a_quantity', existing_sg['a'].quantity_required if 'a' in existing_sg else 2),
+                    'group_b_quantity': post_data.get('group_b_quantity', existing_sg['b'].quantity_required if 'b' in existing_sg else 1),
                 })
 
             promotion.name = post_data.get('name', promotion.name)
@@ -320,14 +380,28 @@ def promotion_edit(request, pk):
             promotion.end_date = end_date if end_date else None
                 
             promotion.save()
-            
-            # Update products
-            PromotionProduct.objects.filter(promotion=promotion).delete()
-            if product_ids:
-                products = Product.objects.filter(id__in=product_ids)
-                for product in products:
-                    PromotionProduct.objects.create(promotion=promotion, product=product)
-            
+
+            if promo_type == 'subgroup_combo':
+                PromotionSubgroup.objects.filter(promotion=promotion).delete()
+                sg_a = PromotionSubgroup.objects.create(
+                    promotion=promotion, slot='a',
+                    quantity_required=safe_int(post_data.get('group_a_quantity'), 1),
+                )
+                sg_a.products.set(Product.objects.filter(id__in=product_ids_a))
+
+                sg_b = PromotionSubgroup.objects.create(
+                    promotion=promotion, slot='b',
+                    quantity_required=safe_int(post_data.get('group_b_quantity'), 1),
+                )
+                sg_b.products.set(Product.objects.filter(id__in=product_ids_b))
+            else:
+                # Update products
+                PromotionProduct.objects.filter(promotion=promotion).delete()
+                if product_ids:
+                    products = Product.objects.filter(id__in=product_ids)
+                    for product in products:
+                        PromotionProduct.objects.create(promotion=promotion, product=product)
+
             messages.success(request, f'Promoción "{promotion.name}" actualizada correctamente.')
             return redirect('promotions:promotion_list')
             
@@ -337,13 +411,18 @@ def promotion_edit(request, pk):
     else:
         initial_products = promotion.products.all()
         form = PromotionForm(instance=promotion, initial={'products': initial_products})
-    
+
+    existing_sg = {sg.slot: sg for sg in promotion.subgroups.prefetch_related('products').all()}
     return render(request, 'promotions/promotion_form.html', {
         'form': form,
         'title': 'Editar Promoción',
         'promotion': promotion,
         'existing_groups': PromotionGroup.objects.all(),
         'current_group_name': promotion.group.name if promotion.group else '',
+        'selected_products_a': existing_sg['a'].products.all() if 'a' in existing_sg else [],
+        'selected_products_b': existing_sg['b'].products.all() if 'b' in existing_sg else [],
+        'group_a_quantity': existing_sg['a'].quantity_required if 'a' in existing_sg else 2,
+        'group_b_quantity': existing_sg['b'].quantity_required if 'b' in existing_sg else 1,
     })
 
 

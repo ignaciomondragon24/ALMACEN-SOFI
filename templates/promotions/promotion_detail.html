@@ -131,7 +131,12 @@
                     {% if promotion.promo_type == 'nxm' %}
                     <div class="alert alert-info">
                         <h5 class="alert-heading"><i class="fas fa-clone me-2"></i>Promoción NxM</h5>
-                        <p class="mb-0">Lleva <strong>{{ promotion.buy_quantity }}</strong>, paga <strong>{{ promotion.pay_quantity }}</strong></p>
+                        <p class="mb-0">Lleva <strong>{{ promotion.quantity_required }}</strong>, paga <strong>{{ promotion.quantity_charged }}</strong></p>
+                    </div>
+                    {% elif promotion.promo_type == 'nx_fixed_price' %}
+                    <div class="alert alert-success">
+                        <h5 class="alert-heading"><i class="fas fa-dollar-sign me-2"></i>N por Precio Fijo</h5>
+                        <p class="mb-0"><strong>{{ promotion.quantity_required }}</strong> unidades por <strong>{{ promotion.final_price|currency }}</strong></p>
                     </div>
                     {% elif promotion.promo_type == 'second_unit' %}
                     <div class="alert alert-success">
@@ -146,12 +151,23 @@
                     {% elif promotion.promo_type == 'combo' %}
                     <div class="alert alert-info">
                         <h5 class="alert-heading"><i class="fas fa-cubes me-2"></i>Combo</h5>
-                        <p class="mb-0">Precio del combo: <strong>{{ promotion.combo_price|currency }}</strong></p>
+                        <p class="mb-0">Precio del combo: <strong>{{ promotion.final_price|currency }}</strong></p>
                     </div>
                     {% elif promotion.promo_type == 'simple_discount' %}
                     <div class="alert alert-danger">
                         <h5 class="alert-heading"><i class="fas fa-tags me-2"></i>Descuento Porcentual</h5>
                         <p class="mb-0">Descuento del <strong>{{ promotion.discount_percent }}%</strong></p>
+                    </div>
+                    {% elif promotion.promo_type == 'subgroup_combo' %}
+                    <div class="alert" style="background-color:#f3eeff;border-color:#6f42c1;color:#3d1a78">
+                        <h5 class="alert-heading"><i class="fas fa-layer-group me-2"></i>Combo por Subgrupos</h5>
+                        <p class="mb-2">Precio del combo: <strong>{{ promotion.final_price|currency }}</strong></p>
+                        {% for sg in promotion.subgroups.all %}
+                        <div class="mb-1">
+                            <strong>Grupo {{ sg.slot|upper }} ({{ sg.quantity_required }} und.):</strong>
+                            {% for p in sg.products.all %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                        </div>
+                        {% endfor %}
                     </div>
                     {% endif %}
                 </div>

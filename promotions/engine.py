@@ -92,7 +92,13 @@ class PromotionEngine:
                     promo_product_ids.update(member.products.values_list('id', flat=True))
             else:
                 leader = promo
-                promo_product_ids = set(promo.products.values_list('id', flat=True))
+                if promo.promo_type == 'subgroup_combo':
+                    # Los productos están en los subgrupos, no en Promotion.products
+                    promo_product_ids = set()
+                    for sg in promo.subgroups.prefetch_related('products').all():
+                        promo_product_ids.update(sg.products.values_list('id', flat=True))
+                else:
+                    promo_product_ids = set(promo.products.values_list('id', flat=True))
 
             # Find matching items in cart.
             # La promo declara sobre qué empaque aplica (unit/display/bulk/any).
@@ -131,6 +137,8 @@ class PromotionEngine:
                 discount_info = PromotionEngine._apply_simple_discount(matching_items, leader)
             elif leader.promo_type == 'combo':
                 discount_info = PromotionEngine._apply_combo(matching_items, leader)
+            elif leader.promo_type == 'subgroup_combo':
+                discount_info = PromotionEngine._apply_subgroup_combo(matching_items, leader)
 
             if discount_info and discount_info['discount'] > 0:
                 # Para el nombre individual guardamos la promo específica del
@@ -396,25 +404,25 @@ class PromotionEngine:
         """Apply combo pricing (set price for combination of products)."""
         if not promo.final_price:
             return {'discount': Decimal('0.00'), 'item_discounts': []}
-        
+
         # For combo, all required products must be present
         promo_product_ids = set(promo.products.values_list('id', flat=True))
         cart_product_ids = set(item['product_id'] for item in items)
-        
+
         # Check if all combo products are in cart
         if not promo_product_ids.issubset(cart_product_ids):
             return {'discount': Decimal('0.00'), 'item_discounts': []}
-        
+
         # Calculate original total of combo products
         combo_total = sum(
             Decimal(str(item['unit_price'])) * Decimal(str(item['quantity']))
             for item in items
             if item['product_id'] in promo_product_ids
         )
-        
+
         # Discount is the difference between original and combo price
         discount = max(combo_total - promo.final_price, Decimal('0.00'))
-        
+
         # Distribute discount proportionally
         item_discounts = []
         if discount > 0:
@@ -423,13 +431,95 @@ class PromotionEngine:
                     item_subtotal = Decimal(str(item['unit_price'])) * Decimal(str(item['quantity']))
                     proportion = item_subtotal / combo_total
                     item_discount = discount * proportion
-                    
+
                     item_discounts.append({
                         'item_id': item.get('item_id'),
                         'discount': float(item_discount)
                     })
-        
+
         return {
             'discount': discount,
             'item_discounts': item_discounts
         }
+
+    @staticmethod
+    def _apply_subgroup_combo(items, promo):
+        """
+        Apply subgroup combo: X items from group A + Y items from group B = fixed price.
+
+        Example: 2 lactal (blanco or salvado) + 1 hamburguesa/pancho = $5000.
+        Supports multiple sets: 4 lactal + 2 hamburguesa = 2 sets = 2 x $5000.
+        """
+        if not promo.final_price or promo.final_price <= 0:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        try:
+            subgroups = {sg.slot: sg for sg in promo.subgroups.prefetch_related('products').all()}
+        except Exception:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        sg_a = subgroups.get('a')
+        sg_b = subgroups.get('b')
+
+        if not sg_a or not sg_b:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        products_a = set(sg_a.products.values_list('id', flat=True))
+        products_b = set(sg_b.products.values_list('id', flat=True))
+        qty_a_required = sg_a.quantity_required
+        qty_b_required = sg_b.quantity_required
+
+        items_a = [it for it in items if it['product_id'] in products_a]
+        items_b = [it for it in items if it['product_id'] in products_b]
+
+        total_qty_a = sum(Decimal(str(it['quantity'])) for it in items_a)
+        total_qty_b = sum(Decimal(str(it['quantity'])) for it in items_b)
+
+        if total_qty_a < qty_a_required or total_qty_b < qty_b_required:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        complete_sets = min(int(total_qty_a // qty_a_required), int(total_qty_b // qty_b_required))
+
+        if complete_sets == 0:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        # Sort highest price first to maximize discount
+        items_a_sorted = sorted(items_a, key=lambda x: Decimal(str(x['unit_price'])), reverse=True)
+        items_b_sorted = sorted(items_b, key=lambda x: Decimal(str(x['unit_price'])), reverse=True)
+
+        # Accumulate original price and per-item data for promo items
+        original_price = Decimal('0.00')
+        promo_entries = []  # {'item_id': ..., 'subtotal': Decimal}
+
+        for group_items, qty_in_promo in (
+            (items_a_sorted, complete_sets * qty_a_required),
+            (items_b_sorted, complete_sets * qty_b_required),
+        ):
+            remaining = Decimal(str(qty_in_promo))
+            for item in group_items:
+                if remaining <= 0:
+                    break
+                qty = min(Decimal(str(item['quantity'])), remaining)
+                price = Decimal(str(item['unit_price']))
+                subtotal = price * qty
+                original_price += subtotal
+                promo_entries.append({'item_id': item.get('item_id'), 'subtotal': subtotal})
+                remaining -= qty
+
+        promo_price = Decimal(str(promo.final_price)) * complete_sets
+        total_discount = max(original_price - promo_price, Decimal('0.00'))
+
+        if total_discount == 0 or original_price == 0:
+            return {'discount': Decimal('0.00'), 'item_discounts': []}
+
+        item_discounts = []
+        for entry in promo_entries:
+            proportion = entry['subtotal'] / original_price
+            item_discount = total_discount * proportion
+            if item_discount > 0:
+                item_discounts.append({
+                    'item_id': entry['item_id'],
+                    'discount': float(item_discount),
+                })
+
+        return {'discount': total_discount, 'item_discounts': item_discounts}

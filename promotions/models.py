@@ -42,6 +42,7 @@ class Promotion(models.Model):
         ('combo', 'Combo'),
         ('second_unit', 'Segunda Unidad con Descuento'),
         ('simple_discount', 'Descuento Porcentual'),
+        ('subgroup_combo', 'Combo por Subgrupos (Ej: 2 Lactal + 1 Hamburguesa)'),
     ]
     
     STATUS_CHOICES = [
@@ -280,7 +281,7 @@ class Promotion(models.Model):
 
 class PromotionProduct(models.Model):
     """Product in a promotion."""
-    
+
     promotion = models.ForeignKey(
         Promotion,
         on_delete=models.CASCADE,
@@ -291,11 +292,52 @@ class PromotionProduct(models.Model):
         on_delete=models.CASCADE,
         related_name='product_promotions'
     )
-    
+
     class Meta:
         verbose_name = 'Producto en Promoción'
         verbose_name_plural = 'Productos en Promoción'
         unique_together = ('promotion', 'product')
-    
+
     def __str__(self):
         return f'{self.product.name} en {self.promotion.name}'
+
+
+class PromotionSubgroup(models.Model):
+    """
+    Subgrupo de productos para promos tipo subgroup_combo.
+
+    Una promo subgroup_combo tiene exactamente 2 subgrupos (slot='a' y slot='b').
+    El motor exige quantity_required unidades de cada subgrupo para activar el combo.
+    Ej: slot='a' qty=2 → lactal; slot='b' qty=1 → hamburguesa/pancho.
+    """
+
+    SLOT_CHOICES = [('a', 'Grupo A'), ('b', 'Grupo B')]
+
+    promotion = models.ForeignKey(
+        Promotion,
+        on_delete=models.CASCADE,
+        related_name='subgroups',
+        verbose_name='Promoción',
+    )
+    slot = models.CharField(
+        'Grupo',
+        max_length=1,
+        choices=SLOT_CHOICES,
+    )
+    quantity_required = models.PositiveIntegerField(
+        'Cantidad requerida',
+        default=1,
+    )
+    products = models.ManyToManyField(
+        'stocks.Product',
+        blank=True,
+        verbose_name='Productos del grupo',
+    )
+
+    class Meta:
+        verbose_name = 'Subgrupo de Promoción'
+        verbose_name_plural = 'Subgrupos de Promoción'
+        unique_together = ('promotion', 'slot')
+
+    def __str__(self):
+        return f'Grupo {self.slot.upper()} (x{self.quantity_required}) — {self.promotion.name}'
