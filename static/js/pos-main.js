@@ -2422,7 +2422,7 @@
             const change = paid - totalAmt;
             changeEl.textContent = formatCurrency(Math.max(0, change));
             changeEl.style.color = change >= -0.005 ? '#2ecc71' : '#e74c3c';
-            const ok = paidR >= totR;
+            const ok = paidR + 1 >= totR;  // +1 cent tolerance for promo rounding
             confirmBtn.disabled = !ok;
             confirmBtn.classList.toggle('btn-success', ok);
             confirmBtn.classList.toggle('btn-secondary', !ok);

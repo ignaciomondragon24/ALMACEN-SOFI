@@ -2,7 +2,7 @@
 POS Services - Business Logic
 """
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
@@ -289,7 +289,7 @@ class CartService:
         for applied in result.get('applied_promotions', []):
             for item_discount in applied.get('item_discounts', []):
                 item_id = item_discount.get('item_id')
-                discount = Decimal(str(item_discount.get('discount', 0)))
+                discount = Decimal(str(item_discount.get('discount', 0))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
                 if item_id and discount > 0:
                     try:

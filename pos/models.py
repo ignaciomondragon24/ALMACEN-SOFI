@@ -4,7 +4,7 @@ POS Models - Point of Sale
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.utils import timezone
 
 
@@ -211,11 +211,11 @@ class POSTransaction(models.Model):
             ),
         )
 
-        self.subtotal = result['subtotal'] or Decimal('0.00')
+        self.subtotal = (result['subtotal'] or Decimal('0.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         manual = result['manual_discount'] or Decimal('0.00')
         promo = result['promo_discount'] or Decimal('0.00')
         self.discount_total = manual + promo
-        self.total = self.subtotal - self.discount_total + self.tax_total
+        self.total = (self.subtotal - self.discount_total + self.tax_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         self.items_count = int(result['count'] or 0)
         self.save()
 
