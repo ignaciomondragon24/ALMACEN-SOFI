@@ -332,7 +332,9 @@ def promotion_edit(request, pk):
                     messages.error(request, error)
                 form = PromotionForm(post_data, instance=promotion)
                 selected_products = Product.objects.filter(id__in=product_ids) if product_ids else list(promotion.products.all())
-                existing_sg = {sg.slot: sg for sg in promotion.subgroups.prefetch_related('products').all()}
+                existing_sg = {}
+                if promo_type == 'subgroup_combo':
+                    existing_sg = {sg.slot: sg for sg in promotion.subgroups.prefetch_related('products').all()}
                 return render(request, 'promotions/promotion_form.html', {
                     'form': form,
                     'title': 'Editar Promoción',
@@ -412,7 +414,9 @@ def promotion_edit(request, pk):
         initial_products = promotion.products.all()
         form = PromotionForm(instance=promotion, initial={'products': initial_products})
 
-    existing_sg = {sg.slot: sg for sg in promotion.subgroups.prefetch_related('products').all()}
+    existing_sg = {}
+    if promotion.promo_type == 'subgroup_combo':
+        existing_sg = {sg.slot: sg for sg in promotion.subgroups.prefetch_related('products').all()}
     return render(request, 'promotions/promotion_form.html', {
         'form': form,
         'title': 'Editar Promoción',

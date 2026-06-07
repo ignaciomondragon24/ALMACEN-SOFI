@@ -517,6 +517,79 @@ with connection.cursor() as c:
         print('  Marked expenses.0005 as applied')
 " 2>&1 || echo "WARNING: expenses affects_cash_drawer repair skipped"
 
+# Defensive: ensure promotions_promotionsubgroup exists (migration 0006).
+# Sin esto, editar cualquier promo explota con:
+#   relation "promotions_promotionsubgroup" does not exist
+echo "Verifying promotions_promotionsubgroup schema..."
+python -c "
+import os, django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+django.setup()
+from django.db import connection
+with connection.cursor() as c:
+    if connection.vendor != 'postgresql':
+        print('  SQLite: skip')
+        raise SystemExit(0)
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='promotions_promotion')\")
+    if not c.fetchone()[0]:
+        print('  promotions_promotion no existe aun, skip')
+        raise SystemExit(0)
+
+    # 1) Crear tabla promotions_promotionsubgroup si falta
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='promotions_promotionsubgroup')\")
+    if not c.fetchone()[0]:
+        print('  Creating promotions_promotionsubgroup...')
+        c.execute(\"\"\"
+            CREATE TABLE promotions_promotionsubgroup (
+                id BIGSERIAL PRIMARY KEY,
+                slot varchar(1) NOT NULL,
+                quantity_required integer NOT NULL DEFAULT 1,
+                promotion_id bigint NOT NULL
+                    REFERENCES promotions_promotion(id)
+                    ON DELETE CASCADE
+                    DEFERRABLE INITIALLY DEFERRED,
+                CONSTRAINT promotions_subgroup_promo_slot_uniq UNIQUE (promotion_id, slot)
+            )
+        \"\"\")
+        c.execute('CREATE INDEX promotions_promotionsubgroup_promotion_id_idx ON promotions_promotionsubgroup(promotion_id)')
+        print('  promotions_promotionsubgroup created OK')
+    else:
+        print('  promotions_promotionsubgroup OK')
+
+    # 2) Crear tabla M2M promotions_promotionsubgroup_products si falta
+    c.execute(\"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='promotions_promotionsubgroup_products')\")
+    if not c.fetchone()[0]:
+        print('  Creating promotions_promotionsubgroup_products M2M...')
+        c.execute(\"\"\"
+            CREATE TABLE promotions_promotionsubgroup_products (
+                id BIGSERIAL PRIMARY KEY,
+                promotionsubgroup_id bigint NOT NULL
+                    REFERENCES promotions_promotionsubgroup(id)
+                    ON DELETE CASCADE
+                    DEFERRABLE INITIALLY DEFERRED,
+                product_id bigint NOT NULL
+                    REFERENCES stocks_product(id)
+                    ON DELETE CASCADE
+                    DEFERRABLE INITIALLY DEFERRED,
+                CONSTRAINT promotions_subgroup_product_uniq UNIQUE (promotionsubgroup_id, product_id)
+            )
+        \"\"\")
+        c.execute('CREATE INDEX promotions_subgroup_products_sg_idx ON promotions_promotionsubgroup_products(promotionsubgroup_id)')
+        c.execute('CREATE INDEX promotions_subgroup_products_prod_idx ON promotions_promotionsubgroup_products(product_id)')
+        print('  promotions_promotionsubgroup_products M2M created OK')
+    else:
+        print('  promotions_promotionsubgroup_products OK')
+
+    # 3) Marcar migración 0006 como aplicada
+    c.execute(\"SELECT 1 FROM django_migrations WHERE app='promotions' AND name='0006_add_subgroup_combo'\")
+    if not c.fetchone():
+        c.execute(\"\"\"
+            INSERT INTO django_migrations (app, name, applied)
+            VALUES ('promotions', '0006_add_subgroup_combo', NOW())
+        \"\"\")
+        print('  Marked promotions.0006 as applied')
+" 2>&1 || echo "WARNING: promotions subgroup schema repair skipped"
+
 # Setup initial data
 echo "Setting up initial data..."
 python manage.py setup_initial_data || echo "WARNING: setup_initial_data failed, continuing..."
