@@ -95,7 +95,7 @@ def caramelera_create(request):
         return _caramelera_save(request, None)
     productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
     return render(request, 'granel/caramelera_form.html', {
-        'title': 'Nueva Caramelera',
+        'title': 'Nuevo Producto Fraccionado',
         'caramelera': None,
         'productos_deposito': productos,
     })
@@ -147,7 +147,7 @@ def _caramelera_save(request, caramelera):
 
     productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
     context = {
-        'title': 'Editar' if caramelera else 'Nueva Caramelera',
+        'title': 'Editar' if caramelera else 'Nuevo Producto Fraccionado',
         'caramelera': caramelera,
         'productos_deposito': productos,
         'autorizados_ids': [int(x) for x in autorizados_ids if x.isdigit()],

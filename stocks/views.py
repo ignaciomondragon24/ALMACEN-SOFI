@@ -1,6 +1,7 @@
 """
 Stocks Views
 """
+from datetime import timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -839,6 +840,55 @@ def cost_history(request, pk=None):
         'potential_profit': potential_profit,
         'supplier_stats': supplier_stats,
         'all_suppliers': all_suppliers,
+    })
+
+
+@login_required
+@group_required(['Admin', 'Cajero Manager'])
+def vencimientos(request):
+    """Lotes con fecha de vencimiento cargada, agrupados por cercanía al vencimiento."""
+    from .services import expiration_buckets
+
+    search = request.GET.get('search', '')
+    dias = request.GET.get('dias', '7')
+    try:
+        warn_days = int(dias)
+    except (TypeError, ValueError):
+        warn_days = 7
+
+    batches = (
+        StockBatch.objects
+        .select_related('product', 'created_by')
+        .filter(quantity_remaining__gt=0, expiration_date__isnull=False)
+    )
+
+    if search:
+        batches = batches.filter(
+            Q(product__name__icontains=search) | Q(product__sku__icontains=search)
+        )
+
+    buckets = expiration_buckets(batches, warn_days=warn_days)
+    today = buckets['today']
+    warn_limit = today + timedelta(days=warn_days)
+
+    paginator = Paginator(batches.order_by('expiration_date'), 50)
+    page = request.GET.get('page', 1)
+    batches_page = paginator.get_page(page)
+
+    for batch in batches_page.object_list:
+        if batch.expiration_date < today:
+            batch.estado = 'vencido'
+        elif batch.expiration_date <= warn_limit:
+            batch.estado = 'vence_pronto'
+        else:
+            batch.estado = 'proximo'
+
+    return render(request, 'stocks/vencimientos.html', {
+        'batches': batches_page,
+        'buckets': buckets,
+        'search': search,
+        'warn_days': warn_days,
+        'today': buckets['today'],
     })
 
 

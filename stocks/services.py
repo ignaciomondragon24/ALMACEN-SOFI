@@ -1,8 +1,10 @@
 """
 Stock Management Services
 """
+from datetime import timedelta
 from decimal import Decimal
 from django.db import transaction
+from django.utils import timezone
 from .models import Product, StockMovement, ProductPackaging
 
 
@@ -601,5 +603,36 @@ class BarcodeService:
         
         if presentation:
             return presentation.product
-        
+
         return None
+
+
+def expiration_buckets(queryset, warn_days=7, soon_days=30):
+    """
+    Clasifica un queryset de StockBatch (ya filtrado por quantity_remaining__gt=0
+    y expiration_date__isnull=False) en tres grupos según cercanía al vencimiento.
+
+    Returns:
+        dict con 'vencido', 'vence_pronto' (<= warn_days), 'proximo' (<= soon_days),
+        cada uno con 'batches' (queryset) y 'count'.
+    """
+    today = timezone.localdate()
+    warn_limit = today + timedelta(days=warn_days)
+    soon_limit = today + timedelta(days=soon_days)
+
+    vencido_qs = queryset.filter(expiration_date__lt=today).order_by('expiration_date')
+    vence_pronto_qs = queryset.filter(
+        expiration_date__gte=today, expiration_date__lte=warn_limit
+    ).order_by('expiration_date')
+    proximo_qs = queryset.filter(
+        expiration_date__gt=warn_limit, expiration_date__lte=soon_limit
+    ).order_by('expiration_date')
+
+    return {
+        'today': today,
+        'warn_days': warn_days,
+        'soon_days': soon_days,
+        'vencido': {'batches': vencido_qs, 'count': vencido_qs.count()},
+        'vence_pronto': {'batches': vence_pronto_qs, 'count': vence_pronto_qs.count()},
+        'proximo': {'batches': proximo_qs, 'count': proximo_qs.count()},
+    }

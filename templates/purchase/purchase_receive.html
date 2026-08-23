@@ -39,41 +39,51 @@
                         Fecha de Pedido: {{ purchase.order_date|date:"d/m/Y" }}
                     </p>
                     
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th class="text-center">Cantidad</th>
-                                <th class="text-end">Costo Unit.</th>
-                                <th class="text-end">Subtotal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in purchase.items.all %}
-                            <tr>
-                                <td>{{ item.product.name }}</td>
-                                <td class="text-center">{{ item.quantity }}</td>
-                                <td class="text-end">{{ item.unit_cost|currency }}</td>
-                                <td class="text-end">{{ item.subtotal|currency }}</td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="4" class="text-center text-muted">
-                                    No hay productos en esta orden
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot>
-                            <tr class="fw-bold">
-                                <td colspan="3" class="text-end">Total:</td>
-                                <td class="text-end">{{ purchase.total|currency }}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                    
                     <form method="post">
                         {% csrf_token %}
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th class="text-center">Cantidad</th>
+                                    <th class="text-end">Costo Unit.</th>
+                                    <th class="text-end">Subtotal</th>
+                                    <th>Vencimiento</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in purchase.items.all %}
+                                <tr>
+                                    <td>{{ item.product.name }}</td>
+                                    <td class="text-center">{{ item.quantity }}</td>
+                                    <td class="text-end">{{ item.unit_cost|currency }}</td>
+                                    <td class="text-end">{{ item.subtotal|currency }}</td>
+                                    <td>
+                                        <input type="date" class="form-control form-control-sm"
+                                               name="expiration_date_{{ item.id }}">
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">
+                                        No hay productos en esta orden
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="fw-bold">
+                                    <td colspan="3" class="text-end">Total:</td>
+                                    <td class="text-end">{{ purchase.total|currency }}</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        <p class="text-muted small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            La fecha de vencimiento es opcional — dejala vacía si el producto no vence.
+                        </p>
+
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-success">
                                 <i class="fas fa-check me-1"></i> Confirmar Recepción

@@ -75,6 +75,10 @@
                         <li><a class="dropdown-item" href="{% url 'stocks:low_stock' %}">
                             <i class="fas fa-exclamation-triangle text-warning me-1"></i>Stock Bajo
                         </a></li>
+                        <li><a class="dropdown-item" href="{% url 'stocks:vencimientos' %}">
+                            <i class="fas fa-calendar-times text-danger me-1"></i>Vencimientos
+                            {% if vencimientos_count %}<span class="badge bg-danger">{{ vencimientos_count }}</span>{% endif %}
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'stocks:packaging_inventory' %}">
                             <i class="fas fa-boxes-stacked text-info me-1"></i>Empaques
@@ -86,7 +90,7 @@
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'granel:caramelera_list' %}">
-                            <i class="fas fa-candy-cane me-1" style="color:#E91E8C;"></i>Carameleras
+                            <i class="fas fa-scale-balanced me-1" style="color:#E91E8C;"></i>Venta por Peso
                         </a></li>
                         <li><a class="dropdown-item" href="{% url 'granel:deposito_list' %}">
                             <i class="fas fa-warehouse me-1" style="color:#E91E8C;"></i>Depósito de Bultos

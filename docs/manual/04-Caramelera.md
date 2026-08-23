@@ -1,34 +1,33 @@
-# 4. Caramelera (granel)
+# 4. Venta por Peso (granel)
 
-## Qué es la caramelera
+## Qué es un producto fraccionado
 
-Un **frasco/contenedor** donde se mezclan distintas marcas de golosinas que se venden al mismo precio por gramo. Ejemplo: caramelera de "gomitas surtidas" con Mogul, Beldent y marcas blancas adentro.
+Un **contenedor** (fiambre en la fiambrera, queso, dietética a granel, etc) donde se van agregando bultos que se venden todos al mismo precio por gramo. Ejemplo: "Jamón Cocido Fraccionado", donde vas abriendo distintas piezas/paquetes comprados a distintos proveedores o a distinto precio.
 
 Como los costos son distintos pero el precio de venta es único, el sistema usa **costo promedio ponderado** para calcular la ganancia (no FIFO).
 
 ---
 
-## Abrir un paquete hacia la caramelera
+## Abrir un paquete hacia el producto fraccionado
 
 ### Cuándo
-Cada vez que vaciás un bulto nuevo en el frasco.
+Cada vez que abrís una pieza/bulto nuevo (ej: una nueva pata de jamón, una nueva horma de queso).
 
 ### Paso a paso
 
-1. Ir a **Granel → Abrir Paquete**.
+1. Ir a **Inventario → Venta por Peso**, entrar al producto.
 2. Seleccionar:
-   - La **caramelera destino** (frasco físico).
-   - El **producto de depósito** (el bulto cerrado).
+   - El **producto de depósito** (el bulto/pieza cerrada).
    - **Cantidad de paquetes** a abrir.
 3. Confirmar.
 
 ### Qué pasa por atrás
 
 1. Calcula los gramos nuevos: `cantidad_paquetes × weight_per_unit_grams`.
-2. **Recalcula el costo ponderado** de la caramelera (ver sección siguiente).
-3. Suma los gramos al stock de la caramelera.
+2. **Recalcula el costo ponderado** del producto fraccionado (ver sección siguiente).
+3. Suma los gramos al stock del producto fraccionado.
 4. Descuenta el paquete del stock de depósito.
-5. Sincroniza el "producto POS" vinculado a esa caramelera (para que al escanear/buscar aparezcan los gramos actualizados).
+5. Sincroniza el "producto POS" vinculado (para que al escanear/buscar aparezcan los gramos actualizados).
 
 ---
 
@@ -54,21 +53,21 @@ Se calcula a partir del precio de costo del producto de depósito:
 costo_por_gramo_bolsa = cost_price_del_bulto / weight_per_unit_grams
 ```
 
-Ejemplo: bolsa de 500 g que costó $5.000 → $10 por gramo.
+Ejemplo: pieza de jamón cocido de 500 g que costó $5.000 → $10 por gramo.
 
-### Ejemplo con dos bolsas distintas
+### Ejemplo con dos piezas distintas
 
-Caramelera arranca vacía (stock = 0, costo = 0).
+El producto fraccionado arranca vacío (stock = 0, costo = 0).
 
-**Paso 1 — abrís una bolsa de 500 g que costó $5.000:**
+**Paso 1 — abrís una pieza de 500 g que costó $5.000:**
 
-- Costo por gramo de la bolsa: `5.000 / 500 = $10/g`
+- Costo por gramo de la pieza: `5.000 / 500 = $10/g`
 - Como no hay gramos previos, el costo ponderado queda directo en **$10/g**.
-- Caramelera: **500 g a $10/g**.
+- Stock: **500 g a $10/g**.
 
-**Paso 2 — abrís una bolsa de 900 g que costó $13.500:**
+**Paso 2 — abrís una pieza de 900 g que costó $13.500 (otro proveedor, otro precio):**
 
-- Costo por gramo de la bolsa: `13.500 / 900 = $15/g`
+- Costo por gramo de la pieza: `13.500 / 900 = $15/g`
 - Aplicamos la fórmula ponderada:
 
   ```
@@ -78,20 +77,20 @@ Caramelera arranca vacía (stock = 0, costo = 0).
   ```
 
 - Costo ponderado final: **≈ $13,2143/g**.
-- Caramelera: **1.400 g a $13,21/g**.
+- Stock: **1.400 g a $13,21/g**.
 
 ### Cosas clave a entender
 
-- **Pondera por gramos, no por unidades**: una bolsa de 900 g "pesa" más en el promedio que una de 500 g, aunque sea un solo paquete.
-- **Cada apertura recalcula el promedio completo**: los gramos viejos se mezclan con los nuevos y todos pasan a compartir el nuevo costo. No se trackean lotes individuales dentro del frasco (sí se guarda cada apertura en `AperturaBulto` para auditoría histórica).
+- **Pondera por gramos, no por unidades**: una pieza de 900 g "pesa" más en el promedio que una de 500 g, aunque sea una sola pieza.
+- **Cada apertura recalcula el promedio completo**: los gramos viejos se mezclan con los nuevos y todos pasan a compartir el nuevo costo. No se trackean lotes individuales dentro del producto fraccionado (sí se guarda cada apertura en `AperturaBulto` para auditoría histórica).
 - **El POS usa este costo ponderado** para calcular la ganancia de cada venta por peso (`weighted_avg_cost_per_gram` del producto POS).
-- **Las auditorías de peso no tocan el costo ponderado** — solo ajustan gramos (merma/sobrante). Si vendés 200 g después del paso 2, los 1.200 g restantes siguen a $13,21/g; cuando abras otra bolsa, se promedia contra esos 1.200 g × $13,21.
+- **Las auditorías de peso no tocan el costo ponderado** — solo ajustan gramos (merma/sobrante). Si vendés 200 g después del paso 2, los 1.200 g restantes siguen a $13,21/g; cuando abras otra pieza, se promedia contra esos 1.200 g × $13,21.
 
 ---
 
 ## Vender por gramos en el POS
 
-1. En el POS, buscá la caramelera (o escaneá su código asociado).
+1. En el POS, buscá el producto fraccionado (o escaneá su código asociado).
 2. Se abre el modal: ingresá los **gramos** a vender.
 3. El sistema calcula el precio:
    - < 250g → proporcional al precio cada 100g.
@@ -107,18 +106,17 @@ Periódicamente (una vez por semana recomendado) o cuando sospéches diferencias
 
 ### Paso a paso
 
-1. **Pesar físicamente** la caramelera en la balanza.
-2. Ir a **Granel → Auditoría**.
-3. Seleccionar la caramelera.
-4. Ingresar el **peso real en gramos** medido.
-5. (Opcional) Notas: causa probable (humedad, derrame, robo).
-6. Confirmar.
+1. **Pesar físicamente** el producto en la balanza.
+2. Entrar al detalle del producto fraccionado → botón **Auditoría**.
+3. Ingresar el **peso real en gramos** medido.
+4. (Opcional) Notas: causa probable (humedad, derrame, robo).
+5. Confirmar.
 
 ### Qué pasa por atrás
 
 1. Calcula `diferencia = stock_sistema - peso_real`.
 2. Guarda la auditoría con `% merma` y fecha.
-3. **Ajusta automáticamente** el stock de la caramelera al peso real.
-4. Queda registrada en el historial — podés ver todas las auditorías en el detalle de la caramelera.
+3. **Ajusta automáticamente** el stock del producto fraccionado al peso real.
+4. Queda registrada en el historial — podés ver todas las auditorías en el detalle del producto.
 
 Esto te permite detectar robos o desvíos sistemáticos.

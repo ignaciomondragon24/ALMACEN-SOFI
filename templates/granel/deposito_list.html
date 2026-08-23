@@ -14,7 +14,7 @@
     <p class="text-muted small mb-3">
         <i class="fas fa-info-circle me-1"></i>
         Los productos se crean y editan desde el <a href="{% url 'stocks:product_list' %}">Inventario</a>.
-        Activá la opción "Producto para Caramelera" al crear o editar un producto para que aparezca aquí.
+        Activá la opción "Producto para Venta por Peso" al crear o editar un producto para que aparezca aquí.
     </p>
 
     <!-- Búsqueda -->
@@ -39,7 +39,7 @@
         {% if q %}
             No se encontraron productos para "{{ q }}".
         {% else %}
-            No hay productos marcados como "para caramelera" todavía.
+            No hay productos marcados como "para venta por peso" todavía.
             Creá un producto en el inventario y activá la opción correspondiente.
         {% endif %}
     </div>

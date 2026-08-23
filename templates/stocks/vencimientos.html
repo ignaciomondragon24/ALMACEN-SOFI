@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Vencimientos{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="fas fa-calendar-times me-2"></i>Vencimientos
+        </h2>
+        <a href="{% url 'stocks:cost_history' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Volver a Costos
+        </a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm border-start border-danger border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-1">Vencidos</h6>
+                    <h3 class="mb-0 text-danger">{{ buckets.vencido.count }}</h3>
+                    <small class="text-muted">lotes con stock, ya vencidos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-1">Vencen en {{ warn_days }} días o menos</h6>
+                    <h3 class="mb-0 text-warning">{{ buckets.vence_pronto.count }}</h3>
+                    <small class="text-muted">requieren atención pronto</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm border-start border-info border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-1">Vencen en {{ buckets.soon_days }} días o menos</h6>
+                    <h3 class="mb-0 text-info">{{ buckets.proximo.count }}</h3>
+                    <small class="text-muted">a tener en cuenta</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Buscar producto</label>
+                    <input type="text" class="form-control" name="search" value="{{ search }}"
+                           placeholder="Nombre o SKU...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Alerta amarilla desde (días)</label>
+                    <input type="number" class="form-control" name="dias" min="1" value="{{ warn_days }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Entries Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-list me-2"></i>Lotes con Vencimiento Cargado
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Vencimiento</th>
+                            <th>Estado</th>
+                            <th>Producto</th>
+                            <th>Proveedor</th>
+                            <th class="text-end">Disponible</th>
+                            <th>Fecha de Compra</th>
+                            <th>Notas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for batch in batches %}
+                        <tr>
+                            <td class="fw-semibold">{{ batch.expiration_date|date:"d/m/Y" }}</td>
+                            <td>
+                                {% if batch.estado == 'vencido' %}
+                                    <span class="badge bg-danger">Vencido</span>
+                                {% elif batch.estado == 'vence_pronto' %}
+                                    <span class="badge bg-warning text-dark">Vence pronto</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark">Próximo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'stocks:product_costs' batch.product.pk %}">
+                                    {{ batch.product.name|truncatechars:30 }}
+                                </a>
+                            </td>
+                            <td>{{ batch.supplier_name|default:"-" }}</td>
+                            <td class="text-end">{{ batch.quantity_remaining|floatformat:2 }}</td>
+                            <td>{{ batch.purchased_at|date:"d/m/Y" }}</td>
+                            <td><small class="text-muted">{{ batch.notes|truncatechars:40|default:"-" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-check-circle fa-2x mb-2 d-block text-success"></i>
+                                No hay lotes con vencimiento cargado{% if search %} para "{{ search }}"{% endif %}.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        {% if batches.has_other_pages %}
+        <div class="card-footer">
+            {% include 'includes/pagination.html' with page_obj=batches %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

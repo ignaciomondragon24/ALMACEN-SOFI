@@ -329,10 +329,14 @@ def purchase_receive(request, pk):
 
                 # Create stock batch for FIFO tracking (en unidades base, costo base)
                 from datetime import datetime
+                from django.utils.dateparse import parse_date
                 batch_date = (
                     datetime.combine(purchase.received_date, datetime.min.time())
                     if purchase.received_date else timezone.now()
                 )
+                expiration_date = parse_date(
+                    request.POST.get(f'expiration_date_{item.id}', '').strip()
+                ) or None
                 StockBatch.objects.create(
                     product=item.product,
                     purchase=purchase,
@@ -343,6 +347,7 @@ def purchase_receive(request, pk):
                     purchased_at=batch_date,
                     created_by=request.user,
                     notes=f'OC {purchase.order_number} ({ref_detail})',
+                    expiration_date=expiration_date,
                 )
 
                 # Update sale_price si se especificó. El precio del item se

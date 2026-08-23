@@ -41,7 +41,18 @@ def role_context(request):
     is_manager = is_admin
     is_general_manager = is_admin
     is_stock_manager = is_cajero_manager
-    
+
+    vencimientos_count = 0
+    if is_cajero_manager:
+        from datetime import timedelta
+        from django.utils import timezone
+        from stocks.models import StockBatch
+        vencimientos_count = StockBatch.objects.filter(
+            quantity_remaining__gt=0,
+            expiration_date__isnull=False,
+            expiration_date__lte=timezone.localdate() + timedelta(days=7),
+        ).count()
+
     return {
         'user_roles': user_groups,
         'is_admin_user': is_admin,
@@ -69,4 +80,6 @@ def role_context(request):
         'can_price_list': is_cajero_manager,
         'can_signage': is_cajero_manager,
         'can_assistant': is_admin,           # IA solo Admin
+
+        'vencimientos_count': vencimientos_count,
     }

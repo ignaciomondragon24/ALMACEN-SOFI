@@ -29,6 +29,9 @@ urlpatterns = [
     path('costos/', views.cost_history, name='cost_history'),
     path('<int:pk>/costos/', views.cost_history, name='product_costs'),
 
+    # Vencimientos
+    path('vencimientos/', views.vencimientos, name='vencimientos'),
+
     # Reports
     path('low-stock/', views.low_stock_products, name='low_stock'),
     path('price-list/', views.price_list, name='price_list'),

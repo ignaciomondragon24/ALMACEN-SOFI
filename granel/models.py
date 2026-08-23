@@ -21,8 +21,8 @@ from stocks.models import StockBatch  # noqa: F401
 
 class ProductoDeposito(models.Model):
     """
-    Bulto cerrado en depósito: bolsa de gomitas, caja de caramelos, etc.
-    Representa el inventario de origen antes de abrir hacia una caramelera.
+    Bulto cerrado en depósito: paquete de fiambre, bolsa de queso rallado, etc.
+    Representa el inventario de origen antes de abrir hacia un producto fraccionado a granel.
     """
     nombre = models.CharField('Nombre', max_length=200)
     marca = models.CharField('Marca', max_length=200, blank=True)
@@ -68,8 +68,8 @@ class ProductoDeposito(models.Model):
 
 class Caramelera(models.Model):
     """
-    Contenedor de golosinas mezcladas. Mantiene su propio stock en gramos
-    y el costo ponderado que se recalcula en cada apertura de bulto.
+    Contenedor de un producto fraccionado a granel (fiambre, queso, dietética, golosinas, etc).
+    Mantiene su propio stock en gramos y el costo ponderado que se recalcula en cada apertura de bulto.
     """
     nombre = models.CharField('Nombre', max_length=200)
     productos_autorizados = models.ManyToManyField(
@@ -77,7 +77,7 @@ class Caramelera(models.Model):
         blank=True,
         limit_choices_to={'es_deposito_caramelera': True},
         verbose_name='Productos Autorizados',
-        help_text='Productos del inventario marcados como "para caramelera" que pueden entrar en este mix'
+        help_text='Productos del inventario marcados como "para venta por peso" que pueden entrar en este mix'
     )
     precio_100g = models.DecimalField(
         'Precio por 100g ($)',

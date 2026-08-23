@@ -124,7 +124,21 @@ def dashboard_view(request):
         ).count()
         context['total_products'] = Product.objects.filter(is_active=True).count()
         context['total_categories'] = ProductCategory.objects.filter(is_active=True).count()
-    
+
+        # Lotes por vencer / vencidos
+        from stocks.models import StockBatch
+        from stocks.services import expiration_buckets
+        expiring_qs = StockBatch.objects.filter(
+            quantity_remaining__gt=0, expiration_date__isnull=False
+        )
+        expiring_batches = expiration_buckets(expiring_qs)
+        context['expiring_batches'] = expiring_batches
+        context['expiring_batches_total'] = (
+            expiring_batches['vencido']['count']
+            + expiring_batches['vence_pronto']['count']
+            + expiring_batches['proximo']['count']
+        )
+
     # === PERDIDAS DEL MES (merma/vencido/robo/otro) ===
     # Visible para roles de gestion: muestran el impacto real de ajustes de
     # salida en el negocio. Clasificacion por keywords en la nota — sin migracion.

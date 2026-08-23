@@ -95,9 +95,10 @@ class PurchaseReceiveAuditWithPackagingTests(TestCase):
             )
         return purchase
 
-    def _receive(self, purchase):
+    def _receive(self, purchase, data=None):
         return self.client.post(
-            reverse('purchase:purchase_receive', args=[purchase.pk])
+            reverse('purchase:purchase_receive', args=[purchase.pk]),
+            data=data or {},
         )
 
     # ---------- DISPLAY ----------
@@ -153,6 +154,31 @@ class PurchaseReceiveAuditWithPackagingTests(TestCase):
         ).first()
         self.assertEqual(mov.quantity, Decimal('60'))
         self.assertEqual(mov.unit_cost, Decimal('50'))
+
+    # ---------- VENCIMIENTO (opcional) ----------
+
+    def test_recibir_sin_vencimiento_no_rompe_nada(self):
+        """Si no se carga fecha de vencimiento, el batch se crea igual con expiration_date=None."""
+        product, unit, display, bulk = self._make_product_with_pkgs()
+        purchase = self._create_oc([{
+            'product': product, 'packaging': display,
+            'quantity': 5, 'unit_cost': Decimal('300'),
+        }])
+        self._receive(purchase)
+        batch = StockBatch.objects.get(product=product, purchase=purchase)
+        self.assertIsNone(batch.expiration_date)
+
+    def test_recibir_con_vencimiento_lo_guarda_en_el_batch(self):
+        """La fecha de vencimiento cargada en el form de recepción queda en el StockBatch."""
+        product, unit, display, bulk = self._make_product_with_pkgs()
+        purchase = self._create_oc([{
+            'product': product, 'packaging': display,
+            'quantity': 5, 'unit_cost': Decimal('300'),
+        }])
+        item = purchase.items.first()
+        self._receive(purchase, data={f'expiration_date_{item.id}': '2026-12-31'})
+        batch = StockBatch.objects.get(product=product, purchase=purchase)
+        self.assertEqual(str(batch.expiration_date), '2026-12-31')
 
     # ---------- BULK ----------
 

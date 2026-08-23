@@ -282,7 +282,7 @@ class Product(models.Model):
     allow_sell_by_amount = models.BooleanField(
         'Permite Venta por Monto',
         default=False,
-        help_text='Permite ingresar "$500 de gomitas" y calcular la cantidad'
+        help_text='Permite ingresar "$500 de producto" y calcular la cantidad'
     )
     bulk_unit = models.CharField(
         'Unidad de Granel',
@@ -301,7 +301,7 @@ class Product(models.Model):
     is_granel = models.BooleanField(
         'Producto Comodín Granel',
         default=False,
-        help_text='Producto comodín que recibe stock de bultos abiertos (ej: Gomitas Surtidas)'
+        help_text='Producto comodín que recibe stock de bultos abiertos (ej: Jamón Cocido Fraccionado)'
     )
     granel_price_weight_grams = models.PositiveIntegerField(
         'Precio por X gramos',
@@ -324,17 +324,17 @@ class Product(models.Model):
         help_text='Para bultos: gramos que contiene cada unidad (ej: 2000 para bolsa de 2kg)'
     )
 
-    # Caramelera deposit product
+    # Deposit product for weight-based sale (granel)
     es_deposito_caramelera = models.BooleanField(
-        'Es producto para caramelera',
+        'Es producto para venta por peso',
         default=False,
-        help_text='Marca este producto como un bulto que puede abrirse en una caramelera'
+        help_text='Marca este producto como un bulto que puede abrirse hacia un producto fraccionado a granel'
     )
     marca = models.CharField(
         'Marca',
         max_length=200,
         blank=True,
-        help_text='Marca del producto (útil para diferenciar bultos en carameleras)'
+        help_text='Marca del producto (útil para diferenciar bultos en la venta por peso)'
     )
 
     granel_caramelera = models.ForeignKey(
@@ -760,6 +760,12 @@ class StockBatch(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField('Notas', blank=True)
+    expiration_date = models.DateField(
+        'Fecha de Vencimiento',
+        null=True,
+        blank=True,
+        help_text='Opcional. Si el producto no vence, dejar en blanco.'
+    )
 
     class Meta:
         verbose_name = 'Lote de Stock'
