@@ -65,6 +65,7 @@ class Command(BaseCommand):
             {'code': 'transfer', 'name': 'Transferencia', 'is_cash': False, 'icon': 'fas fa-building-columns', 'position': 4},
             {'code': 'mercadopago', 'name': 'MercadoPago QR', 'is_cash': False, 'icon': 'fas fa-qrcode', 'position': 5},
             {'code': 'tarjeta_mp', 'name': 'Tarjeta (Point)', 'is_cash': False, 'icon': 'fas fa-credit-card', 'position': 6},
+            {'code': 'cuenta_dni', 'name': 'Cuenta DNI', 'is_cash': False, 'icon': 'fas fa-qrcode', 'color': '#00A99D', 'position': 7},
         ]
         
         for method_data in methods:
