@@ -1,5 +1,5 @@
 /**
- * ALMACÉN - Print Nesting Manager
+ * Lo de Josefina - Print Nesting Manager
  * Optimizes placement of multiple signs on a single paper sheet.
  */
 

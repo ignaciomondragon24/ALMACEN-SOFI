@@ -46,13 +46,13 @@ body {
 }
 .cover h1 {
     font-size: 42pt;
-    color: #6B8F71;
+    color: #C33287;
     margin: 0 0 10pt 0;
     border: 0;
 }
 .cover .sub {
     font-size: 16pt;
-    color: #4A3F35;
+    color: #7134B6;
     margin-bottom: 30pt;
 }
 .cover .meta {
@@ -61,22 +61,22 @@ body {
     margin-top: 2cm;
 }
 h1 {
-    color: #6B8F71;
+    color: #C33287;
     font-size: 22pt;
-    border-bottom: 2pt solid #6B8F71;
+    border-bottom: 2pt solid #C33287;
     padding-bottom: 4pt;
     margin-top: 0;
     -pdf-keep-with-next: true;
 }
 h2 {
-    color: #4A3F35;
+    color: #7134B6;
     font-size: 15pt;
     margin-top: 18pt;
     margin-bottom: 6pt;
     -pdf-keep-with-next: true;
 }
 h3 {
-    color: #4A3F35;
+    color: #7134B6;
     font-size: 12pt;
     margin-top: 12pt;
     margin-bottom: 4pt;
@@ -85,7 +85,7 @@ h3 {
 p { margin: 4pt 0 8pt 0; }
 ul, ol { margin: 4pt 0 10pt 16pt; }
 li { margin-bottom: 3pt; }
-strong { color: #4A3F35; }
+strong { color: #7134B6; }
 code {
     font-family: Courier, monospace;
     background: #f4f4f8;
@@ -96,11 +96,11 @@ code {
 }
 pre {
     background: #f4f4f8;
-    border-left: 3pt solid #6B8F71;
+    border-left: 3pt solid #C33287;
     padding: 8pt 10pt;
     font-family: Courier, monospace;
     font-size: 9.5pt;
-    color: #4A3F35;
+    color: #7134B6;
     margin: 8pt 0;
     white-space: pre-wrap;
 }
@@ -109,7 +109,7 @@ hr {
     border-top: 1pt solid #ddd;
     margin: 14pt 0;
 }
-a { color: #6B8F71; text-decoration: none; }
+a { color: #C33287; text-decoration: none; }
 .page-break { page-break-before: always; }
 .footer {
     text-align: center;
@@ -118,7 +118,7 @@ a { color: #6B8F71; text-decoration: none; }
 }
 .tag-regla {
     background: #fff3e0;
-    border-left: 3pt solid #C99A5B;
+    border-left: 3pt solid #F5D050;
     padding: 6pt 10pt;
     margin: 6pt 0;
     font-size: 10pt;
@@ -151,7 +151,7 @@ def build_html() -> str:
     # Portada
     sections_html.append("""
     <div class="cover">
-        <h1>CHE GOLOSO</h1>
+        <h1>LO DE JOSEFINA</h1>
         <div class="sub">Manual de uso del sistema</div>
         <div class="meta">Guía práctica para el equipo del kiosco<br/>Versión Abril 2026</div>
     </div>
@@ -169,7 +169,7 @@ def build_html() -> str:
             sections_html.append('<div class="page-break"></div>')
 
     body = '\n'.join(sections_html)
-    footer = '<div id="footerContent" class="footer">Manual CHE GOLOSO · página <pdf:pagenumber/></div>'
+    footer = '<div id="footerContent" class="footer">Manual LO DE JOSEFINA · página <pdf:pagenumber/></div>'
 
     return f"""<!DOCTYPE html>
 <html>

@@ -2,19 +2,19 @@
 {% load currency_filters %}
 {% load static %}
 
-{% block title %}Dashboard - Almacén{% endblock %}
+{% block title %}Dashboard - Lo de Josefina{% endblock %}
 
 {% block extra_css %}
 <style>
     .welcome-header {
-        background: linear-gradient(135deg, #6B8F71, #4A3F35);
+        background: linear-gradient(135deg, #C33287, #7134B6);
         border-radius: 1rem;
         padding: 2rem;
         margin-bottom: 2rem;
         color: white;
     }
     .welcome-header .logo-small {
-        font-size: 2.5rem;
+        height: 60px;
         margin-right: 1rem;
     }
     .quick-action-card {
@@ -42,20 +42,20 @@
         overflow: hidden;
     }
     .stats-card.pink {
-        background: linear-gradient(135deg, #6B8F71, #587A5E);
+        background: linear-gradient(135deg, #C33287, #9C2870);
         color: white;
     }
     .stats-card.yellow {
-        background: linear-gradient(135deg, #C99A5B, #E8CFA0);
-        color: #4A3F35;
+        background: linear-gradient(135deg, #F5D050, #FFE580);
+        color: #7134B6;
     }
     .stats-card.purple {
-        background: linear-gradient(135deg, #4A3F35, #5C4F42);
+        background: linear-gradient(135deg, #7134B6, #8B4FC9);
         color: white;
     }
-    .badge-admin { background: linear-gradient(135deg, #6B8F71, #587A5E); }
-    .badge-manager { background: linear-gradient(135deg, #C99A5B, #E8CFA0); color: #4A3F35; }
-    .badge-stock { background: linear-gradient(135deg, #4A3F35, #5C4F42); }
+    .badge-admin { background: linear-gradient(135deg, #C33287, #9C2870); }
+    .badge-manager { background: linear-gradient(135deg, #F5D050, #FFE580); color: #7134B6; }
+    .badge-stock { background: linear-gradient(135deg, #7134B6, #8B4FC9); }
     .badge-cashier { background: linear-gradient(135deg, #198754, #20c997); }
 </style>
 {% endblock %}
@@ -64,7 +64,7 @@
 <div class="container-fluid py-4">
     <!-- Welcome Header -->
     <div class="welcome-header d-flex align-items-center">
-        <i class="fas fa-store logo-small"></i>
+        <img src="{% static 'img/logo.png' %}" alt="Lo de Josefina" class="logo-small">
         <div>
             <h2 class="mb-1">¡Hola, {{ user.get_full_name|default:user.username }}!</h2>
             <p class="mb-0 opacity-75">
@@ -141,7 +141,7 @@
         
         {% if can_pos %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'pos:pos_main' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #6B8F71, #587A5E);">
+            <a href="{% url 'pos:pos_main' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #C33287, #9C2870);">
                 <div class="card-body text-center text-white">
                     <i class="fas fa-cash-register fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">POS</h6>
@@ -152,7 +152,7 @@
         
         {% if can_stocks %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'stocks:product_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #4A3F35, #5C4F42);">
+            <a href="{% url 'stocks:product_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #7134B6, #8B4FC9);">
                 <div class="card-body text-center text-white">
                     <i class="fas fa-boxes fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Productos</h6>
@@ -163,8 +163,8 @@
         
         {% if can_promotions %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'promotions:promotion_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #C99A5B, #E8CFA0);">
-                <div class="card-body text-center" style="color: #4A3F35;">
+            <a href="{% url 'promotions:promotion_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #F5D050, #FFE580);">
+                <div class="card-body text-center" style="color: #7134B6;">
                     <i class="fas fa-tags fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Promociones</h6>
                 </div>
@@ -174,7 +174,7 @@
         
         {% if can_signage %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'signage:template_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #6B8F71, #C99A5B);">
+            <a href="{% url 'signage:template_list' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #C33287, #F5D050);">
                 <div class="card-body text-center text-white">
                     <i class="fas fa-paint-brush fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Cartelería</h6>
@@ -185,7 +185,7 @@
         
         {% if can_reports %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <a href="{% url 'sales:dashboard' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #6B8F71, #4A3F35);">
+            <a href="{% url 'sales:dashboard' %}" class="card quick-action-card text-decoration-none h-100 shadow-sm" style="background: linear-gradient(135deg, #C33287, #7134B6);">
                 <div class="card-body text-center text-white">
                     <i class="fas fa-chart-bar fa-2x mb-2"></i>
                     <h6 class="card-title mb-0">Reportes</h6>

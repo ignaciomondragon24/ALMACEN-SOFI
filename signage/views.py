@@ -22,9 +22,9 @@ def template_list(request):
 
     # Agrupar por tipo
     type_meta = {
-        'simple': {'icon': 'fa-tag', 'color': '#4A3F35'},
-        'promo': {'icon': 'fa-fire', 'color': '#6B8F71'},
-        'bulk': {'icon': 'fa-box', 'color': '#C99A5B'},
+        'simple': {'icon': 'fa-tag', 'color': '#7134B6'},
+        'promo': {'icon': 'fa-fire', 'color': '#C33287'},
+        'bulk': {'icon': 'fa-box', 'color': '#F5D050'},
         'weight': {'icon': 'fa-balance-scale', 'color': '#28a745'},
     }
 

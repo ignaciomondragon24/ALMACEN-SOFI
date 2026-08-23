@@ -2,8 +2,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark navbar-che">
     <div class="container-fluid">
         <a class="navbar-brand logo-animated" href="{% url 'accounts:dashboard' %}">
-            <i class="fas fa-store d-inline-block"></i>
-            <span class="navbar-brand-text d-none d-md-inline">ALMACÉN</span>
+            <img src="{% static 'img/logo.png' %}" alt="Lo de Josefina" class="d-inline-block">
         </a>
         
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -90,10 +89,10 @@
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'granel:caramelera_list' %}">
-                            <i class="fas fa-scale-balanced me-1" style="color:#6B8F71;"></i>Venta por Peso
+                            <i class="fas fa-scale-balanced me-1" style="color:#C33287;"></i>Venta por Peso
                         </a></li>
                         <li><a class="dropdown-item" href="{% url 'granel:deposito_list' %}">
-                            <i class="fas fa-warehouse me-1" style="color:#6B8F71;"></i>Depósito de Bultos
+                            <i class="fas fa-warehouse me-1" style="color:#C33287;"></i>Depósito de Bultos
                         </a></li>
                     </ul>
                 </li>

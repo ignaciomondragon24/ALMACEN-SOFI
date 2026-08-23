@@ -1,5 +1,5 @@
 /**
- * ALMACÉN - Sign Renderer
+ * Lo de Josefina - Sign Renderer
  * Renders sign templates with product data and text auto-scaling.
  * Used by: designer preview, generate preview, print preview.
  */
@@ -109,7 +109,7 @@ class SignRenderer {
     }
 
     _renderShapeElement(div, el, px) {
-        div.style.backgroundColor = el.backgroundColor || '#6B8F71';
+        div.style.backgroundColor = el.backgroundColor || '#C33287';
         if (el.borderWidth && el.borderWidth > 0) {
             div.style.border = (el.borderWidth * px) + 'px solid ' + (el.borderColor || '#000');
         }

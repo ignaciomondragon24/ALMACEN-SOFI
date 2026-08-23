@@ -2,14 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Imprimir Carteles - ALMACÉN</title>
+    <title>Imprimir Carteles - Lo de Josefina</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #e8e8e8; font-family: Arial, sans-serif; }
 
         .print-controls {
             position: fixed; top: 0; left: 0; right: 0;
-            background: #4A3F35; color: white; padding: 10px 20px;
+            background: #7134B6; color: white; padding: 10px 20px;
             display: flex; justify-content: space-between; align-items: center;
             z-index: 1000;
         }
@@ -68,7 +68,7 @@
 </head>
 <body>
     <div class="print-controls" id="printControls">
-        <span id="nestingLabel">Vista de Impresión - ALMACÉN</span>
+        <span id="nestingLabel">Vista de Impresión - Lo de Josefina</span>
         <div style="display: flex; gap: 10px;">
             <button class="btn-close-print" onclick="window.close()">Cerrar</button>
             <button class="btn-print" onclick="window.print()">
@@ -259,7 +259,7 @@
                     div.appendChild(span);
                 }
             } else if (el.type === 'shape') {
-                div.style.backgroundColor = el.backgroundColor || '#6B8F71';
+                div.style.backgroundColor = el.backgroundColor || '#C33287';
                 if (el.borderWidth > 0) {
                     div.style.border = el.borderWidth + 'mm solid ' + (el.borderColor || '#000');
                 }

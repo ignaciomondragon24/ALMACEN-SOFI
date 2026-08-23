@@ -1,4 +1,4 @@
-/* ALMACÉN - Dark Mode */
+/* Lo de Josefina - Dark Mode */
 
 [data-theme="dark"] {
     --dm-bg: #1a1a2e;
@@ -10,7 +10,7 @@
     --dm-text: #e8e8f0;
     --dm-text-muted: #9a9ab0;
     --dm-text-heading: #f0f0ff;
-    --dm-table-hover: rgba(107, 143, 113, 0.08);
+    --dm-table-hover: rgba(195, 50, 135, 0.08);
     --dm-table-stripe: rgba(255,255,255,0.02);
     --dm-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
@@ -102,7 +102,7 @@
 }
 
 [data-theme="dark"] .table thead:not(.table-light):not(.table-dark) {
-    background: linear-gradient(135deg, #4A3F35, #5C4F42) !important;
+    background: linear-gradient(135deg, #7134B6, #8B4FC9) !important;
 }
 
 [data-theme="dark"] .table thead:not(.table-light):not(.table-dark) th {
@@ -124,7 +124,7 @@
 
 [data-theme="dark"] .table-active,
 [data-theme="dark"] .table-active > * {
-    background-color: rgba(107, 143, 113, 0.12) !important;
+    background-color: rgba(195, 50, 135, 0.12) !important;
     color: var(--dm-text) !important;
 }
 
@@ -149,7 +149,7 @@
     background-color: #1a2540 !important;
     border-color: var(--che-pink) !important;
     color: var(--dm-text) !important;
-    box-shadow: 0 0 0 0.25rem rgba(107, 143, 113, 0.25) !important;
+    box-shadow: 0 0 0 0.25rem rgba(195, 50, 135, 0.25) !important;
 }
 
 [data-theme="dark"] .form-control:disabled,
@@ -190,7 +190,7 @@
 
 [data-theme="dark"] .dropdown-item:hover,
 [data-theme="dark"] .dropdown-item:focus {
-    background-color: rgba(107, 143, 113, 0.12) !important;
+    background-color: rgba(195, 50, 135, 0.12) !important;
     color: #f472b6 !important;
 }
 
@@ -227,9 +227,9 @@
 }
 
 [data-theme="dark"] .alert-warning {
-    background-color: rgba(201, 154, 91, 0.1) !important;
+    background-color: rgba(245, 208, 80, 0.1) !important;
     color: #fde68a !important;
-    border-color: rgba(201, 154, 91, 0.2) !important;
+    border-color: rgba(245, 208, 80, 0.2) !important;
 }
 
 [data-theme="dark"] .alert-danger {
@@ -252,7 +252,7 @@
 }
 
 [data-theme="dark"] .page-link:hover {
-    background-color: rgba(107, 143, 113, 0.15) !important;
+    background-color: rgba(195, 50, 135, 0.15) !important;
     color: #f472b6 !important;
 }
 
@@ -322,7 +322,7 @@
 }
 
 [data-theme="dark"] .sidebar .nav-link:hover {
-    background-color: rgba(107, 143, 113, 0.1) !important;
+    background-color: rgba(195, 50, 135, 0.1) !important;
 }
 
 /* ─── Buttons outline ──────────────────────────────── */
@@ -381,7 +381,7 @@
 }
 
 [data-theme="dark"] .list-group-item:hover {
-    background-color: rgba(107, 143, 113, 0.06) !important;
+    background-color: rgba(195, 50, 135, 0.06) !important;
 }
 
 /* ─── Nav tabs/pills ───────────────────────────────── */
@@ -411,7 +411,7 @@
 }
 
 [data-theme="dark"] .accordion-button:not(.collapsed) {
-    background-color: rgba(107, 143, 113, 0.1) !important;
+    background-color: rgba(195, 50, 135, 0.1) !important;
     color: #f472b6 !important;
 }
 

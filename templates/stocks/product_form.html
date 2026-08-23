@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load crispy_forms_tags currency_filters %}
 
-{% block title %}{{ title }} - ALMACÉN{% endblock %}
+{% block title %}{{ title }} - Lo de Josefina{% endblock %}
 
 {% block content %}
 <div class="container py-4">
@@ -171,7 +171,7 @@
                         
                         <hr class="my-4">
                         <h6 class="text-muted mb-3">
-                            <i class="fas fa-warehouse me-2" style="color:#6B8F71;"></i>Depósito para Caramelera
+                            <i class="fas fa-warehouse me-2" style="color:#C33287;"></i>Depósito para Caramelera
                         </h6>
                         <div class="row">
                             <div class="col-md-6">
@@ -255,7 +255,7 @@
                         {% if product %}
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6 class="text-muted mb-0"><i class="fas fa-boxes-stacked me-2"></i>Empaques</h6>
-                            <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn btn-sm" style="background:#6B8F71;color:#fff;">
+                            <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn btn-sm" style="background:#C33287;color:#fff;">
                                 <i class="fas fa-arrow-right me-1"></i>Gestionar Empaques
                             </a>
                         </div>

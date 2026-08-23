@@ -605,9 +605,9 @@ def export_excel(request):
     )
 
     # --- style helpers ---
-    C_PURPLE = '#4A3F35'
-    C_PINK   = '#6B8F71'
-    C_YELLOW = '#C99A5B'
+    C_PURPLE = '#7134B6'
+    C_PINK   = '#C33287'
+    C_YELLOW = '#F5D050'
     C_LGRAY  = 'F2F2F2'
     C_WHITE  = 'FFFFFF'
 
@@ -652,7 +652,7 @@ def export_excel(request):
 
     ws1.merge_cells('A1:C1')
     c = ws1['A1']
-    c.value = 'REPORTE DE VENTAS — CHE GOLOSO'
+    c.value = 'REPORTE DE VENTAS — LO DE JOSEFINA'
     c.font = Font(bold=True, size=15, color=C_WHITE)
     c.fill = fill(C_PURPLE)
     c.alignment = Alignment(horizontal='center', vertical='center')
@@ -932,8 +932,8 @@ def export_pdf(request):
     )
 
     # --- helpers ---
-    PURPLE   = colors.HexColor('#4A3F35')
-    PINK     = colors.HexColor('#6B8F71')
+    PURPLE   = colors.HexColor('#7134B6')
+    PINK     = colors.HexColor('#C33287')
     LGRAY    = colors.HexColor('#F2F2F2')
     WHITE    = colors.white
     DARK     = colors.HexColor('#1A1A2E')
@@ -984,7 +984,7 @@ def export_pdf(request):
     elements = []
 
     # Title block
-    title_data = [['REPORTE DE VENTAS — CHE GOLOSO']]
+    title_data = [['REPORTE DE VENTAS — LO DE JOSEFINA']]
     title_tbl = Table(title_data, colWidths=[W])
     title_tbl.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, -1), PURPLE),

@@ -1,24 +1,24 @@
-/* ALMACÉN - Main Styles */
+/* LO DE JOSEFINA - Main Styles */
 
 /* Variables */
 :root {
-    --primary-color: #6B8F71;
-    --secondary-color: #4A3F35;
+    --primary-color: #C33287;
+    --secondary-color: #7134B6;
     --success-color: #198754;
     --danger-color: #dc3545;
-    --warning-color: #C99A5B;
+    --warning-color: #F5D050;
     --info-color: #0dcaf0;
     --light-color: #f8f9fa;
-    --dark-color: #4A3F35;
+    --dark-color: #7134B6;
 
-    /* Almacén Brand Colors */
-    --che-primary: #6B8F71;
-    --che-secondary: #C99A5B;
-    --che-accent: #4A3F35;
-    --che-pink: #6B8F71;
-    --che-yellow: #C99A5B;
-    --che-purple: #4A3F35;
-    --che-bg: #F6F1E7;
+    /* Lo de Josefina Brand Colors */
+    --che-primary: #C33287;
+    --che-secondary: #F5D050;
+    --che-accent: #7134B6;
+    --che-pink: #C33287;
+    --che-yellow: #F5D050;
+    --che-purple: #7134B6;
+    --che-bg: #F8F6FB;
 
     /* Typography */
     --font-display: 'Fredoka', sans-serif;  /* Títulos, precios, botones */
@@ -27,10 +27,10 @@
 }
 
 .link-che-accent {
-    color: var(--che-accent, #4A3F35);
+    color: var(--che-accent, #7134B6);
 }
 .link-che-accent:hover {
-    color: var(--che-primary, #6B8F71);
+    color: var(--che-primary, #C33287);
 }
 
 /* General Styles */
@@ -38,7 +38,7 @@ body {
     font-family: var(--font-body);
     min-height: 100vh;
     font-weight: 500;
-    background-color: var(--che-bg, #F6F1E7);
+    background-color: var(--che-bg, #F8F6FB);
 }
 
 /* Typography Classes */
@@ -102,7 +102,7 @@ a.card {
 .form-control:focus,
 .form-select:focus {
     border-color: var(--che-pink);
-    box-shadow: 0 0 0 0.25rem rgba(107, 143, 113, 0.25);
+    box-shadow: 0 0 0 0.25rem rgba(195, 50, 135, 0.25);
 }
 
 /* Alerts */
@@ -267,12 +267,12 @@ a.card {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #6B8F71, #4A3F35);
+    background: linear-gradient(180deg, #C33287, #7134B6);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #6B8F71;
+    background: #C33287;
 }
 
 /* Toast Notifications */
@@ -322,7 +322,7 @@ a.card {
     font-weight: 500;
 }
 /* ============================================
-   ALMACÉN BRAND STYLES
+   Lo de Josefina BRAND STYLES
    ============================================ */
 
 /* Brand Colors Utilities */
@@ -339,23 +339,23 @@ a.card {
 }
 
 .bg-gradient-che-yellow {
-    background: linear-gradient(135deg, var(--che-yellow), #E8CFA0) !important;
+    background: linear-gradient(135deg, var(--che-yellow), #FFE580) !important;
 }
 
 /* Primary Button Override */
 .btn-primary {
-    background: linear-gradient(135deg, var(--che-pink), #587A5E);
+    background: linear-gradient(135deg, var(--che-pink), #9C2870);
     border: none;
     color: white;
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #587A5E, var(--che-purple));
+    background: linear-gradient(135deg, #9C2870, var(--che-purple));
     color: white;
 }
 
 .btn-primary:focus {
-    box-shadow: 0 0 0 0.25rem rgba(107, 143, 113, 0.5);
+    box-shadow: 0 0 0 0.25rem rgba(195, 50, 135, 0.5);
 }
 
 .btn-outline-primary {
@@ -371,7 +371,7 @@ a.card {
 
 /* Warning Button (Yellow) */
 .btn-warning {
-    background: linear-gradient(135deg, var(--che-yellow), #E8CFA0);
+    background: linear-gradient(135deg, var(--che-yellow), #FFE580);
     border: none;
     color: var(--che-purple);
 }
@@ -389,13 +389,8 @@ a.card {
 }
 
 .navbar-brand img {
-    height: 40px;
+    height: 44px;
     width: auto;
-}
-
-.navbar-brand i {
-    font-size: 1.6rem;
-    margin-right: 0.4rem;
 }
 
 .navbar-brand-text {
@@ -430,17 +425,17 @@ a.card {
 
 /* Dashboard Cards with Brand Colors */
 .dashboard-card.card-pink {
-    background: linear-gradient(135deg, var(--che-pink), #587A5E);
+    background: linear-gradient(135deg, var(--che-pink), #9C2870);
     color: white;
 }
 
 .dashboard-card.card-yellow {
-    background: linear-gradient(135deg, var(--che-yellow), #E8CFA0);
+    background: linear-gradient(135deg, var(--che-yellow), #FFE580);
     color: var(--che-purple);
 }
 
 .dashboard-card.card-purple {
-    background: linear-gradient(135deg, var(--che-purple), #5C4F42);
+    background: linear-gradient(135deg, var(--che-purple), #8B4FC9);
     color: white;
 }
 
@@ -490,7 +485,7 @@ a:hover {
 
 /* Table Styles with Brand Colors */
 .table thead:not(.table-light):not(.table-dark) {
-    background: linear-gradient(135deg, #4A3F35, #5C4F42);
+    background: linear-gradient(135deg, #7134B6, #8B4FC9);
     color: white;
 }
 
@@ -503,7 +498,7 @@ a:hover {
 }
 
 .table-hover tbody tr:hover {
-    background-color: rgba(107, 143, 113, 0.1);
+    background-color: rgba(195, 50, 135, 0.1);
 }
 
 /* Pagination */
@@ -512,7 +507,7 @@ a:hover {
     border-color: var(--che-pink);
     color: #fff;
     font-weight: 700;
-    box-shadow: 0 2px 6px rgba(107, 143, 113, 0.35);
+    box-shadow: 0 2px 6px rgba(195, 50, 135, 0.35);
 }
 
 .page-link {
@@ -521,7 +516,7 @@ a:hover {
 
 .page-link:hover {
     color: var(--che-purple);
-    background-color: rgba(107, 143, 113, 0.1);
+    background-color: rgba(195, 50, 135, 0.1);
 }
 
 /* Smart pagination — flechas prominentes y wrap en lugar de overflow horizontal */
@@ -553,9 +548,9 @@ a:hover {
 }
 .pagination-smart .page-item.disabled:first-child .page-link,
 .pagination-smart .page-item.disabled:last-child .page-link {
-    background: rgba(107, 143, 113, 0.25);
+    background: rgba(195, 50, 135, 0.25);
     color: #fff;
-    border-color: rgba(107, 143, 113, 0.25);
+    border-color: rgba(195, 50, 135, 0.25);
     cursor: not-allowed;
 }
 
@@ -572,7 +567,7 @@ a:hover {
 /* Dropdown Menu */
 .dropdown-item:hover,
 .dropdown-item:focus {
-    background-color: rgba(107, 143, 113, 0.1);
+    background-color: rgba(195, 50, 135, 0.1);
     color: var(--che-pink);
 }
 
@@ -596,7 +591,7 @@ a:hover {
 
 /* Badge Variants */
 .badge.bg-primary {
-    background: linear-gradient(135deg, var(--che-pink), #587A5E) !important;
+    background: linear-gradient(135deg, var(--che-pink), #9C2870) !important;
 }
 
 /* Nav Pills */
@@ -612,7 +607,7 @@ a:hover {
 
 .form-check-input:focus {
     border-color: var(--che-pink);
-    box-shadow: 0 0 0 0.2rem rgba(107, 143, 113, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(195, 50, 135, 0.25);
 }
 
 /* Success States with Brand */

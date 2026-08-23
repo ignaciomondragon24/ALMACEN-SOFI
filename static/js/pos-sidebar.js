@@ -1,4 +1,4 @@
-/* ALMACÉN - POS Sidebar: shortcuts, quick pay, products, history */
+/* Lo de Josefina - POS Sidebar: shortcuts, quick pay, products, history */
 (function () {
     'use strict';
 
@@ -296,7 +296,7 @@
             products.slice(0, 50).forEach(p => {
                 const stockColor = p.stock <= 0 ? '#e74c3c' : p.stock <= 5 ? '#f0c040' : '#2ecc71';
                 const starClass = p.is_quick ? 'fas' : 'far';
-                const starColor = p.is_quick ? '#C99A5B' : '#555';
+                const starColor = p.is_quick ? '#F5D050' : '#555';
                 const hasBarcode = !!p.barcode;
                 // SKU badge: prominent for products without barcode
                 const codeBadge = hasBarcode

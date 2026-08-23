@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Iniciar Sesión - Almacén{% endblock %}
+{% block title %}Iniciar Sesión - Lo de Josefina{% endblock %}
 
 {% block navbar %}{% endblock %}
 
@@ -10,7 +10,7 @@
 {% block extra_css %}
 <style>
     body {
-        background: linear-gradient(135deg, #6B8F71 0%, #4A3F35 100%);
+        background: linear-gradient(135deg, #C33287 0%, #7134B6 100%);
         min-height: 100vh;
     }
     .login-card {
@@ -20,29 +20,27 @@
         box-shadow: 0 10px 40px rgba(0,0,0,0.3);
     }
     .login-header {
-        background: linear-gradient(135deg, #C99A5B 0%, #E8CFA0 100%);
+        background: linear-gradient(135deg, #F5D050 0%, #FFE580 100%);
         padding: 2rem;
         text-align: center;
     }
     .login-logo {
-        font-size: 3rem;
-        color: #4A3F35;
+        max-width: 140px;
         margin-bottom: 0.5rem;
-        display: block;
     }
     .login-title {
-        color: #4A3F35;
+        color: #7134B6;
         font-family: var(--font-display);
         font-weight: 700;
         margin: 0;
     }
     .login-subtitle {
-        color: #4A3F35;
+        color: #7134B6;
         opacity: 0.8;
         margin: 0;
     }
     .input-group-text {
-        background: #6B8F71;
+        background: #C33287;
         border: none;
         color: white;
     }
@@ -50,20 +48,20 @@
         border: 2px solid #eee;
     }
     .form-control:focus {
-        border-color: #6B8F71;
-        box-shadow: 0 0 0 0.2rem rgba(107, 143, 113, 0.25);
+        border-color: #C33287;
+        box-shadow: 0 0 0 0.2rem rgba(195, 50, 135, 0.25);
     }
     .btn-login {
-        background: linear-gradient(135deg, #6B8F71, #4A3F35);
+        background: linear-gradient(135deg, #C33287, #7134B6);
         border: none;
         font-family: var(--font-display);
         font-weight: 600;
         letter-spacing: 0.5px;
     }
     .btn-login:hover {
-        background: linear-gradient(135deg, #4A3F35, #6B8F71);
+        background: linear-gradient(135deg, #7134B6, #C33287);
         transform: translateY(-2px);
-        box-shadow: 0 5px 20px rgba(107, 143, 113, 0.4);
+        box-shadow: 0 5px 20px rgba(195, 50, 135, 0.4);
     }
 </style>
 {% endblock %}
@@ -74,8 +72,7 @@
         <div class="col-md-6 col-lg-4">
             <div class="card login-card">
                 <div class="login-header">
-                    <i class="fas fa-store login-logo"></i>
-                    <h2 class="login-title">ALMACÉN</h2>
+                    <img src="{% static 'img/logo.png' %}" alt="Lo de Josefina" class="login-logo">
                     <p class="login-subtitle">Sistema de Gestión</p>
                 </div>
                 <div class="card-body p-4">
@@ -141,7 +138,7 @@
             </div>
             
             <p class="text-center text-white mt-3">
-                <small>&copy; {% now "Y" %} Almacén - Todos los derechos reservados</small>
+                <small>&copy; {% now "Y" %} Lo de Josefina - Todos los derechos reservados</small>
             </p>
         </div>
     </div>

@@ -1477,8 +1477,8 @@ def export_products_excel(request):
     )
 
     # --- style helpers ---
-    C_PURPLE = '#4A3F35'
-    C_PINK   = '#6B8F71'
+    C_PURPLE = '#7134B6'
+    C_PINK   = '#C33287'
     C_LGRAY  = 'F2F2F2'
     C_WHITE  = 'FFFFFF'
     C_RED    = 'FFCCCC'
@@ -1523,7 +1523,7 @@ def export_products_excel(request):
 
     ws1.merge_cells('A1:N1')
     c = ws1['A1']
-    c.value = 'INVENTARIO DE PRODUCTOS — CHE GOLOSO'
+    c.value = 'INVENTARIO DE PRODUCTOS — LO DE JOSEFINA'
     c.font = Font(bold=True, size=14, color=C_WHITE)
     c.fill = fill(C_PURPLE)
     c.alignment = Alignment(horizontal='center', vertical='center')

@@ -108,7 +108,7 @@ class Company(models.Model):
         """Get or create the company singleton."""
         company, created = cls.objects.get_or_create(
             pk=1,
-            defaults={'name': 'CHE GOLOSO'}
+            defaults={'name': 'Lo de Josefina'}
         )
         return company
 

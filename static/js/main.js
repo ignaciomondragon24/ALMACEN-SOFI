@@ -1,4 +1,4 @@
-/* ALMACÉN - Main JavaScript */
+/* Lo de Josefina - Main JavaScript */
 
 (function() {
     'use strict';

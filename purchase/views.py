@@ -383,7 +383,7 @@ def purchase_receive(request, pk):
                 name='Proveedores',
                 defaults={
                     'description': 'Pagos a proveedores por compras de mercadería',
-                    'color': '#4A3F35',
+                    'color': '#7134B6',
                 },
             )
             Expense.objects.create(

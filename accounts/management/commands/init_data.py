@@ -1,5 +1,5 @@
 """
-Management Command to initialize default data for CHE GOLOSO
+Management Command to initialize default data for LO DE JOSEFINA
 """
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group, Permission
@@ -12,10 +12,10 @@ from expenses.models import ExpenseCategory
 
 
 class Command(BaseCommand):
-    help = 'Initialize default data for CHE GOLOSO system'
+    help = 'Initialize default data for LO DE JOSEFINA system'
 
     def handle(self, *args, **options):
-        self.stdout.write('Initializing CHE GOLOSO data...\n')
+        self.stdout.write('Initializing LO DE JOSEFINA data...\n')
         
         # Create roles
         self.create_roles()
@@ -146,7 +146,7 @@ class Command(BaseCommand):
         """Create default expense categories."""
         self.stdout.write('Creating expense categories...')
         categories = [
-            {'name': 'Proveedores', 'description': 'Pagos a proveedores por compras de mercadería', 'color': '#4A3F35'},
+            {'name': 'Proveedores', 'description': 'Pagos a proveedores por compras de mercadería', 'color': '#7134B6'},
             {'name': 'Servicios', 'description': 'Electricidad, agua, internet, etc.', 'color': '#17a2b8'},
             {'name': 'Personal', 'description': 'Sueldos y gastos de personal', 'color': '#28a745'},
             {'name': 'Varios', 'description': 'Otros gastos', 'color': '#6c757d'},
