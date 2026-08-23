@@ -1,4 +1,4 @@
-/* CHE GOLOSO - Main JavaScript */
+/* ALMACÉN - Main JavaScript */
 
 (function() {
     'use strict';

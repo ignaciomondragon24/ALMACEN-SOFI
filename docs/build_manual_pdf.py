@@ -46,13 +46,13 @@ body {
 }
 .cover h1 {
     font-size: 42pt;
-    color: #E91E8C;
+    color: #6B8F71;
     margin: 0 0 10pt 0;
     border: 0;
 }
 .cover .sub {
     font-size: 16pt;
-    color: #2D1E5F;
+    color: #4A3F35;
     margin-bottom: 30pt;
 }
 .cover .meta {
@@ -61,22 +61,22 @@ body {
     margin-top: 2cm;
 }
 h1 {
-    color: #E91E8C;
+    color: #6B8F71;
     font-size: 22pt;
-    border-bottom: 2pt solid #E91E8C;
+    border-bottom: 2pt solid #6B8F71;
     padding-bottom: 4pt;
     margin-top: 0;
     -pdf-keep-with-next: true;
 }
 h2 {
-    color: #2D1E5F;
+    color: #4A3F35;
     font-size: 15pt;
     margin-top: 18pt;
     margin-bottom: 6pt;
     -pdf-keep-with-next: true;
 }
 h3 {
-    color: #2D1E5F;
+    color: #4A3F35;
     font-size: 12pt;
     margin-top: 12pt;
     margin-bottom: 4pt;
@@ -85,7 +85,7 @@ h3 {
 p { margin: 4pt 0 8pt 0; }
 ul, ol { margin: 4pt 0 10pt 16pt; }
 li { margin-bottom: 3pt; }
-strong { color: #2D1E5F; }
+strong { color: #4A3F35; }
 code {
     font-family: Courier, monospace;
     background: #f4f4f8;
@@ -96,11 +96,11 @@ code {
 }
 pre {
     background: #f4f4f8;
-    border-left: 3pt solid #E91E8C;
+    border-left: 3pt solid #6B8F71;
     padding: 8pt 10pt;
     font-family: Courier, monospace;
     font-size: 9.5pt;
-    color: #2D1E5F;
+    color: #4A3F35;
     margin: 8pt 0;
     white-space: pre-wrap;
 }
@@ -109,7 +109,7 @@ hr {
     border-top: 1pt solid #ddd;
     margin: 14pt 0;
 }
-a { color: #E91E8C; text-decoration: none; }
+a { color: #6B8F71; text-decoration: none; }
 .page-break { page-break-before: always; }
 .footer {
     text-align: center;
@@ -118,7 +118,7 @@ a { color: #E91E8C; text-decoration: none; }
 }
 .tag-regla {
     background: #fff3e0;
-    border-left: 3pt solid #F5D000;
+    border-left: 3pt solid #C99A5B;
     padding: 6pt 10pt;
     margin: 6pt 0;
     font-size: 10pt;

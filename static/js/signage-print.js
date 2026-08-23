@@ -1,5 +1,5 @@
 /**
- * CHE GOLOSO - Print Nesting Manager
+ * ALMACÉN - Print Nesting Manager
  * Optimizes placement of multiple signs on a single paper sheet.
  */
 

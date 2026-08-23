@@ -1,5 +1,5 @@
 /**
- * CHE GOLOSO - Sign Generator Page Logic
+ * ALMACÉN - Sign Generator Page Logic
  * Product search, auto-fill, items management, and print triggering.
  */
 

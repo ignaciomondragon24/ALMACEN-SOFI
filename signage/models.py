@@ -4,9 +4,7 @@ from django.db import models
 from django.conf import settings
 
 
-# ─── Diseños pre-armados B&W con logo para impresión ───
-
-LOGO_URL = '/static/img/logo.png'
+# ─── Diseños pre-armados B&W para impresión ───
 
 DEFAULT_LAYOUTS = {
     'simple_40x40': {
@@ -21,8 +19,6 @@ DEFAULT_LAYOUTS = {
                 # Header bar negro con logo
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 40, 'height': 5,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 0.5, 'y': 0.3, 'width': 12, 'height': 4.4, 'zIndex': 20},
                 # Nombre del producto — area generosa para nombres largos
                 {'id': 'nombre', 'type': 'variable', 'variable': 'nombre_producto',
                  'x': 1.5, 'y': 6, 'width': 37, 'height': 13,
@@ -62,8 +58,6 @@ DEFAULT_LAYOUTS = {
                 # Header bar
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 50, 'height': 4.5,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 0.5, 'y': 0.2, 'width': 12, 'height': 4, 'zIndex': 20},
                 # Nombre — generoso
                 {'id': 'nombre', 'type': 'variable', 'variable': 'nombre_producto',
                  'x': 2, 'y': 5, 'width': 46, 'height': 10,
@@ -103,8 +97,6 @@ DEFAULT_LAYOUTS = {
                 # Header negro con logo + etiqueta promo
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 70, 'height': 7,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 1, 'y': 0.5, 'width': 14, 'height': 6, 'zIndex': 20},
                 {'id': 'etiqueta', 'type': 'variable', 'variable': 'etiqueta_promo',
                  'x': 16, 'y': 0.5, 'width': 52, 'height': 6,
                  'fontFamily': 'Arial', 'fontSize': 11, 'fontWeight': 'bold',
@@ -163,8 +155,6 @@ DEFAULT_LAYOUTS = {
                 # Header negro
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 100, 'height': 10,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 2, 'y': 1, 'width': 20, 'height': 8, 'zIndex': 20},
                 {'id': 'etiqueta', 'type': 'variable', 'variable': 'etiqueta_promo',
                  'x': 24, 'y': 1, 'width': 72, 'height': 8,
                  'fontFamily': 'Arial', 'fontSize': 16, 'fontWeight': 'bold',
@@ -223,8 +213,6 @@ DEFAULT_LAYOUTS = {
                 # Header negro
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 100, 'height': 10,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 2, 'y': 1, 'width': 20, 'height': 8, 'zIndex': 20},
                 # Nombre — area generosa
                 {'id': 'nombre', 'type': 'variable', 'variable': 'nombre_producto',
                  'x': 4, 'y': 12, 'width': 92, 'height': 16,
@@ -273,8 +261,6 @@ DEFAULT_LAYOUTS = {
                 # Header negro
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 140, 'height': 14,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 3, 'y': 2, 'width': 26, 'height': 10, 'zIndex': 20},
                 # Nombre — extra grande
                 {'id': 'nombre', 'type': 'variable', 'variable': 'nombre_producto',
                  'x': 6, 'y': 17, 'width': 128, 'height': 22,
@@ -323,8 +309,6 @@ DEFAULT_LAYOUTS = {
                 # Header negro
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 100, 'height': 10,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 2, 'y': 1, 'width': 20, 'height': 8, 'zIndex': 20},
                 # Nombre generoso
                 {'id': 'nombre', 'type': 'variable', 'variable': 'nombre_producto',
                  'x': 4, 'y': 12, 'width': 92, 'height': 14,
@@ -398,8 +382,6 @@ DEFAULT_LAYOUTS = {
                 # Header negro
                 {'id': 'header', 'type': 'shape', 'x': 0, 'y': 0, 'width': 140, 'height': 14,
                  'backgroundColor': '#000000', 'zIndex': 2},
-                {'id': 'logo', 'type': 'image', 'src': LOGO_URL,
-                 'x': 3, 'y': 2, 'width': 26, 'height': 10, 'zIndex': 20},
                 # Nombre extra grande
                 {'id': 'nombre', 'type': 'variable', 'variable': 'nombre_producto',
                  'x': 6, 'y': 17, 'width': 128, 'height': 20,

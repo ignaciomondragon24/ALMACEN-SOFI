@@ -1477,8 +1477,8 @@ def export_products_excel(request):
     )
 
     # --- style helpers ---
-    C_PURPLE = '2D1E5F'
-    C_PINK   = 'E91E8C'
+    C_PURPLE = '#4A3F35'
+    C_PINK   = '#6B8F71'
     C_LGRAY  = 'F2F2F2'
     C_WHITE  = 'FFFFFF'
     C_RED    = 'FFCCCC'

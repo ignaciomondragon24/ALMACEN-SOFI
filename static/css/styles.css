@@ -1,24 +1,25 @@
-/* CHE GOLOSO - Main Styles */
+/* ALMACÉN - Main Styles */
 
 /* Variables */
 :root {
-    --primary-color: #E91E8C;
-    --secondary-color: #2D1E5F;
+    --primary-color: #6B8F71;
+    --secondary-color: #4A3F35;
     --success-color: #198754;
     --danger-color: #dc3545;
-    --warning-color: #F5D000;
+    --warning-color: #C99A5B;
     --info-color: #0dcaf0;
     --light-color: #f8f9fa;
-    --dark-color: #2D1E5F;
-    
-    /* CHE GOLOSO Brand Colors */
-    --che-primary: #E91E8C;
-    --che-secondary: #F5D000;
-    --che-accent: #2D1E5F;
-    --che-pink: #E91E8C;
-    --che-yellow: #F5D000;
-    --che-purple: #2D1E5F;
-    
+    --dark-color: #4A3F35;
+
+    /* Almacén Brand Colors */
+    --che-primary: #6B8F71;
+    --che-secondary: #C99A5B;
+    --che-accent: #4A3F35;
+    --che-pink: #6B8F71;
+    --che-yellow: #C99A5B;
+    --che-purple: #4A3F35;
+    --che-bg: #F6F1E7;
+
     /* Typography */
     --font-display: 'Fredoka', sans-serif;  /* Títulos, precios, botones */
     --font-heading: 'Baloo 2', cursive;     /* Subtítulos, badges */
@@ -26,10 +27,10 @@
 }
 
 .link-che-accent {
-    color: var(--che-accent, #2D1E5F);
+    color: var(--che-accent, #4A3F35);
 }
 .link-che-accent:hover {
-    color: var(--che-primary, #E91E8C);
+    color: var(--che-primary, #6B8F71);
 }
 
 /* General Styles */
@@ -37,6 +38,7 @@ body {
     font-family: var(--font-body);
     min-height: 100vh;
     font-weight: 500;
+    background-color: var(--che-bg, #F6F1E7);
 }
 
 /* Typography Classes */
@@ -100,7 +102,7 @@ a.card {
 .form-control:focus,
 .form-select:focus {
     border-color: var(--che-pink);
-    box-shadow: 0 0 0 0.25rem rgba(233, 30, 140, 0.25);
+    box-shadow: 0 0 0 0.25rem rgba(107, 143, 113, 0.25);
 }
 
 /* Alerts */
@@ -265,12 +267,12 @@ a.card {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #E91E8C, #2D1E5F);
+    background: linear-gradient(180deg, #6B8F71, #4A3F35);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #E91E8C;
+    background: #6B8F71;
 }
 
 /* Toast Notifications */
@@ -320,7 +322,7 @@ a.card {
     font-weight: 500;
 }
 /* ============================================
-   CHE GOLOSO BRAND STYLES
+   ALMACÉN BRAND STYLES
    ============================================ */
 
 /* Brand Colors Utilities */
@@ -337,23 +339,23 @@ a.card {
 }
 
 .bg-gradient-che-yellow {
-    background: linear-gradient(135deg, var(--che-yellow), #FFE066) !important;
+    background: linear-gradient(135deg, var(--che-yellow), #E8CFA0) !important;
 }
 
 /* Primary Button Override */
 .btn-primary {
-    background: linear-gradient(135deg, var(--che-pink), #D11A7D);
+    background: linear-gradient(135deg, var(--che-pink), #587A5E);
     border: none;
     color: white;
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #D11A7D, var(--che-purple));
+    background: linear-gradient(135deg, #587A5E, var(--che-purple));
     color: white;
 }
 
 .btn-primary:focus {
-    box-shadow: 0 0 0 0.25rem rgba(233, 30, 140, 0.5);
+    box-shadow: 0 0 0 0.25rem rgba(107, 143, 113, 0.5);
 }
 
 .btn-outline-primary {
@@ -369,7 +371,7 @@ a.card {
 
 /* Warning Button (Yellow) */
 .btn-warning {
-    background: linear-gradient(135deg, var(--che-yellow), #FFE066);
+    background: linear-gradient(135deg, var(--che-yellow), #E8CFA0);
     border: none;
     color: var(--che-purple);
 }
@@ -389,6 +391,11 @@ a.card {
 .navbar-brand img {
     height: 40px;
     width: auto;
+}
+
+.navbar-brand i {
+    font-size: 1.6rem;
+    margin-right: 0.4rem;
 }
 
 .navbar-brand-text {
@@ -423,17 +430,17 @@ a.card {
 
 /* Dashboard Cards with Brand Colors */
 .dashboard-card.card-pink {
-    background: linear-gradient(135deg, var(--che-pink), #D11A7D);
+    background: linear-gradient(135deg, var(--che-pink), #587A5E);
     color: white;
 }
 
 .dashboard-card.card-yellow {
-    background: linear-gradient(135deg, var(--che-yellow), #FFE066);
+    background: linear-gradient(135deg, var(--che-yellow), #E8CFA0);
     color: var(--che-purple);
 }
 
 .dashboard-card.card-purple {
-    background: linear-gradient(135deg, var(--che-purple), #3D2E6F);
+    background: linear-gradient(135deg, var(--che-purple), #5C4F42);
     color: white;
 }
 
@@ -483,7 +490,7 @@ a:hover {
 
 /* Table Styles with Brand Colors */
 .table thead:not(.table-light):not(.table-dark) {
-    background: linear-gradient(135deg, #2D1E5F, #3D2E6F);
+    background: linear-gradient(135deg, #4A3F35, #5C4F42);
     color: white;
 }
 
@@ -496,7 +503,7 @@ a:hover {
 }
 
 .table-hover tbody tr:hover {
-    background-color: rgba(233, 30, 140, 0.1);
+    background-color: rgba(107, 143, 113, 0.1);
 }
 
 /* Pagination */
@@ -505,7 +512,7 @@ a:hover {
     border-color: var(--che-pink);
     color: #fff;
     font-weight: 700;
-    box-shadow: 0 2px 6px rgba(233, 30, 140, 0.35);
+    box-shadow: 0 2px 6px rgba(107, 143, 113, 0.35);
 }
 
 .page-link {
@@ -514,7 +521,7 @@ a:hover {
 
 .page-link:hover {
     color: var(--che-purple);
-    background-color: rgba(233, 30, 140, 0.1);
+    background-color: rgba(107, 143, 113, 0.1);
 }
 
 /* Smart pagination — flechas prominentes y wrap en lugar de overflow horizontal */
@@ -546,9 +553,9 @@ a:hover {
 }
 .pagination-smart .page-item.disabled:first-child .page-link,
 .pagination-smart .page-item.disabled:last-child .page-link {
-    background: rgba(233, 30, 140, 0.25);
+    background: rgba(107, 143, 113, 0.25);
     color: #fff;
-    border-color: rgba(233, 30, 140, 0.25);
+    border-color: rgba(107, 143, 113, 0.25);
     cursor: not-allowed;
 }
 
@@ -565,7 +572,7 @@ a:hover {
 /* Dropdown Menu */
 .dropdown-item:hover,
 .dropdown-item:focus {
-    background-color: rgba(233, 30, 140, 0.1);
+    background-color: rgba(107, 143, 113, 0.1);
     color: var(--che-pink);
 }
 
@@ -589,7 +596,7 @@ a:hover {
 
 /* Badge Variants */
 .badge.bg-primary {
-    background: linear-gradient(135deg, var(--che-pink), #D11A7D) !important;
+    background: linear-gradient(135deg, var(--che-pink), #587A5E) !important;
 }
 
 /* Nav Pills */
@@ -605,7 +612,7 @@ a:hover {
 
 .form-check-input:focus {
     border-color: var(--che-pink);
-    box-shadow: 0 0 0 0.2rem rgba(233, 30, 140, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(107, 143, 113, 0.25);
 }
 
 /* Success States with Brand */

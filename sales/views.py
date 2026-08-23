@@ -605,9 +605,9 @@ def export_excel(request):
     )
 
     # --- style helpers ---
-    C_PURPLE = '2D1E5F'
-    C_PINK   = 'E91E8C'
-    C_YELLOW = 'F5D000'
+    C_PURPLE = '#4A3F35'
+    C_PINK   = '#6B8F71'
+    C_YELLOW = '#C99A5B'
     C_LGRAY  = 'F2F2F2'
     C_WHITE  = 'FFFFFF'
 
@@ -932,8 +932,8 @@ def export_pdf(request):
     )
 
     # --- helpers ---
-    PURPLE   = colors.HexColor('#2D1E5F')
-    PINK     = colors.HexColor('#E91E8C')
+    PURPLE   = colors.HexColor('#4A3F35')
+    PINK     = colors.HexColor('#6B8F71')
     LGRAY    = colors.HexColor('#F2F2F2')
     WHITE    = colors.white
     DARK     = colors.HexColor('#1A1A2E')

@@ -1,4 +1,4 @@
-/* CHE GOLOSO - POS Main JavaScript (Updated) */
+/* ALMACÉN - POS Main JavaScript (Updated) */
 
 (function() {
     'use strict';
@@ -781,11 +781,11 @@
         const modalHtml = `
             <div class="modal fade" id="bulkQuantityModal" tabindex="-1">
                 <div class="modal-dialog modal-sm">
-                    <div class="modal-content bg-dark text-white" style="border:1.5px solid rgba(233,30,140,0.25);border-radius:14px;">
+                    <div class="modal-content bg-dark text-white" style="border:1.5px solid rgba(107, 143, 113,0.25);border-radius:14px;">
                         <div class="modal-header border-0 pb-1">
                             <div>
                                 <h5 class="modal-title mb-0">
-                                    <i class="fas fa-candy-cane me-2" style="color:#E91E8C;"></i>${product.name}
+                                    <i class="fas fa-candy-cane me-2" style="color:#6B8F71;"></i>${product.name}
                                 </h5>
                                 <small style="color:#aaa;">${priceLabel}</small>
                             </div>
@@ -812,7 +812,7 @@
                                    step="${stepVal}"
                                    value="${defaultVal}"
                                    autofocus
-                                   style="background:#0d0d1f;border:2px solid rgba(233,30,140,0.3);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
+                                   style="background:#0d0d1f;border:2px solid rgba(107, 143, 113,0.3);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
                             ${isGranel ? `<div class="text-end mt-1"><small style="color:${stockGrams > 0 ? '#555' : '#ff6b6b'};font-size:0.75rem;">Disponible: ${stockGrams}g</small></div>` : ''}
                             <div class="mt-3 text-center">
                                 <div id="bulk-price-breakdown" style="min-height:1.2em;margin-bottom:4px;"></div>
@@ -851,7 +851,7 @@
             } else {
                 confirmBtn.disabled = false;
                 confirmBtn.title = '';
-                input.style.borderColor = 'rgba(233,30,140,0.3)';
+                input.style.borderColor = 'rgba(107, 143, 113,0.3)';
             }
         }
 
@@ -1334,7 +1334,7 @@
                         <div class="cart-item-name">
                             ${displayName}
                             ${pkgLabel}
-                            ${item.is_granel ? '<span class="badge ms-1" style="font-size:.65em;background:rgba(233,30,140,0.2);color:#E91E8C;border:1px solid rgba(233,30,140,0.3);">granel</span>' : ''}
+                            ${item.is_granel ? '<span class="badge ms-1" style="font-size:.65em;background:rgba(107, 143, 113,0.2);color:#6B8F71;border:1px solid rgba(107, 143, 113,0.3);">granel</span>' : ''}
                         </div>
                         <div class="cart-item-price d-flex align-items-center gap-2">
                             <span>${item.is_granel ? formatCurrency(item.unit_price * (item.granel_price_weight_grams || 100)) + `/${item.granel_price_weight_grams || 100}g` : formatCurrency(item.unit_price) + ' c/u'}</span>
@@ -2775,9 +2775,9 @@
                     <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png" style="height:42px;margin-bottom:20px;">
                     <div style="font-size:0.95rem;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Monto cargado al QR</div>
                     <div style="font-size:3rem;font-weight:800;color:#009ee3;margin-bottom:25px;line-height:1;">${formatCurrency(amount)}</div>
-                    <div style="background:#fff8e1;border:2px dashed #f5d000;border-radius:14px;padding:18px;margin-bottom:20px;">
+                    <div style="background:#fff8e1;border:2px dashed #C99A5B;border-radius:14px;padding:18px;margin-bottom:20px;">
                         <div style="font-size:1.05rem;color:#333;font-weight:600;margin-bottom:6px;">
-                            <i class="fas fa-hand-point-right me-2" style="color:#E91E8C;"></i>Pedile al cliente que escanee el QR pegado en la caja
+                            <i class="fas fa-hand-point-right me-2" style="color:#6B8F71;"></i>Pedile al cliente que escanee el QR pegado en la caja
                         </div>
                         <div style="font-size:0.85rem;color:#666;">El monto ya está cargado. Cuando lo escanee verá <strong>${formatCurrency(amount)}</strong> en su app.</div>
                     </div>

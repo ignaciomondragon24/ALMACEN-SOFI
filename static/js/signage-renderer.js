@@ -1,5 +1,5 @@
 /**
- * CHE GOLOSO - Sign Renderer
+ * ALMACÉN - Sign Renderer
  * Renders sign templates with product data and text auto-scaling.
  * Used by: designer preview, generate preview, print preview.
  */
@@ -109,7 +109,7 @@ class SignRenderer {
     }
 
     _renderShapeElement(div, el, px) {
-        div.style.backgroundColor = el.backgroundColor || '#E91E8C';
+        div.style.backgroundColor = el.backgroundColor || '#6B8F71';
         if (el.borderWidth && el.borderWidth > 0) {
             div.style.border = (el.borderWidth * px) + 'px solid ' + (el.borderColor || '#000');
         }
