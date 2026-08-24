@@ -1,5 +1,5 @@
 """
-URL Configuration for CHE GOLOSO Supermarket Management System.
+URL Configuration for Lo de Josefina Management System.
 """
 from django.contrib import admin
 from django.urls import path, include
@@ -42,6 +42,6 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # Admin site customization
-admin.site.site_header = 'CHE GOLOSO - Administración'
-admin.site.site_title = 'CHE GOLOSO Admin'
+admin.site.site_header = 'Lo de Josefina - Administración'
+admin.site.site_title = 'Lo de Josefina Admin'
 admin.site.index_title = 'Panel de Administración'
