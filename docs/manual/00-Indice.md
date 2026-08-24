@@ -20,6 +20,10 @@ Cada sección tiene dos partes:
 3. Vas a caer en el **Dashboard**: un resumen con el turno de caja actual, accesos rápidos a las secciones más usadas, alertas de stock bajo y de vencimientos si hay algo pendiente.
 4. El menú de arriba cambia según el rol del usuario — si no ves alguna sección, es porque tu usuario no tiene permiso para esa parte (capítulo 11).
 
+![Pantalla de inicio de sesión.](images/00-login.jpg)
+
+![El Dashboard: turno activo, accesos rápidos, alertas de vencimientos y stock bajo, últimas ventas.](images/00-dashboard.jpg)
+
 ---
 
 ## Índice

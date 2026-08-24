@@ -16,9 +16,11 @@ Al final del turno del cajero o del día. Una vez cerrada, el turno queda audita
    ```
 
 3. Contá físicamente la caja. Opcionalmente completá el **desglose de billetes** (20k, 10k, 5k, 2k, 1k, 500, 200, 100, monedas). El sistema suma automáticamente.
-4. Ingresar el **monto real contado** (`actual_amount`).
+4. Ingresar el **monto real contado**.
 5. (Opcional) Notas.
 6. Confirmar.
+
+![Cierre Z: efectivo contado, ventas por método de pago y la diferencia calculada.](images/06-cierre-caja-form.jpg)
 
 ### Resultado
 
@@ -51,3 +53,5 @@ Esto es importante: si vendiste $10.000 con tarjeta, **no esperés** esos $10.00
 ## No hay cierre X
 
 El sistema **no implementa** reporte intermedio tipo "cierre X" (reporte sin cerrar el turno). Si necesitás ver el estado del turno en curso, usá **Caja → Turno Actual** que muestra ingresos, egresos y esperado en tiempo real sin cerrar.
+
+![Turno actual en curso: ventas hasta el momento, sin necesidad de cerrar la caja.](images/06-turno-actual.jpg)

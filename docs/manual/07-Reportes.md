@@ -7,9 +7,11 @@
 - Filtros: rango de fecha, método de pago, cajero, caja.
 - Muestra: tickets con detalle, total por período, desglose por método.
 
+![Reporte de ventas: cada ticket con su fecha, cajero, método de pago y total.](images/07-reporte-ventas.jpg)
+
 ### Stock bajo
 - Dónde: **Productos → Filtro "Stock bajo"**.
-- Muestra productos donde `current_stock ≤ min_stock`.
+- Muestra productos donde el stock actual llegó o bajó del mínimo configurado.
 - Sirve para armar la próxima OC.
 
 ### Movimientos de stock (Kardex)
@@ -21,6 +23,8 @@
 - Dónde: **Productos → Historial de costos**.
 - Muestra lotes activos/agotados con su precio de compra, cantidad remanente y margen estimado.
 - Útil para ver qué producto tiene mejor rentabilidad.
+
+![Historial de costos: lotes comprados, cantidad remanente y margen estimado de cada uno.](images/07-historial-costos.jpg)
 
 ### Cierre de caja
 - Dónde: **Caja → Historial**.
@@ -44,7 +48,7 @@
 
 El reporte de ganancia usa el **costo FIFO real** capturado al momento de la venta (el costo del lote consumido). Esto significa:
 
-- Si compraste 10 unidades a $100 (lote A) y 10 a $200 (lote B), y vendés 5 a $300, la ganancia es `(300 - 100) × 5 = $1000`, no `(300 - 150) × 5 = $750` (el promedio).
+- Si compraste 10 unidades a $100 (lote A) y 10 a $200 (lote B), y vendés 5 a $300, la ganancia es (300 − 100) × 5 = **$1.000**, no (300 − 150) × 5 = $750 (el promedio).
 - Al vender las siguientes que mezclen lotes, el sistema calcula el promedio del costo **solo de lo consumido en ese ticket**.
 
 Excepción: los productos de venta por peso, que usan costo promedio ponderado de todo el fraccionado.

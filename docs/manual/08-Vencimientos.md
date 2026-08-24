@@ -35,6 +35,8 @@ Todos los lotes que **todavía tienen stock** y tienen fecha de vencimiento carg
 
 Podés buscar por nombre de producto y ajustar cuántos días de anticipación considerar "vence pronto".
 
+![Pantalla de Vencimientos: lotes con stock ordenados por fecha, con su estado en color.](images/08-vencimientos.jpg)
+
 ---
 
 ## Alertas

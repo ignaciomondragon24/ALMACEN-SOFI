@@ -17,6 +17,8 @@ Puede vender, cerrar caja, gestionar inventario (incluida la venta por peso y ve
 ### Cashier (Cajero)
 Solo puede vender por POS, abrir/cerrar su propio turno de caja y ver sus propias ventas. No ve el inventario completo, no puede crear productos ni promociones. Es el rol para el personal de mostrador.
 
+![Listado de usuarios del sistema con su rol asignado.](images/11-usuarios-lista.jpg)
+
 ---
 
 ## Crear un usuario nuevo
@@ -26,6 +28,8 @@ Solo puede vender por POS, abrir/cerrar su propio turno de caja y ver sus propia
 2. Completar nombre de usuario, nombre y apellido, email (opcional) y contraseña.
 3. Elegir el **rol** (Admin, Cajero Manager o Cashier).
 4. Guardar.
+
+![Formulario de nuevo usuario: datos personales y rol a asignar.](images/11-usuario-nuevo-form.jpg)
 
 La persona ya puede iniciar sesión con ese usuario y contraseña, y va a ver únicamente las secciones del menú que le corresponden a su rol — el resto directamente no aparece.
 

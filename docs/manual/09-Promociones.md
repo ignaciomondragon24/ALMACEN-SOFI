@@ -4,6 +4,8 @@
 
 Descuentos automáticos que se aplican solos en el carrito del POS cuando el cliente lleva los productos que corresponden — la cajera no tiene que acordarse de aplicar nada a mano.
 
+![Listado de promociones activas, con su tipo y a cuántos productos aplica cada una.](images/09-promociones-lista.jpg)
+
 ---
 
 ## Crear una promoción
@@ -15,6 +17,8 @@ Descuentos automáticos que se aplican solos en el carrito del POS cuando el cli
 4. Elegir los **productos** a los que aplica.
 5. Configurar fechas de validez (opcional — si la dejás vacía, no vence), días de la semana en que está activa, y horario (opcional).
 6. Guardar y pasar el estado a **Activa** para que empiece a aplicarse en el POS.
+
+![Formulario de nueva promoción: tipo, productos, vigencia y restricciones.](images/09-promocion-nueva-form.jpg)
 
 ---
 

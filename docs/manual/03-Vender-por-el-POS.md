@@ -12,7 +12,7 @@ Al empezar el día o cambio de cajero. **No podés vender sin turno abierto.**
 3. Ingresar el **monto inicial en efectivo** (lo que dejaste como fondo). Contalo antes.
 4. Confirmar.
 
-El sistema crea un `CashShift` activo y una sesión POS. Ya podés vender.
+El sistema abre el turno y la sesión de caja. Ya podés vender.
 
 ---
 
@@ -35,6 +35,10 @@ El sistema crea un `CashShift` activo y una sesión POS. Ya podés vender.
 8. El sistema valida que la suma sea ≥ total. Si es menor, no procesa.
 9. Confirmar. Se imprime el ticket.
 
+![El carrito del POS: productos agregados, promoción 2x1 aplicada sola, total con descuento.](images/03-pos-carrito.jpg)
+
+![Modal de cobro: elegís el o los métodos de pago y confirmás.](images/03-pos-cobro-modal.jpg)
+
 ### Qué pasa por atrás
 
 Cuando confirmás el cobro (todo dentro de una transacción atómica, si algo falla se revierte):
@@ -43,8 +47,10 @@ Cuando confirmás el cobro (todo dentro de una transacción atómica, si algo fa
    - Si es venta por peso: se descuentan los gramos del producto fraccionado usando el costo ponderado.
    - Si es normal: descuenta stock **en cascada** (unidad, display, bulto) y consume lotes **FIFO** empezando por el más antiguo. El costo real del lote consumido queda guardado en el ítem (sobreescribe el promedio).
 2. **Registra los movimientos de caja** por cada pago cobrado (no el vuelto).
-3. Marca la transacción como `completed` y genera número de ticket.
+3. Marca la venta como completada y genera número de ticket.
 4. Imprime el ticket (ancho 58mm).
+
+![El ticket impreso: detalle de productos, promociones aplicadas y método de pago.](images/03-pos-ticket.jpg)
 
 ---
 

@@ -19,6 +19,8 @@ Genera un código QR en el momento del cobro. El cliente lo escanea desde la app
 3. Cargar el **Access Token** y la **Public Key** de tu cuenta (se consiguen desde el panel de desarrolladores de Mercado Pago, con tu usuario).
 4. Guardar.
 
+![Pantalla de credenciales de Mercado Pago, donde se cargan el Access Token y la Public Key.](images/10-mercadopago-credenciales.jpg)
+
 Desde ese momento, "MercadoPago QR" en el cobro del POS queda operativo.
 
 ### Comisión

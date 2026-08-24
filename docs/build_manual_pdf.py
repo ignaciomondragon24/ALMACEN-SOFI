@@ -2,6 +2,7 @@
 Genera docs/Manual-Lo-de-Josefina.pdf a partir de los .md en docs/manual/.
 Uso: python docs/build_manual_pdf.py
 """
+import base64
 import os
 import re
 from datetime import datetime
@@ -12,6 +13,7 @@ from xhtml2pdf import pisa
 
 ROOT = Path(__file__).resolve().parent
 MANUAL_DIR = ROOT / 'manual'
+IMAGES_DIR = MANUAL_DIR / 'images'
 OUT_PDF = ROOT / 'Manual-Lo-de-Josefina.pdf'
 
 MESES_ES = [
@@ -133,6 +135,22 @@ a { color: #C33287; text-decoration: none; }
     margin: 6pt 0;
     font-size: 10pt;
 }
+.figure {
+    margin: 10pt 0 14pt 0;
+    text-align: center;
+    -pdf-keep-with-next: false;
+}
+.figure img {
+    width: 100%;
+    border: 1pt solid #ddd;
+    border-radius: 4pt;
+}
+.figure .caption {
+    font-size: 9pt;
+    color: #7134B6;
+    margin-top: 4pt;
+    text-align: center;
+}
 """
 
 
@@ -143,6 +161,40 @@ def md_to_html_body(md_text: str) -> str:
         extensions=['extra', 'sane_lists'],
     )
     return html
+
+
+def embed_images(html: str) -> str:
+    """Convierte <img src="images/x.jpg" alt="caption"> en una figura con
+    la imagen embebida como base64 (sin depender de rutas relativas) y
+    su caption debajo, usando el texto alt como leyenda."""
+
+    def _replace(m):
+        tag = m.group(0)
+        src_m = re.search(r'src="([^"]+)"', tag)
+        alt_m = re.search(r'alt="([^"]*)"', tag)
+        src = src_m.group(1) if src_m else ''
+        alt = alt_m.group(1) if alt_m else ''
+        img_path = IMAGES_DIR / Path(src).name
+        if not img_path.exists():
+            return m.group(0)
+        data = base64.b64encode(img_path.read_bytes()).decode('ascii')
+        ext = img_path.suffix.lstrip('.').lower()
+        mime = 'jpeg' if ext in ('jpg', 'jpeg') else ext
+        caption_html = f'<div class="caption">{alt}</div>' if alt else ''
+        # Las capturas angostas (ej: ticket 58mm) no deben estirarse a todo
+        # el ancho de la página — se limitan a un tamaño razonable.
+        from PIL import Image
+        with Image.open(img_path) as im:
+            w, h = im.size
+        style = ' style="width:45%;"' if h > w else ''
+        return (
+            f'<div class="figure">'
+            f'<img src="data:image/{mime};base64,{data}"{style}/>'
+            f'{caption_html}'
+            f'</div>'
+        )
+
+    return re.sub(r'<img[^>]*/?>', _replace, html)
 
 
 def fix_internal_links(html: str) -> str:
@@ -173,6 +225,7 @@ def build_html() -> str:
         md_text = path.read_text(encoding='utf-8')
         html = md_to_html_body(md_text)
         html = fix_internal_links(html)
+        html = embed_images(html)
         sections_html.append(html)
         # Salto de página entre secciones (no después de la última)
         if idx < len(ORDER) - 1:

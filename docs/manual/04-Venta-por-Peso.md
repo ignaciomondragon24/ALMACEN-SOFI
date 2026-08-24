@@ -1,10 +1,14 @@
 # 4. Venta por Peso (granel)
 
+![Depósito: las piezas/bultos cerrados que todavía no se abrieron hacia ningún fraccionado.](images/04-deposito-lista.jpg)
+
 ## Qué es un producto fraccionado
 
 Un **contenedor** (fiambre en la fiambrera, queso, dietética a granel, etc) donde se van agregando bultos que se venden todos al mismo precio por gramo. Ejemplo: "Jamón Cocido Fraccionado", donde vas abriendo distintas piezas/paquetes comprados a distintos proveedores o a distinto precio.
 
 Como los costos son distintos pero el precio de venta es único, el sistema usa **costo promedio ponderado** para calcular la ganancia (no FIFO).
+
+![Listado de productos a venta por peso, con stock y margen de cada uno.](images/04-venta-por-peso-lista.jpg)
 
 ---
 
@@ -21,9 +25,11 @@ Cada vez que abrís una pieza/bulto nuevo (ej: una nueva pata de jamón, una nue
    - **Cantidad de paquetes** a abrir.
 3. Confirmar.
 
+![Ficha del producto fraccionado: stock actual, precios, depósito autorizado e historial de aperturas.](images/04-venta-por-peso-detalle.jpg)
+
 ### Qué pasa por atrás
 
-1. Calcula los gramos nuevos: `cantidad_paquetes × weight_per_unit_grams`.
+1. Calcula los gramos nuevos: cantidad de paquetes × gramos que trae cada uno.
 2. **Recalcula el costo ponderado** del producto fraccionado (ver sección siguiente).
 3. Suma los gramos al stock del producto fraccionado.
 4. Descuenta el paquete del stock de depósito.
@@ -50,7 +56,7 @@ Es decir: **total de plata invertida ÷ gramos totales**.
 Se calcula a partir del precio de costo del producto de depósito:
 
 ```
-costo_por_gramo_bolsa = cost_price_del_bulto / weight_per_unit_grams
+costo por gramo de la pieza = costo de la pieza ÷ gramos que trae
 ```
 
 Ejemplo: pieza de jamón cocido de 500 g que costó $5.000 → $10 por gramo.
@@ -82,8 +88,8 @@ El producto fraccionado arranca vacío (stock = 0, costo = 0).
 ### Cosas clave a entender
 
 - **Pondera por gramos, no por unidades**: una pieza de 900 g "pesa" más en el promedio que una de 500 g, aunque sea una sola pieza.
-- **Cada apertura recalcula el promedio completo**: los gramos viejos se mezclan con los nuevos y todos pasan a compartir el nuevo costo. No se trackean lotes individuales dentro del producto fraccionado (sí se guarda cada apertura en `AperturaBulto` para auditoría histórica).
-- **El POS usa este costo ponderado** para calcular la ganancia de cada venta por peso (`weighted_avg_cost_per_gram` del producto POS).
+- **Cada apertura recalcula el promedio completo**: los gramos viejos se mezclan con los nuevos y todos pasan a compartir el nuevo costo. No se guardan lotes individuales dentro del producto fraccionado (sí se guarda cada apertura en el historial para auditoría).
+- **El POS usa este costo ponderado** para calcular la ganancia de cada venta por peso.
 - **Las auditorías de peso no tocan el costo ponderado** — solo ajustan gramos (merma/sobrante). Si vendés 200 g después del paso 2, los 1.200 g restantes siguen a $13,21/g; cuando abras otra pieza, se promedia contra esos 1.200 g × $13,21.
 
 ---
@@ -114,8 +120,8 @@ Periódicamente (una vez por semana recomendado) o cuando sospéches diferencias
 
 ### Qué pasa por atrás
 
-1. Calcula `diferencia = stock_sistema - peso_real`.
-2. Guarda la auditoría con `% merma` y fecha.
+1. Calcula la diferencia entre el stock del sistema y el peso real.
+2. Guarda la auditoría con el % de merma y la fecha.
 3. **Ajusta automáticamente** el stock del producto fraccionado al peso real.
 4. Queda registrada en el historial — podés ver todas las auditorías en el detalle del producto.
 

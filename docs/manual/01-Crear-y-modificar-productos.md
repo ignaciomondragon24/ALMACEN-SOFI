@@ -1,5 +1,7 @@
 # 1. Crear y modificar productos
 
+![Listado de productos, con categoría, precio y stock de un vistazo.](images/01-productos-lista.jpg)
+
 ## Crear un producto nuevo
 
 ### Cuándo usarlo
@@ -20,6 +22,8 @@ Cada vez que llega un artículo nuevo que nunca vendiste. Si ya existe, no lo vu
 5. **Stock mínimo / máximo:** para alertas de faltante y sobrestock.
 6. *(Opcional)* Imagen, color e ícono para el botón del POS.
 
+![Formulario de carga de un producto nuevo, con los datos básicos y precios.](images/01-producto-nuevo-form.jpg)
+
 ---
 
 ## Configuración de empaques (bulto → display → unidad)
@@ -34,14 +38,14 @@ En el mismo formulario de producto, marcá los checkboxes y completá:
 **Bulto (tildar "Tiene bulto"):**
 - Nombre ("Bulto x144").
 - Código de barras propio (distinto al del producto base).
-- `units_quantity`: unidades totales del bulto (ej: 144).
-- `displays_per_bulk`: cuántos displays trae (ej: 12).
+- **Cantidad de Unidades:** unidades totales del bulto (ej: 144).
+- **Displays por Bulto:** cuántos displays trae (ej: 12).
 - Precio de compra y de venta del bulto.
 
 **Display (tildar "Tiene display"):**
 - Nombre ("Display x12").
 - Código de barras propio.
-- `units_per_display`: unidades por display (ej: 12).
+- **Unidades por Display:** unidades por display (ej: 12).
 - Precio de compra y venta. Si dejaste vacío, se calcula desde el precio del bulto.
 
 **Unidad (tildar "Tiene unidad"):**
@@ -58,6 +62,8 @@ Cuando guardás por primera vez con empaques, el sistema **reparte** tu stock in
 - Bulto: 288 ÷ 144 = 2
 
 Así todos los niveles muestran la misma realidad en su unidad.
+
+![Ficha de un producto ya cargado: precios, stock y accesos a movimientos, costos y ajustes.](images/01-producto-detalle.jpg)
 
 ---
 

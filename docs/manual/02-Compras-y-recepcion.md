@@ -28,7 +28,9 @@ Cada vez que le comprás mercadería a un proveedor. La OC te sirve para:
    - **Costo:** el precio que te cobra el proveedor **por unidad del empaque** (ej: $14.400 el bulto). Si venías con precios sugeridos cargados en el empaque, aparecen solos.
    - **Precio de venta** (opcional): al recibir, actualiza el precio del producto.
 5. Revisar el **IVA** (por defecto 21%).
-6. **Crear Orden**. Queda con estado `pending` (pendiente de recibir).
+6. **Crear Orden**. Queda con estado **Pendiente** (falta recibirla).
+
+![Carga de una orden de compra: buscar producto, elegir empaque y cargar costo.](images/02-compra-nueva.jpg)
 
 ---
 
@@ -58,10 +60,12 @@ Cuando confirmás la recepción, por cada ítem de la OC el sistema:
    - Bulto a $14.400 con 144 unidades → $100 por unidad.
 3. **Suma el stock** al producto base y **cascadea a todos los empaques** (unidad, display, bulto) automáticamente.
 4. **Recalcula el costo promedio** del producto.
-5. **Crea un lote (StockBatch)** en unidades base con el precio por unidad. Este lote se consume FIFO al vender.
+5. **Crea un lote** en unidades base con el precio por unidad. Este lote se consume primero-entra-primero-sale al vender (el más viejo se usa primero).
 6. Si pusiste precio de venta en la OC, **actualiza el precio del producto**.
 7. **Genera un gasto automático** en categoría "Proveedores" por el total de la OC.
-8. Marca la OC como `received`.
+8. Marca la OC como **Recibida**.
+
+![Listado de órdenes de compra con su estado (pendiente, recibida, cancelada).](images/02-compras-lista.jpg)
 
 ---
 
@@ -74,7 +78,7 @@ Comprás al proveedor:
 
 Al recibir, el sistema:
 
-| Lo que cargaste | Se traduce a | Costo por unidad | StockBatch creado |
+| Lo que cargaste | Se traduce a | Costo por unidad | Lote creado |
 |---|---|---|---|
 | 2 bultos × $14.400 | 288 unidades base | $14.400 ÷ 144 = **$100** | 288 @ $100 |
 | 3 displays × $1.200 | 36 unidades base | $1.200 ÷ 12 = **$100** | 36 @ $100 |
@@ -98,4 +102,4 @@ Si comprás Arroz 1kg al proveedor A a $100 y después al proveedor B a $150, el
 
 - **Elegir mal el empaque en la fila.** Si escaneaste un display pero la fila quedó con "Bulto", verificá el selector antes de crear la OC. El hint "= X unidades base" te ayuda a confirmar.
 - **Confundir el costo.** El costo que cargás es el costo **del empaque elegido**, no por unidad. Si elegiste "Bulto x144" y ponés costo $100, el sistema va a entender que el bulto de 144 unidades te costó $100, lo cual daría $0,69 por unidad.
-- **Olvidarse de recepcionar.** Mientras esté `pending`, el stock no se actualiza y no se genera el gasto.
+- **Olvidarse de recepcionar.** Mientras esté en estado "Pendiente", el stock no se actualiza y no se genera el gasto.

@@ -182,7 +182,8 @@ def dashboard_view(request):
         context['losses_summary'] = losses_summary
         context['losses_total_amount'] = total_loss_amount
         context['losses_total_qty'] = total_loss_qty
-        context['losses_month_label'] = month_start.strftime('%B %Y').capitalize()
+        from django.utils.formats import date_format
+        context['losses_month_label'] = date_format(month_start, 'F Y').capitalize()
 
     # === DATOS PARA ADMIN ===
     if is_admin:

@@ -24,15 +24,14 @@ Cuando el stock del sistema **no coincide** con la realidad física, y la difere
 5. (Opcional) **Notas** libres (ej: "3 cajas robadas viernes 12").
 6. Confirmar.
 
+![Formulario de conteo físico: cantidad real, motivo y notas.](images/05-ajuste-stock-form.jpg)
+
 ### Qué pasa por atrás
 
-1. Calcula `diferencia = cantidad_real - cantidad_sistema`.
+1. Calcula la diferencia entre lo contado y lo que decía el sistema.
 2. Actualiza el stock del producto al nuevo valor.
-3. Crea un `StockMovement` con:
-   - Tipo: `adjustment_in` o `adjustment_out` según el signo.
-   - Cantidad: la diferencia.
-   - Motivo y notas guardadas.
-4. Si la diferencia es negativa (hubo merma), **descuenta del lote FIFO más antiguo** para mantener sincronizados los lotes con el stock total.
+3. Crea un movimiento de ajuste (entrada o salida según el signo de la diferencia) con la cantidad, el motivo y las notas guardadas.
+4. Si la diferencia es negativa (hubo merma), **descuenta del lote más antiguo** para mantener sincronizados los lotes con el stock total.
 
 ---
 
@@ -49,6 +48,8 @@ Ahí ves:
 - Aperturas y ventas de granel.
 
 Se puede filtrar por fecha, tipo y motivo.
+
+![Historial de movimientos de un producto: compras, ventas y ajustes, con fecha y motivo.](images/05-movimientos.jpg)
 
 ---
 
