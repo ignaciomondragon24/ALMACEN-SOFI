@@ -1,9 +1,10 @@
 """
-Genera docs/Manual-CHE-GOLOSO.pdf a partir de los .md en docs/manual/.
+Genera docs/Manual-Lo-de-Josefina.pdf a partir de los .md en docs/manual/.
 Uso: python docs/build_manual_pdf.py
 """
 import os
 import re
+from datetime import datetime
 from pathlib import Path
 
 import markdown
@@ -11,17 +12,26 @@ from xhtml2pdf import pisa
 
 ROOT = Path(__file__).resolve().parent
 MANUAL_DIR = ROOT / 'manual'
-OUT_PDF = ROOT / 'Manual-CHE-GOLOSO.pdf'
+OUT_PDF = ROOT / 'Manual-Lo-de-Josefina.pdf'
+
+MESES_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
 
 ORDER = [
     '00-Indice.md',
     '01-Crear-y-modificar-productos.md',
     '02-Compras-y-recepcion.md',
     '03-Vender-por-el-POS.md',
-    '04-Caramelera.md',
+    '04-Venta-por-Peso.md',
     '05-Ajustes-de-stock.md',
     '06-Cierre-de-caja.md',
     '07-Reportes.md',
+    '08-Vencimientos.md',
+    '09-Promociones.md',
+    '10-Medios-de-pago.md',
+    '11-Usuarios-y-permisos.md',
 ]
 
 CSS = """
@@ -149,11 +159,11 @@ def build_html() -> str:
     sections_html = []
 
     # Portada
-    sections_html.append("""
+    sections_html.append(f"""
     <div class="cover">
         <h1>LO DE JOSEFINA</h1>
-        <div class="sub">Manual de uso del sistema</div>
-        <div class="meta">Guía práctica para el equipo del kiosco<br/>Versión Abril 2026</div>
+        <div class="sub">Manual de uso del sistema — almacén de barrio</div>
+        <div class="meta">Guía práctica para el equipo del local<br/>Versión {MESES_ES[datetime.now().month - 1]} {datetime.now().year}</div>
     </div>
     <div class="page-break"></div>
     """)

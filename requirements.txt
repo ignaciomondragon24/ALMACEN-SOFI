@@ -16,6 +16,7 @@ dj-database-url>=2.1.0
 # PDF Generation
 reportlab>=4.0.0
 xhtml2pdf>=0.2.11
+markdown>=3.5  # usado por docs/build_manual_pdf.py
 
 # Excel Export
 openpyxl>=3.1.2

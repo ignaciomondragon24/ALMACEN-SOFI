@@ -26,9 +26,13 @@
 - Dónde: **Caja → Historial**.
 - Cada cierre con su detalle, diferencia y desglose por método.
 
-### Caramelera
-- Dónde: **Granel → [Caramelera] → Detalle**.
+### Venta por Peso
+- Dónde: **Inventario → Venta por Peso → [Producto] → Gestionar**.
 - Muestra: stock en gramos, costo ponderado actual, historial de aperturas, historial de ventas con margen y auditorías.
+
+### Vencimientos
+- Dónde: **Inventario → Vencimientos**.
+- Muestra los lotes con stock que están vencidos o vencen pronto, clasificados por color (rojo = vencido, amarillo = vence pronto, azul = próximo). Ver capítulo 8 para el detalle completo.
 
 ### Gastos
 - Dónde: **Finanzas → Gastos**.
@@ -43,7 +47,7 @@ El reporte de ganancia usa el **costo FIFO real** capturado al momento de la ven
 - Si compraste 10 unidades a $100 (lote A) y 10 a $200 (lote B), y vendés 5 a $300, la ganancia es `(300 - 100) × 5 = $1000`, no `(300 - 150) × 5 = $750` (el promedio).
 - Al vender las siguientes que mezclen lotes, el sistema calcula el promedio del costo **solo de lo consumido en ese ticket**.
 
-Excepción: carameleras, que usan costo promedio ponderado de todo el frasco.
+Excepción: los productos de venta por peso, que usan costo promedio ponderado de todo el fraccionado.
 
 ---
 

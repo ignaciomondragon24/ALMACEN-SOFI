@@ -1,6 +1,6 @@
-# Manual CHE GOLOSO — Guía de uso del sistema
+# Manual Lo de Josefina — Guía de uso del sistema
 
-Esta guía explica **paso a paso** cómo operar el sistema: cargar productos, comprar, vender, hacer mermas, modificar stock y cerrar la caja. Está pensada para que cualquier persona del equipo pueda usar el sistema sin conocer Django ni el código por dentro.
+Esta guía explica **paso a paso** cómo operar el sistema: cargar productos, comprar, vender, hacer mermas, modificar stock, controlar vencimientos y cerrar la caja. Está pensada para que cualquier persona del equipo pueda usar el sistema sin conocer nada de programación.
 
 ---
 
@@ -9,19 +9,32 @@ Esta guía explica **paso a paso** cómo operar el sistema: cargar productos, co
 Cada sección tiene dos partes:
 
 - **Paso a paso:** lo que hace el operador desde la pantalla.
-- **Qué pasa por atrás:** para entender por qué el sistema se comporta así (útil si algo no coincide con lo esperado).
+- **Qué pasa por atrás:** para entender por qué el sistema se comporta así (útil si algo no coincide con lo esperado). Se puede saltear en una primera lectura.
+
+---
+
+## Primeros pasos
+
+1. Entrar a la dirección del sistema en el navegador (la misma computadora o celular de siempre, se puede guardar como acceso directo).
+2. Ingresar **usuario y contraseña** (los da el Admin — ver capítulo 11 si hace falta crear uno nuevo).
+3. Vas a caer en el **Dashboard**: un resumen con el turno de caja actual, accesos rápidos a las secciones más usadas, alertas de stock bajo y de vencimientos si hay algo pendiente.
+4. El menú de arriba cambia según el rol del usuario — si no ves alguna sección, es porque tu usuario no tiene permiso para esa parte (capítulo 11).
 
 ---
 
 ## Índice
 
-1. [Crear y modificar productos](01-Crear-y-modificar-productos.md) (normales y caramelera)
+1. [Crear y modificar productos](01-Crear-y-modificar-productos.md)
 2. [Compras y recepción de mercadería](02-Compras-y-recepcion.md)
 3. [Vender por el POS (caja)](03-Vender-por-el-POS.md)
-4. [Caramelera — abrir paquetes, vender por gramos, auditorías](04-Caramelera.md)
+4. [Venta por Peso — fiambrería y dietética](04-Venta-por-Peso.md)
 5. [Ajustes manuales de stock y conteos físicos](05-Ajustes-de-stock.md)
 6. [Cierre de caja (Z)](06-Cierre-de-caja.md)
 7. [Reportes](07-Reportes.md)
+8. [Vencimientos](08-Vencimientos.md)
+9. [Promociones](09-Promociones.md)
+10. [Medios de pago (MercadoPago, Cuenta DNI, Transferencia)](10-Medios-de-pago.md)
+11. [Usuarios y permisos](11-Usuarios-y-permisos.md)
 
 ---
 
@@ -29,7 +42,7 @@ Cada sección tiene dos partes:
 
 **1. FIFO real en ventas.** Al vender, el costo que se usa para calcular la ganancia es el **costo del lote más antiguo disponible** (el primero que entró). No el costo promedio. Esto hace que el margen del reporte refleje la ganancia real de ese ticket.
 
-**2. Costo promedio ponderado SOLO en carameleras.** Porque una misma caramelera mezcla varias marcas con distintos costos pero se vende al mismo precio por gramo, ahí sí se usa promedio ponderado.
+**2. Costo promedio ponderado SOLO en venta por peso.** Porque un mismo producto fraccionado (fiambre, dietética) mezcla piezas con distintos costos pero se vende al mismo precio por gramo, ahí sí se usa promedio ponderado.
 
 **3. Cascada automática en empaques.** Cuando sumás 288 unidades al stock base, el sistema actualiza automáticamente el stock de *unidad*, *display* (288÷12=24) y *bulto* (288÷144=2). Nunca tenés que hacer la cuenta a mano. Al vender pasa lo mismo en sentido contrario.
 
@@ -39,13 +52,10 @@ Cada sección tiene dos partes:
 
 **6. El movimiento de caja solo registra lo cobrado, no el vuelto.** Si el cliente paga $2000 y llevó $1500, la caja registra ingreso de $1500 (el vuelto no se registra como gasto).
 
+**7. La fecha de vencimiento se carga al recibir la compra, no antes ni después.** Es opcional y solo aplica a productos que vencen (capítulo 8).
+
 ---
 
 ## Roles de usuario
 
-- **Admin:** acceso total. Crea productos, hace compras, ve reportes, cierra caja.
-- **Cajero Manager:** opera POS y puede cerrar caja. No ve compras ni reportes sensibles.
-- **Cashier (Cajero):** solo opera el POS y consulta sus propias ventas.
-- **Stock Manager:** carga productos, hace ajustes de stock, no toca caja.
-
-Los permisos se basan en grupos de Django. El superusuario pasa todos los controles.
+Hay tres roles: **Admin** (acceso total), **Cajero Manager** (vende, cierra caja e inventario, sin ver compras ni reportes financieros) y **Cashier** (solo POS y sus propias ventas). Detalle completo, cómo crear usuarios y cómo asignar cada rol en el **capítulo 11**.

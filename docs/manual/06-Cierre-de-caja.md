@@ -26,14 +26,14 @@ Al final del turno del cajero o del día. Una vez cerrada, el turno queda audita
   - Positiva: sobrante (entró más de lo registrado).
   - Negativa: faltante (falta plata en caja).
   - Cero: perfecto.
-- Se muestra el **resumen por método de pago**: efectivo, débito, crédito, transferencia, MercadoPago. Cada uno con total y cantidad de transacciones.
-- El turno queda con estado `closed`.
+- Se muestra el **resumen por método de pago**: efectivo, débito, crédito, transferencia, MercadoPago QR y Cuenta DNI. Cada uno con total y cantidad de transacciones.
+- El turno queda con estado cerrado.
 
 ---
 
 ## Qué entra en "efectivo" y qué no
 
-**Solo cuenta como efectivo** lo cobrado por métodos con `is_cash=True` (efectivo). Débito, crédito, transferencia y MercadoPago **no afectan** el monto esperado en caja — van a sus propias cuentas.
+**Solo cuenta como efectivo** lo cobrado en billetes/monedas. Débito, crédito, transferencia, MercadoPago QR y Cuenta DNI **no afectan** el monto esperado en caja — van a sus propias cuentas.
 
 Esto es importante: si vendiste $10.000 con tarjeta, **no esperés** esos $10.000 en la caja física. El sistema ya sabe que fueron por tarjeta.
 

@@ -40,7 +40,8 @@ Cuando la mercadería llegó físicamente al local. **Hasta que no la recibás, 
 ### Paso a paso
 
 1. Ir a **Compras → [Tu OC pendiente] → Recibir**.
-2. Confirmar.
+2. Si algún producto tiene **fecha de vencimiento** (fiambres, lácteos, dietética), cargala en la columna "Vencimiento" de esa fila. Es opcional — dejala vacía si el producto no vence. Esto es lo que alimenta la pantalla de **Vencimientos** (capítulo 8).
+3. Confirmar.
 
 Eso es todo. El sistema hace el resto.
 
@@ -67,7 +68,7 @@ Cuando confirmás la recepción, por cada ítem de la OC el sistema:
 ## Ejemplo práctico
 
 Comprás al proveedor:
-- 2 bultos de Coca-Cola a $14.400 c/u.
+- 2 bultos de Arroz 1kg a $14.400 c/u.
 - 3 displays del mismo producto a $1.200 c/u.
 - 50 unidades sueltas a $105 c/u.
 
@@ -85,7 +86,7 @@ Stock resultante: **374 unidades** distribuidas automáticamente en los 3 nivele
 
 ## Comprar el mismo producto a varios proveedores
 
-Si comprás Coca-Cola al proveedor A a $100 y después al proveedor B a $150, el sistema:
+Si comprás Arroz 1kg al proveedor A a $100 y después al proveedor B a $150, el sistema:
 
 - Crea **dos lotes distintos**, cada uno con su precio y fecha.
 - El **costo promedio** del producto se recalcula (pasa a ser algo entre $100 y $150, ponderado por cantidad).
