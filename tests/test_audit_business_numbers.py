@@ -200,6 +200,16 @@ class StockAdditionAudit(AuditBaseTestCase):
         expected = (Decimal('100') * 10 + Decimal('130') * 20) / 30
         self.assertAlmostEqual(float(prod.cost_price), float(expected), places=2)
 
+    def test_add_stock_cheaper_cost_does_not_lower_average(self):
+        """Un ingreso más barato que el costo base actual no debe promediarse
+        hacia abajo: el costo base se mantiene (solo baja editando a mano)."""
+        prod = self.make_product(current_stock='10.000', cost_price='100.00')
+        StockManagementService.add_stock(prod, 20, cost=Decimal('70.00'))
+        prod.refresh_from_db()
+
+        self.assertEqual(prod.current_stock, Decimal('30.000'))
+        self.assertEqual(prod.cost_price, Decimal('100.00'))
+
 
 class StockAdjustmentAudit(AuditBaseTestCase):
     """Audita ajustes de inventario."""

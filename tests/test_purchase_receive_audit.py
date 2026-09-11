@@ -250,6 +250,33 @@ class PurchaseReceiveAuditWithPackagingTests(TestCase):
         )
         self.assertEqual(product.current_stock, Decimal('90'))
 
+    def test_costo_nuevo_mas_barato_no_baja_el_costo_base(self):
+        """Stock previo a $40 + compra más barata a $30 unitario base:
+        cost_price NO debe promediarse hacia abajo, se mantiene en $40
+        (pedido de Sofia — bajarlo es siempre manual)."""
+        product, unit, display, bulk = self._make_product_with_pkgs(
+            initial_stock='30', initial_cost='40'
+        )
+        unit.current_stock = Decimal('30')
+        unit.save(update_fields=['current_stock'])
+        display.current_stock = Decimal('5')
+        display.save(update_fields=['current_stock'])
+
+        # OC: 10 displays a $180/display → base_qty=60, unit_cost_base=$30
+        purchase = self._create_oc([{
+            'product': product, 'packaging': display,
+            'quantity': 10, 'unit_cost': Decimal('180'),
+        }])
+        self._receive(purchase)
+
+        product.refresh_from_db()
+        self.assertEqual(
+            product.cost_price, Decimal('40'),
+            msg='costo nuevo más barato no debe pisar el costo base',
+        )
+        # El stock sí se suma normalmente, solo el costo queda fijo.
+        self.assertEqual(product.current_stock, Decimal('90'))
+
     # ---------- FIFO CON MÚLTIPLES RECEPCIONES ----------
 
     def test_multiples_recepciones_generan_batches_fifo_con_precios_propios(self):

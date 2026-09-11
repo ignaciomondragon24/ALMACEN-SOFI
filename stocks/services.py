@@ -41,8 +41,11 @@ class StockManagementService:
         # Update product stock
         product.current_stock = stock_after
 
-        # Update average cost if cost provided
-        if cost and cost > 0:
+        # Update average cost if cost provided. No se promedia hacia abajo:
+        # si el costo nuevo es más barato que el costo base actual, se
+        # mantiene el viejo (pedido de Sofia, 2026-09-10 — para bajarlo lo
+        # hace manual desde el producto).
+        if cost and cost > 0 and cost >= product.cost_price:
             total_value = (product.cost_price * stock_before) + (cost * quantity)
             if stock_after > 0:
                 product.cost_price = total_value / stock_after
@@ -405,12 +408,17 @@ class StockManagementService:
         product.current_stock = stock_before + units_added
 
         # 4) Actualizar costo promedio
+        # No se promedia hacia abajo: si el costo nuevo es más barato que el
+        # costo base actual, se mantiene el costo viejo (pedido de Sofia,
+        # 2026-09-10 — evita que una compra puntual más barata le pise el
+        # costo de referencia; para bajarlo lo hace manual desde el producto).
         cost_each = Decimal(str(cost)) if cost else packaging_record.purchase_price
         if cost_each and cost_each > 0 and packaging_record.units_quantity > 0:
             unit_cost = cost_each / Decimal(str(packaging_record.units_quantity))
-            total_value = (product.cost_price * stock_before) + (unit_cost * units_added)
-            if product.current_stock > 0:
-                product.cost_price = total_value / product.current_stock
+            if unit_cost >= product.cost_price:
+                total_value = (product.cost_price * stock_before) + (unit_cost * units_added)
+                if product.current_stock > 0:
+                    product.cost_price = total_value / product.current_stock
         product.save()
 
         # 5) Actualizar OTROS niveles de packaging proporcionalmente
