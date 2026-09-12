@@ -50,7 +50,8 @@
                                     <select name="category" id="id_category" class="form-select">
                                         <option value="">Sin categoría</option>
                                         {% for cat in form.category.field.queryset %}
-                                        <option value="{{ cat.pk }}" {% if form.category.value|stringformat:'d' == cat.pk|stringformat:'d' %}selected{% endif %}>
+                                        <option value="{{ cat.pk }}" data-margin="{{ cat.default_margin_percent|unlocalize }}"
+                                                {% if form.category.value|stringformat:'d' == cat.pk|stringformat:'d' %}selected{% endif %}>
                                             {{ cat.name }}
                                         </option>
                                         {% endfor %}
@@ -115,9 +116,9 @@
                                 <div class="mb-3">
                                     <label for="id_margin" class="form-label">Margen %</label>
                                     <div class="input-group">
-                                        <input type="number" name="profit_margin" id="id_margin" 
+                                        <input type="number" name="profit_margin" id="id_margin"
                                                class="form-control text-end" step="0.01" min="0"
-                                               value="{{ form.profit_margin.value|default:'30.00' }}">
+                                               value="{% if product %}{{ product.margin_percent|unlocalize }}{% else %}{{ initial_margin|default:'30.00' }}{% endif %}">
                                         <span class="input-group-text">%</span>
                                     </div>
                                 </div>
@@ -481,6 +482,22 @@
     costInput.addEventListener('input', calculateSalePrice);
     marginInput.addEventListener('input', calculateSalePrice);
     saleInput.addEventListener('input', calculateMargin);
+
+    // Al elegir categoría en un producto NUEVO, sugerir el margen por
+    // defecto de esa categoría en vez de dejar el 30% genérico pisado.
+    // No se aplica si ya se está editando un producto existente (ahí el
+    // campo ya arranca con el margen real calculado del producto).
+    {% if not product %}
+    const categorySelect = document.getElementById('id_category');
+    categorySelect.addEventListener('change', function() {
+        const opt = categorySelect.options[categorySelect.selectedIndex];
+        const catMargin = opt ? opt.getAttribute('data-margin') : null;
+        if (catMargin) {
+            marginInput.value = parseFloat(catMargin).toFixed(2);
+            calculateSalePrice();
+        }
+    });
+    {% endif %}
     
     function calculateSalePrice() {
         const cost = parseFloat(costInput.value) || 0;
