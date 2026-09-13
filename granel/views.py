@@ -64,6 +64,8 @@ def api_deposito_ajustar_stock(request, pk):
             return JsonResponse({'error': 'El stock no puede quedar negativo.'}, status=400)
         producto.current_stock = nuevo
         producto.save(update_fields=['current_stock', 'updated_at'])
+        if delta > 0:
+            GranelService.auto_abrir_disponible(producto, user=request.user)
         return JsonResponse({
             'success': True,
             'stock_unidades': int(producto.current_stock),
@@ -172,6 +174,12 @@ def _caramelera_save(request, caramelera):
         is_active=True,
     )
     caramelera.productos_autorizados.set(autorizados)
+
+    # Si algún producto recién autorizado ya tenía stock esperando (se
+    # cargó antes de autorizarlo), abrirlo automáticamente ahora que la
+    # autorización ya es inequívoca (ver GranelService.auto_abrir_disponible).
+    for producto in autorizados:
+        GranelService.auto_abrir_disponible(producto, user=request.user)
 
     # Crear/actualizar el producto POS vinculado (is_granel=True)
     _sync_caramelera_pos_product(caramelera)

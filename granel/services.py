@@ -120,6 +120,48 @@ class GranelService:
         return apertura
 
     @staticmethod
+    def auto_abrir_disponible(producto, user=None):
+        """
+        Abre automáticamente TODO el stock entero disponible de un producto
+        de depósito hacia su único producto fraccionado autorizado, sin que
+        el usuario tenga que hacer el paso manual de "Abrir Paquete" cada
+        vez (pedido de Sofia, 2026-09-13 — para un almacén chico, con pocas
+        piezas en simultáneo, no hace falta elegir a mano cuál abrir).
+
+        Se llama automáticamente cada vez que sube el stock de un producto
+        de depósito (recepción de compra, ajuste manual, o al autorizar el
+        producto en una caramelera). No hace nada — silencioso, sin error —
+        si el producto no es de depósito, no tiene stock entero disponible,
+        no tiene gramos por unidad configurados, o está autorizado en 0 o
+        más de 1 caramelera (ahí es ambiguo hacia dónde abrir, y se requiere
+        elegir a mano con "Abrir Paquete").
+
+        Returns: AperturaBulto creada, o None si no se pudo/no aplicaba.
+        """
+        if not producto.es_deposito_caramelera:
+            return None
+        cantidad = int(producto.current_stock)
+        if cantidad < 1:
+            return None
+        if not producto.weight_per_unit_grams or producto.weight_per_unit_grams <= 0:
+            return None
+
+        carameleras = list(producto.caramelera_set.filter(is_active=True))
+        if len(carameleras) != 1:
+            return None
+
+        try:
+            return GranelService.abrir_paquete(
+                caramelera_id=carameleras[0].pk,
+                producto_deposito_id=producto.pk,
+                user=user,
+                notas='Apertura automática al recibir stock',
+                cantidad=cantidad,
+            )
+        except ValueError:
+            return None
+
+    @staticmethod
     @transaction.atomic
     def realizar_auditoria(caramelera_id, peso_real_balanza, user, motivo=''):
         """

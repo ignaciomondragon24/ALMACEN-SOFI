@@ -21,9 +21,10 @@
             </nav>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <button type="button" class="btn btn-success"
-                    data-bs-toggle="modal" data-bs-target="#modalAbrirPaquete">
-                <i class="fas fa-box-open me-1"></i>Abrir Paquete
+            <button type="button" class="btn btn-outline-success"
+                    data-bs-toggle="modal" data-bs-target="#modalAbrirPaquete"
+                    title="Ya no hace falta: el stock del depósito se abre solo al cargarlo. Usalo solo para forzar una apertura manual.">
+                <i class="fas fa-box-open me-1"></i>Abrir Manualmente
             </button>
             <button type="button" class="btn btn-outline-warning"
                     data-bs-toggle="modal" data-bs-target="#modalAuditoria">
@@ -391,8 +392,10 @@
                 <div id="modal-abrir-error" class="alert alert-danger d-none"></div>
 
                 <p class="text-muted small mb-3">
-                    Se descuenta 1 unidad del depósito y se suma el contenido completo de esa pieza
-                    al producto fraccionado, recalculando el costo ponderado.
+                    Normalmente no hace falta usar esto: al cargar stock nuevo al depósito, el
+                    sistema abre todas las piezas disponibles solo. Usá esto únicamente para
+                    forzar una apertura manual puntual (se descuenta del depósito y se suma al
+                    producto fraccionado, recalculando el costo ponderado).
                 </p>
 
                 <div class="mb-3">

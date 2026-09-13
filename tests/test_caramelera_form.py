@@ -182,6 +182,16 @@ class CarameleraFormTestCase(TestCase):
         self.client.post(reverse('granel:caramelera_create'), data=self._valid_caramelera_post())
         caramelera = Caramelera.objects.get(nombre='Gomitas Surtidas')
 
+        # Al crear la caramelera, la apertura automática ya consumió todo
+        # el stock de deposito1 (ver AutoAperturaTest en test_granel.py).
+        # Para probar el endpoint manual de apertura necesitamos stock
+        # "nuevo" que no haya pasado por ese flujo automático (ej: cargado
+        # directo por Admin) — se lo restituimos a mano.
+        self.deposito1.current_stock = Decimal('5')
+        self.deposito1.save(update_fields=['current_stock'])
+        caramelera.refresh_from_db()
+        stock_antes = caramelera.stock_gramos_actual
+
         resp = self.client.post(
             reverse('granel:api_abrir_paquete', args=[caramelera.pk]),
             data=json.dumps({'producto_id': self.deposito1.pk}),
@@ -193,7 +203,9 @@ class CarameleraFormTestCase(TestCase):
         self.assertEqual(data['gramos_agregados'], float(self.deposito1.weight_per_unit_grams))
 
         caramelera.refresh_from_db()
-        self.assertEqual(caramelera.stock_gramos_actual, self.deposito1.weight_per_unit_grams)
+        self.assertEqual(
+            caramelera.stock_gramos_actual, stock_antes + self.deposito1.weight_per_unit_grams
+        )
 
         self.deposito1.refresh_from_db()
         self.assertEqual(self.deposito1.current_stock, Decimal('4'))

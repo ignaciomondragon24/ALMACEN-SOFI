@@ -34,32 +34,31 @@ En **Inventario → Venta por Peso → Nuevo Producto Fraccionado** (ej: "Jamón
 - **Precio por Kilo Oferta** (opcional): si vendés una oferta fija por cuarto/250g, cargá acá el precio equivalente a 1 kilo (el precio del cuarto × 4) — el sistema lo aplica proporcional desde los 250g en adelante.
 - Qué piezas de depósito (del Paso 1) están **autorizadas** a alimentar este producto.
 
-Recién con los 3 pasos hechos, el producto fraccionado queda listo para el Paso 4: abrir una pieza y empezar a vender por peso.
+Recién con los 3 pasos hechos, el producto fraccionado queda listo. **No hace falta un Paso 4**: en cuanto el depósito tiene stock y está autorizado, el sistema lo abre solo (ver siguiente sección).
 
 ---
 
-## Abrir un paquete hacia el producto fraccionado
+## La apertura hacia el producto fraccionado es automática
 
-### Cuándo
-Cada vez que abrís una pieza/bulto nuevo (ej: una nueva pata de jamón, una nueva horma de queso).
+**Ya no hace falta clickear "abrir" cada vez que empezás una pieza nueva.** En cuanto el depósito (Paso 1) tiene piezas en stock (Paso 2) y está autorizado en un producto fraccionado (Paso 3), el sistema las abre solo, apenas se cumplen las dos condiciones — no importa el orden en que hiciste los pasos:
 
-### Paso a paso
-
-1. Ir a **Inventario → Venta por Peso**, entrar al producto.
-2. Seleccionar:
-   - El **producto de depósito** (el bulto/pieza cerrada).
-   - **Cantidad de paquetes** a abrir.
-3. Confirmar.
+- Si cargás stock nuevo al depósito (por una compra o con el ajuste manual +/-) y ya estaba autorizado → se abre al toque.
+- Si autorizás un depósito que ya tenía piezas esperando → se abren en el momento de guardar esa autorización.
 
 ![Ficha del producto fraccionado: stock actual, precios, depósito autorizado e historial de aperturas.](images/04-venta-por-peso-detalle.jpg)
 
-### Qué pasa por atrás
+### Qué pasa por atrás, automáticamente
 
-1. Calcula los gramos nuevos: cantidad de paquetes × gramos que trae cada uno.
+1. Calcula los gramos nuevos: cantidad de piezas × gramos que trae cada una.
 2. **Recalcula el costo ponderado** del producto fraccionado (ver sección siguiente).
 3. Suma los gramos al stock del producto fraccionado.
-4. Descuenta el paquete del stock de depósito.
+4. Descuenta las piezas del stock de depósito (queda en 0 — ya están "puestas en el mostrador").
 5. Sincroniza el "producto POS" vinculado (para que al escanear/buscar aparezcan los gramos actualizados).
+6. Igual que antes, queda registrada en el historial de aperturas para auditoría.
+
+### Cuándo SÍ hace falta abrir a mano
+
+Solo en un caso poco común: si el mismo depósito está autorizado en **más de un** producto fraccionado a la vez, el sistema no puede adivinar hacia cuál abrir — ahí sí tenés que ir al detalle del producto fraccionado y usar el botón **"Abrir Manualmente"**, eligiendo la pieza y la cantidad.
 
 ---
 

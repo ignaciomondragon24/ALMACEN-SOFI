@@ -88,8 +88,15 @@ class StockManagementService:
             created_by=user
         )
 
+        # Si es un producto de depósito para venta por peso, abrir
+        # automáticamente el stock nuevo hacia su fraccionado autorizado
+        # (evita el paso manual de "Abrir Paquete" — ver GranelService).
+        if quantity > 0 and product.es_deposito_caramelera:
+            from granel.services import GranelService
+            GranelService.auto_abrir_disponible(product, user=user)
+
         return movement
-    
+
     @staticmethod
     @transaction.atomic
     def deduct_stock(product, quantity, reference='', reference_id=None, notes='', user=None):
@@ -449,6 +456,13 @@ class StockManagementService:
             notes=f'{packaging_record.name}',
             created_by=user,
         )
+
+        # Ídem add_stock: abrir automáticamente hacia el fraccionado
+        # autorizado si es un producto de depósito para venta por peso.
+        if units_added > 0 and product.es_deposito_caramelera:
+            from granel.services import GranelService
+            GranelService.auto_abrir_disponible(product, user=user)
+
         return movement
 
     @staticmethod

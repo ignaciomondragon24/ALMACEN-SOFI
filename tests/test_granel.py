@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 
-from stocks.models import Product, ProductCategory, StockMovement
+from stocks.models import Product, ProductCategory, StockMovement, ProductPackaging
 from stocks.services import StockManagementService
 from pos.models import POSSession, POSTransaction, POSTransactionItem
 from pos.services import CartService, CheckoutService, POSService
@@ -189,6 +189,122 @@ class TransferValidationTest(GranelBaseTestCase):
         self.assertEqual(apertura.caramelera, caramelera)
         self.assertEqual(apertura.producto, producto)
         self.assertEqual(apertura.abierto_por, self.user)
+
+
+class AutoAperturaTest(GranelBaseTestCase):
+    """
+    Apertura automática de depósito (pedido de Sofia, 2026-09-13): para un
+    almacén chico, con pocas piezas en simultáneo, no debería hacer falta
+    clickear "Abrir Paquete" a mano cada vez — el stock del depósito se
+    abre solo hacia su único fraccionado autorizado apenas sube.
+    """
+
+    def test_add_stock_auto_abre_si_una_sola_caramelera_autorizada(self):
+        caramelera = self._create_caramelera()
+        producto = self._create_deposito(stock=0, gramos=Decimal('500'), costo=Decimal('5000'))
+        caramelera.productos_autorizados.add(producto)
+
+        StockManagementService.add_stock(producto, quantity=3, cost=Decimal('5000'), user=self.user)
+
+        producto.refresh_from_db()
+        caramelera.refresh_from_db()
+        self.assertEqual(producto.current_stock, Decimal('0'), 'las 3 piezas deben quedar abiertas, no en depósito')
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('1500'))
+        self.assertEqual(AperturaBulto.objects.filter(caramelera=caramelera).count(), 1)
+
+    def test_add_stock_no_auto_abre_sin_caramelera_autorizada(self):
+        """Sin ninguna caramelera autorizada todavía, no hay dónde abrir — se
+        queda en depósito esperando (no es un error, solo ambiguo)."""
+        producto = self._create_deposito(stock=0, gramos=Decimal('500'))
+
+        StockManagementService.add_stock(producto, quantity=2, cost=Decimal('5000'), user=self.user)
+
+        producto.refresh_from_db()
+        self.assertEqual(producto.current_stock, Decimal('2'))
+        self.assertEqual(AperturaBulto.objects.count(), 0)
+
+    def test_add_stock_no_auto_abre_si_hay_dos_carameleras_autorizadas(self):
+        """Con más de una caramelera autorizada es ambiguo hacia dónde
+        abrir — se requiere elegir a mano con 'Abrir Manualmente'."""
+        c1 = self._create_caramelera(nombre='Jamon A')
+        c2 = self._create_caramelera(nombre='Jamon B')
+        producto = self._create_deposito(stock=0, gramos=Decimal('500'))
+        c1.productos_autorizados.add(producto)
+        c2.productos_autorizados.add(producto)
+
+        StockManagementService.add_stock(producto, quantity=2, cost=Decimal('5000'), user=self.user)
+
+        producto.refresh_from_db()
+        self.assertEqual(producto.current_stock, Decimal('2'))
+        self.assertEqual(AperturaBulto.objects.count(), 0)
+
+    def test_receive_packaging_tambien_auto_abre(self):
+        """La recepción desde el Gestor de Empaques (receive_packaging) usa
+        una ruta de código separada de add_stock — debe disparar la misma
+        apertura automática."""
+        caramelera = self._create_caramelera()
+        producto = self._create_deposito(stock=0, gramos=Decimal('500'), costo=Decimal('5000'))
+        caramelera.productos_autorizados.add(producto)
+        unit_pkg = ProductPackaging.objects.create(
+            product=producto, packaging_type='unit', name=producto.name,
+            purchase_price=Decimal('5000'), sale_price=Decimal('0.01'),
+        )
+
+        StockManagementService.receive_packaging(unit_pkg, quantity=2, cost=Decimal('5000'), user=self.user)
+
+        producto.refresh_from_db()
+        caramelera.refresh_from_db()
+        self.assertEqual(producto.current_stock, Decimal('0'))
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('1000'))
+
+    def test_ajuste_manual_deposito_auto_abre(self):
+        """El botón +/- rápido del depósito también dispara la apertura
+        automática cuando suma stock (delta positivo)."""
+        from django.test import Client
+        from django.urls import reverse
+        import json
+
+        caramelera = self._create_caramelera()
+        producto = self._create_deposito(stock=0, gramos=Decimal('500'), costo=Decimal('5000'))
+        caramelera.productos_autorizados.add(producto)
+
+        c = Client()
+        c.force_login(self.user)
+        r = c.post(
+            reverse('granel:api_deposito_stock', args=[producto.pk]),
+            data=json.dumps({'delta': 2}),
+            content_type='application/json',
+        )
+        self.assertEqual(r.status_code, 200)
+
+        producto.refresh_from_db()
+        caramelera.refresh_from_db()
+        self.assertEqual(producto.current_stock, Decimal('0'))
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('1000'))
+
+    def test_autorizar_producto_con_stock_pendiente_auto_abre(self):
+        """Si el depósito ya tenía stock ANTES de autorizarlo en una
+        caramelera, apenas se guarda esa autorización se abre solo."""
+        from django.test import Client
+        from django.urls import reverse
+
+        producto = self._create_deposito(stock=4, gramos=Decimal('500'), costo=Decimal('5000'))
+        caramelera = self._create_caramelera()
+
+        c = Client()
+        c.force_login(self.user)
+        r = c.post(reverse('granel:caramelera_edit', args=[caramelera.pk]), {
+            'nombre': caramelera.nombre,
+            'precio_100g': str(caramelera.precio_100g),
+            'precio_cuarto': str(caramelera.precio_cuarto),
+            'productos_autorizados': [str(producto.pk)],
+        })
+        self.assertEqual(r.status_code, 302)
+
+        producto.refresh_from_db()
+        caramelera.refresh_from_db()
+        self.assertEqual(producto.current_stock, Decimal('0'))
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('2000'))
 
 
 class AuditoriaTest(GranelBaseTestCase):
