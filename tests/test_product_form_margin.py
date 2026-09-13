@@ -63,3 +63,23 @@ class ProductFormMarginTests(TestCase):
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
         self.assertIn(f'data-margin="46.00"', content)
+
+    def test_weight_per_unit_grams_renders_with_dot_not_comma(self):
+        """Bug reportado por Sofia: el input de Gramos por Unidad es
+        type="number", que en HTML5 solo acepta punto decimal. Sin el
+        filtro |unlocalize, Django renderizaba "500,00" (coma, localizado
+        es-AR) — un valor inválido para ese input, que el navegador
+        descarta silenciosamente mostrando el campo vacío, aunque el dato
+        siga intacto en la base. Por eso a Sofia "se le borraba" el peso
+        al volver a entrar, sin ningún patrón aparente."""
+        product = Product.objects.create(
+            name='Jamon Deposito Test', sku='WEIGHT-001',
+            category=self.category, es_deposito_caramelera=True,
+            weight_per_unit_grams=Decimal('500.00'),
+            cost_price=Decimal('5000.00'), sale_price=Decimal('0.01'),
+        )
+        response = self.client.get(reverse('stocks:product_edit', args=[product.pk]))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('value="500.00"', content)
+        self.assertNotIn('value="500,00"', content)

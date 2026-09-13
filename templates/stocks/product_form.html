@@ -208,11 +208,11 @@
                                         <div class="input-group">
                                             <input type="number" name="weight_per_unit_grams" id="id_weight_per_unit_grams"
                                                    class="form-control text-end" step="1" min="1"
-                                                   value="{{ form.weight_per_unit_grams.value|default:'' }}"
+                                                   value="{{ form.weight_per_unit_grams.value|unlocalize|default:'' }}"
                                                    placeholder="Ej: 2000">
                                             <span class="input-group-text">g</span>
                                         </div>
-                                        <div class="form-text">Cuántos gramos tiene cada bolsa/unidad.</div>
+                                        <div class="form-text">Cuántos gramos tiene cada pieza/unidad.</div>
                                     </div>
                                 </div>
                             </div>
