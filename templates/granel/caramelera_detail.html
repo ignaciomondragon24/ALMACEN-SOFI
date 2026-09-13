@@ -197,7 +197,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Producto</th>
-                                <th class="text-end">Bolsas</th>
+                                <th class="text-end">Piezas</th>
                                 <th class="text-end">Total g</th>
                             </tr>
                         </thead>
@@ -272,7 +272,7 @@
                                 <tr id="row-empty-aperturas">
                                     <td colspan="6" class="text-center text-muted py-4">
                                         <i class="fas fa-box-open fa-2x d-block mb-2 opacity-50"></i>
-                                        Todavía no se abrió ningún paquete para esta caramelera.
+                                        Todavía no se abrió ningún paquete para este producto fraccionado.
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -391,8 +391,8 @@
                 <div id="modal-abrir-error" class="alert alert-danger d-none"></div>
 
                 <p class="text-muted small mb-3">
-                    Se descuenta 1 unidad del depósito y se suma el contenido completo de esa bolsa
-                    a la caramelera, recalculando el costo ponderado.
+                    Se descuenta 1 unidad del depósito y se suma el contenido completo de esa pieza
+                    al producto fraccionado, recalculando el costo ponderado.
                 </p>
 
                 <div class="mb-3">
@@ -411,7 +411,7 @@
                                 {% endif %}
                                 <div class="text-muted small">
                                     {% if p.weight_per_unit_grams %}
-                                        {{ p.weight_per_unit_grams|floatformat:0 }}g/bolsa ·
+                                        {{ p.weight_per_unit_grams|floatformat:0 }}g/pieza ·
                                         ${{ p.costo_por_gramo|floatformat:4 }}/g
                                     {% else %}
                                         <span class="text-danger">Sin gramos configurados</span>

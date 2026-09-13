@@ -12,6 +12,32 @@ Como los costos son distintos pero el precio de venta es único, el sistema usa 
 
 ---
 
+## Antes de abrir nada: dar de alta el circuito completo
+
+Son 3 pasos separados, cada uno se hace **una sola vez** por tipo de producto (no hay que repetirlos en cada venta):
+
+### Paso 1 — Cargar la pieza cerrada (el depósito)
+
+Es un producto común de **Inventario → Nuevo Producto**, pero tildando la casilla **"Producto para Venta por Peso (pieza/bulto de depósito)"**. Ahí completás:
+- **Marca** (para diferenciar piezas del mismo tipo, ej. dos jamones de distinto proveedor).
+- **Gramos por Unidad**: cuánto pesa cada pieza cerrada (ej: 500 para una pata de jamón de 500g).
+- **Precio de Costo**: lo que te costó esa pieza. No hace falta cargarle precio de venta — esta pieza no se vende suelta, solo alimenta al producto fraccionado.
+
+### Paso 2 — Cargar el stock de esa pieza
+
+Como a cualquier producto: por **Compras** (recibir una orden de compra) o con un ajuste manual de stock. Acá la cantidad que cargás es **cantidad de piezas**, no gramos (ej: "tengo 3 piezas en la heladera").
+
+### Paso 3 — Crear el producto fraccionado (el que se vende por peso)
+
+En **Inventario → Venta por Peso → Nuevo Producto Fraccionado** (ej: "Jamón Cocido Fraccionado"). Ahí cargás, en la misma pantalla:
+- **Precio de venta por 100g**.
+- **Precio por Kilo Oferta** (opcional): si vendés una oferta fija por cuarto/250g, cargá acá el precio equivalente a 1 kilo (el precio del cuarto × 4) — el sistema lo aplica proporcional desde los 250g en adelante.
+- Qué piezas de depósito (del Paso 1) están **autorizadas** a alimentar este producto.
+
+Recién con los 3 pasos hechos, el producto fraccionado queda listo para el Paso 4: abrir una pieza y empezar a vender por peso.
+
+---
+
 ## Abrir un paquete hacia el producto fraccionado
 
 ### Cuándo
@@ -44,14 +70,14 @@ El sistema **no promedia por cantidad de productos distintos**. Promedia **por g
 ### Fórmula
 
 ```
-costo_nuevo =  (stock_antes × costo_antes) + (gramos_nuevos × costo_nuevo_bolsa)
+costo_nuevo =  (stock_antes × costo_antes) + (gramos_nuevos × costo_nuevo_pieza)
                ────────────────────────────────────────────────────────────────
                                 stock_antes + gramos_nuevos
 ```
 
 Es decir: **total de plata invertida ÷ gramos totales**.
 
-### Costo por gramo de la bolsa que abrís
+### Costo por gramo de la pieza que abrís
 
 Se calcula a partir del precio de costo del producto de depósito:
 
