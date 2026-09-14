@@ -120,6 +120,12 @@ class CartService:
         except Product.DoesNotExist:
             return None, 'Producto no encontrado'
 
+        if product.es_deposito_caramelera:
+            return None, (
+                f'"{product.name}" es una pieza de depósito, no se vende directo. '
+                f'Buscá el producto fraccionado (Venta por Peso).'
+            )
+
         quantity = Decimal(str(quantity))
 
         # Resolve packaging

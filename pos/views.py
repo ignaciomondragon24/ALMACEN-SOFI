@@ -138,7 +138,8 @@ def api_search(request):
     # para soportar códigos internos auto-generados tipo "INT-PRD123-DISP" cuando
     # el display no tiene EAN-13 fisico (caso real: alfajores Juanino).
     packaging_match = ProductPackaging.objects.filter(
-        barcode=query, is_active=True, product__is_active=True
+        barcode=query, is_active=True, product__is_active=True,
+        product__es_deposito_caramelera=False,
     ).select_related('product', 'product__unit_of_measure', 'product__category').first()
     if packaging_match:
         products = Product.objects.filter(id=packaging_match.product_id)
@@ -147,10 +148,17 @@ def api_search(request):
         # cubrir ITF-14 / GS1-14 (típico en cajas de bultos: el EAN-13 con un
         # dígito de embalaje delante, ej. 17798094220953 para el bulto del
         # alfajor Genio Triple Chocolate).
-        products = Product.objects.filter(is_active=True, barcode=query)
+        products = Product.objects.filter(
+            is_active=True, es_deposito_caramelera=False, barcode=query
+        )
     elif len(query) >= 1:
-        # Get all active products and filter in Python for accent-insensitive search
-        all_products = Product.objects.filter(is_active=True).select_related('unit_of_measure', 'category')
+        # Get all active products and filter in Python for accent-insensitive search.
+        # Excluye productos de depósito (es_deposito_caramelera): son piezas
+        # cerradas de uso interno para "Venta por Peso", nunca se venden
+        # sueltas — solo confundirían al cajero en el buscador del POS.
+        all_products = Product.objects.filter(
+            is_active=True, es_deposito_caramelera=False
+        ).select_related('unit_of_measure', 'category')
         
         # Filter products where normalized name/sku/barcode contains normalized query
         matching_ids = []
@@ -240,9 +248,9 @@ def api_search(request):
 @require_GET
 def api_all_products(request):
     """Return all active products for the sidebar products panel."""
-    products = Product.objects.filter(is_active=True).select_related(
-        'unit_of_measure', 'category'
-    ).order_by('category__name', 'name')
+    products = Product.objects.filter(
+        is_active=True, es_deposito_caramelera=False
+    ).select_related('unit_of_measure', 'category').order_by('category__name', 'name')
     quick_ids = set(QuickAccessButton.objects.filter(is_active=True).values_list('product_id', flat=True))
     return JsonResponse({
         'products': [
