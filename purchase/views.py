@@ -12,8 +12,8 @@ from django.utils import timezone
 from decimal import Decimal
 
 from decorators.decorators import group_required
-from .models import Supplier, Purchase, PurchaseItem
-from .forms import SupplierForm, PurchaseForm, PurchaseItemFormSet
+from .models import Supplier, SupplierProduct, Purchase, PurchaseItem
+from .forms import SupplierForm, SupplierProductForm, PurchaseForm, PurchaseItemFormSet
 from stocks.models import Product, ProductPackaging, StockBatch
 from stocks.services import StockManagementService
 from expenses.models import Expense, ExpenseCategory
@@ -98,6 +98,159 @@ def supplier_delete(request, pk):
 
 @login_required
 @group_required(['Admin'])
+def supplier_products(request, pk):
+    """Manage the catalog of products a supplier sells (with their cost price)."""
+    supplier = get_object_or_404(Supplier, pk=pk)
+
+    if request.method == 'POST':
+        form = SupplierProductForm(request.POST)
+        if form.is_valid():
+            product = form.cleaned_data['product']
+            link, created = SupplierProduct.objects.update_or_create(
+                supplier=supplier,
+                product=product,
+                defaults={
+                    'cost_price': form.cleaned_data['cost_price'],
+                    'notes': form.cleaned_data['notes'],
+                    'is_active': form.cleaned_data['is_active'],
+                }
+            )
+            messages.success(
+                request,
+                f'"{product.name}" {"agregado al" if created else "actualizado en el"} catálogo de {supplier.name}.'
+            )
+            return redirect('purchase:supplier_products', pk=supplier.pk)
+    else:
+        form = SupplierProductForm()
+
+    links = supplier.supplier_products.select_related('product').order_by('product__name')
+
+    context = {
+        'supplier': supplier,
+        'form': form,
+        'links': links,
+    }
+    return render(request, 'purchase/supplier_products.html', context)
+
+
+@login_required
+@group_required(['Admin'])
+def supplier_product_remove(request, pk, link_pk):
+    """Remove a product from a supplier's catalog."""
+    supplier = get_object_or_404(Supplier, pk=pk)
+    link = get_object_or_404(SupplierProduct, pk=link_pk, supplier=supplier)
+
+    if request.method == 'POST':
+        link.delete()
+        messages.success(request, f'"{link.product.name}" fue quitado del catálogo de {supplier.name}.')
+
+    return redirect('purchase:supplier_products', pk=supplier.pk)
+
+
+def _low_stock_suggestions_for_supplier(supplier):
+    """Returns a list of dicts with the products of this supplier that are at/below min stock."""
+    suggestions = []
+    links = supplier.supplier_products.filter(
+        is_active=True, product__is_active=True
+    ).select_related('product')
+
+    for link in links:
+        product = link.product
+        if product.current_stock <= product.min_stock:
+            shortfall = product.min_stock - product.current_stock
+            suggested_qty = int(shortfall) if shortfall > 0 else 1
+            suggestions.append({
+                'link': link,
+                'product': product,
+                'suggested_qty': max(suggested_qty, 1),
+            })
+    return suggestions
+
+
+@login_required
+@group_required(['Admin'])
+def purchase_suggested(request):
+    """
+    Aviso de pedido sugerido: para los proveedores cuyo día de pedido es hoy,
+    lista los productos de su catálogo que están en o por debajo del stock mínimo.
+    """
+    show_all_days = request.GET.get('all') == '1'
+    today_code = Supplier.weekday_code(timezone.now().date())
+
+    suppliers_qs = Supplier.objects.filter(is_active=True).prefetch_related('supplier_products__product')
+    if not show_all_days:
+        suppliers_qs = suppliers_qs.filter(order_day=today_code)
+
+    groups = []
+    for supplier in suppliers_qs.order_by('name'):
+        suggestions = _low_stock_suggestions_for_supplier(supplier)
+        if suggestions:
+            groups.append({'supplier': supplier, 'suggestions': suggestions})
+
+    context = {
+        'groups': groups,
+        'show_all_days': show_all_days,
+        'today_label': dict(Supplier.WEEKDAY_CHOICES).get(today_code, ''),
+    }
+    return render(request, 'purchase/purchase_suggested.html', context)
+
+
+@login_required
+@group_required(['Admin'])
+def purchase_suggested_generate(request, supplier_id):
+    """Generates a draft Purchase pre-filled with the supplier's low-stock products."""
+    supplier = get_object_or_404(Supplier, pk=supplier_id, is_active=True)
+
+    if request.method != 'POST':
+        return redirect('purchase:purchase_suggested')
+
+    suggestions = _low_stock_suggestions_for_supplier(supplier)
+    if not suggestions:
+        messages.info(request, f'{supplier.name} no tiene productos con stock bajo en este momento.')
+        return redirect('purchase:purchase_suggested')
+
+    with transaction.atomic():
+        today = timezone.now().strftime('%Y%m%d')
+        count = Purchase.objects.filter(order_number__startswith=f'OC-{today}').count() + 1
+
+        purchase = Purchase.objects.create(
+            supplier=supplier,
+            order_number=f'OC-{today}-{count:04d}',
+            order_date=timezone.now().date(),
+            notes='Generada automáticamente por bajo stock (pedido sugerido).',
+            created_by=request.user,
+        )
+
+        subtotal = Decimal('0')
+        for item in suggestions:
+            product = item['product']
+            qty = item['suggested_qty']
+            unit_cost = item['link'].cost_price if item['link'].cost_price > 0 else (product.purchase_price or Decimal('0.01'))
+            if unit_cost <= 0:
+                unit_cost = Decimal('0.01')
+            item_subtotal = unit_cost * qty
+            PurchaseItem.objects.create(
+                purchase=purchase,
+                product=product,
+                quantity=qty,
+                unit_cost=unit_cost,
+                subtotal=item_subtotal,
+            )
+            subtotal += item_subtotal
+
+        purchase.subtotal = subtotal
+        purchase.total = subtotal
+        purchase.save()
+
+    messages.success(
+        request,
+        f'Orden {purchase.order_number} generada como borrador con {len(suggestions)} producto(s) de {supplier.name}. Revisala antes de confirmarla.'
+    )
+    return redirect('purchase:purchase_edit', pk=purchase.pk)
+
+
+@login_required
+@group_required(['Admin'])
 def purchase_list(request):
     """List all purchases."""
     purchases = Purchase.objects.select_related('supplier', 'created_by').all()
@@ -127,6 +280,12 @@ def purchase_list(request):
 
     total = purchases.aggregate(total=Sum('total'))['total'] or 0
 
+    today_code = Supplier.weekday_code(timezone.now().date())
+    suggested_today_count = 0
+    for supplier in Supplier.objects.filter(is_active=True, order_day=today_code).prefetch_related('supplier_products__product'):
+        if _low_stock_suggestions_for_supplier(supplier):
+            suggested_today_count += 1
+
     context = {
         'purchases': purchases,
         'status': status,
@@ -137,6 +296,7 @@ def purchase_list(request):
         'date_from': date_from,
         'date_to': date_to,
         'total': total,
+        'suggested_today_count': suggested_today_count,
     }
     return render(request, 'purchase/purchase_list.html', context)
 

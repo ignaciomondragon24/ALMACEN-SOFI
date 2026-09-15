@@ -585,6 +585,57 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
                 'elapsed_ms': int((time.time() - start_time) * 1000),
             }
 
+    def parse_pasted_text(self, raw_text: str) -> Dict[str, Any]:
+        """
+        Parsea un listado ya procesado (por ejemplo, por un skill de Claude externo)
+        que el usuario pega directamente, sin pasar por Gemini Vision.
+
+        Espera el mismo esquema JSON que devuelve scan_invoice (ver SCAN_PROMPT),
+        para poder reusar exactamente la misma pantalla de revisión y el mismo
+        endpoint de confirmación que el escaneo de fotos.
+        """
+        start_time = time.time()
+
+        cleaned = (raw_text or '').strip()
+        if cleaned.startswith('```'):
+            cleaned = cleaned.split('\n', 1)[1] if '\n' in cleaned else cleaned[3:]
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        if cleaned.lower().startswith('json'):
+            cleaned = cleaned[4:].strip()
+
+        if not cleaned:
+            return {
+                'success': False,
+                'error': 'Pegá el texto con los datos de la compra.',
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+
+        try:
+            invoice_data = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing pasted text as JSON: {e}\nRaw: {cleaned[:500]}")
+            return {
+                'success': False,
+                'error': f'El texto no es un JSON válido ({e.msg} en la línea {e.lineno}). Revisá que respete el formato esperado.',
+                'raw_response': cleaned[:1000],
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+
+        if not isinstance(invoice_data, dict) or not isinstance(invoice_data.get('productos'), list) or not invoice_data.get('productos'):
+            return {
+                'success': False,
+                'error': 'El JSON tiene que incluir una lista "productos" con al menos un producto.',
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+
+        return {
+            'success': True,
+            'data': invoice_data,
+            'elapsed_ms': int((time.time() - start_time) * 1000),
+        }
+
 
 class AssistantService:
     """

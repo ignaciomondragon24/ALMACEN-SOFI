@@ -9,10 +9,29 @@ from decimal import Decimal
 
 class Supplier(models.Model):
     """Supplier model."""
-    
+
+    WEEKDAY_CHOICES = [
+        ('mon', 'Lunes'),
+        ('tue', 'Martes'),
+        ('wed', 'Miércoles'),
+        ('thu', 'Jueves'),
+        ('fri', 'Viernes'),
+        ('sat', 'Sábado'),
+        ('sun', 'Domingo'),
+    ]
+    # Índice de Python (date.weekday(): lunes=0) -> código del choice.
+    _WEEKDAY_INDEX = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
     name = models.CharField(
         'Nombre',
         max_length=200
+    )
+    order_day = models.CharField(
+        'Día de Pedido',
+        max_length=3,
+        choices=WEEKDAY_CHOICES,
+        blank=True,
+        help_text='Día habitual en que se le hacen pedidos a este proveedor (para el aviso de pedido sugerido).'
     )
     contact_name = models.CharField(
         'Contacto',
@@ -54,9 +73,71 @@ class Supplier(models.Model):
         verbose_name = 'Proveedor'
         verbose_name_plural = 'Proveedores'
         ordering = ['name']
-    
+
     def __str__(self):
         return self.name
+
+    @classmethod
+    def weekday_code(cls, date):
+        """Convierte una fecha en el código de día usado por order_day."""
+        return cls._WEEKDAY_INDEX[date.weekday()]
+
+    @property
+    def is_order_day_today(self):
+        from django.utils import timezone
+        return bool(self.order_day) and self.order_day == self.weekday_code(timezone.now().date())
+
+
+class SupplierProduct(models.Model):
+    """
+    Vincula un producto con un proveedor habitual, con el precio al que se lo compra.
+    Usado para generar el aviso/orden de pedido sugerido cuando el stock está bajo.
+    """
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.CASCADE,
+        related_name='supplier_products',
+        verbose_name='Proveedor'
+    )
+    product = models.ForeignKey(
+        'stocks.Product',
+        on_delete=models.CASCADE,
+        related_name='supplier_links',
+        verbose_name='Producto'
+    )
+    cost_price = models.DecimalField(
+        'Precio de Compra',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text='Precio al que este proveedor vende el producto.'
+    )
+    notes = models.CharField(
+        'Notas',
+        max_length=200,
+        blank=True
+    )
+    is_active = models.BooleanField(
+        'Activo',
+        default=True
+    )
+    created_at = models.DateTimeField(
+        'Fecha de Creación',
+        auto_now_add=True
+    )
+
+    class Meta:
+        verbose_name = 'Producto de Proveedor'
+        verbose_name_plural = 'Productos de Proveedor'
+        ordering = ['supplier__name', 'product__name']
+        constraints = [
+            models.UniqueConstraint(fields=['supplier', 'product'], name='unique_supplier_product')
+        ]
+
+    def __str__(self):
+        return f'{self.product.name} — {self.supplier.name}'
 
 
 class Purchase(models.Model):

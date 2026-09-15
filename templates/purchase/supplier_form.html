@@ -49,17 +49,23 @@
                                 {% endif %}
                             </div>
                         </div>
-                        
+
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="id_contact_name" class="form-label">Contacto</label>
                                 {{ form.contact_name }}
                             </div>
-                            
+
                             <div class="col-md-6 mb-3">
                                 <label for="id_phone" class="form-label">Teléfono</label>
                                 {{ form.phone }}
                             </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_order_day" class="form-label">Día de Pedido</label>
+                            {{ form.order_day }}
+                            <div class="form-text">Ese día te va a aparecer un aviso en "Pedidos Sugeridos" con los productos de este proveedor que estén con stock bajo.</div>
                         </div>
                         
                         <div class="mb-3">

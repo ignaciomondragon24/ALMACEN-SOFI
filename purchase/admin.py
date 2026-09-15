@@ -2,7 +2,7 @@
 Purchase Admin Configuration
 """
 from django.contrib import admin
-from .models import Supplier, Purchase, PurchaseItem
+from .models import Supplier, SupplierProduct, Purchase, PurchaseItem
 
 
 class PurchaseItemInline(admin.TabularInline):
@@ -11,12 +11,27 @@ class PurchaseItemInline(admin.TabularInline):
     readonly_fields = ['subtotal']
 
 
+class SupplierProductInline(admin.TabularInline):
+    model = SupplierProduct
+    extra = 1
+    autocomplete_fields = ['product']
+
+
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ['name', 'contact_name', 'phone', 'email', 'cuit', 'is_active']
-    list_filter = ['is_active', 'created_at']
+    list_display = ['name', 'contact_name', 'phone', 'email', 'cuit', 'order_day', 'is_active']
+    list_filter = ['is_active', 'order_day', 'created_at']
     search_fields = ['name', 'contact_name', 'cuit', 'email']
     ordering = ['name']
+    inlines = [SupplierProductInline]
+
+
+@admin.register(SupplierProduct)
+class SupplierProductAdmin(admin.ModelAdmin):
+    list_display = ['product', 'supplier', 'cost_price', 'is_active']
+    list_filter = ['is_active', 'supplier']
+    search_fields = ['product__name', 'supplier__name']
+    autocomplete_fields = ['product']
 
 
 @admin.register(Purchase)

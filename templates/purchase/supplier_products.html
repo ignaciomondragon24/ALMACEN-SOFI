@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Productos de {{ supplier.name }} - Lo de Josefina{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0"><i class="fas fa-boxes-stacked text-success me-2"></i>Productos de {{ supplier.name }}</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'purchase:supplier_list' %}">Proveedores</a></li>
+                    <li class="breadcrumb-item active">{{ supplier.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <a href="{% url 'purchase:supplier_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+
+    {% if supplier.order_day %}
+    <div class="alert alert-info">
+        <i class="fas fa-calendar-day me-2"></i>
+        Día de pedido: <strong>{{ supplier.get_order_day_display }}</strong>.
+        Los productos de esta lista que estén con stock bajo van a aparecer ese día en
+        <a href="{% url 'purchase:purchase_suggested' %}">Pedidos Sugeridos</a>.
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="fas fa-triangle-exclamation me-2"></i>
+        Este proveedor no tiene un día de pedido configurado, así que los productos de esta lista no van a generar avisos automáticos.
+        <a href="{% url 'purchase:supplier_edit' supplier.pk %}">Configurar día de pedido</a>.
+    </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Agregar producto al catálogo</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Producto</label>
+                            {{ form.product }}
+                            {% if form.product.errors %}
+                            <div class="text-danger small">{{ form.product.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Precio al que se lo compro</label>
+                            {{ form.cost_price }}
+                            {% if form.cost_price.errors %}
+                            <div class="text-danger small">{{ form.cost_price.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notas</label>
+                            {{ form.notes }}
+                        </div>
+                        <div class="mb-3 form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label">Activo</label>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-save me-1"></i>Guardar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>Catálogo actual ({{ links|length }})</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th class="text-end">Precio</th>
+                                    <th class="text-center">Stock actual</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for link in links %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ link.product.name }}</strong>
+                                        {% if not link.is_active %}<span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}
+                                        {% if link.notes %}<br><small class="text-muted">{{ link.notes }}</small>{% endif %}
+                                    </td>
+                                    <td class="text-end">{{ link.cost_price|currency }}</td>
+                                    <td class="text-center">
+                                        {% if link.product.current_stock <= link.product.min_stock %}
+                                        <span class="badge bg-danger">{{ link.product.current_stock }} (bajo)</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">{{ link.product.current_stock }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <form method="post" action="{% url 'purchase:supplier_product_remove' supplier.pk link.pk %}" class="d-inline" onsubmit="return confirm('¿Quitar {{ link.product.name|escapejs }} del catálogo de {{ supplier.name|escapejs }}?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Quitar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        Todavía no cargaste productos para este proveedor.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

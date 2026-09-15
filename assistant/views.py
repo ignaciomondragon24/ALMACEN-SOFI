@@ -435,6 +435,48 @@ def api_scan_invoice(request):
 @login_required
 @require_POST
 @group_required(['Admin'])
+def api_parse_text_invoice(request):
+    """
+    API endpoint: recibe un texto pegado (ej: la salida de un skill de Claude
+    externo) con el mismo esquema JSON que usa el escaneo de fotos, y devuelve
+    los datos ya estructurados para revisar en la misma pantalla que el escaneo.
+    """
+    try:
+        data = json.loads(request.body)
+        raw_text = data.get('text', '')
+
+        scanner = InvoiceScanService()
+        result = scanner.parse_pasted_text(raw_text)
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'data': result['data'],
+                'elapsed_ms': result.get('elapsed_ms', 0),
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Error desconocido'),
+                'raw_response': result.get('raw_response', ''),
+            }, status=400)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Formato de datos inválido.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_parse_text_invoice: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+@group_required(['Admin'])
 def api_confirm_invoice(request):
     """
     API endpoint: confirm scanned invoice data.
