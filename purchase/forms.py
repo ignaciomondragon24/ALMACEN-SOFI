@@ -1,6 +1,7 @@
 """
 Purchase Forms
 """
+from decimal import Decimal
 from django import forms
 from django.forms import inlineformset_factory
 from .models import Supplier, SupplierProduct, Purchase, PurchaseItem
@@ -100,10 +101,17 @@ class PurchaseItemForm(forms.ModelForm):
         fields = ['product', 'quantity', 'unit_cost', 'sale_price']
         widgets = {
             'product': forms.Select(attrs={'class': 'form-select product-select'}),
-            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '1'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any', 'min': '0.001'}),
             'unit_cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
             'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': 'Opcional'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Decimal(5.000) se mostraba "5.000" en el input: mostrar 5 o 2.5.
+        q = self.initial.get('quantity')
+        if q is not None:
+            self.initial['quantity'] = format(Decimal(q).normalize(), 'f')
 
 
 # Formset for purchase items

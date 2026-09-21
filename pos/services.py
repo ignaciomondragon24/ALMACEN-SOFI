@@ -301,7 +301,7 @@ class CartService:
 
         # Get cart items data. Prefetch packaging para evitar N+1 al leer
         # packaging_type dentro del list-comp.
-        items = items.select_related('packaging')
+        items = items.select_related('packaging', 'product')
         cart_items = [
             {
                 'item_id': item.id,
@@ -311,6 +311,7 @@ class CartService:
                 'packaging_units': int(item.packaging_units or 1),
                 'packaging_type': (item.packaging.packaging_type
                                    if item.packaging_id else 'unit'),
+                'by_weight': bool(item.product.is_granel),
             }
             for item in items
         ]

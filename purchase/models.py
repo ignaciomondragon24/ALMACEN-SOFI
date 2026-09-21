@@ -1,6 +1,7 @@
 """
 Purchase Models - Suppliers and Purchases
 """
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -139,6 +140,24 @@ class SupplierProduct(models.Model):
     def __str__(self):
         return f'{self.product.name} — {self.supplier.name}'
 
+    @property
+    def por_peso(self):
+        return bool(self.product.is_granel and self.product.granel_caramelera_id)
+
+    @property
+    def precio_texto(self):
+        """Precio de compra; en productos por peso es por kilo."""
+        return f'${self.cost_price:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.') + (
+            ' / kg' if self.por_peso else '')
+
+    @property
+    def stock_texto(self):
+        """Stock actual legible (en kg para productos por peso)."""
+        if self.por_peso:
+            kilos = (self.product.current_stock / Decimal('1000')).quantize(Decimal('0.001')).normalize()
+            return f'{kilos:f}'.replace('.', ',') + ' kg'
+        return f'{self.product.current_stock.normalize():f}'
+
 
 class Purchase(models.Model):
     """Purchase order model."""
@@ -254,10 +273,13 @@ class PurchaseItem(models.Model):
         verbose_name='Empaque',
         help_text='Si se indica, quantity es cantidad de este empaque (bulto/display/unidad). Si es null, quantity es en unidades base.',
     )
-    quantity = models.PositiveIntegerField(
+    quantity = models.DecimalField(
         'Cantidad',
-        validators=[MinValueValidator(1)],
-        help_text='Cantidad expresada en la unidad del empaque seleccionado (o unidades base si no hay empaque).',
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text='Cantidad expresada en la unidad del empaque seleccionado (o unidades base si no hay empaque). '
+                  'En productos por peso son kilos.',
     )
     unit_cost = models.DecimalField(
         'Costo Unitario',
@@ -280,9 +302,11 @@ class PurchaseItem(models.Model):
         decimal_places=2,
         default=Decimal('0.00')
     )
-    received_quantity = models.PositiveIntegerField(
+    received_quantity = models.DecimalField(
         'Cantidad Recibida',
-        default=0
+        max_digits=10,
+        decimal_places=3,
+        default=Decimal('0')
     )
     
     class Meta:
@@ -290,8 +314,28 @@ class PurchaseItem(models.Model):
         verbose_name_plural = 'Ítems de Compra'
     
     def __str__(self):
-        return f'{self.product.name} x {self.quantity}'
-    
+        return f'{self.product.name} x {self.cantidad_texto}'
+
+    @property
+    def por_peso(self):
+        """True si el producto se vende por peso (la cantidad va en kilos)."""
+        return bool(self.product.is_granel and self.product.granel_caramelera_id)
+
+    @property
+    def cantidad_texto(self):
+        """Cantidad legible: '5', '2,5 kg'."""
+        q = Decimal(self.quantity).normalize()
+        texto = f'{q:f}'.replace('.', ',')
+        return f'{texto} kg' if self.por_peso else texto
+
+    def clean(self):
+        super().clean()
+        if self.quantity is not None and self.product_id and not self.por_peso:
+            if Decimal(self.quantity) != Decimal(self.quantity).to_integral_value():
+                raise ValidationError({
+                    'quantity': f'"{self.product.name}" se compra por unidad: la cantidad tiene que ser un número entero.'
+                })
+
     def save(self, *args, **kwargs):
         self.subtotal = self.quantity * self.unit_cost
         super().save(*args, **kwargs)

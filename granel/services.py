@@ -144,7 +144,8 @@ class GranelService:
 
     @staticmethod
     @transaction.atomic
-    def ingresar_stock(caramelera_id, gramos, costo_por_kilo, user=None, notas=''):
+    def ingresar_stock(caramelera_id, gramos, costo_por_kilo, user=None, notas='',
+                       vencimiento=None, referencia=''):
         """
         Suma mercadería a granel directamente (sin pasar por una pieza de depósito).
 
@@ -196,8 +197,91 @@ class GranelService:
             notas=notas or 'Ingreso directo de mercadería',
         )
 
-        GranelService.sincronizar_producto_pos(caramelera)
+        pos_product = GranelService.sincronizar_producto_pos(caramelera)
+
+        # Con fecha de vencimiento se guarda un lote: así aparece en la pantalla de
+        # Vencimientos y las ventas lo van descontando (ver registrar_venta).
+        if vencimiento:
+            StockBatch.objects.create(
+                product=pos_product,
+                supplier_name='',
+                quantity_purchased=gramos,
+                quantity_remaining=gramos,
+                purchase_price=costo_nuevo_por_gramo.quantize(Decimal('0.01')),
+                purchased_at=timezone.now(),
+                created_by=user,
+                notes=(referencia or notas or 'Ingreso de mercadería por peso'),
+                expiration_date=vencimiento,
+            )
         return apertura
+
+    @staticmethod
+    def caramelera_de(producto):
+        """Devuelve la caramelera si `producto` es un producto por peso; si no, None."""
+        if getattr(producto, 'is_granel', False) and producto.granel_caramelera_id:
+            return producto.granel_caramelera
+        return None
+
+    @staticmethod
+    @transaction.atomic
+    def recibir_compra(producto, kilos, costo_por_kilo, user=None, referencia='',
+                       notas='', vencimiento=None, precio_venta_kilo=None):
+        """
+        Recepción de una orden de compra (o remito) de un producto por peso.
+
+        `kilos` y `costo_por_kilo` vienen de la orden. Suma el peso al stock de la
+        caramelera (costo ponderado), deja el movimiento en el kardex del producto y,
+        si la orden trae precio de venta por kilo, actualiza el precio.
+
+        Returns: StockMovement
+        """
+        caramelera = GranelService.caramelera_de(producto)
+        if caramelera is None:
+            raise ValueError(f'"{producto.name}" no es un producto por peso.')
+
+        gramos = (Decimal(str(kilos)) * Decimal('1000'))
+        costo_kg = Decimal(str(costo_por_kilo))
+        apertura = GranelService.ingresar_stock(
+            caramelera.pk, gramos, costo_kg, user=user,
+            notas=notas or f'Compra {referencia}'.strip(),
+            vencimiento=vencimiento, referencia=referencia,
+        )
+
+        if precio_venta_kilo and Decimal(str(precio_venta_kilo)) > 0:
+            caramelera = Caramelera.objects.get(pk=caramelera.pk)
+            caramelera.precio_100g = (Decimal(str(precio_venta_kilo)) / Decimal('10')).quantize(Decimal('0.01'))
+            caramelera.save()
+            GranelService.sincronizar_producto_pos(caramelera)
+
+        pos_product = Product.objects.get(pk=producto.pk)
+        return StockMovement.objects.create(
+            product=pos_product,
+            movement_type='purchase',
+            quantity=gramos,
+            unit_cost=(costo_kg / Decimal('1000')).quantize(Decimal('0.01')),
+            stock_before=apertura.stock_gramos_antes,
+            stock_after=apertura.stock_gramos_despues,
+            reference=referencia,
+            notes=notas or f'Compra {referencia} ({Decimal(str(kilos)).normalize():f} kg a ${costo_kg:,.2f}/kg)',
+            created_by=user,
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def ajustar_stock(caramelera_id, gramos_reales, user=None, motivo=''):
+        """Deja el stock de la caramelera en `gramos_reales` (conteo/ajuste manual)."""
+        gramos_reales = Decimal(str(gramos_reales))
+        if gramos_reales < 0:
+            raise ValueError('El stock no puede ser negativo.')
+        try:
+            caramelera = Caramelera.objects.select_for_update(nowait=True).get(pk=caramelera_id)
+        except OperationalError:
+            raise ValueError('El producto está siendo modificado. Intentá de nuevo.')
+        antes = caramelera.stock_gramos_actual
+        caramelera.stock_gramos_actual = gramos_reales
+        caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
+        GranelService.sincronizar_producto_pos(caramelera)
+        return antes
 
     @staticmethod
     def auto_abrir_disponible(producto, user=None):
@@ -351,6 +435,9 @@ class GranelService:
         if pos_product is not None:
             pos_product.current_stock = caramelera.stock_gramos_actual
             pos_product.save(update_fields=['current_stock', 'updated_at'])
+            # Lotes con vencimiento: se consumen por orden de compra (FIFO) para que
+            # la pantalla de Vencimientos no siga avisando de mercadería ya vendida.
+            BatchService.deduct_fifo(pos_product.pk, gramos)
 
         return venta
 

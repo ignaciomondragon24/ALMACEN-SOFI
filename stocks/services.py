@@ -32,6 +32,17 @@ class StockManagementService:
         # Lock the product row to prevent concurrent modifications
         product = Product.objects.select_for_update().get(pk=product.pk)
 
+        # Producto por peso: su stock real vive en la caramelera. Acá la cantidad
+        # va en gramos y el costo por gramo (así lo guarda el producto del POS).
+        if product.is_granel and product.granel_caramelera_id:
+            from granel.services import GranelService
+            gramos = Decimal(str(quantity))
+            costo_gramo = Decimal(str(cost)) if cost else product.weighted_avg_cost_per_gram
+            return GranelService.recibir_compra(
+                product, gramos / Decimal('1000'), costo_gramo * Decimal('1000'),
+                user=user, referencia=reference, notas=notes,
+            )
+
         quantity = Decimal(str(quantity))
         cost = Decimal(str(cost)) if cost else product.cost_price
 
@@ -196,6 +207,24 @@ class StockManagementService:
         new_quantity = Decimal(str(new_quantity))
         stock_before = product.current_stock
         difference = new_quantity - stock_before
+
+        # Producto por peso: el conteo se aplica sobre la caramelera (gramos).
+        if product.is_granel and product.granel_caramelera_id:
+            from granel.services import GranelService
+            GranelService.ajustar_stock(
+                product.granel_caramelera_id, new_quantity, user=user, motivo=reason,
+            )
+            return StockMovement.objects.create(
+                product=Product.objects.get(pk=product.pk),
+                movement_type='adjustment_in' if difference >= 0 else 'adjustment_out',
+                quantity=difference,
+                unit_cost=product.cost_price,
+                stock_before=stock_before,
+                stock_after=new_quantity,
+                reference=reason or 'Ajuste de inventario',
+                notes=notes or '',
+                created_by=user,
+            )
 
         movement_type = 'adjustment_in' if difference >= 0 else 'adjustment_out'
 

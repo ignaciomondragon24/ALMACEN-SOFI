@@ -428,6 +428,11 @@
                         </div>
                     </div>
                 </div>
+                <div class="mt-3">
+                    <label class="form-label fw-semibold" for="input-ingreso-vence">Vence el <small class="text-muted fw-normal">(opcional)</small></label>
+                    <input type="date" id="input-ingreso-vence" class="form-control" style="max-width:220px;">
+                    <div class="form-text">Si lo cargás, te avisa en <em>Vencimientos</em> cuando se acerque.</div>
+                </div>
                 <div id="ingreso-preview" class="alert alert-info mt-3 mb-0 d-none"></div>
             </div>
             <div class="modal-footer">
@@ -664,6 +669,7 @@
     document.getElementById('modalIngresarStock').addEventListener('show.bs.modal', function () {
         errorIngreso.classList.add('d-none');
         inCant.value = '';
+        document.getElementById('input-ingreso-vence').value = '';
         inCosto.value = COSTO_ACTUAL_G > 0 ? Math.round(COSTO_ACTUAL_G * 1000) : '';
         preview.classList.add('d-none');
     });
@@ -708,7 +714,8 @@
         xhr.send(JSON.stringify({
             cantidad: parseFloat(inCant.value),
             unidad: inUnidad.value,
-            costo_kg: parseFloat(inCosto.value)
+            costo_kg: parseFloat(inCosto.value),
+            vencimiento: document.getElementById('input-ingreso-vence').value || null
         }));
     });
 

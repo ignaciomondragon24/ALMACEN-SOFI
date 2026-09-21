@@ -215,6 +215,26 @@ function populatePackagingSelect(rowId, product, selectedPkgId) {
     updatePkgHint(rowId);
 }
 
+/* Producto por peso: la cantidad son kilos y el costo/precio van por kilo. */
+function applyWeightMode(rowId, product) {
+    const tr = document.getElementById('r' + rowId);
+    if (!tr) return;
+    const byWeight = !!(product && product.by_weight);
+    tr.dataset.byWeight = byWeight ? '1' : '';
+    const qty = tr.querySelector('.r-qty');
+    const pkg = tr.querySelector('.r-pkg');
+    const hint = tr.querySelector('.r-pkg-hint');
+    if (byWeight) {
+        qty.min = '0.001'; qty.step = '0.001'; qty.placeholder = 'kg';
+        pkg.innerHTML = '<option value="">Kilos (kg)</option>';
+        pkg.disabled = true;
+        hint.textContent = 'Cantidad en kg · costo y precio por kg';
+    } else {
+        qty.min = '1'; qty.step = '1'; qty.placeholder = '';
+        pkg.disabled = false;
+    }
+}
+
 function updatePkgHint(rowId) {
     const sel = document.querySelector('.r-pkg[data-row="'+rowId+'"]');
     const hint = document.querySelector('.r-pkg-hint[data-row="'+rowId+'"]');
@@ -279,6 +299,7 @@ function showDrop(input, results) {
                 document.querySelector('.r-pid[data-row="'+row+'"]').value = p.id;
                 document.querySelector('.r-pname[data-row="'+row+'"]').textContent = '';
                 populatePackagingSelect(row, p, p.matched_packaging_id || null);
+                applyWeightMode(row, p);
                 const costEl = document.querySelector('.r-cost[data-row="'+row+'"]');
                 const saleEl = document.querySelector('.r-sale[data-row="'+row+'"]');
                 // Autoprecio: si se detectó un packaging, usa su precio; si no, el del producto base
@@ -436,6 +457,7 @@ document.addEventListener('click', function(e){ if (!drop.contains(e.target)) cl
         tr.querySelector('.r-search').value = product.name;
         tr.querySelector('.r-pid').value = product.id;
         populatePackagingSelect(id, product, matchedPkgId);
+        applyWeightMode(id, product);
 
         // Autoprecio: si hay empaque detectado, usar su precio; si no, el del producto base
         var pkgSel = tr.querySelector('.r-pkg');
@@ -492,7 +514,9 @@ document.getElementById('btn-submit-oc').addEventListener('click', function() {
         var cost = parseFloat(tr.querySelector('.r-cost').value);
         var sale = tr.querySelector('.r-sale').value;
         if (!pid)             { rowErr = 'Fila '+(i+1)+': elegí un producto del buscador.'; return; }
-        if (!qty || qty < 1)  { rowErr = 'Fila '+(i+1)+': la cantidad debe ser mayor a 0.'; return; }
+        var porPeso = tr.dataset.byWeight === '1';
+        if (!qty || qty < (porPeso ? 0.001 : 1)) { rowErr = 'Fila '+(i+1)+': la cantidad debe ser mayor a 0.'; return; }
+        if (!porPeso && qty !== Math.floor(qty)) { rowErr = 'Fila '+(i+1)+': este producto se compra por unidad, la cantidad tiene que ser entera.'; return; }
         if (!cost || cost<=0) { rowErr = 'Fila '+(i+1)+': ingresá el costo.'; return; }
         items.push({
             product_id:    parseInt(pid),

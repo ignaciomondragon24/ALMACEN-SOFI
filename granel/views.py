@@ -108,6 +108,9 @@ def _caramelera_form_context(request, caramelera, valores=None, errors=None):
                 'precio_kg': _fmt_dec(caramelera.precio_kilo),
                 'precio_cuarto': _fmt_dec(caramelera.precio_cuarto),
             }
+            pos_product = caramelera.producto_pos.filter(is_granel=True).first()
+            if pos_product is not None and pos_product.min_stock:
+                valores['stock_minimo_kg'] = _fmt_dec(Decimal(pos_product.min_stock) / 1000, '0.001')
     if caramelera is not None:
         autorizados_ids = list(caramelera.productos_autorizados.values_list('pk', flat=True))
     else:
@@ -211,8 +214,20 @@ def _caramelera_save(request, caramelera):
         except InvalidOperation:
             errors.append('El stock inicial o el costo son inválidos.')
 
+    # Aviso de stock bajo (para el pedido sugerido a proveedores), en kilos.
+    minimo_gramos = 0
+    try:
+        minimo_kg = _parse_decimal(request.POST.get('stock_minimo_kg'), Decimal('0'))
+        if minimo_kg < 0:
+            errors.append('El aviso de stock bajo no puede ser negativo.')
+        else:
+            minimo_gramos = int(minimo_kg * 1000)
+    except InvalidOperation:
+        errors.append('El aviso de stock bajo es inválido.')
+
     valores = {
         'nombre': nombre,
+        'stock_minimo_kg': request.POST.get('stock_minimo_kg', ''),
         'precio_100g': request.POST.get('precio_100g', ''),
         'precio_kg': request.POST.get('precio_kg', ''),
         'precio_cuarto': request.POST.get('precio_cuarto', ''),
@@ -255,7 +270,10 @@ def _caramelera_save(request, caramelera):
         GranelService.auto_abrir_disponible(producto, user=request.user)
 
     # Crear/actualizar el producto POS vinculado (is_granel=True)
-    _sync_caramelera_pos_product(caramelera)
+    pos_product = _sync_caramelera_pos_product(caramelera)
+    if pos_product.min_stock != minimo_gramos:
+        pos_product.min_stock = minimo_gramos
+        pos_product.save(update_fields=['min_stock', 'updated_at'])
 
     return redirect('granel:caramelera_detail', pk=caramelera.pk)
 
@@ -397,9 +415,12 @@ def api_ingresar_stock(request, pk):
     gramos = cantidad * (Decimal('1000') if data.get('unidad', 'kg') == 'kg' else Decimal('1'))
     if costo_kg <= 0:
         return JsonResponse({'error': 'Ingresá cuánto te costó el kilo.'}, status=400)
+    from django.utils.dateparse import parse_date
+    vencimiento = parse_date(str(data.get('vencimiento') or '').strip()) or None
     try:
         apertura = GranelService.ingresar_stock(
             pk, gramos, costo_kg, user=request.user, notas=data.get('notas', ''),
+            vencimiento=vencimiento,
         )
     except Caramelera.DoesNotExist:
         return JsonResponse({'error': 'No encontrado'}, status=404)

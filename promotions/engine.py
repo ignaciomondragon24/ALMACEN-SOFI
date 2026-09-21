@@ -112,11 +112,19 @@ class PromotionEngine:
                     return True
                 return pkg_type == scope
 
+            # Una línea vendida por peso trae la cantidad en GRAMOS: las promos que
+            # cuentan unidades (2x1, N por precio fijo, combos, segunda unidad...)
+            # la tomarían como cientos de unidades y regalarían plata. Al peso solo
+            # le aplica el descuento porcentual / por monto (no depende de la cantidad).
+            def _item_allowed(it):
+                return not it.get('by_weight') or leader.promo_type == 'simple_discount'
+
             matching_items = [
                 item for item in cart_items
                 if item.get('product_id') in promo_product_ids
                 and item.get('item_id') not in affected_items
                 and _item_matches_scope(item)
+                and _item_allowed(item)
             ]
 
             if not matching_items:

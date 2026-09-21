@@ -75,10 +75,10 @@
                         {% for item in group.suggestions %}
                         <tr>
                             <td>{{ item.product.name }}</td>
-                            <td class="text-center text-danger fw-bold">{{ item.product.current_stock }}</td>
-                            <td class="text-center">{{ item.product.min_stock }}</td>
-                            <td class="text-center">{{ item.suggested_qty }}</td>
-                            <td class="text-end">{{ item.link.cost_price|currency }}</td>
+                            <td class="text-center text-danger fw-bold">{{ item.stock_texto }}</td>
+                            <td class="text-center">{{ item.min_texto }}</td>
+                            <td class="text-center">{{ item.qty_texto }}</td>
+                            <td class="text-end">{{ item.link.cost_price|currency }}{% if item.por_peso %} <small class="text-muted">/ kg</small>{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

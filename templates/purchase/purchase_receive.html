@@ -55,8 +55,8 @@
                                 {% for item in purchase.items.all %}
                                 <tr>
                                     <td>{{ item.product.name }}</td>
-                                    <td class="text-center">{{ item.quantity }}</td>
-                                    <td class="text-end">{{ item.unit_cost|currency }}</td>
+                                    <td class="text-center">{{ item.cantidad_texto }}</td>
+                                    <td class="text-end">{{ item.unit_cost|currency }}{% if item.por_peso %} <small class="text-muted">/ kg</small>{% endif %}</td>
                                     <td class="text-end">{{ item.subtotal|currency }}</td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm"

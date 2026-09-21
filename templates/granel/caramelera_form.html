@@ -133,10 +133,25 @@
         {% endif %}
 
         <!-- Opciones avanzadas -->
-        <details class="mb-3" {% if valores.precio_cuarto or autorizados_ids %}open{% endif %}>
+        <details class="mb-3" {% if valores.precio_cuarto or valores.stock_minimo_kg or autorizados_ids %}open{% endif %}>
             <summary class="text-muted" style="cursor:pointer;">Opciones avanzadas (no hace falta tocarlas)</summary>
             <div class="card shadow-sm mt-2">
                 <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="input-stock-minimo">Avisarme cuando queden menos de</label>
+                        <div class="input-group" style="max-width:260px;">
+                            <input type="number" name="stock_minimo_kg" id="input-stock-minimo" class="form-control text-end"
+                                   step="0.001" min="0" placeholder="Ej: 2"
+                                   value="{{ valores.stock_minimo_kg|default:'' }}">
+                            <span class="input-group-text">kg</span>
+                        </div>
+                        <div class="form-text">
+                            Con esto el producto aparece en <em>Compras → Pedidos sugeridos</em> del proveedor
+                            (después de sumarlo al catálogo del proveedor con su precio por kilo).
+                        </div>
+                    </div>
+
+                    <hr>
                     <div class="mb-3">
                         <label class="form-label fw-semibold" for="input-precio-cuarto">Precio especial por kilo (oferta)</label>
                         <div class="input-group" style="max-width:320px;">
@@ -147,8 +162,10 @@
                                    value="{{ valores.precio_cuarto|default:'' }}">
                         </div>
                         <div class="form-text">
-                            Si lo completás, desde 250g en adelante se cobra a este precio por kilo
-                            en vez del precio normal.
+                            Si lo completás, desde 250g en adelante <strong>todo el pedido</strong> se cobra a este precio
+                            por kilo en vez del normal (menos de 250g sigue al precio de siempre). Queda activo hasta que lo
+                            borres. Para una oferta <strong>con fecha</strong> (ej: 20% menos esta semana), usá
+                            <em>Promociones → Descuento porcentual</em> y elegí este producto.
                         </div>
                     </div>
 

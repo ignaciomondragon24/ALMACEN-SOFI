@@ -36,6 +36,37 @@ En el producto, botón verde **Agregar mercadería**: ponés cuántos kilos entr
 
 ---
 
+## Ofertas en la venta por peso
+
+Hay tres formas, según lo que quieras hacer:
+
+| Quiero... | Cómo | Dura |
+|---|---|---|
+| Un **precio especial por kilo** cuando se lleva ¼ kg o más (ej: normal $12.000/kg, oferta $10.800/kg) | En el producto por peso → *Editar* → **Opciones avanzadas → Precio especial por kilo (oferta)** | Hasta que lo borres |
+| Una oferta **con fecha** (ej: 20% menos esta semana) | **Promociones → Descuento porcentual**, elegís el producto por peso, las fechas y los días | Hasta la fecha que pongas |
+| Un descuento **puntual** a un cliente | En la caja, descuento manual sobre esa línea | Solo esa venta |
+
+Cómo funciona el precio especial: desde **250 g** en adelante, **todo el pedido** se cobra al precio especial por kilo (500 g = medio kilo de oferta). Por debajo de 250 g sigue el precio normal. Si el campo está vacío, no hay oferta.
+
+**No se pueden usar en productos por peso** las promos que cuentan unidades: 2x1, N por precio fijo, combos, segunda unidad con descuento y descuento por cantidad. Con gramos no tienen sentido (250 g no son "250 unidades"), así que el sistema no las aplica a estos productos. Los demás productos siguen igual.
+
+---
+
+## Comprar a proveedores (órdenes de compra)
+
+Los productos por peso se compran **en kilos**:
+
+1. **Proveedores → Productos del proveedor**: agregá el producto con su **precio por kilo**.
+2. **Compras → Nueva orden**: buscás el producto (el buscador ya encuentra "jamón" aunque escribas "jamon"). La fila cambia a **kilos**: ponés cuántos kilos pedís (acepta decimales: 2,5) y el costo por kilo. En "Precio Venta" podés poner el nuevo precio de venta **por kilo** (opcional).
+3. **Recibir la orden**: el peso entra solo al producto por peso, se recalcula el **costo por kilo** (promedio), queda el movimiento en el historial y se registra el gasto del proveedor. Ahí mismo podés cargar la **fecha de vencimiento** del lote.
+4. **Pedidos sugeridos**: en el producto por peso → *Editar* → *Avisarme cuando queden menos de X kg*. Cuando baje de ese peso, aparece en **Compras → Pedidos sugeridos** del proveedor (el día de pedido) y **Generar orden de compra** la arma en kilos, de a medio kilo (mínimo 1 kg).
+
+Los productos comunes se compran igual que siempre, en unidades enteras.
+
+Todo lo que cambie el stock por peso (compra, remito escaneado, ajuste de inventario o conteo físico) va al mismo lugar, así que caja, inventario y compras siempre coinciden.
+
+---
+
 ## Depósito de piezas cerradas (opcional)
 
 Si preferís manejar piezas enteras:

@@ -9,7 +9,8 @@ from django.http import JsonResponse
 from django.db.models import Q, Sum
 from django.db import transaction
 from django.utils import timezone
-from decimal import Decimal
+import math
+from decimal import Decimal, InvalidOperation
 
 from decorators.decorators import group_required
 from .models import Supplier, SupplierProduct, Purchase, PurchaseItem
@@ -17,6 +18,7 @@ from .forms import SupplierForm, SupplierProductForm, PurchaseForm, PurchaseItem
 from stocks.models import Product, ProductPackaging, StockBatch
 from stocks.services import StockManagementService
 from expenses.models import Expense, ExpenseCategory
+from granel.services import GranelService
 
 
 @login_required
@@ -158,12 +160,31 @@ def _low_stock_suggestions_for_supplier(supplier):
         product = link.product
         if product.current_stock <= product.min_stock:
             shortfall = product.min_stock - product.current_stock
-            suggested_qty = int(shortfall) if shortfall > 0 else 1
-            suggestions.append({
-                'link': link,
-                'product': product,
-                'suggested_qty': max(suggested_qty, 1),
-            })
+            if link.por_peso:
+                # Stock y mínimo están en gramos; la orden se hace en kilos, de a
+                # medio kilo, y como mínimo 1 kg.
+                medios_kilos = math.ceil(Decimal(shortfall) / Decimal('500')) if shortfall > 0 else 0
+                suggested_qty = max(Decimal('1'), Decimal(medios_kilos) / 2)
+                suggestions.append({
+                    'link': link,
+                    'product': product,
+                    'suggested_qty': suggested_qty,
+                    'por_peso': True,
+                    'qty_texto': f'{suggested_qty.normalize():f}'.replace('.', ',') + ' kg',
+                    'stock_texto': link.stock_texto,
+                    'min_texto': f'{(Decimal(product.min_stock) / 1000).normalize():f}'.replace('.', ',') + ' kg',
+                })
+            else:
+                suggested_qty = int(shortfall) if shortfall > 0 else 1
+                suggestions.append({
+                    'link': link,
+                    'product': product,
+                    'suggested_qty': max(suggested_qty, 1),
+                    'por_peso': False,
+                    'qty_texto': str(max(suggested_qty, 1)),
+                    'stock_texto': link.stock_texto,
+                    'min_texto': str(product.min_stock),
+                })
     return suggestions
 
 
@@ -359,16 +380,28 @@ def purchase_create(request):
                 for row in items:
                     product_id = row.get('product_id')
                     packaging_id = row.get('packaging_id') or None
-                    quantity = int(row.get('quantity', 0))
+                    try:
+                        quantity = Decimal(str(row.get('quantity', 0)).replace(',', '.'))
+                    except InvalidOperation:
+                        raise ValueError('La cantidad tiene que ser un número.')
                     unit_cost = Decimal(str(row.get('unit_cost', '0')))
                     sale_price_val = row.get('sale_price')
                     sale_price = Decimal(str(sale_price_val)) if sale_price_val else None
 
-                    if not product_id or quantity < 1 or unit_cost <= 0:
+                    if not product_id or quantity <= 0 or unit_cost <= 0:
                         raise ValueError(f'Datos inválidos: producto={product_id} qty={quantity} cost={unit_cost}')
 
-                    if not Product.objects.filter(pk=product_id, is_active=True).exists():
+                    row_product = Product.objects.filter(pk=product_id, is_active=True).first()
+                    if row_product is None:
                         raise ValueError(f'Producto con id={product_id} no existe o está inactivo.')
+
+                    if GranelService.caramelera_de(row_product) is not None:
+                        # Por peso: la cantidad son kilos y el costo es por kilo.
+                        packaging_id = None
+                    elif quantity != quantity.to_integral_value():
+                        raise ValueError(
+                            f'"{row_product.name}" se compra por unidad: la cantidad tiene que ser un número entero.'
+                        )
 
                     if packaging_id:
                         pkg_ok = ProductPackaging.objects.filter(
@@ -463,7 +496,25 @@ def purchase_receive(request, pk):
     
     if request.method == 'POST':
         with transaction.atomic():
-            for item in purchase.items.all():
+            for item in purchase.items.select_related('product').all():
+                # Producto por peso: la cantidad son kilos y el costo es por kilo.
+                # Entra a la caramelera (costo ponderado), no como unidades base.
+                if GranelService.caramelera_de(item.product) is not None:
+                    from django.utils.dateparse import parse_date
+                    GranelService.recibir_compra(
+                        item.product, item.quantity, item.unit_cost,
+                        user=request.user,
+                        referencia=purchase.order_number,
+                        notas=f'Recepción {purchase.order_number} ({item.cantidad_texto})',
+                        vencimiento=parse_date(
+                            request.POST.get(f'expiration_date_{item.id}', '').strip()
+                        ) or None,
+                        precio_venta_kilo=item.sale_price,
+                    )
+                    item.received_quantity = item.quantity
+                    item.save()
+                    continue
+
                 # Convertir cantidad y costo a unidades base si se compró por
                 # bulto/display/unidad. Si el item no tiene packaging, se asume
                 # que quantity ya está en unidades base (retrocompatibilidad).
@@ -602,6 +653,35 @@ def purchase_detail(request, pk):
 
 
 # API Views
+def _normalizar(texto):
+    """Minúsculas y sin tildes, para que "jamon" encuentre "Jamón" (igual que el POS)."""
+    import unicodedata
+    if not texto:
+        return ''
+    return ''.join(
+        c for c in unicodedata.normalize('NFKD', texto) if not unicodedata.combining(c)
+    ).lower()
+
+
+def _buscar_por_texto(query, limite):
+    """Nombre/sku/código que contengan el texto, sin distinguir tildes ni mayúsculas."""
+    encontrados = list(Product.objects.filter(
+        Q(name__icontains=query) | Q(barcode__icontains=query) | Q(sku__icontains=query),
+        is_active=True,
+    )[:limite])
+    if len(encontrados) < limite:
+        vistos = {p.id for p in encontrados}
+        buscado = _normalizar(query)
+        for p in Product.objects.filter(is_active=True).order_by('name').iterator():
+            if p.id in vistos:
+                continue
+            if buscado in _normalizar(p.name):
+                encontrados.append(p)
+                if len(encontrados) >= limite:
+                    break
+    return encontrados
+
+
 def _serialize_packaging(pkg):
     """Serializa un ProductPackaging para el selector de la OC."""
     return {
@@ -618,6 +698,19 @@ def _serialize_packaging(pkg):
 
 def _serialize_product(p, matched_packaging=None):
     """Serializa un Product con sus empaques activos."""
+    caramelera = GranelService.caramelera_de(p)
+    if caramelera is not None:
+        # Por peso: costo y precio se muestran por KILO y no hay empaques.
+        return {
+            'id': p.id,
+            'name': p.name,
+            'barcode': p.barcode or '',
+            'cost_price': str(caramelera.costo_kilo),
+            'sale_price': str(caramelera.precio_kilo),
+            'packagings': [],
+            'matched_packaging_id': None,
+            'by_weight': True,
+        }
     pkgs = [
         _serialize_packaging(pk)
         for pk in p.packagings.filter(is_active=True).order_by('-units_quantity')
@@ -630,6 +723,7 @@ def _serialize_product(p, matched_packaging=None):
         'sale_price': str(p.sale_price),
         'packagings': pkgs,
         'matched_packaging_id': matched_packaging.id if matched_packaging else None,
+        'by_weight': False,
     }
 
 
@@ -711,16 +805,8 @@ def api_search_products(request):
             if product:
                 return JsonResponse({'results': [_serialize_product(product)]})
         # 4. Fallback: búsqueda amplia
-        products = list(Product.objects.filter(
-            Q(barcode__icontains=query) | Q(sku__icontains=query) | Q(name__icontains=query),
-            is_active=True
-        )[:10])
+        products = _buscar_por_texto(query, 10)
     else:
-        products = list(Product.objects.filter(
-            Q(name__icontains=query) |
-            Q(barcode__icontains=query) |
-            Q(sku__icontains=query),
-            is_active=True
-        )[:20])
+        products = _buscar_por_texto(query, 20)
 
     return JsonResponse({'results': _dedup_results(products)})

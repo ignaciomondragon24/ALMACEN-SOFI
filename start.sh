@@ -143,6 +143,25 @@ with connection.cursor() as c:
 echo "Running migrations..."
 python manage.py migrate --noinput || echo "WARNING: Migration failed, continuing..."
 
+# Si quedaron migraciones pendientes de stock/compras/POS/granel, frenar el deploy:
+# la app arrancaría "sana" pero con la base a medias (ej: cantidades de compras
+# como enteros o precios del POS con 2 decimales) y sin ningún aviso. Frenando,
+# Railway conserva la versión anterior que sí funciona.
+echo "Verifying critical migrations..."
+python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'superrecord.settings')
+import django; django.setup()
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+ex = MigrationExecutor(connection)
+pending = [f'{m.app_label}.{m.name}' for m, _ in ex.migration_plan(ex.loader.graph.leaf_nodes()) if m.app_label in ('stocks', 'purchase', 'pos', 'granel')]
+if pending:
+    print('  ERROR: migraciones pendientes:', pending)
+    sys.exit(1)
+print('  Critical migrations OK')
+" || { echo "FATAL: migraciones criticas sin aplicar, abortando el deploy."; exit 1; }
+
 # Defensive: ensure mercadopago_mpcredentials.external_pos_id and
 # mercadopago_paymentintent.payment_flow exist even if migration 0004 didn't apply.
 # This unblocks production immediately if Django migrations got stuck for any reason.

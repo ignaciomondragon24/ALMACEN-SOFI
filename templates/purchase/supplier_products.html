@@ -54,6 +54,7 @@
                         <div class="mb-3">
                             <label class="form-label">Precio al que se lo compro</label>
                             {{ form.cost_price }}
+                            <div class="form-text">Si es un producto por peso (fiambre, queso...), poné el precio <strong>por kilo</strong>.</div>
                             {% if form.cost_price.errors %}
                             <div class="text-danger small">{{ form.cost_price.errors.0 }}</div>
                             {% endif %}
@@ -98,12 +99,12 @@
                                         {% if not link.is_active %}<span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}
                                         {% if link.notes %}<br><small class="text-muted">{{ link.notes }}</small>{% endif %}
                                     </td>
-                                    <td class="text-end">{{ link.cost_price|currency }}</td>
+                                    <td class="text-end">{{ link.cost_price|currency }}{% if link.por_peso %} <small class="text-muted">/ kg</small>{% endif %}</td>
                                     <td class="text-center">
                                         {% if link.product.current_stock <= link.product.min_stock %}
-                                        <span class="badge bg-danger">{{ link.product.current_stock }} (bajo)</span>
+                                        <span class="badge bg-danger">{{ link.stock_texto }} (bajo)</span>
                                         {% else %}
-                                        <span class="badge bg-light text-dark">{{ link.product.current_stock }}</span>
+                                        <span class="badge bg-light text-dark">{{ link.stock_texto }}</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">

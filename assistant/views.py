@@ -559,6 +559,7 @@ def api_confirm_invoice(request):
             from purchase.models import Supplier, Purchase, PurchaseItem
             from stocks.models import Product
             from stocks.services import StockManagementService
+            from granel.services import GranelService
 
             # Get or create supplier
             supplier = None
@@ -687,7 +688,15 @@ def api_confirm_invoice(request):
                     product.save(update_fields=['purchase_price'])
 
                 # Update stock
-                if actualizar_stock:
+                if actualizar_stock and GranelService.caramelera_de(product) is not None:
+                    # Producto por peso: la cantidad del remito son kilos y el costo por kilo.
+                    GranelService.recibir_compra(
+                        product, cantidad, unit_cost_for_item, user=request.user,
+                        referencia=order_number,
+                        notas=f'Remito {numero_comprobante}' if numero_comprobante else 'Escaneo remito',
+                    )
+                    stock_updated += 1
+                elif actualizar_stock:
                     StockManagementService.add_stock(
                         product=product,
                         quantity=cantidad,
