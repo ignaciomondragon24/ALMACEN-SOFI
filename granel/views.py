@@ -89,75 +89,141 @@ def caramelera_list(request):
     return render(request, 'granel/caramelera_list.html', {'carameleras': carameleras})
 
 
+def _fmt_dec(value, places='0.01'):
+    """Decimal → texto con punto decimal para value="" de inputs type=number ('' si es 0/None)."""
+    if value is None or Decimal(value) == 0:
+        return ''
+    return str(Decimal(value).quantize(Decimal(places)))
+
+
+def _caramelera_form_context(request, caramelera, valores=None, errors=None):
+    """Contexto compartido del formulario de producto por peso."""
+    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
+    if valores is None:
+        valores = {}
+        if caramelera is not None:
+            valores = {
+                'nombre': caramelera.nombre,
+                'precio_100g': _fmt_dec(caramelera.precio_100g),
+                'precio_kg': _fmt_dec(caramelera.precio_kilo),
+                'precio_cuarto': _fmt_dec(caramelera.precio_cuarto),
+            }
+    if caramelera is not None:
+        autorizados_ids = list(caramelera.productos_autorizados.values_list('pk', flat=True))
+    else:
+        autorizados_ids = []
+    if request.method == 'POST':
+        autorizados_ids = [int(x) for x in request.POST.getlist('productos_autorizados') if x.isdigit()]
+    return {
+        'title': f'Editar {caramelera.nombre}' if caramelera else 'Nuevo producto por peso',
+        'caramelera': caramelera,
+        'productos_deposito': productos,
+        'autorizados_ids': autorizados_ids,
+        'valores': valores,
+        'errors': errors or [],
+        'costo_kg_actual': _fmt_dec(caramelera.costo_kilo) if caramelera else '',
+    }
+
+
 @login_required
 @stock_manager_required
 def caramelera_create(request):
-    """Formulario para crear una nueva Caramelera."""
+    """Formulario para crear un nuevo producto por peso."""
     if request.method == 'POST':
         return _caramelera_save(request, None)
-    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
-    return render(request, 'granel/caramelera_form.html', {
-        'title': 'Nuevo Producto Fraccionado',
-        'caramelera': None,
-        'productos_deposito': productos,
-    })
+    return render(request, 'granel/caramelera_form.html',
+                  _caramelera_form_context(request, None))
 
 
 @login_required
 @stock_manager_required
 def caramelera_edit(request, pk):
-    """Formulario para editar una Caramelera."""
+    """Formulario para editar un producto por peso."""
     caramelera = get_object_or_404(Caramelera, pk=pk)
     if request.method == 'POST':
         return _caramelera_save(request, caramelera)
-    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
-    try:
-        autorizados_ids = list(
-            caramelera.productos_autorizados.values_list('pk', flat=True)
-        )
-    except Exception:
-        autorizados_ids = []
-    return render(request, 'granel/caramelera_form.html', {
-        'title': f'Editar {caramelera.nombre}',
-        'caramelera': caramelera,
-        'productos_deposito': productos,
-        'autorizados_ids': autorizados_ids,
-    })
+    return render(request, 'granel/caramelera_form.html',
+                  _caramelera_form_context(request, caramelera))
+
+
+def _parse_decimal(raw, default=None):
+    raw = (raw or '').strip().replace(',', '.')
+    if raw == '':
+        return default
+    return Decimal(raw)  # InvalidOperation lo maneja quien llama
 
 
 def _caramelera_save(request, caramelera):
-    """Lógica compartida de creación/edición de Caramelera."""
+    """Lógica compartida de creación/edición de un producto por peso.
+
+    El precio se puede cargar por kilo (`precio_kg`, lo natural para quien
+    vende por peso) o por 100g (`precio_100g`); internamente se guarda por
+    100g. Al crear también se puede cargar la mercadería que ya hay
+    (`stock_inicial` + `stock_unidad` + `costo_kg`), sin pasar por depósito.
+    """
     nombre = request.POST.get('nombre', '').strip()
-    precio_100g_raw = request.POST.get('precio_100g', '').strip()
-    precio_cuarto_raw = request.POST.get('precio_cuarto', '0').strip()
     autorizados_ids = request.POST.getlist('productos_autorizados')
 
     errors = []
     if not nombre:
         errors.append('El nombre es obligatorio.')
+
+    # Precio de venta (por 100g, derivado del precio por kilo si hace falta)
+    precio_100g = Decimal('0')
     try:
-        precio_100g = Decimal(precio_100g_raw)
-        if precio_100g <= 0:
-            errors.append('El precio por 100g debe ser mayor a 0.')
-    except (InvalidOperation, ValueError):
-        errors.append('Precio por 100g inválido.')
-        precio_100g = Decimal('0')
+        p100 = _parse_decimal(request.POST.get('precio_100g'))
+        pkg = _parse_decimal(request.POST.get('precio_kg'))
+        # El precio por kilo es el que ve y edita la persona: si viene, manda.
+        if pkg is not None:
+            p100 = (pkg / Decimal('10')).quantize(Decimal('0.01'))
+        if p100 is None:
+            errors.append('Ingresá el precio de venta por kilo.')
+        elif p100 <= 0:
+            errors.append('El precio de venta debe ser mayor a 0.')
+        else:
+            precio_100g = p100
+    except InvalidOperation:
+        errors.append('El precio de venta es inválido.')
+
     try:
-        precio_cuarto = Decimal(precio_cuarto_raw) if precio_cuarto_raw else Decimal('0')
-    except (InvalidOperation, ValueError):
+        precio_cuarto = _parse_decimal(request.POST.get('precio_cuarto'), Decimal('0'))
+        if precio_cuarto < 0:
+            precio_cuarto = Decimal('0')
+    except InvalidOperation:
         precio_cuarto = Decimal('0')
 
-    productos = Product.objects.filter(es_deposito_caramelera=True, is_active=True).order_by('name')
-    context = {
-        'title': 'Editar' if caramelera else 'Nuevo Producto Fraccionado',
-        'caramelera': caramelera,
-        'productos_deposito': productos,
-        'autorizados_ids': [int(x) for x in autorizados_ids if x.isdigit()],
-        'errors': errors,
+    # Mercadería que ya hay (solo al crear)
+    gramos_iniciales = Decimal('0')
+    costo_kg = None
+    if caramelera is None:
+        try:
+            stock_ini = _parse_decimal(request.POST.get('stock_inicial'), Decimal('0'))
+            costo_kg = _parse_decimal(request.POST.get('costo_kg'))
+            if stock_ini < 0:
+                errors.append('El stock inicial no puede ser negativo.')
+            elif stock_ini > 0:
+                unidad = request.POST.get('stock_unidad', 'kg')
+                gramos_iniciales = stock_ini * (Decimal('1000') if unidad == 'kg' else Decimal('1'))
+                if costo_kg is None or costo_kg <= 0:
+                    errors.append(
+                        'Ingresá cuánto te costó el kilo, así el sistema calcula tu ganancia.'
+                    )
+        except InvalidOperation:
+            errors.append('El stock inicial o el costo son inválidos.')
+
+    valores = {
+        'nombre': nombre,
+        'precio_100g': request.POST.get('precio_100g', ''),
+        'precio_kg': request.POST.get('precio_kg', ''),
+        'precio_cuarto': request.POST.get('precio_cuarto', ''),
+        'stock_inicial': request.POST.get('stock_inicial', ''),
+        'stock_unidad': request.POST.get('stock_unidad', 'kg'),
+        'costo_kg': request.POST.get('costo_kg', ''),
     }
 
     if errors:
-        return render(request, 'granel/caramelera_form.html', context)
+        return render(request, 'granel/caramelera_form.html',
+                      _caramelera_form_context(request, caramelera, valores, errors))
 
     if caramelera is None:
         caramelera = Caramelera()
@@ -166,6 +232,13 @@ def _caramelera_save(request, caramelera):
     caramelera.precio_100g = precio_100g
     caramelera.precio_cuarto = precio_cuarto
     caramelera.save()
+
+    # Mercadería inicial cargada en el mismo formulario
+    if gramos_iniciales > 0:
+        GranelService.ingresar_stock(
+            caramelera.pk, gramos_iniciales, costo_kg, user=request.user,
+            notas='Stock inicial',
+        )
 
     # Sincronizar productos autorizados
     autorizados = Product.objects.filter(
@@ -191,22 +264,10 @@ def _sync_caramelera_pos_product(caramelera):
     """Crea o actualiza el producto is_granel de stocks vinculado a esta caramelera.
 
     El producto POS es el que aparece en el buscador del POS y dispara el modal de peso.
-    granel_price_weight_grams siempre = 100 (precio por 100g).
+    Relee la caramelera de la base antes de copiar (ver
+    GranelService.sincronizar_producto_pos).
     """
-    pos_product = caramelera.producto_pos.filter(is_granel=True).first()
-    if pos_product is None:
-        pos_product = Product(
-            is_granel=True,
-            granel_caramelera=caramelera,
-        )
-    pos_product.name = caramelera.nombre
-    pos_product.sale_price = caramelera.precio_100g
-    pos_product.sale_price_250g = caramelera.precio_cuarto
-    pos_product.granel_price_weight_grams = 100  # siempre precio/100g
-    pos_product.is_active = caramelera.is_active
-    pos_product.current_stock = caramelera.stock_gramos_actual
-    pos_product.weighted_avg_cost_per_gram = caramelera.costo_ponderado_gramo
-    pos_product.save()
+    return GranelService.sincronizar_producto_pos(caramelera)
 
 
 @login_required
@@ -319,6 +380,38 @@ def api_abrir_paquete(request, pk):
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@stock_manager_required
+@require_POST
+def api_ingresar_stock(request, pk):
+    """POST {cantidad, unidad ('kg'|'g'), costo_kg, notas?} — Suma mercadería a granel."""
+    try:
+        data = json.loads(request.body)
+        cantidad = Decimal(str(data.get('cantidad', '')).replace(',', '.'))
+        costo_kg = Decimal(str(data.get('costo_kg', '')).replace(',', '.'))
+    except (json.JSONDecodeError, InvalidOperation):
+        return JsonResponse({'error': 'Completá la cantidad y el costo por kilo con números.'}, status=400)
+
+    gramos = cantidad * (Decimal('1000') if data.get('unidad', 'kg') == 'kg' else Decimal('1'))
+    if costo_kg <= 0:
+        return JsonResponse({'error': 'Ingresá cuánto te costó el kilo.'}, status=400)
+    try:
+        apertura = GranelService.ingresar_stock(
+            pk, gramos, costo_kg, user=request.user, notas=data.get('notas', ''),
+        )
+    except Caramelera.DoesNotExist:
+        return JsonResponse({'error': 'No encontrado'}, status=404)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'gramos_agregados': float(apertura.gramos_agregados),
+        'nuevo_stock': float(apertura.stock_gramos_despues),
+        'nuevo_costo_ponderado': float(apertura.costo_ponderado_despues),
+    })
 
 
 @login_required

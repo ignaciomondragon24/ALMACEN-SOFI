@@ -466,6 +466,9 @@ class POSDecimalQuantityTest(GranelBaseTestCase):
     def test_add_decimal_quantity_to_cart(self):
         """Granel product with decimal quantity in cart."""
         caramelera = self._create_caramelera()
+        # La caramelera es la fuente de verdad del stock (el POS valida contra ella).
+        caramelera.stock_gramos_actual = Decimal('5000')
+        caramelera.save()
         granel = self._create_pos_granel_product(caramelera)
 
         session = POSService.get_or_create_session(self.shift)

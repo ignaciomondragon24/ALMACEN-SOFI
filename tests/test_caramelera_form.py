@@ -74,7 +74,7 @@ class CarameleraFormTestCase(TestCase):
     def test_caramelera_create_returns_200(self):
         resp = self.client.get(reverse('granel:caramelera_create'))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'Nuevo Producto Fraccionado')
+        self.assertContains(resp, 'Nuevo producto por peso')
 
     def test_deposito_list_returns_200(self):
         resp = self.client.get(reverse('granel:deposito_list'))

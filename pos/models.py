@@ -256,16 +256,18 @@ class POSTransactionItem(models.Model):
         default=Decimal('1.000'),
         validators=[MinValueValidator(Decimal('0.001'))]
     )
+    # 6 decimales: en venta por peso el precio unitario es por GRAMO (ej. $12,345/g)
+    # y con solo 2 decimales el total de la línea salía desfasado varios pesos.
     unit_price = models.DecimalField(
         'Precio Unitario',
-        max_digits=10,
-        decimal_places=2,
+        max_digits=14,
+        decimal_places=6,
         help_text='Precio al momento de la venta'
     )
     unit_cost = models.DecimalField(
         'Costo Unitario',
-        max_digits=10,
-        decimal_places=2,
+        max_digits=14,
+        decimal_places=6,
         default=Decimal('0.00'),
         help_text='Costo del producto al momento de la venta (para cálculo de ganancia)'
     )

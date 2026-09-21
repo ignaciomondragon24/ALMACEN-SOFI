@@ -120,6 +120,86 @@ class GranelService:
         return apertura
 
     @staticmethod
+    def sincronizar_producto_pos(caramelera):
+        """Copia stock, costo y precios de la caramelera a su producto del POS.
+
+        Siempre relee la caramelera de la base: otras operaciones (apertura
+        automática, ingreso de mercadería) la modifican con instancias
+        distintas, y una copia en memoria vieja dejaba el producto del POS
+        con stock 0 y costo 0 aunque la caramelera tuviera mercadería.
+        """
+        caramelera = Caramelera.objects.get(pk=caramelera.pk)
+        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
+        if pos_product is None:
+            pos_product = Product(is_granel=True, granel_caramelera=caramelera)
+        pos_product.name = caramelera.nombre
+        pos_product.sale_price = caramelera.precio_100g
+        pos_product.sale_price_250g = caramelera.precio_cuarto
+        pos_product.granel_price_weight_grams = 100  # siempre precio/100g
+        pos_product.is_active = caramelera.is_active
+        pos_product.current_stock = caramelera.stock_gramos_actual
+        pos_product.weighted_avg_cost_per_gram = caramelera.costo_ponderado_gramo
+        pos_product.save()
+        return pos_product
+
+    @staticmethod
+    @transaction.atomic
+    def ingresar_stock(caramelera_id, gramos, costo_por_kilo, user=None, notas=''):
+        """
+        Suma mercadería a granel directamente (sin pasar por una pieza de depósito).
+
+        `gramos` es el peso que entra y `costo_por_kilo` lo que costó cada kilo.
+        Recalcula el costo ponderado por gramo con la misma fórmula que la
+        apertura de bultos y deja registro en el historial.
+
+        Returns: AperturaBulto creada
+        """
+        gramos = Decimal(str(gramos))
+        costo_por_kilo = Decimal(str(costo_por_kilo))
+        if gramos <= 0:
+            raise ValueError('La cantidad tiene que ser mayor a 0.')
+        if costo_por_kilo < 0:
+            raise ValueError('El costo no puede ser negativo.')
+
+        try:
+            caramelera = Caramelera.objects.select_for_update(nowait=True).get(pk=caramelera_id)
+        except OperationalError:
+            raise ValueError('El producto está siendo modificado. Intentá de nuevo.')
+
+        costo_nuevo_por_gramo = (costo_por_kilo / Decimal('1000')).quantize(Decimal('0.000001'))
+        stock_antes = caramelera.stock_gramos_actual
+        costo_antes = caramelera.costo_ponderado_gramo
+
+        if stock_antes > 0 and costo_antes > 0:
+            nuevo_costo = (
+                (stock_antes * costo_antes) + (gramos * costo_nuevo_por_gramo)
+            ) / (stock_antes + gramos)
+        else:
+            nuevo_costo = costo_nuevo_por_gramo
+        nuevo_costo = nuevo_costo.quantize(Decimal('0.000001'))
+
+        caramelera.stock_gramos_actual = stock_antes + gramos
+        caramelera.costo_ponderado_gramo = nuevo_costo
+        caramelera.save(update_fields=['stock_gramos_actual', 'costo_ponderado_gramo', 'updated_at'])
+
+        apertura = AperturaBulto.objects.create(
+            caramelera=caramelera,
+            producto=None,
+            gramos_agregados=gramos,
+            costo_por_gramo_al_abrir=costo_nuevo_por_gramo,
+            costo_ponderado_antes=costo_antes,
+            costo_ponderado_despues=nuevo_costo,
+            stock_gramos_antes=stock_antes,
+            stock_gramos_despues=caramelera.stock_gramos_actual,
+            unidades_restantes_deposito=0,
+            abierto_por=user,
+            notas=notas or 'Ingreso directo de mercadería',
+        )
+
+        GranelService.sincronizar_producto_pos(caramelera)
+        return apertura
+
+    @staticmethod
     def auto_abrir_disponible(producto, user=None):
         """
         Abre automáticamente TODO el stock entero disponible de un producto

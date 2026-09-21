@@ -184,8 +184,10 @@
                                         Producto para Venta por Peso (pieza/bulto de depósito)
                                     </label>
                                     <div class="form-text">
-                                        Al activar esto, el producto aparece en el Depósito de Bultos y puede
-                                        abrirse hacia un producto fraccionado (venta por peso). El precio de costo es el costo de la pieza.
+                                        <strong>¿Querés vender fiambre, queso, frutos secos, etc. por peso?</strong>
+                                        No hace falta cargarlo acá: andá a <em>Venta por Peso → Nuevo producto por peso</em>.
+                                        Esta opción es solo para piezas cerradas (ej: una pata de jamón de 500g) que
+                                        después se abren hacia un producto por peso. Si la activás, tenés que indicar los gramos de cada pieza.
                                     </div>
                                 </div>
                             </div>
@@ -674,8 +676,14 @@
     }
 
     // Toggle caramelera deposit fields
-    document.getElementById('id_es_deposito_caramelera').addEventListener('change', function() {
-        document.getElementById('campos-caramelera').style.display = this.checked ? '' : 'none';
-    });
+    // Los gramos por pieza son obligatorios solo mientras la casilla esté tildada
+    // (y visible): un campo obligatorio oculto bloquea el envío sin mostrar nada.
+    function syncDepositoFields() {
+        var on = document.getElementById('id_es_deposito_caramelera').checked;
+        document.getElementById('campos-caramelera').style.display = on ? '' : 'none';
+        document.getElementById('id_weight_per_unit_grams').required = on;
+    }
+    document.getElementById('id_es_deposito_caramelera').addEventListener('change', syncDepositoFields);
+    syncDepositoFields();
 </script>
 {% endblock %}

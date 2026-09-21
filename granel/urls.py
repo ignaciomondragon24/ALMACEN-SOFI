@@ -17,6 +17,7 @@ urlpatterns = [
 
     # APIs
     path('api/caramelera/<int:pk>/abrir-paquete/', views.api_abrir_paquete, name='api_abrir_paquete'),
+    path('api/caramelera/<int:pk>/ingresar-stock/', views.api_ingresar_stock, name='api_ingresar_stock'),
     path('api/caramelera/<int:pk>/auditoria/', views.api_auditoria, name='api_auditoria'),
     path('api/caramelera/<int:pk>/venta/', views.api_venta_granel, name='api_venta_granel'),
     path('api/caramelera/<int:pk>/info/', views.api_caramelera_info, name='api_caramelera_info'),

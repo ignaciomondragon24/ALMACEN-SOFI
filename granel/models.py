@@ -146,6 +146,37 @@ class Caramelera(models.Model):
         return (gramos / Decimal('100')) * self.precio_100g
 
     @property
+    def stock_kilos(self):
+        """Stock actual expresado en kilos."""
+        return (self.stock_gramos_actual / Decimal('1000')).quantize(Decimal('0.001')).normalize()
+
+    @property
+    def precio_kilo(self):
+        """Precio de venta por kilo (el precio por 100g × 10)."""
+        return (self.precio_100g * Decimal('10')).quantize(Decimal('0.01'))
+
+    @property
+    def costo_kilo(self):
+        """Costo ponderado por kilo. 0 si todavía no se cargó costo."""
+        return (self.costo_ponderado_gramo * Decimal('1000')).quantize(Decimal('0.01'))
+
+    @property
+    def ganancia_kilo(self):
+        """Ganancia por cada kilo vendido a precio de lista. None sin costo."""
+        if self.costo_ponderado_gramo > 0:
+            return self.precio_kilo - self.costo_kilo
+        return None
+
+    @property
+    def margen_sobre_costo(self):
+        """Margen % sobre el costo — mismo criterio que la pantalla de productos
+        (costo $100 y venta $130 = 30%). None si todavía no hay costo cargado."""
+        if self.costo_ponderado_gramo > 0 and self.precio_100g > 0:
+            costo_100g = self.costo_ponderado_gramo * Decimal('100')
+            return ((self.precio_100g - costo_100g) / costo_100g * Decimal('100')).quantize(Decimal('0.1'))
+        return None
+
+    @property
     def margen_100g(self):
         """Margen porcentual estimado sobre 100g al precio de venta."""
         if self.precio_100g > 0 and self.costo_ponderado_gramo > 0:
@@ -224,8 +255,9 @@ class AperturaBulto(models.Model):
         ordering = ['-abierto_en']
 
     def __str__(self):
+        origen = self.producto.name if self.producto else 'Ingreso directo'
         return (
-            f'{self.producto.name} → {self.caramelera.nombre} '
+            f'{origen} → {self.caramelera.nombre} '
             f'({self.gramos_agregados}g)'
         )
 

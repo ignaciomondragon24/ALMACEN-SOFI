@@ -4,8 +4,8 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-3" style="max-width:820px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0">
             <i class="fas fa-scale-balanced me-2" style="color:var(--che-primary,#C33287);"></i>
             {{ title }}
@@ -15,6 +15,13 @@
         </a>
     </div>
 
+    {% if not caramelera %}
+    <p class="text-muted">
+        Para productos que vendés por peso (fiambres, quesos, frutos secos, cereales...).
+        Completá estos 3 pasos y ya lo podés vender en la caja.
+    </p>
+    {% endif %}
+
     {% if errors %}
     <div class="alert alert-danger">
         <ul class="mb-0">
@@ -23,116 +30,178 @@
     </div>
     {% endif %}
 
-    <form method="post">
+    <form method="post" id="form-peso">
         {% csrf_token %}
-        <div class="row g-4">
-            <!-- Datos básicos -->
-            <div class="col-lg-5">
-                <div class="card shadow-sm">
-                    <div class="card-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
-                        <i class="fas fa-tag me-1"></i> Datos del Producto Fraccionado
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Nombre <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" name="nombre" class="form-control" required
-                                   placeholder="Ej: Jamón Cocido Fraccionado"
-                                   value="{{ caramelera.nombre|default:'' }}">
-                        </div>
+        <input type="hidden" name="precio_100g" id="input-precio-100" value="{{ valores.precio_100g|default:'' }}">
 
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Precio de venta por 100g <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" name="precio_100g" id="input-precio-100"
-                                       class="form-control" step="0.01" min="0.01" required
-                                       placeholder="Ej: 2500"
-                                       value="{{ caramelera.precio_100g|unlocalize|default:'' }}">
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Precio por Kilo Oferta</label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" name="precio_cuarto" id="input-precio-cuarto"
-                                       class="form-control" step="0.01" min="0"
-                                       placeholder="Auto (precio/100g × 10 × 0.9)"
-                                       value="{{ caramelera.precio_cuarto|unlocalize|default:'' }}">
-                            </div>
-                            <div class="form-text">
-                                Se aplica desde 250g en adelante por regla de tres.
-                                Sugerido: <span id="auto-precio-cuarto-hint"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-4 d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="fas fa-save me-1"></i>
-                        {% if caramelera %}Guardar Cambios{% else %}Crear Producto Fraccionado{% endif %}
-                    </button>
-                </div>
+        <!-- Paso 1 -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
+                <strong>1.</strong> ¿Qué producto es?
             </div>
+            <div class="card-body">
+                <label class="form-label fw-semibold" for="input-nombre">Nombre <span class="text-danger">*</span></label>
+                <input type="text" name="nombre" id="input-nombre" class="form-control form-control-lg" required
+                       placeholder="Ej: Jamón cocido, Queso de máquina, Almendras"
+                       value="{{ valores.nombre|default:'' }}">
+            </div>
+        </div>
 
-            <!-- Productos autorizados -->
-            <div class="col-lg-7">
-                <div class="card shadow-sm">
-                    <div class="card-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
-                        <i class="fas fa-boxes me-1"></i> Productos Autorizados
-                        <small class="ms-2 opacity-75">
-                            Los que pueden entrar en este mix
-                        </small>
-                    </div>
-                    <div class="card-body">
-                        {% if not productos_deposito %}
-                        <div class="alert alert-warning mb-0">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            No hay productos marcados como "para venta por peso" todavía.
-                            <a href="{% url 'stocks:product_create' %}">Creá uno en el inventario</a>
-                            y activá la opción correspondiente.
+        <!-- Paso 2 -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
+                <strong>2.</strong> ¿A cuánto lo comprás y a cuánto lo vendés? <small class="opacity-75">(siempre por kilo)</small>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold" for="input-costo-kg">
+                            Costo por kilo
+                            {% if not caramelera %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {% if caramelera %}
+                            <input type="text" id="input-costo-kg" class="form-control text-end" readonly
+                                   value="{{ costo_kg_actual|default:'—' }}"
+                                   data-costo="{{ costo_kg_actual|default:'' }}">
+                            {% else %}
+                            <input type="number" name="costo_kg" id="input-costo-kg" class="form-control text-end"
+                                   step="0.01" min="0" placeholder="Lo que te cuesta el kilo"
+                                   value="{{ valores.costo_kg|default:'' }}">
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <div class="row g-2">
-                            {% for p in productos_deposito %}
-                            <div class="col-sm-6">
-                                <div class="form-check border rounded p-2">
-                                    <input class="form-check-input" type="checkbox"
-                                           name="productos_autorizados"
-                                           value="{{ p.pk|unlocalize }}"
-                                           id="prod_{{ p.pk|unlocalize }}"
-                                           {% if p.pk in autorizados_ids %}checked{% endif %}>
-                                    <label class="form-check-label w-100" for="prod_{{ p.pk|unlocalize }}">
-                                        <div class="fw-semibold small">{{ p.name }}</div>
-                                        {% if p.marca %}
-                                        <div class="text-muted" style="font-size:.75rem;">{{ p.marca }}</div>
-                                        {% endif %}
-                                        <div class="text-muted" style="font-size:.75rem;">
-                                            {% if p.weight_per_unit_grams %}
-                                                {{ p.weight_per_unit_grams|floatformat:0 }}g/bulto ·
-                                                ${{ p.costo_por_gramo|floatformat:4 }}/g ·
-                                            {% endif %}
-                                            <span class="{% if p.current_stock > 0 %}text-success{% else %}text-danger{% endif %}">
-                                                stock: {{ p.current_stock|floatformat:0 }}
-                                            </span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        <div class="mt-2 text-muted small">
-                            Podés dejar todos sin marcar para autorizar manualmente después.
-                        </div>
+                        {% if caramelera %}
+                        <div class="form-text">Se calcula solo con lo que vas comprando (promedio).</div>
                         {% endif %}
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold" for="input-margen">Ganancia</label>
+                        <div class="input-group">
+                            <input type="number" id="input-margen" class="form-control text-end" step="0.1" min="0"
+                                   value="30">
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">Sobre el costo (igual que en Productos).</div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold" for="input-precio-kg">
+                            Precio de venta por kilo <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="precio_kg" id="input-precio-kg" class="form-control text-end"
+                                   step="0.01" min="0.01" placeholder="Ej: 12000"
+                                   value="{{ valores.precio_kg|default:'' }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="resumen-precio" class="alert alert-light border mt-3 mb-0 d-none">
+                    <div id="resumen-ganancia" class="fw-semibold mb-1"></div>
+                    <div class="text-muted small" id="resumen-fracciones"></div>
                 </div>
             </div>
+        </div>
+
+        <!-- Paso 3 (solo al crear) -->
+        {% if not caramelera %}
+        <div class="card shadow-sm mb-3">
+            <div class="card-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
+                <strong>3.</strong> ¿Cuánta mercadería tenés ahora?
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-7 col-md-5">
+                        <div class="input-group">
+                            <input type="number" name="stock_inicial" id="input-stock" class="form-control text-end"
+                                   step="0.001" min="0" placeholder="Ej: 2.5"
+                                   value="{{ valores.stock_inicial|default:'' }}">
+                            <select name="stock_unidad" class="form-select" style="max-width:90px;">
+                                <option value="kg" {% if valores.stock_unidad != 'g' %}selected{% endif %}>kg</option>
+                                <option value="g" {% if valores.stock_unidad == 'g' %}selected{% endif %}>g</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-text mt-2">
+                    Si todavía no tenés mercadería, dejalo vacío. Después la sumás con el botón
+                    <strong>"Agregar mercadería"</strong> cada vez que compres.
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Opciones avanzadas -->
+        <details class="mb-3" {% if valores.precio_cuarto or autorizados_ids %}open{% endif %}>
+            <summary class="text-muted" style="cursor:pointer;">Opciones avanzadas (no hace falta tocarlas)</summary>
+            <div class="card shadow-sm mt-2">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="input-precio-cuarto">Precio especial por kilo (oferta)</label>
+                        <div class="input-group" style="max-width:320px;">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="precio_cuarto" id="input-precio-cuarto"
+                                   class="form-control" step="0.01" min="0"
+                                   placeholder="Dejalo vacío si no hacés oferta"
+                                   value="{{ valores.precio_cuarto|default:'' }}">
+                        </div>
+                        <div class="form-text">
+                            Si lo completás, desde 250g en adelante se cobra a este precio por kilo
+                            en vez del precio normal.
+                        </div>
+                    </div>
+
+                    <hr>
+                    <div class="fw-semibold mb-1">Piezas cerradas en Depósito</div>
+                    <div class="form-text mb-2">
+                        Solo si cargás piezas enteras en Inventario (ej: una pata de jamón de 500g) y querés
+                        que se abran solas hacia este producto.
+                    </div>
+                    {% if not productos_deposito %}
+                    <div class="text-muted small">
+                        No hay piezas de depósito cargadas.
+                    </div>
+                    {% else %}
+                    <div class="row g-2">
+                        {% for p in productos_deposito %}
+                        <div class="col-sm-6">
+                            <div class="form-check border rounded p-2">
+                                <input class="form-check-input" type="checkbox"
+                                       name="productos_autorizados"
+                                       value="{{ p.pk|unlocalize }}"
+                                       id="prod_{{ p.pk|unlocalize }}"
+                                       {% if p.pk in autorizados_ids %}checked{% endif %}>
+                                <label class="form-check-label w-100" for="prod_{{ p.pk|unlocalize }}">
+                                    <div class="fw-semibold small">{{ p.name }}</div>
+                                    {% if p.marca %}
+                                    <div class="text-muted" style="font-size:.75rem;">{{ p.marca }}</div>
+                                    {% endif %}
+                                    <div class="text-muted" style="font-size:.75rem;">
+                                        {% if p.weight_per_unit_grams %}
+                                            {{ p.weight_per_unit_grams|floatformat:0 }}g/pieza ·
+                                        {% else %}
+                                            <span class="text-danger">sin gramos ·</span>
+                                        {% endif %}
+                                        <span class="{% if p.current_stock > 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {{ p.current_stock|floatformat:0 }} en depósito
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+
+        <div class="d-grid">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-save me-1"></i>
+                {% if caramelera %}Guardar cambios{% else %}Guardar y dejar listo para vender{% endif %}
+            </button>
         </div>
     </form>
 </div>
@@ -141,28 +210,68 @@
 {% block extra_js %}
 <script>
 (function () {
-    const precio100 = document.getElementById('input-precio-100');
-    const precioCuarto = document.getElementById('input-precio-cuarto');
-    const hint = document.getElementById('auto-precio-cuarto-hint');
+    var costo = document.getElementById('input-costo-kg');
+    var margen = document.getElementById('input-margen');
+    var precioKg = document.getElementById('input-precio-kg');
+    var precio100 = document.getElementById('input-precio-100');
+    var resumen = document.getElementById('resumen-precio');
+    var resGanancia = document.getElementById('resumen-ganancia');
+    var resFracc = document.getElementById('resumen-fracciones');
 
-    precio100.addEventListener('input', function () {
-        const v = parseFloat(this.value) || 0;
-        if (v > 0) {
-            // Sugerencia: precio/100g × 10 (= precio/kg) con 10% descuento
-            const sugerido = (v * 10 * 0.9).toFixed(2);
-            hint.textContent = '$' + sugerido + '/kg';
-            if (!precioCuarto.dataset.manual) {
-                precioCuarto.value = sugerido;
-            }
+    function costoNum() {
+        var raw = (costo.dataset.costo !== undefined) ? costo.dataset.costo : costo.value;
+        return parseFloat(raw) || 0;
+    }
+    function money(v) { return '$' + Math.round(v).toLocaleString('es-AR'); }
+
+    function actualizarResumen() {
+        var c = costoNum(), p = parseFloat(precioKg.value) || 0;
+        if (p <= 0) { resumen.classList.add('d-none'); return; }
+        resumen.classList.remove('d-none');
+        if (c > 0) {
+            var ganancia = p - c;
+            var pct = (ganancia / c) * 100;
+            resGanancia.textContent = 'Por cada kilo ganás ' + money(ganancia) + ' (' + pct.toFixed(1).replace('.', ',') + '% sobre el costo).';
+            resGanancia.style.color = ganancia >= 0 ? '' : '#dc3545';
+        } else {
+            resGanancia.textContent = 'Cargá el costo por kilo para ver cuánto ganás.';
+            resGanancia.style.color = '';
         }
-    });
+        resFracc.textContent = 'Al cliente: 100g = ' + money(p / 10) + ' · ¼ kg = ' + money(p / 4) +
+            ' · ½ kg = ' + money(p / 2) + ' · 1 kg = ' + money(p);
+    }
 
-    precioCuarto.addEventListener('input', function () {
-        this.dataset.manual = '1';
-    });
+    function desdePrecio() {
+        var c = costoNum(), p = parseFloat(precioKg.value) || 0;
+        if (c > 0 && p > 0) margen.value = (((p - c) / c) * 100).toFixed(1);
+        precio100.value = p > 0 ? (p / 10).toFixed(2) : '';
+        actualizarResumen();
+    }
 
-    // Trigger en carga si hay precio
-    if (precio100.value) precio100.dispatchEvent(new Event('input'));
+    function desdeMargen() {
+        var c = costoNum(), m = parseFloat(margen.value) || 0;
+        if (c > 0) {
+            precioKg.value = (c * (1 + m / 100)).toFixed(2);
+            precio100.value = (parseFloat(precioKg.value) / 10).toFixed(2);
+        }
+        actualizarResumen();
+    }
+
+    precioKg.addEventListener('input', function () { this.dataset.manual = '1'; desdePrecio(); });
+    margen.addEventListener('input', desdeMargen);
+    if (!costo.readOnly) {
+        costo.addEventListener('input', function () {
+            // Con precio puesto a mano se recalcula la ganancia; si no, se sugiere el precio.
+            if (precioKg.dataset.manual === '1' && parseFloat(precioKg.value) > 0) { desdePrecio(); }
+            else { desdeMargen(); }
+        });
+    }
+
+    // Carga inicial (edición o error de validación): mostrar la ganancia actual sin pisar el precio
+    if (parseFloat(precioKg.value) > 0 && costoNum() > 0) {
+        margen.value = (((parseFloat(precioKg.value) - costoNum()) / costoNum()) * 100).toFixed(1);
+    }
+    actualizarResumen();
 })();
 </script>
 {% endblock %}

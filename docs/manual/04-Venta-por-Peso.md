@@ -12,31 +12,37 @@ Como los costos son distintos pero el precio de venta es único, el sistema usa 
 
 ---
 
-## Antes de abrir nada: dar de alta el circuito completo
+## Cargar un producto por peso (1 sola pantalla)
 
-Son 3 pasos separados, cada uno se hace **una sola vez** por tipo de producto (no hay que repetirlos en cada venta):
+En **Venta por Peso → Nuevo producto por peso** completás 3 pasos. Todo va **por kilo**:
 
-### Paso 1 — Cargar la pieza cerrada (el depósito)
+1. **Nombre** — ej: "Jamón cocido", "Queso de máquina", "Almendras".
+2. **Costo y precio por kilo**
+   - **Costo por kilo**: lo que te cuesta a vos el kilo.
+   - **Ganancia %** y **Precio de venta por kilo**: son lo mismo dicho de dos maneras. Si escribís la ganancia, el sistema calcula el precio; si escribís el precio, calcula la ganancia. La ganancia es **sobre el costo**, igual que en Productos (costo $100 y venta $130 = 30%).
+   - Abajo ves al instante cuánto ganás por kilo y a cuánto queda el ¼, el ½ y los 100g.
+3. **Cuánta mercadería tenés ahora** — el peso en kg (o g). Si todavía no tenés, lo dejás vacío.
 
-Es un producto común de **Inventario → Nuevo Producto**, pero tildando la casilla **"Producto para Venta por Peso (pieza/bulto de depósito)"**. Ahí completás:
-- **Marca** (para diferenciar piezas del mismo tipo, ej. dos jamones de distinto proveedor).
-- **Gramos por Unidad**: cuánto pesa cada pieza cerrada (ej: 500 para una pata de jamón de 500g).
-- **Precio de Costo**: lo que te costó esa pieza. No hace falta cargarle precio de venta — esta pieza no se vende suelta, solo alimenta al producto fraccionado.
+Con **Guardar y dejar listo para vender** ya aparece en la caja. No hay que hacer nada más.
 
-### Paso 2 — Cargar el stock de esa pieza
+### Sumar mercadería cuando comprás más
 
-Como a cualquier producto: por **Compras** (recibir una orden de compra) o con un ajuste manual de stock. Acá la cantidad que cargás es **cantidad de piezas**, no gramos (ej: "tengo 3 piezas en la heladera").
+En el producto, botón verde **Agregar mercadería**: ponés cuántos kilos entraron y a cuánto te salió el kilo. El sistema suma el peso al stock y recalcula el **costo por kilo** (promedio entre lo que tenías y lo nuevo), así la ganancia siempre sale bien aunque cambie el precio del proveedor.
 
-### Paso 3 — Crear el producto fraccionado (el que se vende por peso)
+### Opciones avanzadas (no hace falta tocarlas)
 
-En **Inventario → Venta por Peso → Nuevo Producto Fraccionado** (ej: "Jamón Cocido Fraccionado"). Ahí cargás, en la misma pantalla:
-- **Precio de venta por 100g**.
-- **Precio por Kilo Oferta** (opcional): si vendés una oferta fija por cuarto/250g, cargá acá el precio equivalente a 1 kilo (el precio del cuarto × 4) — el sistema lo aplica proporcional desde los 250g en adelante.
-- Qué piezas de depósito (del Paso 1) están **autorizadas** a alimentar este producto.
-
-Recién con los 3 pasos hechos, el producto fraccionado queda listo. **No hace falta un Paso 4**: en cuanto el depósito tiene stock y está autorizado, el sistema lo abre solo (ver siguiente sección).
+- **Precio especial por kilo (oferta)**: si lo completás, desde 250g en adelante se cobra a ese precio por kilo en vez del normal. Si lo dejás vacío no hay ninguna oferta.
+- **Piezas cerradas en Depósito**: solo si querés cargar piezas enteras (ej: una pata de jamón de 500g) desde Inventario y que se abran solas hacia el producto. Ver la sección de abajo. Si cargás una pieza de depósito hay que indicar sus **gramos** (sin eso el sistema no puede abrirla).
 
 ---
+
+## Depósito de piezas cerradas (opcional)
+
+Si preferís manejar piezas enteras:
+
+1. **Inventario → Nuevo Producto**, tildando **"Producto para Venta por Peso (pieza/bulto de depósito)"**: marca, **gramos por unidad** (obligatorio) y **precio de costo** de la pieza.
+2. Cargale stock como a cualquier producto (por **Compras** o ajuste manual). La cantidad es de **piezas**, no gramos.
+3. En el producto por peso, en **Opciones avanzadas**, marcá esa pieza como autorizada.
 
 ## La apertura hacia el producto fraccionado es automática
 
@@ -121,11 +127,12 @@ El producto fraccionado arranca vacío (stock = 0, costo = 0).
 
 ## Vender por gramos en el POS
 
-1. En el POS, buscá el producto fraccionado (o escaneá su código asociado).
-2. Se abre el modal: ingresá los **gramos** a vender.
+1. En el POS, buscá el producto por peso (o escaneá su código asociado).
+2. Se abre el modal: ingresá los **gramos** a vender (o tocá 100g / ¼ kg / ½ kg). Si no hay stock cargado, el modal te lo avisa y no deja agregar.
 3. El sistema calcula el precio:
    - < 250g → proporcional al precio cada 100g.
    - ≥ 250g con **precio kilo oferta** activo → se aplica la regla de tres sobre el precio del kilo.
+   - Sin oferta, siempre es proporcional al precio del kilo. El precio lo calcula el sistema, no la pantalla.
 4. Seguí con el cobro normal.
 
 ---

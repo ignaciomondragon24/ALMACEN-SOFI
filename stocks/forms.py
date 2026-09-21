@@ -85,6 +85,16 @@ class ProductForm(forms.ModelForm):
                 'Debe ingresar un código de barras o un SKU manual.'
             )
 
+        # Una pieza de depósito sin gramos nunca se abre hacia el producto por
+        # peso: el stock queda "en depósito" y la venta por peso sin mercadería.
+        if cleaned.get('es_deposito_caramelera'):
+            gramos = cleaned.get('weight_per_unit_grams')
+            if not gramos or gramos <= 0:
+                self.add_error(
+                    'weight_per_unit_grams',
+                    'Indicá cuántos gramos pesa cada pieza; sin eso no se puede vender por peso.'
+                )
+
         if barcode:
             qs = Product.objects.filter(barcode=barcode, is_active=True)
             if self.instance and self.instance.pk:

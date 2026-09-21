@@ -813,7 +813,9 @@
                                    value="${defaultVal}"
                                    autofocus
                                    style="background:#0d0d1f;border:2px solid rgba(195, 50, 135,0.3);color:#fff;font-weight:700;font-size:1.5rem;border-radius:10px;">
-                            ${isGranel ? `<div class="text-end mt-1"><small style="color:${stockGrams > 0 ? '#555' : '#ff6b6b'};font-size:0.75rem;">Disponible: ${stockGrams}g</small></div>` : ''}
+                            ${isGranel ? (stockGrams > 0
+                                ? `<div class="text-end mt-1"><small style="color:#888;font-size:0.75rem;">Disponible: ${stockGrams}g</small></div>`
+                                : `<div class="mt-2 p-2 text-center" style="background:rgba(255,107,107,0.12);border:1px solid rgba(255,107,107,0.35);border-radius:8px;color:#ff6b6b;font-size:0.8rem;">Sin stock cargado. Sumalo en <strong>Venta por Peso → Agregar mercadería</strong>.</div>`) : ''}
                             <div class="mt-3 text-center">
                                 <div id="bulk-price-breakdown" style="min-height:1.2em;margin-bottom:4px;"></div>
                                 <span class="fs-3 fw-bold" style="color:#00d2d3;" id="bulk-total-preview">${formatCurrency(calcTotal(parseFloat(defaultVal)))}</span>
@@ -843,8 +845,8 @@
             const qty = parseFloat(input.value) || 0;
             preview.textContent = formatCurrency(calcTotal(qty));
             if (breakdown) breakdown.innerHTML = priceBreakdown(qty);
-            // Validar stock para granel
-            if (isGranel && stockGrams > 0 && qty > stockGrams) {
+            // Validar stock para granel (con stock 0 tampoco se puede agregar)
+            if (isGranel && qty > stockGrams) {
                 confirmBtn.disabled = true;
                 confirmBtn.title = 'Excede el stock disponible';
                 input.style.borderColor = '#ff6b6b';

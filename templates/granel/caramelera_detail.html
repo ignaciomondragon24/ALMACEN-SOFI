@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load currency_filters %}
+{% load currency_filters l10n %}
 
 {% block title %}{{ caramelera.nombre }} — Venta por Peso{% endblock %}
 
@@ -21,11 +21,17 @@
             </nav>
         </div>
         <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-success"
+                    data-bs-toggle="modal" data-bs-target="#modalIngresarStock">
+                <i class="fas fa-plus-circle me-1"></i>Agregar mercadería
+            </button>
+            {% if autorizados %}
             <button type="button" class="btn btn-outline-success"
                     data-bs-toggle="modal" data-bs-target="#modalAbrirPaquete"
                     title="Ya no hace falta: el stock del depósito se abre solo al cargarlo. Usalo solo para forzar una apertura manual.">
                 <i class="fas fa-box-open me-1"></i>Abrir Manualmente
             </button>
+            {% endif %}
             <button type="button" class="btn btn-outline-warning"
                     data-bs-toggle="modal" data-bs-target="#modalAuditoria">
                 <i class="fas fa-balance-scale me-1"></i>Auditoría
@@ -53,6 +59,7 @@
                          id="stock-display">
                         {{ caramelera.stock_gramos_actual|floatformat:0 }}g
                     </div>
+                    <div class="text-muted small">{{ caramelera.stock_kilos|floatformat:"-3" }} kg</div>
                 </div>
             </div>
         </div>
@@ -60,8 +67,9 @@
         <div class="col-6 col-lg-3">
             <div class="card shadow-sm text-center h-100">
                 <div class="card-body py-3">
-                    <div class="text-muted small mb-1">Precio / 100g</div>
-                    <div class="h4 fw-bold mb-0">{{ caramelera.precio_100g|currency_ar }}</div>
+                    <div class="text-muted small mb-1">Precio de venta por kilo</div>
+                    <div class="h4 fw-bold mb-0">{{ caramelera.precio_kilo|currency_ar }}</div>
+                    <div class="text-muted small">{{ caramelera.precio_100g|currency_ar }} cada 100g</div>
                 </div>
             </div>
         </div>
@@ -84,19 +92,20 @@
         <div class="col-6 col-lg-3">
             <div class="card shadow-sm text-center h-100">
                 <div class="card-body py-3">
-                    <div class="text-muted small mb-1">Costo/g · Margen</div>
-                    <div class="fw-bold mb-0" id="costo-ponderado-display">
+                    <div class="text-muted small mb-1">Costo por kilo · Ganancia</div>
+                    <div class="h4 fw-bold mb-0" id="costo-ponderado-display">
                         {% if caramelera.costo_ponderado_gramo > 0 %}
-                            ${{ caramelera.costo_ponderado_gramo|floatformat:4 }}/g
+                            {{ caramelera.costo_kilo|currency_ar }}
                         {% else %}
-                            <span class="text-muted">—</span>
+                            <span class="text-muted fs-6">Sin costo cargado</span>
                         {% endif %}
                     </div>
                     <div class="small mt-1">
-                        {% if caramelera.margen_100g != 0 %}
-                            <span class="badge {% if caramelera.margen_100g > 0 %}bg-success{% else %}bg-danger{% endif %}">
-                                {{ caramelera.margen_100g|floatformat:1 }}% margen
+                        {% if caramelera.margen_sobre_costo is not None %}
+                            <span class="badge {% if caramelera.margen_sobre_costo > 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ caramelera.margen_sobre_costo|floatformat:1 }}% sobre el costo
                             </span>
+                            <div class="text-muted mt-1">Ganás {{ caramelera.ganancia_kilo|currency_ar }} por kilo</div>
                         {% endif %}
                     </div>
                 </div>
@@ -231,7 +240,7 @@
             <!-- Historial de aperturas -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
-                    <i class="fas fa-history me-1"></i> Historial de Aperturas (últimas 20)
+                    <i class="fas fa-history me-1"></i> Ingresos de mercadería (últimos 20)
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -241,7 +250,7 @@
                                     <th>Fecha</th>
                                     <th>Producto</th>
                                     <th class="text-end">Gramos</th>
-                                    <th class="text-end">Costo/g</th>
+                                    <th class="text-end">Costo por kilo</th>
                                     <th class="text-end">Stock resultante</th>
                                     <th>Quien</th>
                                 </tr>
@@ -251,16 +260,20 @@
                                 <tr>
                                     <td class="text-muted small">{{ a.abierto_en|date:"d/m/Y H:i" }}</td>
                                     <td>
+                                        {% if a.producto %}
                                         <strong>{{ a.producto.name }}</strong>
                                         {% if a.producto.marca %}
                                         <span class="text-muted small">{{ a.producto.marca }}</span>
+                                        {% endif %}
+                                        {% else %}
+                                        <strong>{{ a.notas|default:"Ingreso de mercadería" }}</strong>
                                         {% endif %}
                                     </td>
                                     <td class="text-end text-success fw-semibold">
                                         +{{ a.gramos_agregados|floatformat:0 }}g
                                     </td>
                                     <td class="text-end text-muted small">
-                                        ${{ a.costo_por_gramo_al_abrir|floatformat:4 }}
+                                        ${% widthratio a.costo_por_gramo_al_abrir 1 1000 as ck %}{{ ck }}
                                     </td>
                                     <td class="text-end">{{ a.stock_gramos_despues|floatformat:0 }}g</td>
                                     <td class="text-muted small">
@@ -273,7 +286,7 @@
                                 <tr id="row-empty-aperturas">
                                     <td colspan="6" class="text-center text-muted py-4">
                                         <i class="fas fa-box-open fa-2x d-block mb-2 opacity-50"></i>
-                                        Todavía no se abrió ningún paquete para este producto fraccionado.
+                                        Todavía no cargaste mercadería. Usá el botón <strong>Agregar mercadería</strong>.
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -374,6 +387,55 @@
                 </div>
             </div>
 
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Agregar mercadería -->
+<div class="modal fade" id="modalIngresarStock" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--che-secondary,#7134B6);color:#fff;">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle me-2"></i>Agregar mercadería — {{ caramelera.nombre }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-ingreso-error" class="alert alert-danger d-none"></div>
+                <p class="text-muted small">
+                    Cargá lo que compraste. El sistema suma el peso al stock y recalcula el costo
+                    por kilo (promedio entre lo que ya tenías y lo nuevo).
+                </p>
+                <div class="row g-3">
+                    <div class="col-7">
+                        <label class="form-label fw-semibold" for="input-ingreso-cantidad">¿Cuánto entró?</label>
+                        <div class="input-group">
+                            <input type="number" id="input-ingreso-cantidad" class="form-control text-end"
+                                   step="0.001" min="0" placeholder="Ej: 2.5">
+                            <select id="input-ingreso-unidad" class="form-select" style="max-width:90px;">
+                                <option value="kg" selected>kg</option>
+                                <option value="g">g</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label fw-semibold" for="input-ingreso-costo">Costo por kilo</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="input-ingreso-costo" class="form-control text-end"
+                                   step="0.01" min="0" placeholder="Ej: 8000">
+                        </div>
+                    </div>
+                </div>
+                <div id="ingreso-preview" class="alert alert-info mt-3 mb-0 d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btn-confirmar-ingreso">
+                    <i class="fas fa-check me-1"></i>Agregar al stock
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -565,6 +627,90 @@
             '<div class="alert alert-' + (savedType || 'success') + ' alert-dismissible fade show">' +
             savedMsg + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
     }
+
+    // ---- AGREGAR MERCADERÍA ----
+    var API_INGRESO = '{% url "granel:api_ingresar_stock" caramelera.pk %}';
+    var STOCK_ACTUAL_G = {{ caramelera.stock_gramos_actual|unlocalize }};
+    var COSTO_ACTUAL_G = {{ caramelera.costo_ponderado_gramo|unlocalize }};
+    var inCant = document.getElementById('input-ingreso-cantidad');
+    var inUnidad = document.getElementById('input-ingreso-unidad');
+    var inCosto = document.getElementById('input-ingreso-costo');
+    var preview = document.getElementById('ingreso-preview');
+    var errorIngreso = document.getElementById('modal-ingreso-error');
+
+    function gramosIngreso() {
+        var c = parseFloat(inCant.value) || 0;
+        return inUnidad.value === 'kg' ? c * 1000 : c;
+    }
+
+    function actualizarPreviewIngreso() {
+        var g = gramosIngreso();
+        var costoKg = parseFloat(inCosto.value) || 0;
+        if (g <= 0) { preview.classList.add('d-none'); return; }
+        var nuevoStock = STOCK_ACTUAL_G + g;
+        var texto = 'Stock después: <strong>' + Math.round(nuevoStock).toLocaleString('es-AR') + 'g</strong>';
+        if (costoKg > 0) {
+            var costoNuevoG = costoKg / 1000;
+            var costoProm = (STOCK_ACTUAL_G > 0 && COSTO_ACTUAL_G > 0)
+                ? ((STOCK_ACTUAL_G * COSTO_ACTUAL_G) + (g * costoNuevoG)) / nuevoStock
+                : costoNuevoG;
+            texto += ' · Costo por kilo: <strong>$' + Math.round(costoProm * 1000).toLocaleString('es-AR') + '</strong>';
+        }
+        preview.innerHTML = texto;
+        preview.classList.remove('d-none');
+    }
+    [inCant, inUnidad, inCosto].forEach(function (el) { el.addEventListener('input', actualizarPreviewIngreso); });
+
+    document.getElementById('modalIngresarStock').addEventListener('show.bs.modal', function () {
+        errorIngreso.classList.add('d-none');
+        inCant.value = '';
+        inCosto.value = COSTO_ACTUAL_G > 0 ? Math.round(COSTO_ACTUAL_G * 1000) : '';
+        preview.classList.add('d-none');
+    });
+
+    document.getElementById('btn-confirmar-ingreso').addEventListener('click', function () {
+        var btn = this;
+        if (gramosIngreso() <= 0) {
+            errorIngreso.textContent = 'Ingresá cuánta mercadería entró.';
+            errorIngreso.classList.remove('d-none');
+            return;
+        }
+        if (!(parseFloat(inCosto.value) > 0)) {
+            errorIngreso.textContent = 'Ingresá cuánto te costó el kilo.';
+            errorIngreso.classList.remove('d-none');
+            return;
+        }
+        btn.disabled = true;
+        errorIngreso.classList.add('d-none');
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API_INGRESO, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-CSRFToken', CSRF);
+        xhr.timeout = 15000;
+        function fallo(msg) {
+            errorIngreso.textContent = msg;
+            errorIngreso.classList.remove('d-none');
+            btn.disabled = false;
+        }
+        xhr.onload = function () {
+            var data = {};
+            try { data = JSON.parse(xhr.responseText); } catch (e) { return fallo('Respuesta inesperada del servidor.'); }
+            if (!data.success) { return fallo(data.error || 'No se pudo agregar la mercadería.'); }
+            sessionStorage.setItem('caramelera_msg',
+                '<i class="fas fa-check-circle me-2"></i><strong>+' + Math.round(data.gramos_agregados) + 'g</strong> agregados. ' +
+                'Nuevo stock: <strong>' + Math.round(data.nuevo_stock) + 'g</strong>');
+            sessionStorage.setItem('caramelera_msg_type', 'success');
+            window.location.reload();
+        };
+        xhr.onerror = function () { fallo('Error de conexión. Verificá tu internet.'); };
+        xhr.ontimeout = function () { fallo('La operación tardó demasiado. Recargá la página y verificá si se procesó.'); };
+        xhr.send(JSON.stringify({
+            cantidad: parseFloat(inCant.value),
+            unidad: inUnidad.value,
+            costo_kg: parseFloat(inCosto.value)
+        }));
+    });
 
     // ---- ABRIR PAQUETE ----
     var productoSeleccionadoPk = null;

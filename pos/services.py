@@ -147,6 +147,33 @@ class CartService:
         if override_unit_price is not None:
             unit_price = override_unit_price
 
+        # Venta por peso de un producto fraccionado: el servidor manda.
+        # - El precio sale de la caramelera (misma regla que el modal del POS), así
+        #   nunca depende de un redondeo hecho en el navegador.
+        # - Se valida el stock ACÁ, con un mensaje claro, en vez de dejar que la venta
+        #   falle recién al cobrar con "Stock insuficiente".
+        caramelera = getattr(product, 'granel_caramelera', None) if product.is_granel else None
+        if caramelera is not None:
+            if quantity <= 0:
+                return None, 'Ingresá cuántos gramos querés vender.'
+            ya_en_carrito = sum(
+                (i.quantity for i in POSTransactionItem.objects.filter(
+                    transaction=pos_transaction, product=product)),
+                Decimal('0'),
+            )
+            disponible = caramelera.stock_gramos_actual
+            if ya_en_carrito + quantity > disponible:
+                if disponible <= 0:
+                    return None, (
+                        f'"{product.name}" no tiene stock cargado. '
+                        f'Cargalo en Venta por Peso → "Agregar mercadería".'
+                    )
+                return None, (
+                    f'No alcanza el stock de "{product.name}": quedan {disponible:.0f}g '
+                    f'(ya tenés {ya_en_carrito:.0f}g en este carrito).'
+                )
+            unit_price = (caramelera.calcular_precio(quantity) / quantity).quantize(Decimal('0.000001'))
+
         # Granel items are always stored as individual entries (one per weight transaction),
         # never merged with existing cart entries.
         if product.is_granel:
