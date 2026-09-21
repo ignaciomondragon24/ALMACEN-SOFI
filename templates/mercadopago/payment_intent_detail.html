@@ -199,7 +199,7 @@
                             <div class="col-6">
                                 <span class="info-label">Cajero</span>
                                 <p class="info-value mb-0">
-                                    {{ intent.created_by.get_full_name|default:intent.created_by.username|default:"-" }}
+                                    {% if intent.created_by %}{{ intent.created_by.get_full_name|default:intent.created_by.username }}{% else %}-{% endif %}
                                 </p>
                             </div>
                         </div>

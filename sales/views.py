@@ -605,9 +605,9 @@ def export_excel(request):
     )
 
     # --- style helpers ---
-    C_PURPLE = '#7134B6'
-    C_PINK   = '#C33287'
-    C_YELLOW = '#F5D050'
+    C_PURPLE = '7134B6'
+    C_PINK   = 'C33287'
+    C_YELLOW = 'F5D050'
     C_LGRAY  = 'F2F2F2'
     C_WHITE  = 'FFFFFF'
 

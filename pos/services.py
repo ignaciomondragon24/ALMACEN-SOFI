@@ -364,6 +364,9 @@ class CheckoutService:
         except POSTransaction.DoesNotExist:
             return False, {'error': 'Transacción no encontrada o ya procesada'}
         
+        if not pos_transaction.items.exists():
+            return False, {'error': 'El carrito está vacío'}
+
         try:
           return CheckoutService._process_payment_atomic(pos_transaction, payments)
         except ValueError as e:
@@ -571,6 +574,9 @@ class CheckoutService:
         except POSTransaction.DoesNotExist:
             return False, {'error': 'Transacción no encontrada o ya procesada'}
         
+        if not pos_transaction.items.exists():
+            return False, {'error': 'El carrito está vacío'}
+
         try:
             return CheckoutService._process_cost_sale_atomic(pos_transaction, payments, employee_note)
         except ValueError as e:

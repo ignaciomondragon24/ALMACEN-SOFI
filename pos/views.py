@@ -440,11 +440,14 @@ def api_cart_update(request, item_id):
     if quantity is None:
         return JsonResponse({'success': False, 'error': 'Cantidad no especificada'}, status=400)
     
+    # Con cantidad 0 el ítem se elimina: hay que guardar la venta antes de actualizar,
+    # porque después el ítem ya no existe (antes esto terminaba en error 500).
+    transaction_id = (POSTransactionItem.objects.filter(id=item_id)
+                      .values_list('transaction_id', flat=True).first())
     success, message = CartService.update_quantity(item_id, quantity)
-    
+
     if success:
-        item = POSTransactionItem.objects.get(id=item_id)
-        transaction = item.transaction
+        transaction = POSTransaction.objects.get(id=transaction_id)
         return JsonResponse({
             'success': True,
             'message': message,

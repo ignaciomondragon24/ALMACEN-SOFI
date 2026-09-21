@@ -75,7 +75,15 @@ def close_shift(request, pk):
     shift = get_object_or_404(CashShift, pk=pk)
     
     # Verify permissions
-    if shift.cashier != request.user and not request.user.is_admin:
+    # Igual criterio de "administrador" que en el resto del sistema: superusuario,
+    # marca is_admin o pertenecer al rol Admin (un usuario creado desde la pantalla
+    # de usuarios con rol Admin no tiene la marca is_admin).
+    es_admin = (
+        request.user.is_superuser
+        or request.user.is_admin
+        or request.user.groups.filter(name__in=['Admin', 'General Manager']).exists()
+    )
+    if shift.cashier != request.user and not es_admin:
         messages.error(request, 'No puedes cerrar un turno de otro cajero.')
         return redirect('cashregister:dashboard')
     

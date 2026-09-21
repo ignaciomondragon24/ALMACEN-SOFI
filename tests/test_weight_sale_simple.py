@@ -132,6 +132,47 @@ class CargaSimpleTests(WeightSaleBase):
         self.assertContains(detalle, 'Stock inicial')
 
 
+class DetalleProlijoTests(WeightSaleBase):
+    def test_detalle_de_un_producto_cargado_directo_no_muestra_ruido(self):
+        self.crear_por_peso()
+        c = Caramelera.objects.get()
+        html = self.client.get(reverse('granel:caramelera_detail', args=[c.pk])).content.decode()
+        self.assertNotIn('>None<', html)                       # ranking de rotación con "None"
+        self.assertNotIn('Sin productos autorizados', html)    # panel que no aplica a este producto
+        self.assertIn('$8.000', html)                          # costo por kilo con separador de miles
+
+
+class NumerosAbsurdosNoRompenTests(WeightSaleBase):
+    """Un cero de más al tipear no puede terminar en un error 500."""
+
+    def test_precio_gigante_avisa(self):
+        r = self.crear_por_peso(precio_kg='95003078000')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'demasiado alto')
+        self.assertFalse(Caramelera.objects.exists())
+
+    def test_costo_y_oferta_gigantes_avisan(self):
+        r = self.crear_por_peso(costo_kg='99999999999')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'demasiado alto')
+        r = self.crear_por_peso(precio_cuarto='99999999999')
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(Caramelera.objects.exists())
+
+    def test_stock_gigante_avisa(self):
+        r = self.crear_por_peso(stock_inicial='99999999999')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'demasiado grande')
+
+    def test_agregar_mercaderia_con_numeros_absurdos(self):
+        self.crear_por_peso()
+        c = Caramelera.objects.get()
+        r = self.client.post(reverse('granel:api_ingresar_stock', args=[c.pk]),
+                             data=json.dumps({'cantidad': 99999999999, 'unidad': 'kg', 'costo_kg': 8000}),
+                             content_type='application/json')
+        self.assertEqual(r.status_code, 400)
+
+
 class AgregarMercaderiaTests(WeightSaleBase):
     def _ingresar(self, **body):
         c = Caramelera.objects.get()

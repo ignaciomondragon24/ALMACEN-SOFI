@@ -28,7 +28,7 @@
                 <ul class="mb-0">
                     <li><strong>Cada hoja</strong> del Excel se toma como una <strong>categoría</strong> distinta (el nombre de la hoja = nombre de categoría).</li>
                     <li><strong>Primera fila</strong> = encabezados de columna.</li>
-                    <li><strong>Columnas reconocidas:</strong> Código de Barras, Código Interno (SKU), Nombre/Producto, Unidad de Medida, Margen (%), Precio de Costo, Precio de Venta.</li>
+                    <li><strong>Columnas reconocidas:</strong> Código de Barras, Código Interno (SKU), Nombre/Producto, Unidad de Medida, Margen (%), Precio de Costo, Precio de Venta y <strong>Stock</strong> (o Cantidad / Existencia: se carga solo en los productos nuevos; los que ya existen no cambian su stock).</li>
                     <li>Si un producto ya existe (por código de barras o SKU), se <strong>actualizan</strong> sus precios.</li>
                     <li>Si no existe, se <strong>crea</strong> como producto nuevo.</li>
                 </ul>
@@ -81,6 +81,7 @@
                             <th class="text-end">Margen %</th>
                             <th class="text-end">P. Costo</th>
                             <th class="text-end">P. Venta</th>
+                            <th class="text-end">Stock</th>
                             <th class="text-center">Estado</th>
                         </tr>
                     </thead>
@@ -103,6 +104,7 @@
                                 <strong>${{ item.sale_price }}</strong>
                                 {% else %}-{% endif %}
                             </td>
+                            <td class="text-end">{{ item.stock|default:"-" }}</td>
                             <td class="text-center">
                                 {% if item.exists %}
                                 <span class="badge bg-warning text-dark">

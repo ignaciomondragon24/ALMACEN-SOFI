@@ -254,6 +254,11 @@ class AperturaBulto(models.Model):
         verbose_name_plural = 'Aperturas de Bulto'
         ordering = ['-abierto_en']
 
+    @property
+    def costo_por_kilo(self):
+        """Costo por kilo de lo que entró en este ingreso."""
+        return (self.costo_por_gramo_al_abrir * Decimal('1000')).quantize(Decimal('0.01'))
+
     def __str__(self):
         origen = self.producto.name if self.producto else 'Ingreso directo'
         return (

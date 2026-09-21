@@ -67,7 +67,7 @@
                         </tr>
                         <tr>
                             <td class="text-muted">Creado por:</td>
-                            <td>{{ purchase.created_by.get_full_name|default:purchase.created_by.username }}</td>
+                            <td>{% if purchase.created_by %}{{ purchase.created_by.get_full_name|default:purchase.created_by.username }}{% else %}—{% endif %}</td>
                         </tr>
                     </table>
                 </div>

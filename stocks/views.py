@@ -468,8 +468,19 @@ def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
 
+    # Un producto por peso guarda su precio, costo y stock en la caramelera: editarlo
+    # desde acá dejaría la caja con datos distintos a los de Venta por Peso.
+    if product.is_granel and product.granel_caramelera_id:
+        messages.info(request, 'Los productos por peso se editan desde Venta por Peso.')
+        return redirect('granel:caramelera_edit', pk=product.granel_caramelera_id)
+
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, instance=product)
+        # El stock NO se cambia desde este formulario (la pantalla lo muestra de solo
+        # lectura y manda "Conteo Físico" para corregirlo). Se ignora lo que llegue:
+        # el navegador reenvía el stock que había al abrir la pantalla, y si mientras
+        # tanto se vendió algo, guardar la edición lo pisaba y descuadraba el inventario.
+        form.fields['current_stock'].disabled = True
         if form.is_valid():
             form.save()
             messages.success(request, f'Producto "{product.name}" actualizado correctamente.')
@@ -496,7 +507,11 @@ def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
 
     if request.method == 'POST':
+        caramelera_id = product.granel_caramelera_id if product.is_granel else None
         product.delete()  # soft-delete + libera barcode
+        if caramelera_id:
+            from granel.models import Caramelera
+            Caramelera.objects.filter(pk=caramelera_id).update(is_active=False)
         messages.success(request, f'Producto "{product.name}" desactivado correctamente.')
         return redirect('stocks:product_list')
 
@@ -1188,7 +1203,8 @@ def import_excel(request):
                                 if barcode_val and Product.objects.filter(barcode=barcode_val).exists():
                                     barcode_val = None
 
-                                Product.objects.create(
+                                initial_stock = Decimal(str(item['stock'])) if item.get('stock') else Decimal('0')
+                                new_product = Product.objects.create(
                                     sku=sku,
                                     barcode=barcode_val if barcode_val else None,
                                     name=item['nombre'],
@@ -1197,8 +1213,21 @@ def import_excel(request):
                                     purchase_price=purchase_price,
                                     sale_price=sale_price,
                                     cost_price=purchase_price,
+                                    current_stock=initial_stock,
                                     is_active=True,
                                 )
+                                if initial_stock > 0:
+                                    StockMovement.objects.create(
+                                        product=new_product,
+                                        movement_type='adjustment_in',
+                                        quantity=initial_stock,
+                                        unit_cost=purchase_price,
+                                        stock_before=Decimal('0'),
+                                        stock_after=initial_stock,
+                                        reference='Importación de Excel',
+                                        notes='Stock inicial cargado desde el Excel',
+                                        created_by=request.user,
+                                    )
                                 created += 1
                         except Exception as e:
                             errors.append(f"{item.get('nombre', '???')}: {e}")
@@ -1332,6 +1361,7 @@ def _map_columns(header):
         ('barcode', r'c[oó]d.*barra|barcode|ean|cod\.?\s*barra'),
         ('sku', r'c[oó]d.*interno|cod\.?\s*interno|sku|c[oó]digo(?!.*barra)|cod(?!.*barra)\b|interno'),
         ('nombre', r'nombre|producto|descripci[oó]n|art[ií]culo|detalle'),
+        ('stock', r'stock|cantidad|existencia'),
         ('unit', r'unidad|u\.?m\.?|medida|uni\b|und\b'),
         ('margin', r'marg|markup|ganancia|rentab|%'),
         ('purchase_price', r'costo|compra|p\.?\s*costo|p\.?\s*compra'),
@@ -1393,6 +1423,9 @@ def _extract_row(row, col_map):
         sku = s
     unit = to_str(get_val('unit'))
     margin = to_decimal(get_val('margin'))
+    stock = to_decimal(get_val('stock'))
+    if stock is not None and stock < 0:
+        stock = None
     purchase_price = to_decimal(get_val('purchase_price'))
     sale_price = to_decimal(get_val('sale_price'))
 
@@ -1410,6 +1443,7 @@ def _extract_row(row, col_map):
         'sku': sku,
         'unit': unit,
         'margin': margin,
+        'stock': stock,
         'purchase_price': purchase_price,
         'sale_price': sale_price,
     }
@@ -1477,8 +1511,8 @@ def export_products_excel(request):
     )
 
     # --- style helpers ---
-    C_PURPLE = '#7134B6'
-    C_PINK   = '#C33287'
+    C_PURPLE = '7134B6'
+    C_PINK   = 'C33287'
     C_LGRAY  = 'F2F2F2'
     C_WHITE  = 'FFFFFF'
     C_RED    = 'FFCCCC'
@@ -1810,6 +1844,10 @@ def packaging_delete(request, packaging_id):
 def product_packaging_view(request, pk):
     """Vista completa de gestión de empaques con recepción, apertura y ajuste."""
     product = get_object_or_404(Product, pk=pk)
+
+    if product.is_granel and product.granel_caramelera_id:
+        messages.info(request, 'Los productos por peso no usan empaques: el stock se maneja en Venta por Peso.')
+        return redirect('granel:caramelera_detail', pk=product.granel_caramelera_id)
 
     unit_pkg = product.packagings.filter(packaging_type='unit', is_active=True).first()
     display_pkg = product.packagings.filter(packaging_type='display', is_active=True).first()

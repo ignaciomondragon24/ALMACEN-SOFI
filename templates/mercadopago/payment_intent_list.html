@@ -124,7 +124,7 @@
                             </td>
                             <td>
                                 {% if intent.created_by %}
-                                <small>{{ intent.created_by.get_full_name|default:intent.created_by.username }}</small>
+                                <small>{% if intent.created_by %}{{ intent.created_by.get_full_name|default:intent.created_by.username }}{% else %}-{% endif %}</small>
                                 {% else %}
                                 <span class="text-muted">-</span>
                                 {% endif %}

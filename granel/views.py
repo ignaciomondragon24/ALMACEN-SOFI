@@ -149,6 +149,11 @@ def caramelera_edit(request, pk):
                   _caramelera_form_context(request, caramelera))
 
 
+# Topes que entran en las columnas de la base (evita un error 500 si alguien tipea un cero de más).
+MAX_PRECIO = Decimal('9999999.99')     # precio por 100g / por kilo de oferta / costo por kilo
+MAX_GRAMOS = Decimal('999999999')      # ~1.000 toneladas
+
+
 def _parse_decimal(raw, default=None):
     raw = (raw or '').strip().replace(',', '.')
     if raw == '':
@@ -183,6 +188,8 @@ def _caramelera_save(request, caramelera):
             errors.append('Ingresá el precio de venta por kilo.')
         elif p100 <= 0:
             errors.append('El precio de venta debe ser mayor a 0.')
+        elif p100 > MAX_PRECIO:
+            errors.append('El precio de venta es demasiado alto. Revisá los ceros.')
         else:
             precio_100g = p100
     except InvalidOperation:
@@ -191,6 +198,9 @@ def _caramelera_save(request, caramelera):
     try:
         precio_cuarto = _parse_decimal(request.POST.get('precio_cuarto'), Decimal('0'))
         if precio_cuarto < 0:
+            precio_cuarto = Decimal('0')
+        if precio_cuarto > MAX_PRECIO:
+            errors.append('El precio especial por kilo es demasiado alto. Revisá los ceros.')
             precio_cuarto = Decimal('0')
     except InvalidOperation:
         precio_cuarto = Decimal('0')
@@ -207,10 +217,15 @@ def _caramelera_save(request, caramelera):
             elif stock_ini > 0:
                 unidad = request.POST.get('stock_unidad', 'kg')
                 gramos_iniciales = stock_ini * (Decimal('1000') if unidad == 'kg' else Decimal('1'))
+                if gramos_iniciales > MAX_GRAMOS:
+                    errors.append('El stock inicial es demasiado grande. Revisá la cantidad y la unidad.')
+                    gramos_iniciales = Decimal('0')
                 if costo_kg is None or costo_kg <= 0:
                     errors.append(
                         'Ingresá cuánto te costó el kilo, así el sistema calcula tu ganancia.'
                     )
+                elif costo_kg > MAX_PRECIO:
+                    errors.append('El costo por kilo es demasiado alto. Revisá los ceros.')
         except InvalidOperation:
             errors.append('El stock inicial o el costo son inválidos.')
 
@@ -315,7 +330,7 @@ def caramelera_detail(request, pk):
 
     # Ranking de rotación — agrupado por producto
     ranking = (
-        AperturaBulto.objects.filter(caramelera=caramelera)
+        AperturaBulto.objects.filter(caramelera=caramelera, producto__isnull=False)
         .values('producto__id', 'producto__name', 'producto__marca')
         .annotate(
             bolsas=Count('id'),
@@ -415,6 +430,8 @@ def api_ingresar_stock(request, pk):
     gramos = cantidad * (Decimal('1000') if data.get('unidad', 'kg') == 'kg' else Decimal('1'))
     if costo_kg <= 0:
         return JsonResponse({'error': 'Ingresá cuánto te costó el kilo.'}, status=400)
+    if costo_kg > MAX_PRECIO or gramos > MAX_GRAMOS:
+        return JsonResponse({'error': 'La cantidad o el costo son demasiado altos. Revisá los números.'}, status=400)
     from django.utils.dateparse import parse_date
     vencimiento = parse_date(str(data.get('vencimiento') or '').strip()) or None
     try:

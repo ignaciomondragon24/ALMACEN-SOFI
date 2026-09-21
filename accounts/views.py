@@ -14,6 +14,9 @@ from .forms import LoginForm, UserForm, UserEditForm
 from decorators.decorators import group_required
 
 
+from django.utils.http import url_has_allowed_host_and_scheme
+
+
 def login_view(request):
     """User login view."""
     if request.user.is_authenticated:
@@ -33,7 +36,10 @@ def login_view(request):
                     
                     # Redirect to next URL if provided
                     next_url = request.GET.get('next')
-                    if next_url:
+                    if next_url and url_has_allowed_host_and_scheme(
+                        next_url, allowed_hosts={request.get_host()},
+                        require_https=request.is_secure(),
+                    ):
                         return redirect(next_url)
                     return redirect('accounts:home')
                 else:
@@ -246,7 +252,7 @@ def user_create(request):
             # Asignar rol
             role_name = form.cleaned_data.get('role')
             if role_name:
-                role = Role.objects.get(name=role_name)
+                role, _ = Role.objects.get_or_create(name=role_name)
                 user.groups.add(role)
             
             messages.success(request, f'Usuario {user.username} creado correctamente.')
@@ -276,7 +282,7 @@ def user_edit(request, pk):
             user.groups.clear()
             role_name = form.cleaned_data.get('role')
             if role_name:
-                role = Role.objects.get(name=role_name)
+                role, _ = Role.objects.get_or_create(name=role_name)
                 user.groups.add(role)
             
             messages.success(request, f'Usuario {user.username} actualizado correctamente.')
@@ -297,7 +303,11 @@ def user_edit(request, pk):
 def user_delete(request, pk):
     """Eliminar usuario (soft delete)."""
     user = get_object_or_404(User, pk=pk)
-    
+
+    if user.pk == request.user.pk:
+        messages.error(request, 'No podés desactivar tu propio usuario.')
+        return redirect('accounts:user_list')
+
     if request.method == 'POST':
         user.is_active = False
         user.save()

@@ -106,7 +106,7 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Creada por:</td>
-                                    <td>{{ promotion.created_by.get_full_name|default:promotion.created_by.username }}</td>
+                                    <td>{% if promotion.created_by %}{{ promotion.created_by.get_full_name|default:promotion.created_by.username }}{% else %}—{% endif %}</td>
                                 </tr>
                             </table>
                         </div>
