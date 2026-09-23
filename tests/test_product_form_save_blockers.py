@@ -55,14 +55,17 @@ class ProductFormSaveBlockersTests(TestCase):
         for field_id in ('id_cost_price', 'id_sale_price'):
             self.assertIn('step="0.01"', _input_tag(html, field_id))
 
-    def test_stock_accepts_decimals(self):
-        self.assertIn('step="0.001"', _input_tag(self._new_product_html(), 'id_current_stock'))
+    def test_stock_is_whole_units_only(self):
+        # 2026-09-23: el stock de productos comunes pasó a contarse en unidades
+        # enteras (pedido de Nacho) — reemplaza al viejo "test_stock_accepts_decimals",
+        # que verificaba justo lo contrario.
+        self.assertIn('step="1"', _input_tag(self._new_product_html(), 'id_current_stock'))
 
     def test_create_product_with_cents_price(self):
         response = self.client.post(reverse('stocks:product_create'), {
             'name': 'Queso Sofia Test', 'barcode': '7791234500001',
             'cost_price': '850', 'sale_price': '1147.50',
-            'current_stock': '2.5', 'min_stock': '0',
+            'current_stock': '3', 'min_stock': '0',
             'weight_per_unit_grams': '', 'is_active': 'on',
         })
         self.assertEqual(response.status_code, 302, getattr(response, 'context', None) and response.context['form'].errors)

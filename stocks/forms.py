@@ -28,9 +28,9 @@ class ProductForm(forms.ModelForm):
             'unit_of_measure': forms.Select(attrs={'class': 'form-select'}),
             'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '1'}),
             'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '1'}),
-            'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
-            'min_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
-            'max_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
+            'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
+            'min_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
+            'max_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
             'location': forms.TextInput(attrs={'class': 'form-control'}),
             'image': forms.FileInput(attrs={'class': 'form-control'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -67,6 +67,19 @@ class ProductForm(forms.ModelForm):
         val = self.cleaned_data.get('weight_per_unit_grams')
         if val is None:
             return Decimal('0.00')
+        return val
+
+    def clean_current_stock(self):
+        """El stock se cuenta en unidades enteras (piezas), nunca fracciones.
+
+        Solo se valida al crear: al editar, el campo viene deshabilitado (el stock
+        se corrige por "Conteo Físico") y no hay que romper la edición de un
+        producto viejo que ya tuviera algún resto decimal de antes de este cambio.
+        """
+        val = self.cleaned_data.get('current_stock')
+        ya_existe = bool(self.instance and self.instance.pk)
+        if val is not None and not ya_existe and val != val.to_integral_value():
+            raise forms.ValidationError('El stock se cuenta en unidades enteras, sin decimales.')
         return val
 
     def clean(self):

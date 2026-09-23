@@ -144,11 +144,13 @@
                                 <div class="mb-3">
                                     <label for="id_current_stock" class="form-label">Stock Actual</label>
                                     <input type="number" name="current_stock" id="id_current_stock"
-                                           class="form-control text-end" step="0.001" min="0"
+                                           class="form-control text-end" step="1" min="0"
                                            value="{{ form.current_stock.value|unlocalize|default:'0' }}"
                                            {% if product %}readonly{% endif %}>
                                     {% if product %}
                                     <small class="text-muted">Usá "Conteo Físico" para modificar</small>
+                                    {% else %}
+                                    <small class="text-muted">Se cuenta en unidades enteras (sin decimales).</small>
                                     {% endif %}
                                 </div>
                             </div>

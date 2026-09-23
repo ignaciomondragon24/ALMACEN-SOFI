@@ -12,6 +12,20 @@ from django.core.paginator import Paginator
 from decimal import Decimal, InvalidOperation
 
 from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, StockBatch, ProductPackaging
+
+
+def _es_producto_por_peso(product):
+    return bool(product.is_granel and product.granel_caramelera_id)
+
+
+def _entero(raw, campo='La cantidad'):
+    """Convierte a Decimal exigiendo un número entero (el stock se cuenta en
+    unidades, sin fracciones). Los productos por peso van en gramos y se
+    manejan aparte, en Venta por Peso — no pasan por acá."""
+    val = Decimal(str(raw).strip().replace(',', '.'))
+    if val != val.to_integral_value():
+        raise ValueError(f'{campo} tiene que ser un número entero, sin decimales.')
+    return val
 from .forms import ProductForm, CategoryForm, UnitForm, StockAdjustmentForm, ProductPackagingForm
 from .services import StockManagementService, BarcodeService
 from decorators.decorators import group_required
@@ -621,7 +635,10 @@ def inventory_count(request, pk):
             from django.db import transaction as db_transaction
             from django.utils import timezone as tz
 
-            new_quantity = Decimal(new_quantity)
+            if _es_producto_por_peso(product):
+                new_quantity = Decimal(new_quantity)
+            else:
+                new_quantity = _entero(new_quantity, 'La cantidad contada')
             old_quantity = product.current_stock
             diff = new_quantity - old_quantity
 
@@ -1861,10 +1878,11 @@ def product_packaging_view(request, pk):
             qty = request.POST.get('quantity', '0')
             cost = request.POST.get('cost', '').strip()
             try:
+                qty_val = _entero(qty, 'La cantidad a recibir')
                 pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
                 StockManagementService.receive_packaging(
                     pkg,
-                    Decimal(qty),
+                    qty_val,
                     cost=Decimal(cost) if cost else None,
                     user=request.user,
                 )
@@ -1879,7 +1897,13 @@ def product_packaging_view(request, pk):
             try:
                 pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
                 old_stock = pkg.current_stock
-                new_stock_val = Decimal(new_stock)
+                # Las unidades sueltas siempre son enteras. Un display o un bulto SÍ
+                # pueden quedar fraccionados (ej: media caja abierta): esa fracción es
+                # justamente cómo el sistema representa un paquete a medio abrir.
+                if pkg.packaging_type == 'unit':
+                    new_stock_val = _entero(new_stock, 'El stock de unidades')
+                else:
+                    new_stock_val = Decimal(new_stock)
                 diff = new_stock_val - old_stock
 
                 # Calcular diferencia en unidades base
@@ -1932,8 +1956,9 @@ def product_packaging_view(request, pk):
             pkg_id = request.POST.get('packaging_id')
             qty = request.POST.get('quantity', '1')
             try:
+                qty_val = _entero(qty, 'La cantidad de paquetes a abrir')
                 pkg = ProductPackaging.objects.get(pk=pkg_id, product=product)
-                StockManagementService.open_packaging(pkg, Decimal(qty), user=request.user)
+                StockManagementService.open_packaging(pkg, qty_val, user=request.user)
                 messages.success(request, f'Empaque abierto correctamente.')
             except Exception as e:
                 messages.error(request, f'Error al abrir empaque: {e}')

@@ -45,7 +45,7 @@
                         </div>
                         <div class="text-end">
                             <h4 class="mb-0 {% if product.current_stock <= product.min_stock %}text-danger{% else %}text-success{% endif %}">
-                                {{ product.current_stock|floatformat:2 }}
+                                {% if product.is_granel and product.granel_caramelera_id %}{{ product.current_stock|floatformat:2 }}{% else %}{{ product.current_stock|floatformat:0 }}{% endif %}
                             </h4>
                             <small class="text-muted">Stock en Sistema</small>
                         </div>
@@ -72,13 +72,16 @@
                                        id="id_new_quantity"
                                        name="new_quantity"
                                        value="{{ form.new_quantity.value|default:product.current_stock }}"
-                                       step="0.001"
+                                       {% if product.is_granel and product.granel_caramelera_id %}step="0.001"{% else %}step="1"{% endif %}
                                        min="0"
                                        required
                                        autofocus>
                                 <span class="input-group-text">{{ product.unit_of_measure.abbreviation|default:"u" }}</span>
                             </div>
-                            <small class="text-muted">Stock actual en sistema: <strong>{{ product.current_stock|floatformat:3 }}</strong></small>
+                            {% if not product.is_granel or not product.granel_caramelera_id %}
+                            <small class="text-muted">El stock se cuenta en unidades enteras (sin decimales).</small>
+                            {% endif %}
+                            <small class="text-muted d-block">Stock actual en sistema: <strong>{% if product.is_granel and product.granel_caramelera_id %}{{ product.current_stock|floatformat:3 }}{% else %}{{ product.current_stock|floatformat:0 }}{% endif %}</strong></small>
                         </div>
 
                         <!-- Preview -->
@@ -86,7 +89,7 @@
                             <div class="row text-center">
                                 <div class="col-4">
                                     <div class="text-muted small">En sistema</div>
-                                    <div class="fw-bold">{{ product.current_stock|floatformat:2 }}</div>
+                                    <div class="fw-bold">{% if product.is_granel and product.granel_caramelera_id %}{{ product.current_stock|floatformat:2 }}{% else %}{{ product.current_stock|floatformat:0 }}{% endif %}</div>
                                 </div>
                                 <div class="col-4">
                                     <div class="text-muted small">Diferencia</div>
@@ -137,6 +140,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const currentStock = {{ product.current_stock }};
+    // Los productos por peso van en gramos y aceptan decimales (precisión de balanza);
+    // el resto se cuenta en unidades enteras.
+    const esPorPeso = {% if product.is_granel and product.granel_caramelera_id %}true{% else %}false{% endif %};
+    const decimales = esPorPeso ? 3 : 0;
     const quantityInput = document.getElementById('id_new_quantity');
     const previewAlert = document.getElementById('preview-alert');
     const diffValue = document.getElementById('diff-value');
@@ -150,12 +157,12 @@ document.addEventListener('DOMContentLoaded', function() {
             previewAlert.style.display = 'block';
             if (difference > 0) {
                 previewAlert.className = 'alert alert-success';
-                diffValue.innerHTML = `<span class="text-success">+${difference.toFixed(3)}</span>`;
+                diffValue.innerHTML = `<span class="text-success">+${difference.toFixed(decimales)}</span>`;
             } else {
                 previewAlert.className = 'alert alert-warning';
-                diffValue.innerHTML = `<span class="text-danger">${difference.toFixed(3)}</span>`;
+                diffValue.innerHTML = `<span class="text-danger">${difference.toFixed(decimales)}</span>`;
             }
-            finalValue.textContent = newQuantity.toFixed(3);
+            finalValue.textContent = newQuantity.toFixed(decimales);
         } else {
             previewAlert.style.display = 'none';
         }

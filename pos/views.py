@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.db.models import Q
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 import unicodedata
 
@@ -1008,8 +1008,19 @@ def api_quick_add_product(request):
         sale_price = data.get('sale_price')
         purchase_price = data.get('purchase_price', 0)
         category_id = data.get('category_id')
-        initial_stock = data.get('initial_stock', 0)
-        
+        initial_stock_raw = data.get('initial_stock', 0)
+
+        # El stock se carga en unidades enteras (piezas), sin decimales.
+        stock_inicial = 0
+        if initial_stock_raw not in (None, '', 0, '0', 0.0):
+            try:
+                stock_val = Decimal(str(initial_stock_raw))
+            except InvalidOperation:
+                return JsonResponse({'success': False, 'error': 'El stock inicial tiene que ser un número.'}, status=400)
+            if stock_val != stock_val.to_integral_value():
+                return JsonResponse({'success': False, 'error': 'El stock inicial tiene que ser un número entero, sin decimales.'}, status=400)
+            stock_inicial = int(stock_val)
+
         if not name:
             return JsonResponse({'success': False, 'error': 'El nombre es requerido'}, status=400)
         
@@ -1041,20 +1052,20 @@ def api_quick_add_product(request):
             purchase_price=Decimal(str(purchase_price)) if purchase_price else Decimal('0'),
             cost_price=Decimal(str(purchase_price)) if purchase_price else Decimal('0'),
             category=category,
-            current_stock=int(initial_stock) if initial_stock else 0,
+            current_stock=stock_inicial,
             is_active=True
         )
-        
+
         # If initial stock, create stock movement
-        if initial_stock and int(initial_stock) > 0:
+        if stock_inicial > 0:
             from stocks.models import StockMovement
             StockMovement.objects.create(
                 product=product,
                 movement_type='adjustment_in',
-                quantity=int(initial_stock),
+                quantity=stock_inicial,
                 unit_cost=Decimal(str(purchase_price)) if purchase_price else Decimal('0'),
                 stock_before=0,
-                stock_after=int(initial_stock),
+                stock_after=stock_inicial,
                 notes='Stock inicial desde POS',
                 created_by=request.user
             )

@@ -280,7 +280,7 @@
                 </div>
                 <div class="card-body text-center">
                     <h2 class="display-4 mb-0 {% if product.current_stock <= product.min_stock %}text-danger{% else %}text-success{% endif %}">
-                        {{ product.current_stock|floatformat:2 }}
+                        {{ product.current_stock|floatformat:0 }}
                     </h2>
                     <p class="text-muted mb-3">{{ product.unit_of_measure.abbreviation|default:"unidades" }}</p>
                     
