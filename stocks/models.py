@@ -201,7 +201,28 @@ class Product(models.Model):
         max_digits=10,
         decimal_places=2,
         default=Decimal('0'),
-        help_text='Precio de venta por 250g (1/4 kg)'
+        help_text='Precio de venta por 250g (1/4 kg). 0 = calcularlo proporcional al precio por kilo.'
+    )
+    sale_price_500g = models.DecimalField(
+        'Precio por 500g',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text='Precio de venta por 500g (1/2 kg). 0 = calcularlo proporcional al precio por kilo.'
+    )
+    oferta_price_250g = models.DecimalField(
+        'Precio de Oferta por 250g',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text='Precio de oferta por 250g, en pesos. 0 = sin oferta (se cobra el precio normal).'
+    )
+    oferta_price_500g = models.DecimalField(
+        'Precio de Oferta por 500g',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        help_text='Precio de oferta por 500g, en pesos. 0 = sin oferta (se cobra el precio normal).'
     )
     cost_price = models.DecimalField(
         'Costo Promedio',
@@ -524,6 +545,41 @@ class Product(models.Model):
         if self.weight_per_unit_grams and self.weight_per_unit_grams > 0 and precio:
             return (precio / self.weight_per_unit_grams).quantize(Decimal('0.000001'))
         return Decimal('0')
+
+    def price_for_grams(self, gramos):
+        """Precio de venta para `gramos` de un producto por peso (is_granel=True).
+
+        `sale_price` es el precio por kilo. `sale_price_250g`/`sale_price_500g`
+        son precios directos y opcionales para esos tramos (0 = no cargado, se
+        calcula proporcional al precio por kilo). Si hay una oferta cargada
+        (`oferta_price_250g`/`oferta_price_500g`, en pesos, 0 = sin oferta), esa
+        es la que se cobra en el tramo correspondiente en lugar del precio normal.
+
+        Generaliza la regla de tres que ya usaba `Caramelera.calcular_precio`
+        (antes con un solo tramo a los 250g) a dos tramos independientes. Un
+        tramo se usa si el peso lo alcanza Y el tramo tiene ALGO cargado
+        (precio normal propio y/o oferta) — si no tiene nada cargado, no
+        "corta" el cálculo y se sigue evaluando el tramo/proporcional
+        siguiente. Dentro de un tramo que sí está en uso, la oferta pisa al
+        precio normal propio (o, si ese tampoco está cargado, al
+        proporcional al precio por kilo).
+        """
+        gramos = Decimal(str(gramos))
+        precio_100g = self.sale_price / Decimal('10')
+
+        tramo_500_cargado = self.sale_price_500g > 0 or self.oferta_price_500g > 0
+        if gramos >= Decimal('500') and tramo_500_cargado:
+            normal = self.sale_price_500g if self.sale_price_500g > 0 else precio_100g * 5
+            precio_tramo = self.oferta_price_500g if self.oferta_price_500g > 0 else normal
+            return (gramos / Decimal('500')) * precio_tramo
+
+        tramo_250_cargado = self.sale_price_250g > 0 or self.oferta_price_250g > 0
+        if gramos >= Decimal('250') and tramo_250_cargado:
+            normal = self.sale_price_250g if self.sale_price_250g > 0 else precio_100g * Decimal('2.5')
+            precio_tramo = self.oferta_price_250g if self.oferta_price_250g > 0 else normal
+            return (gramos / Decimal('250')) * precio_tramo
+
+        return (gramos / Decimal('100')) * precio_100g
 
     @property
     def margin_percent(self):
