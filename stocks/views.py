@@ -497,15 +497,18 @@ def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
 
-    # Un producto por peso del sistema VIEJO guarda su precio, costo y stock en
-    # la caramelera: editarlo desde acá dejaría la caja con datos distintos a
-    # los de Venta por Peso. Los productos por peso NUEVOS (sin caramelera
-    # vinculada) se editan directo acá, como cualquier otro producto — el
-    # checkbox "Se vende por peso" y sus precios por tramo son parte del
-    # mismo formulario.
+    # Los productos por peso del sistema viejo (Caramelera vinculada) ya no
+    # deberían existir después de la Fase 3 (migrados a is_granel nativo) —
+    # las pantallas de Venta por Peso quedaron desconectadas del menú. Si por
+    # algún motivo alguno sigue vinculado, se avisa en vez de redirigir a una
+    # URL que ya no está registrada.
     if _es_caramelera_vieja(product):
-        messages.info(request, 'Los productos por peso se editan desde Venta por Peso.')
-        return redirect('granel:caramelera_edit', pk=product.granel_caramelera_id)
+        messages.error(
+            request,
+            f'"{product.name}" todavía está vinculado a una Caramelera del sistema '
+            f'viejo (Venta por Peso) — avisale al desarrollador antes de editarlo.'
+        )
+        return redirect('stocks:product_detail', pk=product.pk)
 
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, instance=product)
@@ -1944,8 +1947,12 @@ def product_packaging_view(request, pk):
     product = get_object_or_404(Product, pk=pk)
 
     if _es_caramelera_vieja(product):
-        messages.info(request, 'Los productos por peso no usan empaques: el stock se maneja en Venta por Peso.')
-        return redirect('granel:caramelera_detail', pk=product.granel_caramelera_id)
+        messages.error(
+            request,
+            f'"{product.name}" todavía está vinculado a una Caramelera del sistema '
+            f'viejo (Venta por Peso) — avisale al desarrollador.'
+        )
+        return redirect('stocks:product_detail', pk=product.pk)
     if product.is_granel:
         messages.info(request, 'Los productos por peso no usan empaques: la mercadería se agrega desde el detalle del producto.')
         return redirect('stocks:product_detail', pk=product.pk)

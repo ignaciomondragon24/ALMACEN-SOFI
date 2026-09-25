@@ -133,24 +133,27 @@ class Command(BaseCommand):
 
         # ------------------------------------------------------------ 1
         def producto_por_peso():
-            r = c.post(reverse('granel:caramelera_create'), {
-                'nombre': 'ZZ SMOKE Jamón', 'precio_kg': '12000', 'costo_kg': '8000',
-                'stock_inicial': '2.5', 'stock_unidad': 'kg', 'stock_minimo_kg': '1'})
+            # Rediseño 2026-09-25: "se vende por peso" es un checkbox en la
+            # MISMA pantalla de producto — ya no hay pestaña ni pieza de
+            # depósito aparte (ver plan sharded-honking-quilt.md, Fase 2/3).
+            r = c.post(reverse('stocks:product_create'), {
+                'name': 'ZZ SMOKE Jamón', 'sku': 'ZZSMOKE-PESO', 'barcode': '', 'cost_price': '8000',
+                'sale_price': '12000', 'current_stock': '2.5', 'min_stock': '1',
+                'is_active': 'true', 'is_granel': 'true', 'weight_per_unit_grams': ''})
             self._report('crea un producto por peso (1 pantalla)', r.status_code == 302, str(r.status_code))
-            car = Caramelera.objects.get(nombre='ZZ SMOKE Jamón')
-            pos = Product.objects.get(granel_caramelera=car)
-            state.update(car=car, peso=pos)
-            self._report('la caramelera y la caja tienen el mismo stock (2.500 g)',
-                         car.stock_gramos_actual == Decimal('2500') and pos.current_stock == Decimal('2500'),
-                         f'{car.stock_gramos_actual} / {pos.current_stock}')
+            peso = Product.objects.get(name='ZZ SMOKE Jamón')
+            state['peso'] = peso
+            self._report('queda con 2,500 kg de stock',
+                         peso.current_stock == Decimal('2.500'), str(peso.current_stock))
             self._report('precio $12.000/kg y margen 50% sobre el costo',
-                         car.precio_kilo == Decimal('12000') and car.margen_sobre_costo == Decimal('50.0'))
-            r = c.post(reverse('granel:api_ingresar_stock', args=[car.pk]), json.dumps(
-                {'cantidad': 500, 'unidad': 'g', 'costo_kg': 10000}), content_type='application/json')
-            car.refresh_from_db()
-            self._report('"Agregar mercadería" suma y promedia el costo', r.status_code == 200 and
-                         car.stock_gramos_actual == Decimal('3000') and car.costo_ponderado_gramo == Decimal('8.333333'),
-                         f'{car.stock_gramos_actual} g, ${car.costo_ponderado_gramo}/g')
+                         peso.sale_price == Decimal('12000.00') and peso.margin_percent == Decimal('50.00'),
+                         f'{peso.sale_price} / {peso.margin_percent}')
+            r = c.post(reverse('stocks:product_add_stock', args=[peso.pk]), {
+                'kilos': '0.5', 'costo_kilo': '10000'})
+            peso.refresh_from_db()
+            self._report('"Agregar Mercadería" suma y promedia el costo', r.status_code == 302 and
+                         peso.current_stock == Decimal('3.000') and peso.cost_price == Decimal('8333.33'),
+                         f'{peso.current_stock} kg, ${peso.cost_price}/kg')
         self._step('1. Producto por peso', producto_por_peso)
 
         # ------------------------------------------------------------ 2
@@ -179,7 +182,7 @@ class Command(BaseCommand):
         # ------------------------------------------------------------ 3
         def compras():
             sup = Supplier.objects.create(name='ZZ SMOKE Proveedor', order_day='mon')
-            car, peso, comun = state['car'], state['peso'], state['comun']
+            peso, comun = state['peso'], state['comun']
             r = c.post(reverse('purchase:purchase_create'), json.dumps({
                 'supplier_id': sup.pk, 'tax_percent': 0,
                 'items': [{'product_id': peso.pk, 'quantity': '1.5', 'unit_cost': 9000},
@@ -187,24 +190,23 @@ class Command(BaseCommand):
             self._report('crea una orden con 1,5 kg de un producto por peso y unidades de otro', r.status_code == 200, r.content[:120].decode())
             oc = Purchase.objects.get(supplier=sup)
             self._report('el total de la orden es $24.300', oc.total == Decimal('24300.00'), str(oc.total))
-            stock_antes = Caramelera.objects.get(pk=car.pk).stock_gramos_actual
+            stock_antes = Product.objects.get(pk=peso.pk).current_stock
             r = c.post(reverse('purchase:purchase_receive', args=[oc.pk]))
-            car.refresh_from_db(); comun.refresh_from_db(); peso.refresh_from_db()
-            self._report('al recibir, el peso entra a la caja (+1.500 g) y las unidades también (+6)',
-                         car.stock_gramos_actual - stock_antes == Decimal('1500') and comun.current_stock == Decimal('16')
-                         and peso.current_stock == car.stock_gramos_actual,
-                         f'{stock_antes}→{car.stock_gramos_actual}; comun={comun.current_stock}')
+            comun.refresh_from_db(); peso.refresh_from_db()
+            self._report('al recibir, el peso entra al producto (+1,5 kg) y las unidades también (+6)',
+                         peso.current_stock - stock_antes == Decimal('1.5') and comun.current_stock == Decimal('16'),
+                         f'{stock_antes}→{peso.current_stock}; comun={comun.current_stock}')
             oc.refresh_from_db()
             self._report('la orden queda recibida y se genera el gasto', oc.status == 'received')
             r2 = c.post(reverse('purchase:purchase_receive', args=[oc.pk]))
-            car.refresh_from_db()
-            self._report('no se puede recibir dos veces', car.stock_gramos_actual - stock_antes == Decimal('1500'))
+            peso.refresh_from_db()
+            self._report('no se puede recibir dos veces', peso.current_stock - stock_antes == Decimal('1.5'))
             comun.current_stock = Decimal('10'); comun.save()
         self._step('3. Proveedores y órdenes de compra', compras)
 
         # ------------------------------------------------------------ 4
         def caja_y_ventas():
-            car, peso, comun = state['car'], state['peso'], state['comun']
+            peso, comun = state['peso'], state['comun']
             reg = CashRegister.objects.create(name='ZZ SMOKE Caja', code='ZZSMK', is_active=True)
             r = c.post(reverse('cashregister:open_shift'), {'cash_register': reg.pk, 'initial_amount': '5000'})
             shift = CashShift.objects.get(cash_register=reg)
@@ -223,16 +225,16 @@ class Command(BaseCommand):
                 return tx, c.post(reverse('pos:api_checkout'), json.dumps(
                     {'transaction_id': tx.id, 'payments': pagos}), content_type='application/json')
 
-            stock0 = Caramelera.objects.get(pk=car.pk).stock_gramos_actual
+            stock0 = Product.objects.get(pk=peso.pk).current_stock
             tx, r = cobrar([(peso, 250), (comun, 2)], lambda t: [{'method_code': 'cash', 'amount': float(t.total) + 500}])
             self._report('vende 250 g de peso + 2 unidades en efectivo con vuelto',
                          r.status_code == 200 and abs(r.json().get('change', 0) - 500) < 0.01, r.content[:150].decode())
             tx.refresh_from_db()
             self._report('total = 250 g × $12/g + 2 × $3.000 = $9.000', tx.total == Decimal('9000.00'), str(tx.total))
-            car.refresh_from_db(); comun.refresh_from_db()
-            self._report('descuenta el stock (peso −250 g, unidades −2)',
-                         stock0 - car.stock_gramos_actual == Decimal('250') and comun.current_stock == Decimal('8'),
-                         f'{stock0}→{car.stock_gramos_actual}; {comun.current_stock}')
+            peso.refresh_from_db(); comun.refresh_from_db()
+            self._report('descuenta el stock (peso −0,250 kg, unidades −2)',
+                         stock0 - peso.current_stock == Decimal('0.250') and comun.current_stock == Decimal('8'),
+                         f'{stock0}→{peso.current_stock}; {comun.current_stock}')
             tx2, r = cobrar([(comun, 1)], lambda t: [{'method_code': 'transfer', 'amount': float(t.total)}])
             self._report('vende por transferencia', r.status_code == 200, r.content[:120].decode())
             tx3, r = cobrar([(peso, 99999)], lambda t: [{'method_code': 'cash', 'amount': 1}])

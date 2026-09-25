@@ -33,7 +33,11 @@ urlpatterns = [
     path('mercadopago/', include('mercadopago.urls')),
     path('assistant/', include('assistant.urls')),
     path('signage/', include('signage.urls')),
-    path('granel/', include('granel.urls')),
+    # Fase 3 del rediseño de venta por peso (2026-09-25): la app `granel`
+    # queda en el repo como historial (no se borra código ni datos), pero
+    # sus URLs se desregistran — todo se carga ahora desde `stocks`, en el
+    # mismo producto. Ver plan `sharded-honking-quilt.md`.
+    # path('granel/', include('granel.urls')),
 ]
 
 # Serve media files in development

@@ -257,54 +257,13 @@ class AutoAperturaTest(GranelBaseTestCase):
         self.assertEqual(producto.current_stock, Decimal('0'))
         self.assertEqual(caramelera.stock_gramos_actual, Decimal('1000'))
 
-    def test_ajuste_manual_deposito_auto_abre(self):
-        """El botón +/- rápido del depósito también dispara la apertura
-        automática cuando suma stock (delta positivo)."""
-        from django.test import Client
-        from django.urls import reverse
-        import json
-
-        caramelera = self._create_caramelera()
-        producto = self._create_deposito(stock=0, gramos=Decimal('500'), costo=Decimal('5000'))
-        caramelera.productos_autorizados.add(producto)
-
-        c = Client()
-        c.force_login(self.user)
-        r = c.post(
-            reverse('granel:api_deposito_stock', args=[producto.pk]),
-            data=json.dumps({'delta': 2}),
-            content_type='application/json',
-        )
-        self.assertEqual(r.status_code, 200)
-
-        producto.refresh_from_db()
-        caramelera.refresh_from_db()
-        self.assertEqual(producto.current_stock, Decimal('0'))
-        self.assertEqual(caramelera.stock_gramos_actual, Decimal('1000'))
-
-    def test_autorizar_producto_con_stock_pendiente_auto_abre(self):
-        """Si el depósito ya tenía stock ANTES de autorizarlo en una
-        caramelera, apenas se guarda esa autorización se abre solo."""
-        from django.test import Client
-        from django.urls import reverse
-
-        producto = self._create_deposito(stock=4, gramos=Decimal('500'), costo=Decimal('5000'))
-        caramelera = self._create_caramelera()
-
-        c = Client()
-        c.force_login(self.user)
-        r = c.post(reverse('granel:caramelera_edit', args=[caramelera.pk]), {
-            'nombre': caramelera.nombre,
-            'precio_100g': str(caramelera.precio_100g),
-            'precio_cuarto': str(caramelera.precio_cuarto),
-            'productos_autorizados': [str(producto.pk)],
-        })
-        self.assertEqual(r.status_code, 302)
-
-        producto.refresh_from_db()
-        caramelera.refresh_from_db()
-        self.assertEqual(producto.current_stock, Decimal('0'))
-        self.assertEqual(caramelera.stock_gramos_actual, Decimal('2000'))
+    # NOTA (Fase 3 del rediseño de venta por peso, 2026-09-25): había acá dos
+    # tests que probaban el "auto-abrir" del depósito disparado desde las
+    # pantallas propias de `granel` (`api_deposito_stock`, `caramelera_edit`).
+    # Esas URLs quedaron desregistradas (ver superrecord/urls.py) — el paso
+    # de "pieza de depósito" se retiró del flujo real por pedido explícito
+    # de Nacho. Se sacaron de acá en vez de reescribirlos contra el service
+    # directo porque ya no reflejan ningún flujo alcanzable desde la UI.
 
 
 class AuditoriaTest(GranelBaseTestCase):
@@ -524,3 +483,48 @@ class POSDecimalQuantityTest(GranelBaseTestCase):
         venta = ventas.first()
         self.assertEqual(venta.gramos_vendidos, Decimal('200'))
         self.assertEqual(venta.pos_transaction_id, txn.pk)
+
+
+class OtrosCaminosDeStockTests(GranelBaseTestCase):
+    """Portado de `tests/test_weight_purchases.py` (retirado junto con las
+    URLs de `granel` en la Fase 3 del rediseño de venta por peso,
+    2026-09-25). Cualquier camino genérico que toque el stock de un
+    producto por peso del sistema VIEJO (Caramelera vinculada) tiene que
+    seguir yendo a la caramelera, no al Product directo — ese código
+    (`StockManagementService.add_stock`/`adjust_stock`) no se tocó en el
+    rediseño, esto lo sigue cubriendo."""
+
+    def test_add_stock_generico_va_a_la_caramelera(self):
+        caramelera = self._create_caramelera()
+        caramelera.stock_gramos_actual = Decimal('2500')
+        caramelera.save()
+        jamon = self._create_pos_granel_product(caramelera, stock=Decimal('2500'))
+
+        StockManagementService.add_stock(jamon, Decimal('500'), cost=Decimal('9'), reference='X')
+        caramelera.refresh_from_db()
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('3000.00'))
+        jamon.refresh_from_db()
+        self.assertEqual(jamon.current_stock, Decimal('3000.000'))
+
+    def test_ajuste_o_conteo_fisico_va_a_la_caramelera(self):
+        caramelera = self._create_caramelera()
+        caramelera.stock_gramos_actual = Decimal('2500')
+        caramelera.save()
+        jamon = self._create_pos_granel_product(caramelera, stock=Decimal('2500'))
+
+        StockManagementService.adjust_stock(jamon, Decimal('1800'), 'Conteo físico', user=self.user)
+        caramelera.refresh_from_db()
+        self.assertEqual(caramelera.stock_gramos_actual, Decimal('1800.00'))
+        jamon.refresh_from_db()
+        self.assertEqual(jamon.current_stock, Decimal('1800.000'))
+        # y se puede seguir vendiendo hasta ese stock
+        GranelService.registrar_venta(caramelera.pk, Decimal('1800'), Decimal('21600'))
+
+    def test_producto_comun_no_cambia(self):
+        gaseosa = Product.objects.create(
+            name='Gaseosa', sku='GAS-OTROS', cost_price=Decimal('500'),
+            sale_price=Decimal('800'), current_stock=Decimal('10'),
+        )
+        StockManagementService.add_stock(gaseosa, Decimal('5'), cost=Decimal('400'))
+        gaseosa.refresh_from_db()
+        self.assertEqual(gaseosa.current_stock, Decimal('15'))

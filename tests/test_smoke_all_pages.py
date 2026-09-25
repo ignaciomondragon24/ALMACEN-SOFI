@@ -23,7 +23,6 @@ from django.utils import timezone
 from cashregister.models import CashRegister, CashShift, PaymentMethod
 from company.models import Company
 from expenses.models import Expense, ExpenseCategory
-from granel.models import Caramelera
 from pos.models import POSTransaction, POSTransactionItem
 from pos.services import CartService, CheckoutService, POSService
 from promotions.models import Promotion, PromotionProduct
@@ -91,13 +90,14 @@ class SmokeAllPages(TestCase):
             purchase_price=Decimal('400'), purchased_at=timezone.now(),
             expiration_date=timezone.localdate() + timezone.timedelta(days=10))
 
-        # ---- venta por peso (por la pantalla nueva, igual que Sofia)
+        # ---- venta por peso (rediseño 2026-09-25: checkbox en el mismo
+        # formulario de producto, igual que lo carga Sofia ahora)
         c = Client()
         c.force_login(cls.users['superuser'])
-        c.post('/granel/carameleras/nueva/', {
-            'nombre': 'Jamón cocido', 'precio_kg': '12000', 'costo_kg': '8000',
-            'stock_inicial': '5', 'stock_unidad': 'kg', 'stock_minimo_kg': '1'})
-        cls.caramelera = Caramelera.objects.get()
+        c.post('/stocks/add/', {
+            'name': 'Jamón cocido', 'sku': 'JC-SMOKE', 'cost_price': '8000',
+            'sale_price': '12000', 'current_stock': '5', 'min_stock': '1',
+            'is_active': 'true', 'is_granel': 'true'})
         cls.weight_product = Product.objects.get(is_granel=True)
 
         # ---- proveedores y compras
@@ -148,7 +148,7 @@ class SmokeAllPages(TestCase):
         pending_item = POSTransactionItem.objects.filter(transaction=self.pending).first()
         pks = {
             self.product.pk, self.product2.pk, self.cat.pk, self.supplier.pk, self.purchase.pk,
-            self.promo.pk, self.shift.pk, self.expense.pk, self.caramelera.pk,
+            self.promo.pk, self.shift.pk, self.expense.pk,
             self.weight_product.pk, self.pending.pk, self.users['superuser'].pk,
             self.users['Cashier'].pk, Company.objects.first().pk,
         }

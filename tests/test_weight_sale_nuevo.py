@@ -25,6 +25,7 @@ from django.urls import reverse
 
 from cashregister.models import CashRegister, CashShift, PaymentMethod
 from pos.services import POSService
+from purchase.models import Purchase, PurchaseItem, Supplier
 from stocks.forms import ProductForm
 from stocks.models import Product, ProductPackaging, StockMovement
 from stocks.services import StockManagementService
@@ -245,6 +246,164 @@ class VentaEnPosTests(NuevoPesoBase):
         self.assertTrue(ok, result)
         self.producto.refresh_from_db()
         self.assertEqual(self.producto.current_stock, Decimal('2.250'))
+
+
+class OrdenDeCompraTests(NuevoPesoBase):
+    """Encontrados y arreglados al escribir esta clase (`purchase/models.py`
+    y `purchase/views.py` solo reconocían "por peso" al viejo estilo, con
+    Caramelera vinculada — bloqueaban la orden con "se compra por unidad" y
+    el buscador no mostraba costo/precio para un producto por peso nuevo)."""
+
+    def setUp(self):
+        super().setUp()
+        self.crear_producto_por_peso()  # 2.5kg a $12000/kg, costo $8000/kg
+        self.producto = Product.objects.get(sku='JC-NUEVO')
+        self.supplier = Supplier.objects.create(name='Fiambres del Sur')
+
+    def _crear_oc(self, items):
+        return self.client.post(
+            reverse('purchase:purchase_create'),
+            data=json.dumps({'supplier_id': self.supplier.pk, 'items': items, 'tax_percent': 0}),
+            content_type='application/json',
+        )
+
+    def test_orden_en_kilos_con_decimales_no_pide_entero(self):
+        r = self._crear_oc([{'product_id': self.producto.pk, 'quantity': '1.5', 'unit_cost': '9000'}])
+        self.assertEqual(r.status_code, 200, r.content)
+        item = PurchaseItem.objects.get()
+        self.assertEqual(item.quantity, Decimal('1.500'))
+        self.assertEqual(item.subtotal, Decimal('13500.00'))
+
+    def test_recibir_suma_al_stock_y_promedia_el_costo(self):
+        self._crear_oc([{'product_id': self.producto.pk, 'quantity': '2.5', 'unit_cost': '10000'}])
+        oc = Purchase.objects.get()
+        r = self.client.post(reverse('purchase:purchase_receive', args=[oc.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.producto.refresh_from_db()
+        # 2.5kg@8000 + 2.5kg@10000 -> 5kg promedio $9000
+        self.assertEqual(self.producto.current_stock, Decimal('5.000'))
+        self.assertEqual(self.producto.cost_price, Decimal('9000.00'))
+
+    def test_buscador_de_la_orden_da_costo_y_precio_por_kilo_directo_del_producto(self):
+        r = self.client.get(reverse('purchase:api_search_products'), {'q': 'jamón'})
+        prod = r.json()['results'][0]
+        self.assertTrue(prod['by_weight'])
+        self.assertEqual(Decimal(prod['cost_price']), Decimal('8000.00'))
+        self.assertEqual(Decimal(prod['sale_price']), Decimal('12000.00'))
+        self.assertEqual(prod['packagings'], [])
+
+
+class PromocionesTests(NuevoPesoBase):
+    """Portado de `tests/test_weight_purchases.py` (retirado junto con las
+    URLs de `granel`): el motor de promociones solo aplica `simple_discount`
+    a líneas por peso — 2x1/combos/precio fijo regalarían plata contando
+    gramos como si fueran unidades. La lógica en sí (`promotions/engine.py`)
+    no cambió con el rediseño, esto solo prueba que sigue enganchada bien al
+    producto por peso nuevo."""
+
+    def setUp(self):
+        super().setUp()
+        self.crear_producto_por_peso()  # 2.5kg a $12000/kg
+        self.producto = Product.objects.get(sku='JC-NUEVO')
+        self.gaseosa = Product.objects.create(
+            name='Gaseosa', sku='GAS-PROMO', cost_price=Decimal('500'),
+            sale_price=Decimal('800'), current_stock=Decimal('10'),
+        )
+
+    def _linea_peso(self, gramos=250):
+        return {'item_id': 1, 'product_id': self.producto.pk, 'quantity': gramos,
+                'unit_price': 12.0, 'packaging_type': 'unit', 'by_weight': True}
+
+    def test_2x1_no_regala_plata_en_lineas_por_peso(self):
+        from promotions.engine import PromotionEngine
+        from promotions.models import Promotion, PromotionProduct
+        promo = Promotion.objects.create(
+            name='2x1', promo_type='nxm', status='active',
+            quantity_required=2, quantity_charged=1)
+        PromotionProduct.objects.create(promotion=promo, product=self.producto)
+        r = PromotionEngine.calculate_cart([self._linea_peso(250)])
+        self.assertEqual(r['discount_total'], 0)
+
+    def test_precio_fijo_por_cantidad_tampoco(self):
+        from promotions.engine import PromotionEngine
+        from promotions.models import Promotion, PromotionProduct
+        promo = Promotion.objects.create(
+            name='2 x $500', promo_type='nx_fixed_price', status='active',
+            quantity_required=2, final_price=Decimal('500'))
+        PromotionProduct.objects.create(promotion=promo, product=self.producto)
+        r = PromotionEngine.calculate_cart([self._linea_peso(250)])
+        self.assertEqual(r['discount_total'], 0)
+
+    def test_descuento_porcentual_si_aplica_al_peso(self):
+        from promotions.engine import PromotionEngine
+        from promotions.models import Promotion, PromotionProduct
+        promo = Promotion.objects.create(
+            name='Jamón -20%', promo_type='simple_discount', status='active',
+            discount_percent=Decimal('20'))
+        PromotionProduct.objects.create(promotion=promo, product=self.producto)
+        r = PromotionEngine.calculate_cart([self._linea_peso(250)])
+        self.assertAlmostEqual(r['discount_total'], 600.0)  # 20% de $3.000
+
+    def test_promos_por_unidad_siguen_funcionando_en_productos_comunes(self):
+        from promotions.engine import PromotionEngine
+        from promotions.models import Promotion, PromotionProduct
+        promo = Promotion.objects.create(
+            name='2x1 gaseosa', promo_type='nxm', status='active',
+            quantity_required=2, quantity_charged=1)
+        PromotionProduct.objects.create(promotion=promo, product=self.gaseosa)
+        r = PromotionEngine.calculate_cart([
+            {'item_id': 2, 'product_id': self.gaseosa.pk, 'quantity': 2, 'unit_price': 800,
+             'packaging_type': 'unit', 'by_weight': False}])
+        self.assertAlmostEqual(r['discount_total'], 800.0)
+
+    def test_en_el_pos_el_descuento_porcentual_baja_el_total(self):
+        from promotions.models import Promotion, PromotionProduct
+        from pos.services import CartService
+        promo = Promotion.objects.create(
+            name='Jamón -20%', promo_type='simple_discount', status='active',
+            discount_percent=Decimal('20'))
+        PromotionProduct.objects.create(promotion=promo, product=self.producto)
+        tx = self.nueva_transaccion()
+        CartService.add_item(tx, self.producto.pk, Decimal('250'))
+        tx.refresh_from_db()
+        self.assertEqual(tx.total, Decimal('2400.00'))  # 250g × $12 = 3000 − 20%
+
+
+class PedidoSugeridoTests(NuevoPesoBase):
+    """Portado de `tests/test_weight_purchases.py`. Encontrado y arreglado al
+    escribir esto: `_low_stock_suggestions_for_supplier` (purchase/views.py)
+    asumía que el stock/mínimo de CUALQUIER producto por peso estaban en
+    gramos (cierto solo para el sistema viejo) — para un producto nuevo ya
+    están en kilos, sin convertir."""
+
+    def setUp(self):
+        super().setUp()
+        self.crear_producto_por_peso(current_stock='2.5', min_stock='4')
+        self.producto = Product.objects.get(sku='JC-NUEVO')
+        self.supplier = Supplier.objects.create(name='Fiambres del Sur', order_day='mon')
+        from purchase.models import SupplierProduct
+        SupplierProduct.objects.create(supplier=self.supplier, product=self.producto, cost_price=Decimal('9000'))
+
+    def test_sugiere_en_kilos_cuando_queda_poco(self):
+        # mínimo 4kg, hay 2,5kg -> faltan 1,5kg
+        r = self.client.get(reverse('purchase:purchase_suggested') + '?all=1')
+        self.assertContains(r, 'Jamón Cocido')
+        self.assertContains(r, '2,5 kg')   # stock actual
+        self.assertContains(r, '4 kg')     # mínimo
+        self.assertContains(r, '1,5 kg')   # cantidad sugerida
+        self.assertContains(r, '/ kg')
+
+    def test_generar_orden_borrador_en_kilos(self):
+        r = self.client.post(reverse('purchase:purchase_suggested_generate', args=[self.supplier.pk]))
+        self.assertEqual(r.status_code, 302)
+        item = PurchaseItem.objects.get(product=self.producto)
+        self.assertEqual(item.quantity, Decimal('1.500'))
+        self.assertEqual(item.unit_cost, Decimal('9000.00'))
+        oc = Purchase.objects.get()
+        r = self.client.post(reverse('purchase:purchase_receive', args=[oc.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.current_stock, Decimal('4.000'))
 
 
 class InventarioTests(NuevoPesoBase):

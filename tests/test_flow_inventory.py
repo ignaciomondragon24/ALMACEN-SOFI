@@ -291,17 +291,31 @@ class EmpaquesTests(InvBase):
 
 
 class ProductosPorPesoEnInventarioTests(InvBase):
+    """Producto por peso del sistema VIEJO (Caramelera vinculada). Después de
+    la Fase 3 esto ya no se puede crear desde la UI (la pantalla de "Venta
+    por Peso" quedó desconectada del menú) — se arma acá directo por ORM,
+    igual que hacía `granel:caramelera_create` internamente, para seguir
+    probando que el código de compatibilidad (`_es_caramelera_vieja`) no se
+    rompe si algún dato viejo queda así."""
+
     def setUp(self):
         super().setUp()
-        self.c.post(reverse('granel:caramelera_create'), {
-            'nombre': 'Jamón cocido', 'precio_kg': '12000', 'costo_kg': '8000',
-            'stock_inicial': '2', 'stock_unidad': 'kg'})
-        self.car = Caramelera.objects.get()
-        self.p = Product.objects.get(is_granel=True)
+        self.car = Caramelera.objects.create(
+            nombre='Jamón cocido', precio_100g=Decimal('1200.00'),
+            stock_gramos_actual=Decimal('2000.00'), costo_ponderado_gramo=Decimal('8.000000'),
+        )
+        self.p = Product.objects.create(
+            name='Jamón cocido', sku='JC-INV-VIEJO', is_granel=True, granel_caramelera=self.car,
+            sale_price=self.car.precio_100g, current_stock=self.car.stock_gramos_actual,
+        )
 
-    def test_editarlo_desde_inventario_lleva_a_venta_por_peso(self):
+    def test_editarlo_desde_inventario_no_deja_editar_una_caramelera_vieja(self):
+        """Después de la Fase 3, un producto por peso VIEJO (con Caramelera
+        vinculada) no debería existir más en producción real (la migración
+        los desvincula) — pero si por algún motivo uno queda así, no se
+        redirige a una URL de `granel` que ya no está registrada."""
         r = self.c.get(reverse('stocks:product_edit', args=[self.p.pk]))
-        self.assertRedirects(r, reverse('granel:caramelera_edit', args=[self.car.pk]), fetch_redirect_response=False)
+        self.assertRedirects(r, reverse('stocks:product_detail', args=[self.p.pk]), fetch_redirect_response=False)
         # y un POST tampoco cambia nada
         self.c.post(reverse('stocks:product_edit', args=[self.p.pk]), {'name': 'Otro', 'sale_price': '1', 'sku': self.p.sku})
         self.p.refresh_from_db()
@@ -310,7 +324,7 @@ class ProductosPorPesoEnInventarioTests(InvBase):
 
     def test_empaques_no_aplica_a_productos_por_peso(self):
         r = self.c.get(reverse('stocks:product_packaging', args=[self.p.pk]))
-        self.assertRedirects(r, reverse('granel:caramelera_detail', args=[self.car.pk]), fetch_redirect_response=False)
+        self.assertRedirects(r, reverse('stocks:product_detail', args=[self.p.pk]), fetch_redirect_response=False)
 
     def test_conteo_fisico_si_funciona_y_actualiza_la_caramelera(self):
         self.c.post(reverse('stocks:inventory_count', args=[self.p.pk]), {'new_quantity': '1500', 'reason': 'conteo_fisico'})
@@ -321,5 +335,4 @@ class ProductosPorPesoEnInventarioTests(InvBase):
         self.c.post(reverse('stocks:product_delete', args=[self.p.pk]))
         self.car.refresh_from_db()
         self.assertFalse(self.car.is_active)
-        self.assertEqual(list(self.c.get(reverse('granel:caramelera_list')).context['carameleras']), [])
         self.assertEqual(self.c.get(reverse('pos:api_search'), {'q': 'jamon'}).json()['products'], [])

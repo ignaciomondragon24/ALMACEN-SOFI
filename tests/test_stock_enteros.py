@@ -111,15 +111,16 @@ class ConteoFisicoTests(Base):
         self.assertNotContains(r, '20.00<')
 
     def test_producto_por_peso_conserva_decimales_en_el_conteo(self):
-        self.c.post(reverse('granel:caramelera_create'), {
-            'nombre': 'Jamón entero test', 'precio_kg': '12000', 'costo_kg': '8000',
-            'stock_inicial': '2.5', 'stock_unidad': 'kg'})
-        peso = Product.objects.get(is_granel=True)
+        self.c.post(reverse('stocks:product_create'), {
+            'name': 'Jamón entero test', 'sku': 'JC-ENTERO', 'cost_price': '8000',
+            'sale_price': '12000', 'current_stock': '2.5', 'min_stock': '0',
+            'is_active': 'true', 'is_granel': 'true'})
+        peso = Product.objects.get(sku='JC-ENTERO')
         r = self.c.post(reverse('stocks:inventory_count', args=[peso.pk]),
-                        {'new_quantity': '1850.5', 'reason': 'conteo_fisico'})
+                        {'new_quantity': '1.851', 'reason': 'conteo_fisico'})
         self.assertEqual(r.status_code, 302, getattr(r, 'content', b'')[:200])
         peso.refresh_from_db()
-        self.assertEqual(peso.current_stock, Decimal('1850.500'))
+        self.assertEqual(peso.current_stock, Decimal('1.851'))
 
 
 class ProductoDetalleYListaTests(Base):

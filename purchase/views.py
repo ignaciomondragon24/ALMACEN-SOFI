@@ -161,9 +161,15 @@ def _low_stock_suggestions_for_supplier(supplier):
         if product.current_stock <= product.min_stock:
             shortfall = product.min_stock - product.current_stock
             if link.por_peso:
-                # Stock y mínimo están en gramos; la orden se hace en kilos, de a
-                # medio kilo, y como mínimo 1 kg.
-                medios_kilos = math.ceil(Decimal(shortfall) / Decimal('500')) if shortfall > 0 else 0
+                # La orden se hace en kilos, de a medio kilo, y como mínimo 1 kg.
+                # Sistema viejo (Caramelera vinculada): stock y mínimo están en
+                # gramos. Sistema nuevo: ya están directo en kilos.
+                if product.granel_caramelera_id:
+                    medios_kilos = math.ceil(Decimal(shortfall) / Decimal('500')) if shortfall > 0 else 0
+                    min_kilos = Decimal(product.min_stock) / 1000
+                else:
+                    medios_kilos = math.ceil(Decimal(shortfall) / Decimal('0.5')) if shortfall > 0 else 0
+                    min_kilos = Decimal(product.min_stock)
                 suggested_qty = max(Decimal('1'), Decimal(medios_kilos) / 2)
                 suggestions.append({
                     'link': link,
@@ -172,7 +178,7 @@ def _low_stock_suggestions_for_supplier(supplier):
                     'por_peso': True,
                     'qty_texto': f'{suggested_qty.normalize():f}'.replace('.', ',') + ' kg',
                     'stock_texto': link.stock_texto,
-                    'min_texto': f'{(Decimal(product.min_stock) / 1000).normalize():f}'.replace('.', ',') + ' kg',
+                    'min_texto': f'{min_kilos.normalize():f}'.replace('.', ',') + ' kg',
                 })
             else:
                 suggested_qty = int(shortfall) if shortfall > 0 else 1
@@ -395,8 +401,9 @@ def purchase_create(request):
                     if row_product is None:
                         raise ValueError(f'Producto con id={product_id} no existe o está inactivo.')
 
-                    if GranelService.caramelera_de(row_product) is not None:
-                        # Por peso: la cantidad son kilos y el costo es por kilo.
+                    if row_product.is_granel:
+                        # Por peso (sistema viejo o nuevo): la cantidad son
+                        # kilos y el costo es por kilo, sin empaques.
                         packaging_id = None
                     elif quantity != quantity.to_integral_value():
                         raise ValueError(
@@ -698,15 +705,19 @@ def _serialize_packaging(pkg):
 
 def _serialize_product(p, matched_packaging=None):
     """Serializa un Product con sus empaques activos."""
-    caramelera = GranelService.caramelera_de(p)
-    if caramelera is not None:
+    if p.is_granel:
         # Por peso: costo y precio se muestran por KILO y no hay empaques.
+        # Sistema viejo (Caramelera vinculada): esos valores viven en la
+        # Caramelera. Sistema nuevo: ya están directo en el Product.
+        caramelera = GranelService.caramelera_de(p)
+        cost_price = caramelera.costo_kilo if caramelera is not None else p.cost_price
+        sale_price = caramelera.precio_kilo if caramelera is not None else p.sale_price
         return {
             'id': p.id,
             'name': p.name,
             'barcode': p.barcode or '',
-            'cost_price': str(caramelera.costo_kilo),
-            'sale_price': str(caramelera.precio_kilo),
+            'cost_price': str(cost_price),
+            'sale_price': str(sale_price),
             'packagings': [],
             'matched_packaging_id': None,
             'by_weight': True,
