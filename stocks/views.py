@@ -1188,19 +1188,28 @@ def import_excel(request):
                             if not product and sku_val:
                                 product = Product.objects.filter(sku=sku_val).first()
 
-                            purchase_price = Decimal(str(item['purchase_price'])) if item.get('purchase_price') else Decimal('0.00')
-                            sale_price = Decimal(str(item['sale_price'])) if item.get('sale_price') else Decimal('0.01')
+                            # item.get('purchase_price')/['sale_price'] son None si la celda
+                            # vino vacía (a diferencia de 0, que sí es un valor real). Antes,
+                            # una celda vacía en una fila de ACTUALIZACIÓN pisaba el producto
+                            # existente con $0,00 de costo y $0,01 de precio en silencio — grave
+                            # apenas se usa Importar Excel para actualizar precios en masa.
+                            purchase_price_raw = item.get('purchase_price')
+                            sale_price_raw = item.get('sale_price')
 
                             uom = None
                             if item.get('unit'):
                                 uom = _get_or_create_unit(item['unit'])
 
                             if product:
-                                # Actualizar existente
+                                # Actualizar existente: cada precio se pisa SOLO si la fila
+                                # trajo un valor para ese campo puntual; una celda vacía deja
+                                # el precio que ya tenía el producto, tal cual.
                                 product.category = category
-                                product.purchase_price = purchase_price
-                                product.sale_price = sale_price
-                                product.cost_price = purchase_price
+                                if purchase_price_raw is not None:
+                                    product.purchase_price = Decimal(str(purchase_price_raw))
+                                    product.cost_price = Decimal(str(purchase_price_raw))
+                                if sale_price_raw is not None:
+                                    product.sale_price = Decimal(str(sale_price_raw))
                                 if uom:
                                     product.unit_of_measure = uom
                                 if barcode_val and not product.barcode:
@@ -1219,6 +1228,11 @@ def import_excel(request):
                                 # Evitar barcode duplicado
                                 if barcode_val and Product.objects.filter(barcode=barcode_val).exists():
                                     barcode_val = None
+
+                                # Un producto nuevo sí necesita un valor concreto (no puede
+                                # quedar sin precio de venta: el modelo lo exige >= 0.01).
+                                purchase_price = Decimal(str(purchase_price_raw)) if purchase_price_raw is not None else Decimal('0.00')
+                                sale_price = Decimal(str(sale_price_raw)) if sale_price_raw is not None else Decimal('0.01')
 
                                 initial_stock = Decimal(str(item['stock'])) if item.get('stock') else Decimal('0')
                                 new_product = Product.objects.create(

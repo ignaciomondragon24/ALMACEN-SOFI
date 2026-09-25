@@ -118,6 +118,37 @@ class ImportExcelTests(TestCase):
         self.assertEqual(existente.sale_price, Decimal('900.00'))
         self.assertEqual(existente.current_stock, Decimal('8'))   # el stock real no se pisa
 
+    def test_celda_de_precio_vacia_en_una_actualizacion_no_pisa_el_precio_existente(self):
+        # Antes: una celda vacía en una fila de actualización ponía el producto en
+        # $0,00 de costo y $0,01 de precio, en silencio. Ahora, vacío = no tocar ese campo.
+        existente = Product.objects.create(
+            name='Aceite viejo', sku='ACE-1', barcode='7790000000099',
+            cost_price=Decimal('1000'), purchase_price=Decimal('1000'),
+            sale_price=Decimal('1500'), current_stock=Decimal('5'))
+        self.subir({'Almacén': [self.HEAD, [7790000000099, 'ACE-1', 'Aceite', 'u', '', '', 5]]})
+        existente.refresh_from_db()
+        self.assertEqual(existente.cost_price, Decimal('1000.00'))
+        self.assertEqual(existente.purchase_price, Decimal('1000.00'))
+        self.assertEqual(existente.sale_price, Decimal('1500.00'))
+
+    def test_celda_de_solo_costo_vacia_deja_el_precio_de_venta_actualizarse_igual(self):
+        existente = Product.objects.create(
+            name='Yerba vieja', sku='YER-1', barcode='7790000000100',
+            cost_price=Decimal('2000'), sale_price=Decimal('3000'), current_stock=Decimal('2'))
+        self.subir({'Almacén': [self.HEAD, [7790000000100, 'YER-1', 'Yerba', 'u', '', 3300, 2]]})
+        existente.refresh_from_db()
+        self.assertEqual(existente.cost_price, Decimal('2000.00'))    # costo vacío: no se toca
+        self.assertEqual(existente.sale_price, Decimal('3300.00'))    # venta sí vino: se actualiza
+
+    def test_costo_en_cero_de_verdad_si_se_pisa(self):
+        # Un 0 real (no una celda vacía) es un valor válido y sí debe guardarse.
+        existente = Product.objects.create(
+            name='Regalo', sku='REG-1', barcode='7790000000101',
+            cost_price=Decimal('100'), sale_price=Decimal('200'), current_stock=Decimal('1'))
+        self.subir({'Almacén': [self.HEAD, [7790000000101, 'REG-1', 'Regalo', 'u', 0, 200, 1]]})
+        existente.refresh_from_db()
+        self.assertEqual(existente.cost_price, Decimal('0.00'))
+
     def test_reimportar_el_mismo_archivo_no_duplica(self):
         hojas = {'Almacén': [self.HEAD, [7790000000011, 'A1', 'Aceite', 'u', 1000, 1500, 5]]}
         self.subir(hojas)
