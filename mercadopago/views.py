@@ -1067,6 +1067,15 @@ def complete_pos_transaction(payment_intent):
                         precio_cobrado=item.subtotal,
                         pos_transaction_id=pos_transaction.id,
                     )
+                elif item.product.is_granel:
+                    # Sistema nuevo: current_stock vive en kilos; item.quantity
+                    # (el carrito) sigue en gramos.
+                    StockManagementService.deduct_stock(
+                        product=item.product,
+                        quantity=item.quantity / Decimal('1000'),
+                        reference=f'Venta MP {pos_transaction.ticket_number}',
+                        reference_id=pos_transaction.id,
+                    )
                 else:
                     units_to_deduct = item.quantity * item.packaging_units
                     pkg_note = ''

@@ -30,8 +30,8 @@
             <div class="card text-center border" style="border-style:dashed !important;">
                 <div class="card-body py-5">
                     <i class="fas fa-boxes-stacked fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted mb-2">Este producto no tiene empaques configurados</h5>
-                    <p class="text-muted mb-3">Configurá Unidad, Display y Bulto con sus códigos y precios.</p>
+                    <h5 class="text-muted mb-2">Este producto no tiene empaque configurado</h5>
+                    <p class="text-muted mb-3">Configurá la Unidad con su código y precio.</p>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditPkg">
                         <i class="fas fa-plus me-1"></i>Crear Empaques
                     </button>
@@ -180,21 +180,14 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- Shared quantities -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Unidades por Display</label>
-                            <input type="number" name="pkg_units_per_display" id="id_pkg_units_per_display"
-                                   class="form-control" min="1"
-                                   value="{% if display_pkg %}{{ display_pkg.units_per_display }}{% elif bulk_pkg %}{{ bulk_pkg.units_per_display }}{% else %}1{% endif %}">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Displays por Bulto</label>
-                            <input type="number" name="pkg_displays_per_bulk" id="id_pkg_displays_per_bulk"
-                                   class="form-control" min="1"
-                                   value="{% if bulk_pkg %}{{ bulk_pkg.displays_per_bulk }}{% else %}1{% endif %}">
-                        </div>
-                    </div>
+                    {% comment %}
+                    Unidades por Display / Displays por Bulto: ocultos junto con las
+                    secciones de Display y Bulto de abajo (0% de uso real en
+                    producción). Quedan en el POST como 1/1 vía los <input hidden>
+                    de acá abajo — _save_inline_packaging los sigue leyendo igual.
+                    {% endcomment %}
+                    <input type="hidden" name="pkg_units_per_display" value="1">
+                    <input type="hidden" name="pkg_displays_per_bulk" value="1">
 
                     <!-- Unit Packaging -->
                     <div class="card mb-3 border">
@@ -261,6 +254,8 @@
                         </div>
                     </div>
 
+                    {% comment %}Display y Bulto: ocultos (0% de uso real), no borrados — ver plan de rediseño.{% endcomment %}
+                    {% if False %}
                     <!-- Display Packaging -->
                     <div class="card mb-3 border">
                         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
@@ -390,6 +385,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}{# cierra {% if False %} Display/Bulto #}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>

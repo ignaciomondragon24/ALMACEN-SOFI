@@ -32,8 +32,9 @@ class StockManagementService:
         # Lock the product row to prevent concurrent modifications
         product = Product.objects.select_for_update().get(pk=product.pk)
 
-        # Producto por peso: su stock real vive en la caramelera. Acá la cantidad
-        # va en gramos y el costo por gramo (así lo guarda el producto del POS).
+        # Producto por peso del sistema VIEJO: su stock real vive en la
+        # caramelera. Acá la cantidad va en gramos y el costo por gramo (así
+        # lo guarda el producto del POS).
         if product.is_granel and product.granel_caramelera_id:
             from granel.services import GranelService
             gramos = Decimal(str(quantity))
@@ -41,6 +42,42 @@ class StockManagementService:
             return GranelService.recibir_compra(
                 product, gramos / Decimal('1000'), costo_gramo * Decimal('1000'),
                 user=user, referencia=reference, notas=notes,
+            )
+
+        # Producto por peso del sistema NUEVO (sin caramelera vinculada): acá
+        # `quantity` y `cost` ya están en kilos / costo por kilo — mismos
+        # campos que un producto común (current_stock, cost_price), sin
+        # cascada a empaques (no usa Unidad/Display/Bulto) y sin pasar por
+        # GranelService. A diferencia de los productos comunes, el costo
+        # promedio SÍ puede bajar (promedio ponderado real): la regla de
+        # "nunca promediar hacia abajo" es específica de productos comunes
+        # (pedido de Sofia, 2026-09-10) y no aplica acá.
+        if product.is_granel:
+            quantity = Decimal(str(quantity))
+            cost = Decimal(str(cost)) if cost else product.cost_price
+
+            stock_before = product.current_stock
+            stock_after = stock_before + quantity
+            product.current_stock = stock_after
+
+            if cost and cost > 0:
+                total_value = (product.cost_price * stock_before) + (cost * quantity)
+                if stock_after > 0:
+                    product.cost_price = total_value / stock_after
+                    product.purchase_price = product.cost_price
+            product.save()
+
+            return StockMovement.objects.create(
+                product=product,
+                movement_type='purchase',
+                quantity=quantity,
+                unit_cost=cost,
+                stock_before=stock_before,
+                stock_after=stock_after,
+                reference=reference,
+                reference_id=reference_id,
+                notes=notes,
+                created_by=user,
             )
 
         quantity = Decimal(str(quantity))

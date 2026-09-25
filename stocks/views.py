@@ -14,8 +14,17 @@ from decimal import Decimal, InvalidOperation
 from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, StockBatch, ProductPackaging
 
 
-def _es_producto_por_peso(product):
+def _es_caramelera_vieja(product):
+    """Producto por peso del sistema VIEJO (ligado a una Caramelera): sigue
+    usando las pantallas de Venta por Peso y GranelService tal cual hasta la
+    Fase 3 (migración de datos), que lo convierte al sistema nuevo."""
     return bool(product.is_granel and product.granel_caramelera_id)
+
+
+def _vende_por_peso(product):
+    """Producto que se vende por peso, sistema viejo o nuevo — para todo lo
+    que aplica a ambos por igual (ej: el stock se cuenta con decimales)."""
+    return bool(product.is_granel)
 
 
 def _entero(raw, campo='La cantidad'):
@@ -443,6 +452,12 @@ def product_create(request):
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
             product = form.save()
+            if product.is_granel:
+                # Los productos por peso no usan empaques (Unidad/Display/
+                # Bulto): se venden directo en gramos/kilos con los precios
+                # por tramo cargados en este mismo formulario.
+                messages.success(request, f'Producto "{product.name}" creado.')
+                return redirect('stocks:product_detail', pk=product.pk)
             # Crear automaticamente el packaging unit con los precios del producto base.
             unit_purchase = product.cost_price or product.purchase_price or Decimal('0')
             unit_sale = product.sale_price or Decimal('0')
@@ -482,9 +497,13 @@ def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
 
-    # Un producto por peso guarda su precio, costo y stock en la caramelera: editarlo
-    # desde acá dejaría la caja con datos distintos a los de Venta por Peso.
-    if product.is_granel and product.granel_caramelera_id:
+    # Un producto por peso del sistema VIEJO guarda su precio, costo y stock en
+    # la caramelera: editarlo desde acá dejaría la caja con datos distintos a
+    # los de Venta por Peso. Los productos por peso NUEVOS (sin caramelera
+    # vinculada) se editan directo acá, como cualquier otro producto — el
+    # checkbox "Se vende por peso" y sus precios por tramo son parte del
+    # mismo formulario.
+    if _es_caramelera_vieja(product):
         messages.info(request, 'Los productos por peso se editan desde Venta por Peso.')
         return redirect('granel:caramelera_edit', pk=product.granel_caramelera_id)
 
@@ -597,11 +616,59 @@ def product_detail(request, pk):
     # Últimos 8 lotes (activos o agotados) para mostrar historial de precios de compra
     recent_batches = product.batches.select_related('purchase__supplier').order_by('-purchased_at')[:8]
 
-    return render(request, 'stocks/product_detail.html', {
+    context = {
         'product': product,
         'movements': movements,
         'recent_batches': recent_batches,
-    })
+    }
+    if product.is_granel:
+        # Se calculan acá (no en el template: price_for_grams necesita un
+        # argumento y los templates de Django no llaman métodos con
+        # parámetros) para mostrar el precio efectivo de cada tramo,
+        # oferta incluida, tal cual lo cobraría el POS.
+        context['precio_250g'] = product.price_for_grams(250)
+        context['precio_500g'] = product.price_for_grams(500)
+    return render(request, 'stocks/product_detail.html', context)
+
+
+@login_required
+@group_required(['Admin', 'Cajero Manager'])
+def product_add_stock(request, pk):
+    """"Agregar mercadería": repone stock informal (sin orden de compra) de
+    un producto por peso NUEVO, directo desde su detalle. Es el equivalente,
+    para el sistema nuevo, del botón que ya existía en Venta por Peso — la
+    única forma de reponer stock sin pasar por una orden de compra.
+
+    Solo aplica a productos por peso del sistema nuevo (sin caramelera
+    vinculada): los viejos siguen usando su propio botón en Venta por Peso
+    hasta que la Fase 3 los migre.
+    """
+    product = get_object_or_404(Product, pk=pk)
+
+    if not product.is_granel or product.granel_caramelera_id:
+        messages.error(request, 'Este producto no usa "Agregar mercadería".')
+        return redirect('stocks:product_detail', pk=product.pk)
+
+    if request.method == 'POST':
+        kilos_raw = request.POST.get('kilos', '').strip()
+        costo_raw = request.POST.get('costo_kilo', '').strip()
+        notas = request.POST.get('notas', '')
+        try:
+            kilos = Decimal(kilos_raw.replace(',', '.'))
+            if kilos <= 0:
+                raise ValueError('La cantidad tiene que ser mayor a cero.')
+            costo = Decimal(costo_raw.replace(',', '.')) if costo_raw else None
+            if costo is not None and costo < 0:
+                raise ValueError('El costo no puede ser negativo.')
+            StockManagementService.add_stock(
+                product, kilos, cost=costo,
+                reference='Agregar mercadería', notes=notas, user=request.user,
+            )
+            messages.success(request, f'Se agregaron {kilos} kg a "{product.name}".')
+        except (InvalidOperation, ValueError) as e:
+            messages.error(request, f'Error al agregar mercadería: {e}')
+
+    return redirect('stocks:product_detail', pk=product.pk)
 
 
 @login_required
@@ -635,7 +702,7 @@ def inventory_count(request, pk):
             from django.db import transaction as db_transaction
             from django.utils import timezone as tz
 
-            if _es_producto_por_peso(product):
+            if _vende_por_peso(product):
                 new_quantity = Decimal(new_quantity)
             else:
                 new_quantity = _entero(new_quantity, 'La cantidad contada')
@@ -1876,9 +1943,12 @@ def product_packaging_view(request, pk):
     """Vista completa de gestión de empaques con recepción, apertura y ajuste."""
     product = get_object_or_404(Product, pk=pk)
 
-    if product.is_granel and product.granel_caramelera_id:
+    if _es_caramelera_vieja(product):
         messages.info(request, 'Los productos por peso no usan empaques: el stock se maneja en Venta por Peso.')
         return redirect('granel:caramelera_detail', pk=product.granel_caramelera_id)
+    if product.is_granel:
+        messages.info(request, 'Los productos por peso no usan empaques: la mercadería se agrega desde el detalle del producto.')
+        return redirect('stocks:product_detail', pk=product.pk)
 
     unit_pkg = product.packagings.filter(packaging_type='unit', is_active=True).first()
     display_pkg = product.packagings.filter(packaging_type='display', is_active=True).first()
@@ -1986,10 +2056,11 @@ def product_packaging_view(request, pk):
 
         return redirect('stocks:product_packaging', pk=product.pk)
 
-    # Equivalencias
+    # Equivalencias — solo Unidad: Display/Bulto quedan ocultos (0% de uso
+    # real en producción), no borrados. Ver plan de rediseño de venta por peso.
     equiv_rows = []
     total_equiv = Decimal('0')
-    for label, pkg in [('Bultos', bulk_pkg), ('Displays', display_pkg), ('Unidades', unit_pkg)]:
+    for label, pkg in [('Unidades', unit_pkg)]:
         if pkg:
             equiv = pkg.current_stock * Decimal(str(pkg.units_quantity))
             equiv_rows.append({
@@ -2008,8 +2079,6 @@ def product_packaging_view(request, pk):
         'display_pkg': display_pkg,
         'bulk_pkg': bulk_pkg,
         'packaging_cards': [
-            ('Bulto', bulk_pkg, 'bulk', 'fa-cubes'),
-            ('Display', display_pkg, 'display', 'fa-box'),
             ('Unidad', unit_pkg, 'unit', 'fa-cube'),
         ],
         'equiv_rows': equiv_rows,

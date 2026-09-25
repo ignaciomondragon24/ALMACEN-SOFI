@@ -17,7 +17,12 @@ class ProductForm(forms.ModelForm):
             'cost_price', 'sale_price', 'current_stock', 'min_stock', 'max_stock',
             'location', 'image', 'is_active', 'is_quick_access', 'quick_access_color',
             'quick_access_icon', 'quick_access_position',
-            'weight_per_unit_grams', 'es_deposito_caramelera', 'marca',
+            'weight_per_unit_grams', 'marca',
+            # Venta por peso: todo se carga acá mismo, en el producto — no hay
+            # pantalla ni app aparte. `is_granel` es el checkbox "se vende por
+            # peso"; los 4 campos de tramos son opcionales (0 = sin cargar).
+            'is_granel', 'sale_price_250g', 'sale_price_500g',
+            'oferta_price_250g', 'oferta_price_500g',
         ]
         widgets = {
             'sku': forms.TextInput(attrs={'class': 'form-control'}),
@@ -39,8 +44,12 @@ class ProductForm(forms.ModelForm):
             'quick_access_icon': forms.TextInput(attrs={'class': 'form-control'}),
             'quick_access_position': forms.NumberInput(attrs={'class': 'form-control'}),
             'weight_per_unit_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
-            'es_deposito_caramelera': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'marca': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Arcor, Stani...'}),
+            'is_granel': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_is_granel'}),
+            'sale_price_250g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
+            'sale_price_500g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
+            'oferta_price_250g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
+            'oferta_price_500g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -53,6 +62,11 @@ class ProductForm(forms.ModelForm):
         self.fields['quick_access_icon'].required = False
         self.fields['quick_access_position'].required = False
         self.fields['weight_per_unit_grams'].required = False
+        self.fields['is_granel'].required = False
+        self.fields['sale_price_250g'].required = False
+        self.fields['sale_price_500g'].required = False
+        self.fields['oferta_price_250g'].required = False
+        self.fields['oferta_price_500g'].required = False
 
     def clean_barcode(self):
         val = (self.cleaned_data.get('barcode') or '').strip()
@@ -69,8 +83,29 @@ class ProductForm(forms.ModelForm):
             return Decimal('0.00')
         return val
 
+    def _clean_tramo_precio(self, campo):
+        val = self.cleaned_data.get(campo)
+        if val is None:
+            return Decimal('0')
+        return val
+
+    def clean_sale_price_250g(self):
+        return self._clean_tramo_precio('sale_price_250g')
+
+    def clean_sale_price_500g(self):
+        return self._clean_tramo_precio('sale_price_500g')
+
+    def clean_oferta_price_250g(self):
+        return self._clean_tramo_precio('oferta_price_250g')
+
+    def clean_oferta_price_500g(self):
+        return self._clean_tramo_precio('oferta_price_500g')
+
     def clean_current_stock(self):
         """El stock se cuenta en unidades enteras (piezas), nunca fracciones.
+
+        Excepción: productos que se venden por peso (`is_granel`) cuentan su
+        stock en kilos, con decimales — necesitan precisión de balanza.
 
         Solo se valida al crear: al editar, el campo viene deshabilitado (el stock
         se corrige por "Conteo Físico") y no hay que romper la edición de un
@@ -78,7 +113,8 @@ class ProductForm(forms.ModelForm):
         """
         val = self.cleaned_data.get('current_stock')
         ya_existe = bool(self.instance and self.instance.pk)
-        if val is not None and not ya_existe and val != val.to_integral_value():
+        es_por_peso = self.data.get('is_granel') in ('on', 'true', 'True', '1')
+        if val is not None and not ya_existe and not es_por_peso and val != val.to_integral_value():
             raise forms.ValidationError('El stock se cuenta en unidades enteras, sin decimales.')
         return val
 
@@ -97,16 +133,6 @@ class ProductForm(forms.ModelForm):
             raise forms.ValidationError(
                 'Debe ingresar un código de barras o un SKU manual.'
             )
-
-        # Una pieza de depósito sin gramos nunca se abre hacia el producto por
-        # peso: el stock queda "en depósito" y la venta por peso sin mercadería.
-        if cleaned.get('es_deposito_caramelera'):
-            gramos = cleaned.get('weight_per_unit_grams')
-            if not gramos or gramos <= 0:
-                self.add_error(
-                    'weight_per_unit_grams',
-                    'Indicá cuántos gramos pesa cada pieza; sin eso no se puede vender por peso.'
-                )
 
         if barcode:
             qs = Product.objects.filter(barcode=barcode, is_active=True)

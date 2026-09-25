@@ -110,6 +110,7 @@
                                                value="{{ form.cost_price.value|unlocalize|default:'0' }}" required>
                                     </div>
                                     {% if form.cost_price.errors %}<div class="text-danger small">{{ form.cost_price.errors.0 }}</div>{% endif %}
+                                    <small class="text-muted" id="hint-costo-kilo" style="display:none">Por kilo.</small>
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -132,6 +133,7 @@
                                                class="form-control text-end" step="0.01" min="0"
                                                value="{{ form.sale_price.value|unlocalize|default:'0' }}" required>
                                     </div>
+                                    <small class="text-muted" id="hint-venta-kilo" style="display:none">Por kilo. El kilo entero (1kg) se cobra este precio.</small>
                                 </div>
                             </div>
                         </div>
@@ -148,9 +150,10 @@
                                            value="{{ form.current_stock.value|unlocalize|default:'0' }}"
                                            {% if product %}readonly{% endif %}>
                                     {% if product %}
-                                    <small class="text-muted">Usá "Conteo Físico" para modificar</small>
+                                    <small class="text-muted" id="hint-stock-conteo">Usá "Conteo Físico" para modificar</small>
                                     {% else %}
-                                    <small class="text-muted">Se cuenta en unidades enteras (sin decimales).</small>
+                                    <small class="text-muted" id="hint-stock-entero">Se cuenta en unidades enteras (sin decimales).</small>
+                                    <small class="text-muted" id="hint-stock-kilos" style="display:none">Se cuenta en kilos, con decimales.</small>
                                     {% endif %}
                                 </div>
                             </div>
@@ -171,44 +174,34 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <hr class="my-4">
                         <h6 class="text-muted mb-3">
-                            <i class="fas fa-warehouse me-2" style="color:#C33287;"></i>Depósito para Venta por Peso
+                            <i class="fas fa-weight-hanging me-2" style="color:#C33287;"></i>Venta por Peso
                         </h6>
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-12">
                                 <div class="form-check mb-3">
-                                    <input type="checkbox" name="es_deposito_caramelera" id="id_es_deposito_caramelera"
+                                    <input type="checkbox" name="is_granel" id="id_is_granel"
                                            class="form-check-input" value="true"
-                                           {% if form.es_deposito_caramelera.value %}checked{% endif %}>
-                                    <label class="form-check-label fw-semibold" for="id_es_deposito_caramelera">
-                                        Producto para Venta por Peso (pieza/bulto de depósito)
+                                           {% if form.is_granel.value %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold" for="id_is_granel">
+                                        Se vende por peso (fiambre, dietética, etc.)
                                     </label>
                                     <div class="form-text">
-                                        <strong>¿Querés vender fiambre, queso, frutos secos, etc. por peso?</strong>
-                                        No hace falta cargarlo acá: andá a <em>Venta por Peso → Nuevo producto por peso</em>.
-                                        Esta opción es solo para piezas cerradas (ej: una pata de jamón de 500g) que
-                                        después se abren hacia un producto por peso. Si la activás, tenés que indicar los gramos de cada pieza.
+                                        El <strong>Precio de Costo</strong> y el <strong>Precio de Venta</strong> de
+                                        arriba pasan a ser <strong>por kilo</strong>. Acá abajo podés cargar,
+                                        opcionalmente, un precio directo para ¼ y ½ kilo, y una oferta en pesos
+                                        para cada uno.
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div id="campos-caramelera" style="{% if not form.es_deposito_caramelera.value %}display:none{% endif %}">
+                        <div id="campos-granel" style="{% if not form.is_granel.value %}display:none{% endif %}">
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="id_marca" class="form-label">Marca</label>
-                                        <input type="text" name="marca" id="id_marca"
-                                               class="form-control"
-                                               placeholder="Ej: Arcor, Stani..."
-                                               value="{{ form.marca.value|default:'' }}">
-                                        <div class="form-text">Útil para distinguir bultos del mismo tipo.</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="id_weight_per_unit_grams" class="form-label">Gramos por Unidad</label>
+                                        <label for="id_weight_per_unit_grams" class="form-label">Kilos por Pieza (opcional)</label>
                                         <div class="input-group">
                                             <input type="number" name="weight_per_unit_grams" id="id_weight_per_unit_grams"
                                                    class="form-control text-end" step="1" min="0"
@@ -216,9 +209,83 @@
                                                    placeholder="Ej: 2000">
                                             <span class="input-group-text">g</span>
                                         </div>
-                                        <div class="form-text">Cuántos gramos tiene cada pieza/unidad.</div>
+                                        <div class="form-text">Solo informativo: cuánto pesa cada pieza al recibir mercadería.</div>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="id_marca" class="form-label">Marca</label>
+                                        <input type="text" name="marca" id="id_marca"
+                                               class="form-control"
+                                               placeholder="Ej: Arcor, Stani..."
+                                               value="{{ form.marca.value|default:'' }}">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header py-2 fw-semibold">¼ kilo (250g)</div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <label class="form-label small">Precio normal</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">$</span>
+                                                        <input type="number" name="sale_price_250g" id="id_sale_price_250g"
+                                                               class="form-control text-end" step="1" min="0"
+                                                               value="{{ form.sale_price_250g.value|unlocalize|default:'0' }}">
+                                                    </div>
+                                                    <div class="form-text">0 = proporcional al kilo</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small">Precio de oferta</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">$</span>
+                                                        <input type="number" name="oferta_price_250g" id="id_oferta_price_250g"
+                                                               class="form-control text-end" step="1" min="0"
+                                                               value="{{ form.oferta_price_250g.value|unlocalize|default:'0' }}">
+                                                    </div>
+                                                    <div class="form-text">0 = sin oferta</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header py-2 fw-semibold">½ kilo (500g)</div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <label class="form-label small">Precio normal</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">$</span>
+                                                        <input type="number" name="sale_price_500g" id="id_sale_price_500g"
+                                                               class="form-control text-end" step="1" min="0"
+                                                               value="{{ form.sale_price_500g.value|unlocalize|default:'0' }}">
+                                                    </div>
+                                                    <div class="form-text">0 = proporcional al kilo</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small">Precio de oferta</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">$</span>
+                                                        <input type="number" name="oferta_price_500g" id="id_oferta_price_500g"
+                                                               class="form-control text-end" step="1" min="0"
+                                                               value="{{ form.oferta_price_500g.value|unlocalize|default:'0' }}">
+                                                    </div>
+                                                    <div class="form-text">0 = sin oferta</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="alert alert-info small">
+                                <i class="fas fa-info-circle me-1"></i>
+                                El kilo entero (1kg) siempre se cobra el Precio de Venta de arriba — no hace
+                                falta cargarlo de nuevo acá.
                             </div>
                         </div>
 
@@ -254,22 +321,24 @@
                                       class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
                         </div>
 
-                        <!-- Packaging: solo desde edit del producto (Gestor de Empaques).
-                             En create mode ni se muestra — user termina y despues configura. -->
-                        <hr class="my-4">
-                        {% if product %}
-                        <div class="d-flex align-items-center justify-content-between mb-3">
+                        <!-- Packaging: solo para productos comunes (no por peso), solo desde edit
+                             del producto (Gestor de Empaques). En create mode ni se muestra. -->
+                        {% if not form.is_granel.value %}
+                        <hr class="my-4" id="hr-empaques">
+                        {% if product and not product.is_granel %}
+                        <div class="d-flex align-items-center justify-content-between mb-3" id="seccion-empaques">
                             <h6 class="text-muted mb-0"><i class="fas fa-boxes-stacked me-2"></i>Empaques</h6>
                             <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn btn-sm" style="background:#C33287;color:#fff;">
                                 <i class="fas fa-arrow-right me-1"></i>Gestionar Empaques
                             </a>
                         </div>
-                        <p class="text-muted small">Para configurar empaques (unidad, display, bulto), usa el Gestor de Empaques dedicado.</p>
-                        {% else %}
-                        <div class="alert alert-info small">
+                        {% elif not product %}
+                        <div class="alert alert-info small" id="seccion-empaques">
                             <i class="fas fa-info-circle me-1"></i>
-                            Al guardar, se crea la <b>unidad</b> del producto. Luego configurá display y bulto desde <b>Gestionar Empaques</b> en la edicion.
+                            Al guardar, se crea la <b>unidad</b> del producto.
                         </div>
+                        {% endif %}
+                        {% endif %}
                         {% comment %}legacy inline packaging section — retenida en comment para referencia historica{% endcomment %}
                         {% if False %}
                         <div class="collapse" id="packagingSection">
@@ -449,7 +518,6 @@
                             </div>
                         </div>
                         {% endif %}{# cierra {% if False %} legacy packaging section #}
-                        {% endif %}{# cierra {% if product %} #}
 
                         <hr class="my-4">
 
@@ -677,15 +745,40 @@
         document.getElementById('id_pkg_units_per_display').addEventListener('input', cascadeFromQuantities);
     }
 
-    // Toggle caramelera deposit fields
-    // Los gramos por pieza son obligatorios solo mientras la casilla esté tildada
-    // (y visible): un campo obligatorio oculto bloquea el envío sin mostrar nada.
-    function syncDepositoFields() {
-        var on = document.getElementById('id_es_deposito_caramelera').checked;
-        document.getElementById('campos-caramelera').style.display = on ? '' : 'none';
-        document.getElementById('id_weight_per_unit_grams').required = on;
+    // Toggle de la sección "Venta por Peso": muestra/oculta los tramos de
+    // precio y ajusta las etiquetas de costo/precio/stock (pasan a ser "por
+    // kilo" / "en kilos" mientras la casilla esté tildada).
+    function syncGranelFields() {
+        var granelCheckbox = document.getElementById('id_is_granel');
+        if (!granelCheckbox) return;
+        var on = granelCheckbox.checked;
+
+        var campos = document.getElementById('campos-granel');
+        if (campos) campos.style.display = on ? '' : 'none';
+
+        var seccionEmpaques = document.getElementById('seccion-empaques');
+        var hrEmpaques = document.getElementById('hr-empaques');
+        if (seccionEmpaques) seccionEmpaques.style.display = on ? 'none' : '';
+        if (hrEmpaques) hrEmpaques.style.display = on ? 'none' : '';
+
+        var stockInput = document.getElementById('id_current_stock');
+        if (stockInput) {
+            stockInput.step = on ? '0.001' : '1';
+        }
+        var hintEntero = document.getElementById('hint-stock-entero');
+        var hintKilos = document.getElementById('hint-stock-kilos');
+        if (hintEntero) hintEntero.style.display = on ? 'none' : '';
+        if (hintKilos) hintKilos.style.display = on ? '' : 'none';
+
+        var hintCosto = document.getElementById('hint-costo-kilo');
+        var hintVenta = document.getElementById('hint-venta-kilo');
+        if (hintCosto) hintCosto.style.display = on ? '' : 'none';
+        if (hintVenta) hintVenta.style.display = on ? '' : 'none';
     }
-    document.getElementById('id_es_deposito_caramelera').addEventListener('change', syncDepositoFields);
-    syncDepositoFields();
+    var granelCheckbox = document.getElementById('id_is_granel');
+    if (granelCheckbox) {
+        granelCheckbox.addEventListener('change', syncGranelFields);
+        syncGranelFields();
+    }
 </script>
 {% endblock %}

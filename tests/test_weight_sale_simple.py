@@ -234,28 +234,52 @@ class DepositoSincronizaPosTests(WeightSaleBase):
         self.assertEqual(p.weighted_avg_cost_per_gram, Decimal('10.0000'))
 
 
-class FormularioDepositoTests(WeightSaleBase):
+class FormularioVentaPorPesoTests(WeightSaleBase):
+    """Rediseño 2026-09-25: "venta por peso" es un checkbox (`is_granel`) en
+    el mismo formulario de producto — ya no hay pieza de depósito ni pantalla
+    aparte. Ver plan `sharded-honking-quilt.md`."""
+
     def _form(self, **extra):
         data = {
-            'name': 'Pieza', 'sku': 'PZ-9', 'cost_price': '100', 'sale_price': '100',
-            'current_stock': '1', 'min_stock': '0', 'is_active': 'on',
-            'es_deposito_caramelera': 'on',
+            'name': 'Jamón Cocido', 'sku': 'JC-9', 'cost_price': '12000', 'sale_price': '12000',
+            'current_stock': '2.5', 'min_stock': '0', 'is_active': 'on',
+            'is_granel': 'on',
         }
         data.update(extra)
         return ProductForm(data)
 
-    def test_pieza_de_deposito_sin_gramos_no_se_puede_guardar(self):
-        form = self._form(weight_per_unit_grams='')
+    def test_producto_por_peso_acepta_stock_con_decimales(self):
+        self.assertTrue(self._form().is_valid())
+
+    def test_producto_comun_sigue_exigiendo_stock_entero(self):
+        form = self._form(current_stock='2.5')
+        form.data = {k: v for k, v in form.data.items() if k != 'is_granel'}
+        form = ProductForm(form.data)
         self.assertFalse(form.is_valid())
-        self.assertIn('weight_per_unit_grams', form.errors)
+        self.assertIn('current_stock', form.errors)
 
-    def test_pieza_de_deposito_con_gramos_se_guarda(self):
-        self.assertTrue(self._form(weight_per_unit_grams='500').is_valid())
+    def test_tramos_de_precio_en_blanco_quedan_en_cero(self):
+        form = self._form()
+        self.assertTrue(form.is_valid())
+        producto = form.save(commit=False)
+        self.assertEqual(producto.sale_price_250g, Decimal('0'))
+        self.assertEqual(producto.sale_price_500g, Decimal('0'))
+        self.assertEqual(producto.oferta_price_250g, Decimal('0'))
+        self.assertEqual(producto.oferta_price_500g, Decimal('0'))
 
-    def test_producto_comun_sigue_sin_pedir_gramos(self):
-        form = self._form(weight_per_unit_grams='')
-        form.data = {k: v for k, v in form.data.items() if k != 'es_deposito_caramelera'}
-        self.assertTrue(ProductForm(form.data).is_valid())
+    def test_tramos_y_oferta_se_guardan_tal_cual_se_cargan(self):
+        form = self._form(sale_price_250g='2900', oferta_price_250g='2500')
+        self.assertTrue(form.is_valid())
+        producto = form.save(commit=False)
+        self.assertEqual(producto.sale_price_250g, Decimal('2900'))
+        self.assertEqual(producto.oferta_price_250g, Decimal('2500'))
+
+    def test_ya_no_existe_el_paso_de_pieza_de_deposito(self):
+        """El campo `es_deposito_caramelera` ya no forma parte del form: si
+        llega en el POST (ej. un bookmark viejo), se ignora sin más."""
+        form = self._form(es_deposito_caramelera='on', weight_per_unit_grams='')
+        self.assertNotIn('es_deposito_caramelera', form.fields)
+        self.assertTrue(form.is_valid())
 
 
 class VentaEnPosTests(WeightSaleBase):

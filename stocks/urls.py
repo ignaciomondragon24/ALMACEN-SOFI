@@ -15,6 +15,7 @@ urlpatterns = [
     path('<int:pk>/delete/', views.product_delete, name='product_delete'),
     path('<int:pk>/hard-delete/', views.product_hard_delete, name='product_hard_delete'),
     path('<int:pk>/conteo/', views.inventory_count, name='inventory_count'),
+    path('<int:pk>/agregar-mercaderia/', views.product_add_stock, name='product_add_stock'),
     
     # Categories
     path('categories/', views.category_list, name='category_list'),
