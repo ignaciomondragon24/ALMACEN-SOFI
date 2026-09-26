@@ -81,10 +81,13 @@ class CreacionTests(NuevoPesoBase):
         self.assertRedirects(r, reverse('stocks:product_detail', kwargs={'pk': producto.pk}))
 
     def test_stock_y_precios_quedan_en_kilos(self):
-        self.crear_producto_por_peso(sale_price_250g='2900', oferta_price_500g='5000')
+        self.crear_producto_por_peso(
+            sale_price_100g='1500', sale_price_250g='2900', oferta_price_500g='5000',
+        )
         producto = Product.objects.get(sku='JC-NUEVO')
         self.assertEqual(producto.current_stock, Decimal('2.5'))
         self.assertEqual(producto.sale_price, Decimal('12000.00'))
+        self.assertEqual(producto.sale_price_100g, Decimal('1500'))
         self.assertEqual(producto.sale_price_250g, Decimal('2900'))
         self.assertEqual(producto.oferta_price_500g, Decimal('5000'))
 
@@ -220,6 +223,28 @@ class VentaEnPosTests(NuevoPesoBase):
         self.assertEqual(self._agregar(tx, 250).status_code, 200)
         tx.refresh_from_db()
         self.assertEqual(tx.total, Decimal('2500.00'))
+
+    def test_usa_precio_de_compra_chica_por_debajo_de_250g(self):
+        """Pedido de Nacho (2026-09-26): poder cobrar más por vender de a
+        poco (menos de 1/4 kilo)."""
+        self.producto.sale_price_100g = Decimal('1500')  # proporcional sería 1200
+        self.producto.save()
+        tx = self.nueva_transaccion()
+        self.assertEqual(self._agregar(tx, 100).status_code, 200)
+        tx.refresh_from_db()
+        self.assertEqual(tx.total, Decimal('1500.00'))
+        r = self._cobrar(tx)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.current_stock, Decimal('2.400'))
+
+    def test_precio_de_compra_chica_no_afecta_venta_de_250g_o_mas(self):
+        self.producto.sale_price_100g = Decimal('1500')
+        self.producto.save()
+        tx = self.nueva_transaccion()
+        self.assertEqual(self._agregar(tx, 250).status_code, 200)
+        tx.refresh_from_db()
+        self.assertEqual(tx.total, Decimal('3000.00'))  # proporcional, no 1500 * 2.5
 
     def test_sin_stock_avisa_claro_al_agregar(self):
         self.producto.current_stock = Decimal('0')

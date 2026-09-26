@@ -604,6 +604,7 @@ def product_detail(request, pk):
         # argumento y los templates de Django no llaman métodos con
         # parámetros) para mostrar el precio efectivo de cada tramo,
         # oferta incluida, tal cual lo cobraría el POS.
+        context['precio_100g'] = product.price_for_grams(100)
         context['precio_250g'] = product.price_for_grams(250)
         context['precio_500g'] = product.price_for_grams(500)
     return render(request, 'stocks/product_detail.html', context)

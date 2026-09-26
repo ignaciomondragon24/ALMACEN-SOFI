@@ -191,8 +191,8 @@
                                     <div class="form-text">
                                         El <strong>Precio de Costo</strong> y el <strong>Precio de Venta</strong> de
                                         arriba pasan a ser <strong>por kilo</strong>. Acá abajo podés cargar,
-                                        opcionalmente, un precio directo para ¼ y ½ kilo, y una oferta en pesos
-                                        para cada uno.
+                                        opcionalmente, un precio directo para compras chicas (menos de ¼ kilo),
+                                        ¼ y ½ kilo, y una oferta en pesos para ¼ y ½ kilo.
                                     </div>
                                 </div>
                             </div>
@@ -223,7 +223,22 @@
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <div class="card mb-3">
+                                        <div class="card-header py-2 fw-semibold">Menos de ¼ kilo (compra chica)</div>
+                                        <div class="card-body">
+                                            <label class="form-label small">Precio por 100g</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" name="sale_price_100g" id="id_sale_price_100g"
+                                                       class="form-control text-end" step="1" min="0"
+                                                       value="{{ form.sale_price_100g.value|unlocalize|default:'0' }}">
+                                            </div>
+                                            <div class="form-text">0 = proporcional al kilo. Normalmente más caro (vender de a poco cuesta más).</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
                                     <div class="card mb-3">
                                         <div class="card-header py-2 fw-semibold">¼ kilo (250g)</div>
                                         <div class="card-body">
@@ -252,7 +267,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="card mb-3">
                                         <div class="card-header py-2 fw-semibold">½ kilo (500g)</div>
                                         <div class="card-body">

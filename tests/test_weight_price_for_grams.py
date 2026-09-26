@@ -1,13 +1,12 @@
 """
-Fase 1 del rediseño de venta por peso: `Product.price_for_grams(gramos)`.
+`Product.price_for_grams(gramos)` — precio de venta por peso.
 
 Generaliza la regla de tres que ya usaba `Caramelera.calcular_precio` (un solo
-tramo a los 250g) a dos tramos independientes (250g y 500g), cada uno con su
-propio precio normal y su propio precio de oferta opcional (en pesos, no %).
-Estos tests no conectan nada todavía (Fase 1 es aditiva) — solo prueban el
-método nuevo en aislamiento, incluida la equivalencia matemática con la
-regla vieja para el caso de un solo tramo (la que se usa en la migración de
-datos de la Fase 3).
+tramo a los 250g) a tres tramos independientes: menos de 250g (compra chica,
+`sale_price_100g`, sin oferta — pensado para ser MÁS CARO), 250g y 500g (cada
+uno con su propio precio normal y su propio precio de oferta opcional, en
+pesos, no %). Incluye la equivalencia matemática con la regla vieja para el
+caso de un solo tramo (la que se usó en la migración de datos de la Fase 3).
 """
 from decimal import Decimal
 
@@ -82,3 +81,24 @@ class PriceForGramsTests(TestCase):
         for gramos in (50, 100, 150, 250, 500, 999):
             self.assertEqual(nuevo.price_for_grams(gramos), vieja.calcular_precio(gramos),
                             f'diverge en {gramos}g')
+
+    def test_tramo_100g_cargado_se_usa_por_debajo_de_250g(self):
+        """Precio para compras chicas (menos de 1/4 kilo) — pensado para ser
+        MÁS CARO que el proporcional, pero es un precio directo como
+        cualquier otro (no se valida que sea mayor)."""
+        p = self._producto(sale_price_100g=Decimal('1500'))  # proporcional sería 1200
+        self.assertEqual(p.price_for_grams(50), Decimal('750.0'))
+        self.assertEqual(p.price_for_grams(100), Decimal('1500'))
+        self.assertEqual(p.price_for_grams(200), Decimal('3000.0'))
+
+    def test_tramo_100g_no_afecta_a_250g_en_adelante(self):
+        """El precio de compra chica solo aplica por debajo de 250g — a los
+        250g en punto ya se usa el proporcional (o el tramo 250g si hay)."""
+        p = self._producto(sale_price_100g=Decimal('1500'))
+        self.assertEqual(p.price_for_grams(250), Decimal('3000'))  # proporcional, no 1500*2.5
+        self.assertEqual(p.price_for_grams(500), Decimal('6000'))
+
+    def test_sin_tramo_100g_sigue_el_proporcional_como_antes(self):
+        p = self._producto()  # sale_price_100g en 0 (default)
+        self.assertEqual(p.price_for_grams(50), Decimal('600'))
+        self.assertEqual(p.price_for_grams(150), Decimal('1800'))

@@ -335,6 +335,10 @@
                             <td class="text-end"><strong>{{ product.sale_price|currency }}</strong></td>
                         </tr>
                         <tr>
+                            <td class="text-muted">100g (compra chica)</td>
+                            <td class="text-end">{{ precio_100g|currency }}</td>
+                        </tr>
+                        <tr>
                             <td class="text-muted">¼ kilo (250g)</td>
                             <td class="text-end">
                                 {% if product.oferta_price_250g > 0 %}<span class="badge bg-danger">Oferta</span>{% endif %}

@@ -20,8 +20,8 @@ class ProductForm(forms.ModelForm):
             'weight_per_unit_grams', 'marca',
             # Venta por peso: todo se carga acá mismo, en el producto — no hay
             # pantalla ni app aparte. `is_granel` es el checkbox "se vende por
-            # peso"; los 4 campos de tramos son opcionales (0 = sin cargar).
-            'is_granel', 'sale_price_250g', 'sale_price_500g',
+            # peso"; los 5 campos de tramos son opcionales (0 = sin cargar).
+            'is_granel', 'sale_price_100g', 'sale_price_250g', 'sale_price_500g',
             'oferta_price_250g', 'oferta_price_500g',
         ]
         widgets = {
@@ -46,6 +46,7 @@ class ProductForm(forms.ModelForm):
             'weight_per_unit_grams': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
             'marca': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Arcor, Stani...'}),
             'is_granel': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_is_granel'}),
+            'sale_price_100g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
             'sale_price_250g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
             'sale_price_500g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
             'oferta_price_250g': forms.NumberInput(attrs={'class': 'form-control', 'step': '1', 'min': '0'}),
@@ -63,6 +64,7 @@ class ProductForm(forms.ModelForm):
         self.fields['quick_access_position'].required = False
         self.fields['weight_per_unit_grams'].required = False
         self.fields['is_granel'].required = False
+        self.fields['sale_price_100g'].required = False
         self.fields['sale_price_250g'].required = False
         self.fields['sale_price_500g'].required = False
         self.fields['oferta_price_250g'].required = False
@@ -88,6 +90,9 @@ class ProductForm(forms.ModelForm):
         if val is None:
             return Decimal('0')
         return val
+
+    def clean_sale_price_100g(self):
+        return self._clean_tramo_precio('sale_price_100g')
 
     def clean_sale_price_250g(self):
         return self._clean_tramo_precio('sale_price_250g')
