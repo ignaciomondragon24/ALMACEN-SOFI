@@ -24,7 +24,7 @@
                 <i class="fas fa-boxes-stacked me-1"></i> Gestionar Empaques
             </a>
             {% endif %}
-            {% if is_cajero_manager and product.is_granel and not product.granel_caramelera_id %}
+            {% if is_cajero_manager and product.is_granel %}
             <button type="button" class="btn" style="background:var(--che-pink,#C33287);color:#fff;" data-bs-toggle="modal" data-bs-target="#modalAgregarMercaderia">
                 <i class="fas fa-weight-hanging me-1"></i> Agregar Mercadería
             </button>
@@ -406,7 +406,7 @@
     </div>
 </div>
 
-{% if product.is_granel and not product.granel_caramelera_id %}
+{% if product.is_granel %}
 <!-- Modal Agregar Mercadería -->
 <div class="modal fade" id="modalAgregarMercaderia" tabindex="-1">
     <div class="modal-dialog">

@@ -110,37 +110,16 @@ class GranelService:
             notas=notas_final,
         )
 
-        # Sincronizar producto POS: stock y costo ponderado
-        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
-        if pos_product is not None:
-            pos_product.current_stock = caramelera.stock_gramos_actual
-            pos_product.weighted_avg_cost_per_gram = nuevo_costo
-            pos_product.save(update_fields=['current_stock', 'weighted_avg_cost_per_gram', 'updated_at'])
-
         return apertura
 
     @staticmethod
     def sincronizar_producto_pos(caramelera):
-        """Copia stock, costo y precios de la caramelera a su producto del POS.
-
-        Siempre relee la caramelera de la base: otras operaciones (apertura
-        automática, ingreso de mercadería) la modifican con instancias
-        distintas, y una copia en memoria vieja dejaba el producto del POS
-        con stock 0 y costo 0 aunque la caramelera tuviera mercadería.
-        """
-        caramelera = Caramelera.objects.get(pk=caramelera.pk)
-        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
-        if pos_product is None:
-            pos_product = Product(is_granel=True, granel_caramelera=caramelera)
-        pos_product.name = caramelera.nombre
-        pos_product.sale_price = caramelera.precio_100g
-        pos_product.sale_price_250g = caramelera.precio_cuarto
-        pos_product.granel_price_weight_grams = 100  # siempre precio/100g
-        pos_product.is_active = caramelera.is_active
-        pos_product.current_stock = caramelera.stock_gramos_actual
-        pos_product.weighted_avg_cost_per_gram = caramelera.costo_ponderado_gramo
-        pos_product.save()
-        return pos_product
+        """Ya no existe forma de vincular un `stocks.Product` a una
+        Caramelera (Fase 3, Migración B, 2026-09-26: se borraron las 4
+        columnas que sostenían ese vínculo) — no hay nada que sincronizar.
+        Se mantiene como no-op por compatibilidad con el código histórico
+        de este archivo que todavía la llama."""
+        return None
 
     @staticmethod
     @transaction.atomic
@@ -197,29 +176,13 @@ class GranelService:
             notas=notas or 'Ingreso directo de mercadería',
         )
 
-        pos_product = GranelService.sincronizar_producto_pos(caramelera)
-
-        # Con fecha de vencimiento se guarda un lote: así aparece en la pantalla de
-        # Vencimientos y las ventas lo van descontando (ver registrar_venta).
-        if vencimiento:
-            StockBatch.objects.create(
-                product=pos_product,
-                supplier_name='',
-                quantity_purchased=gramos,
-                quantity_remaining=gramos,
-                purchase_price=costo_nuevo_por_gramo.quantize(Decimal('0.01')),
-                purchased_at=timezone.now(),
-                created_by=user,
-                notes=(referencia or notas or 'Ingreso de mercadería por peso'),
-                expiration_date=vencimiento,
-            )
         return apertura
 
     @staticmethod
     def caramelera_de(producto):
-        """Devuelve la caramelera si `producto` es un producto por peso; si no, None."""
-        if getattr(producto, 'is_granel', False) and producto.granel_caramelera_id:
-            return producto.granel_caramelera
+        """Ya no existe forma de vincular un `stocks.Product` a una
+        Caramelera (Fase 3, Migración B) — devuelve siempre None. Se
+        mantiene por compatibilidad con código histórico que la llama."""
         return None
 
     @staticmethod
@@ -363,12 +326,6 @@ class GranelService:
         caramelera.stock_gramos_actual = peso_real
         caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
 
-        # Sincronizar producto POS
-        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
-        if pos_product is not None:
-            pos_product.current_stock = caramelera.stock_gramos_actual
-            pos_product.save(update_fields=['current_stock', 'updated_at'])
-
         return auditoria
 
     @staticmethod
@@ -429,15 +386,6 @@ class GranelService:
         # Descontar stock
         caramelera.stock_gramos_actual -= gramos
         caramelera.save(update_fields=['stock_gramos_actual', 'updated_at'])
-
-        # Sincronizar producto POS
-        pos_product = caramelera.producto_pos.filter(is_granel=True).first()
-        if pos_product is not None:
-            pos_product.current_stock = caramelera.stock_gramos_actual
-            pos_product.save(update_fields=['current_stock', 'updated_at'])
-            # Lotes con vencimiento: se consumen por orden de compra (FIFO) para que
-            # la pantalla de Vencimientos no siga avisando de mercadería ya vendida.
-            BatchService.deduct_fifo(pos_product.pk, gramos)
 
         return venta
 

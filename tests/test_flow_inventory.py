@@ -15,7 +15,6 @@ from django.urls import reverse
 from django.utils import timezone
 
 from cashregister.models import CashRegister, CashShift, PaymentMethod
-from granel.models import Caramelera
 from pos.services import CartService, POSService
 from stocks.models import (
     Product, ProductCategory, ProductPackaging, StockBatch, StockMovement,
@@ -289,50 +288,11 @@ class EmpaquesTests(InvBase):
     def test_inventario_de_empaques(self):
         self.assertEqual(self.c.get(reverse('stocks:packaging_inventory')).status_code, 200)
 
-
-class ProductosPorPesoEnInventarioTests(InvBase):
-    """Producto por peso del sistema VIEJO (Caramelera vinculada). Después de
-    la Fase 3 esto ya no se puede crear desde la UI (la pantalla de "Venta
-    por Peso" quedó desconectada del menú) — se arma acá directo por ORM,
-    igual que hacía `granel:caramelera_create` internamente, para seguir
-    probando que el código de compatibilidad (`_es_caramelera_vieja`) no se
-    rompe si algún dato viejo queda así."""
-
-    def setUp(self):
-        super().setUp()
-        self.car = Caramelera.objects.create(
-            nombre='Jamón cocido', precio_100g=Decimal('1200.00'),
-            stock_gramos_actual=Decimal('2000.00'), costo_ponderado_gramo=Decimal('8.000000'),
-        )
-        self.p = Product.objects.create(
-            name='Jamón cocido', sku='JC-INV-VIEJO', is_granel=True, granel_caramelera=self.car,
-            sale_price=self.car.precio_100g, current_stock=self.car.stock_gramos_actual,
-        )
-
-    def test_editarlo_desde_inventario_no_deja_editar_una_caramelera_vieja(self):
-        """Después de la Fase 3, un producto por peso VIEJO (con Caramelera
-        vinculada) no debería existir más en producción real (la migración
-        los desvincula) — pero si por algún motivo uno queda así, no se
-        redirige a una URL de `granel` que ya no está registrada."""
-        r = self.c.get(reverse('stocks:product_edit', args=[self.p.pk]))
-        self.assertRedirects(r, reverse('stocks:product_detail', args=[self.p.pk]), fetch_redirect_response=False)
-        # y un POST tampoco cambia nada
-        self.c.post(reverse('stocks:product_edit', args=[self.p.pk]), {'name': 'Otro', 'sale_price': '1', 'sku': self.p.sku})
-        self.p.refresh_from_db()
-        self.assertEqual(self.p.name, 'Jamón cocido')
-        self.assertEqual(self.p.sale_price, Decimal('1200.00'))
-
-    def test_empaques_no_aplica_a_productos_por_peso(self):
-        r = self.c.get(reverse('stocks:product_packaging', args=[self.p.pk]))
-        self.assertRedirects(r, reverse('stocks:product_detail', args=[self.p.pk]), fetch_redirect_response=False)
-
-    def test_conteo_fisico_si_funciona_y_actualiza_la_caramelera(self):
-        self.c.post(reverse('stocks:inventory_count', args=[self.p.pk]), {'new_quantity': '1500', 'reason': 'conteo_fisico'})
-        self.car.refresh_from_db()
-        self.assertEqual(self.car.stock_gramos_actual, Decimal('1500.00'))
-
-    def test_darlo_de_baja_lo_saca_de_venta_por_peso_tambien(self):
-        self.c.post(reverse('stocks:product_delete', args=[self.p.pk]))
-        self.car.refresh_from_db()
-        self.assertFalse(self.car.is_active)
-        self.assertEqual(self.c.get(reverse('pos:api_search'), {'q': 'jamon'}).json()['products'], [])
+    # NOTA (Fase 3, Migración B, 2026-09-26): había acá una
+    # ProductosPorPesoEnInventarioTests que armaba un producto por peso del
+    # sistema VIEJO (Caramelera vinculada por FK) para probar el código de
+    # compatibilidad `_es_caramelera_vieja`. Ese vínculo ya no se puede
+    # construir — las 4 columnas que lo sostenían se borraron una vez
+    # migrados los datos reales (ver stocks/migrations/0025 y 0026) — y el
+    # código de compatibilidad que probaba se sacó junto con ellas. La
+    # cobertura del sistema nuevo vive en tests/test_weight_sale_nuevo.py.

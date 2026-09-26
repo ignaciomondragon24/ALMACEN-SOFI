@@ -32,26 +32,13 @@ class StockManagementService:
         # Lock the product row to prevent concurrent modifications
         product = Product.objects.select_for_update().get(pk=product.pk)
 
-        # Producto por peso del sistema VIEJO: su stock real vive en la
-        # caramelera. Acá la cantidad va en gramos y el costo por gramo (así
-        # lo guarda el producto del POS).
-        if product.is_granel and product.granel_caramelera_id:
-            from granel.services import GranelService
-            gramos = Decimal(str(quantity))
-            costo_gramo = Decimal(str(cost)) if cost else product.weighted_avg_cost_per_gram
-            return GranelService.recibir_compra(
-                product, gramos / Decimal('1000'), costo_gramo * Decimal('1000'),
-                user=user, referencia=reference, notas=notes,
-            )
-
-        # Producto por peso del sistema NUEVO (sin caramelera vinculada): acá
-        # `quantity` y `cost` ya están en kilos / costo por kilo — mismos
-        # campos que un producto común (current_stock, cost_price), sin
-        # cascada a empaques (no usa Unidad/Display/Bulto) y sin pasar por
-        # GranelService. A diferencia de los productos comunes, el costo
-        # promedio SÍ puede bajar (promedio ponderado real): la regla de
-        # "nunca promediar hacia abajo" es específica de productos comunes
-        # (pedido de Sofia, 2026-09-10) y no aplica acá.
+        # Producto por peso: `quantity` y `cost` ya están en kilos / costo
+        # por kilo — mismos campos que un producto común (current_stock,
+        # cost_price), sin cascada a empaques (no usa Unidad/Display/Bulto).
+        # A diferencia de los productos comunes, el costo promedio SÍ puede
+        # bajar (promedio ponderado real): la regla de "nunca promediar hacia
+        # abajo" es específica de productos comunes (pedido de Sofia,
+        # 2026-09-10) y no aplica acá.
         if product.is_granel:
             quantity = Decimal(str(quantity))
             cost = Decimal(str(cost)) if cost else product.cost_price
@@ -135,13 +122,6 @@ class StockManagementService:
             notes=notes,
             created_by=user
         )
-
-        # Si es un producto de depósito para venta por peso, abrir
-        # automáticamente el stock nuevo hacia su fraccionado autorizado
-        # (evita el paso manual de "Abrir Paquete" — ver GranelService).
-        if quantity > 0 and product.es_deposito_caramelera:
-            from granel.services import GranelService
-            GranelService.auto_abrir_disponible(product, user=user)
 
         return movement
 
@@ -244,24 +224,6 @@ class StockManagementService:
         new_quantity = Decimal(str(new_quantity))
         stock_before = product.current_stock
         difference = new_quantity - stock_before
-
-        # Producto por peso: el conteo se aplica sobre la caramelera (gramos).
-        if product.is_granel and product.granel_caramelera_id:
-            from granel.services import GranelService
-            GranelService.ajustar_stock(
-                product.granel_caramelera_id, new_quantity, user=user, motivo=reason,
-            )
-            return StockMovement.objects.create(
-                product=Product.objects.get(pk=product.pk),
-                movement_type='adjustment_in' if difference >= 0 else 'adjustment_out',
-                quantity=difference,
-                unit_cost=product.cost_price,
-                stock_before=stock_before,
-                stock_after=new_quantity,
-                reference=reason or 'Ajuste de inventario',
-                notes=notes or '',
-                created_by=user,
-            )
 
         movement_type = 'adjustment_in' if difference >= 0 else 'adjustment_out'
 
@@ -522,12 +484,6 @@ class StockManagementService:
             notes=f'{packaging_record.name}',
             created_by=user,
         )
-
-        # Ídem add_stock: abrir automáticamente hacia el fraccionado
-        # autorizado si es un producto de depósito para venta por peso.
-        if units_added > 0 and product.es_deposito_caramelera:
-            from granel.services import GranelService
-            GranelService.auto_abrir_disponible(product, user=user)
 
         return movement
 

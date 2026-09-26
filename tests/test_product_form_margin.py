@@ -74,7 +74,7 @@ class ProductFormMarginTests(TestCase):
         al volver a entrar, sin ningún patrón aparente."""
         product = Product.objects.create(
             name='Jamon Deposito Test', sku='WEIGHT-001',
-            category=self.category, es_deposito_caramelera=True,
+            category=self.category,
             weight_per_unit_grams=Decimal('500.00'),
             cost_price=Decimal('5000.00'), sale_price=Decimal('0.01'),
         )

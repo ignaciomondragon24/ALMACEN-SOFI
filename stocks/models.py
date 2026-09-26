@@ -289,12 +289,10 @@ class Product(models.Model):
         default=0
     )
     
-    # Bulk / Weight selling options
-    # is_bulk: producto que se VENDE por peso (ej: fiambre, queso, gomitas)
-    # is_granel: producto COMODÍN que RECIBE stock de bultos abiertos (ej: caramelera)
-    # Un producto puede tener ambos en True (caramelera que se vende por peso)
-    # weight_per_unit_grams: para BULTOS (cuántos gramos tiene cada unidad del bulto cerrado)
-    # granel_price_weight_grams: para CARAMELERAS (el sale_price es "cada X gramos")
+    # is_bulk/allow_sell_by_amount/bulk_unit: concepto de "venta a granel"
+    # separado de is_granel, sin uso real (0 productos en producción). No
+    # confundir con is_granel pese al nombre parecido — ver plan
+    # `sharded-honking-quilt.md`.
     is_bulk = models.BooleanField(
         'Producto a Granel',
         default=False,
@@ -318,54 +316,32 @@ class Product(models.Model):
         blank=True
     )
 
-    # Granel (candy jar / caramelera) fields
+    # Venta por peso (rediseño 2026-09-25): `is_granel` es el checkbox "Se
+    # vende por peso" del producto — sale_price/cost_price pasan a ser "por
+    # kilo" (ver price_for_grams). Los 4 campos del sistema VIEJO
+    # (granel_caramelera, es_deposito_caramelera, granel_price_weight_grams,
+    # weighted_avg_cost_per_gram) se borraron en la Migración B de la Fase 3
+    # una vez migrados los datos reales — ver stocks/migrations/0025 y 0026,
+    # y el plan `sharded-honking-quilt.md`. La app `granel` sigue en el repo
+    # como historial, sin usarse.
     is_granel = models.BooleanField(
-        'Producto Comodín Granel',
+        'Se vende por peso',
         default=False,
-        help_text='Producto comodín que recibe stock de bultos abiertos (ej: Jamón Cocido Fraccionado)'
-    )
-    granel_price_weight_grams = models.PositiveIntegerField(
-        'Precio por X gramos',
-        default=100,
-        help_text='El sale_price es "por cada X gramos" (ej: 100 = $2500/100g)'
-    )
-    weighted_avg_cost_per_gram = models.DecimalField(
-        'Costo Ponderado por Gramo',
-        max_digits=12,
-        decimal_places=4,
-        default=Decimal('0.0000'),
-        help_text='Costo promedio ponderado por gramo, calculado automáticamente'
+        help_text='Producto que se vende fraccionado por peso (fiambre, dietética, etc.)'
     )
     weight_per_unit_grams = models.DecimalField(
-        'Peso por Unidad (gramos)',
+        'Gramos por Pieza',
         max_digits=10,
         decimal_places=2,
         default=Decimal('0.00'),
         blank=True,
-        help_text='Para bultos: gramos que contiene cada unidad (ej: 2000 para bolsa de 2kg)'
-    )
-
-    # Deposit product for weight-based sale (granel)
-    es_deposito_caramelera = models.BooleanField(
-        'Es producto para venta por peso',
-        default=False,
-        help_text='Marca este producto como un bulto que puede abrirse hacia un producto fraccionado a granel'
+        help_text='Solo informativo: cuántos gramos pesa cada pieza al recibir mercadería'
     )
     marca = models.CharField(
         'Marca',
         max_length=200,
         blank=True,
-        help_text='Marca del producto (útil para diferenciar bultos en la venta por peso)'
-    )
-
-    granel_caramelera = models.ForeignKey(
-        'granel.Caramelera',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='producto_pos',
-        verbose_name='Caramelera vinculada',
-        help_text='Caramelera del sistema granel asociada a este producto POS'
+        help_text='Marca del producto (útil para diferenciar productos por peso del mismo tipo)'
     )
 
     # Parent-child relationship for presentations

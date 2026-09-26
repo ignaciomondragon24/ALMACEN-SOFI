@@ -14,16 +14,8 @@ from decimal import Decimal, InvalidOperation
 from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, StockBatch, ProductPackaging
 
 
-def _es_caramelera_vieja(product):
-    """Producto por peso del sistema VIEJO (ligado a una Caramelera): sigue
-    usando las pantallas de Venta por Peso y GranelService tal cual hasta la
-    Fase 3 (migración de datos), que lo convierte al sistema nuevo."""
-    return bool(product.is_granel and product.granel_caramelera_id)
-
-
 def _vende_por_peso(product):
-    """Producto que se vende por peso, sistema viejo o nuevo — para todo lo
-    que aplica a ambos por igual (ej: el stock se cuenta con decimales)."""
+    """Producto que se vende por peso — el stock se cuenta con decimales."""
     return bool(product.is_granel)
 
 
@@ -497,19 +489,6 @@ def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
 
-    # Los productos por peso del sistema viejo (Caramelera vinculada) ya no
-    # deberían existir después de la Fase 3 (migrados a is_granel nativo) —
-    # las pantallas de Venta por Peso quedaron desconectadas del menú. Si por
-    # algún motivo alguno sigue vinculado, se avisa en vez de redirigir a una
-    # URL que ya no está registrada.
-    if _es_caramelera_vieja(product):
-        messages.error(
-            request,
-            f'"{product.name}" todavía está vinculado a una Caramelera del sistema '
-            f'viejo (Venta por Peso) — avisale al desarrollador antes de editarlo.'
-        )
-        return redirect('stocks:product_detail', pk=product.pk)
-
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, instance=product)
         # El stock NO se cambia desde este formulario (la pantalla lo muestra de solo
@@ -543,11 +522,7 @@ def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
 
     if request.method == 'POST':
-        caramelera_id = product.granel_caramelera_id if product.is_granel else None
         product.delete()  # soft-delete + libera barcode
-        if caramelera_id:
-            from granel.models import Caramelera
-            Caramelera.objects.filter(pk=caramelera_id).update(is_active=False)
         messages.success(request, f'Producto "{product.name}" desactivado correctamente.')
         return redirect('stocks:product_list')
 
@@ -638,17 +613,11 @@ def product_detail(request, pk):
 @group_required(['Admin', 'Cajero Manager'])
 def product_add_stock(request, pk):
     """"Agregar mercadería": repone stock informal (sin orden de compra) de
-    un producto por peso NUEVO, directo desde su detalle. Es el equivalente,
-    para el sistema nuevo, del botón que ya existía en Venta por Peso — la
-    única forma de reponer stock sin pasar por una orden de compra.
-
-    Solo aplica a productos por peso del sistema nuevo (sin caramelera
-    vinculada): los viejos siguen usando su propio botón en Venta por Peso
-    hasta que la Fase 3 los migre.
-    """
+    un producto por peso, directo desde su detalle — la única forma de
+    reponer stock sin pasar por una orden de compra."""
     product = get_object_or_404(Product, pk=pk)
 
-    if not product.is_granel or product.granel_caramelera_id:
+    if not product.is_granel:
         messages.error(request, 'Este producto no usa "Agregar mercadería".')
         return redirect('stocks:product_detail', pk=product.pk)
 
@@ -1946,13 +1915,6 @@ def product_packaging_view(request, pk):
     """Vista completa de gestión de empaques con recepción, apertura y ajuste."""
     product = get_object_or_404(Product, pk=pk)
 
-    if _es_caramelera_vieja(product):
-        messages.error(
-            request,
-            f'"{product.name}" todavía está vinculado a una Caramelera del sistema '
-            f'viejo (Venta por Peso) — avisale al desarrollador.'
-        )
-        return redirect('stocks:product_detail', pk=product.pk)
     if product.is_granel:
         messages.info(request, 'Los productos por peso no usan empaques: la mercadería se agrega desde el detalle del producto.')
         return redirect('stocks:product_detail', pk=product.pk)

@@ -75,9 +75,8 @@ class Caramelera(models.Model):
     productos_autorizados = models.ManyToManyField(
         'stocks.Product',
         blank=True,
-        limit_choices_to={'es_deposito_caramelera': True},
         verbose_name='Productos Autorizados',
-        help_text='Productos del inventario marcados como "para venta por peso" que pueden entrar en este mix'
+        help_text='Productos del inventario que pueden entrar en este mix (sistema viejo, histórico)'
     )
     precio_100g = models.DecimalField(
         'Precio por 100g ($)',
@@ -119,13 +118,11 @@ class Caramelera(models.Model):
 
     def save(self, **kwargs):
         super().save(**kwargs)
-        # Sincronizar precios y nombre al producto POS vinculado
-        self.producto_pos.filter(is_granel=True).update(
-            name=self.nombre,
-            sale_price=self.precio_100g,
-            sale_price_250g=self.precio_cuarto,
-            is_active=self.is_active,
-        )
+        # Fase 3 del rediseño de venta por peso (2026-09-25): ya no hay
+        # ningún Product vinculado por FK (la Migración A desvinculó los 8
+        # reales y el campo se borró en la Migración B) — la sync que
+        # existía acá para mantener el Product POS al día quedó sin
+        # destinatario. Se sacó en vez de dejarla rota.
 
     @property
     def precio_por_gramo(self):

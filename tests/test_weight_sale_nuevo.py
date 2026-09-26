@@ -73,7 +73,6 @@ class CreacionTests(NuevoPesoBase):
         self.assertEqual(r.status_code, 302)
         producto = Product.objects.get(sku='JC-NUEVO')
         self.assertTrue(producto.is_granel)
-        self.assertIsNone(producto.granel_caramelera_id)
         self.assertFalse(ProductPackaging.objects.filter(product=producto).exists())
 
     def test_crear_producto_por_peso_redirige_al_detalle_no_a_empaques(self):

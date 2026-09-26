@@ -152,16 +152,9 @@ class SupplierProduct(models.Model):
 
     @property
     def stock_texto(self):
-        """Stock actual legible (en kg para productos por peso).
-
-        Sistema viejo (Caramelera vinculada): `current_stock` está en
-        gramos. Sistema nuevo: ya está en kilos, no hace falta convertir.
-        """
+        """Stock actual legible (en kg para productos por peso)."""
         if self.por_peso:
-            if self.product.granel_caramelera_id:
-                kilos = (self.product.current_stock / Decimal('1000')).quantize(Decimal('0.001')).normalize()
-            else:
-                kilos = self.product.current_stock.normalize()
+            kilos = self.product.current_stock.normalize()
             return f'{kilos:f}'.replace('.', ',') + ' kg'
         return f'{self.product.current_stock.normalize():f}'
 

@@ -55,10 +55,9 @@ class AltaDeProductoTests(Base):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(Product.objects.get().current_stock, Decimal('0'))
 
-    def test_producto_de_deposito_tambien_exige_entero(self):
-        """La pieza cerrada (deposito para venta por peso) se cuenta por pieza, entera."""
-        r = self._alta(barcode='7790000009002', current_stock='2.5',
-                       es_deposito_caramelera='true', weight_per_unit_grams='500')
+    def test_producto_con_gramos_por_unidad_tambien_exige_entero(self):
+        """weight_per_unit_grams (informativo) no exime al stock de ser entero."""
+        r = self._alta(barcode='7790000009002', current_stock='2.5', weight_per_unit_grams='500')
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'unidades enteras')
 

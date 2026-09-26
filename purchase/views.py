@@ -18,7 +18,6 @@ from .forms import SupplierForm, SupplierProductForm, PurchaseForm, PurchaseItem
 from stocks.models import Product, ProductPackaging, StockBatch
 from stocks.services import StockManagementService
 from expenses.models import Expense, ExpenseCategory
-from granel.services import GranelService
 
 
 @login_required
@@ -162,14 +161,9 @@ def _low_stock_suggestions_for_supplier(supplier):
             shortfall = product.min_stock - product.current_stock
             if link.por_peso:
                 # La orden se hace en kilos, de a medio kilo, y como mínimo 1 kg.
-                # Sistema viejo (Caramelera vinculada): stock y mínimo están en
-                # gramos. Sistema nuevo: ya están directo en kilos.
-                if product.granel_caramelera_id:
-                    medios_kilos = math.ceil(Decimal(shortfall) / Decimal('500')) if shortfall > 0 else 0
-                    min_kilos = Decimal(product.min_stock) / 1000
-                else:
-                    medios_kilos = math.ceil(Decimal(shortfall) / Decimal('0.5')) if shortfall > 0 else 0
-                    min_kilos = Decimal(product.min_stock)
+                # Stock y mínimo ya están directo en kilos.
+                medios_kilos = math.ceil(Decimal(shortfall) / Decimal('0.5')) if shortfall > 0 else 0
+                min_kilos = Decimal(product.min_stock)
                 suggested_qty = max(Decimal('1'), Decimal(medios_kilos) / 2)
                 suggestions.append({
                     'link': link,
@@ -504,24 +498,6 @@ def purchase_receive(request, pk):
     if request.method == 'POST':
         with transaction.atomic():
             for item in purchase.items.select_related('product').all():
-                # Producto por peso: la cantidad son kilos y el costo es por kilo.
-                # Entra a la caramelera (costo ponderado), no como unidades base.
-                if GranelService.caramelera_de(item.product) is not None:
-                    from django.utils.dateparse import parse_date
-                    GranelService.recibir_compra(
-                        item.product, item.quantity, item.unit_cost,
-                        user=request.user,
-                        referencia=purchase.order_number,
-                        notas=f'Recepción {purchase.order_number} ({item.cantidad_texto})',
-                        vencimiento=parse_date(
-                            request.POST.get(f'expiration_date_{item.id}', '').strip()
-                        ) or None,
-                        precio_venta_kilo=item.sale_price,
-                    )
-                    item.received_quantity = item.quantity
-                    item.save()
-                    continue
-
                 # Convertir cantidad y costo a unidades base si se compró por
                 # bulto/display/unidad. Si el item no tiene packaging, se asume
                 # que quantity ya está en unidades base (retrocompatibilidad).
@@ -706,18 +682,14 @@ def _serialize_packaging(pkg):
 def _serialize_product(p, matched_packaging=None):
     """Serializa un Product con sus empaques activos."""
     if p.is_granel:
-        # Por peso: costo y precio se muestran por KILO y no hay empaques.
-        # Sistema viejo (Caramelera vinculada): esos valores viven en la
-        # Caramelera. Sistema nuevo: ya están directo en el Product.
-        caramelera = GranelService.caramelera_de(p)
-        cost_price = caramelera.costo_kilo if caramelera is not None else p.cost_price
-        sale_price = caramelera.precio_kilo if caramelera is not None else p.sale_price
+        # Por peso: costo y precio se muestran por KILO, directo del
+        # producto, y no hay empaques.
         return {
             'id': p.id,
             'name': p.name,
             'barcode': p.barcode or '',
-            'cost_price': str(cost_price),
-            'sale_price': str(sale_price),
+            'cost_price': str(p.cost_price),
+            'sale_price': str(p.sale_price),
             'packagings': [],
             'matched_packaging_id': None,
             'by_weight': True,

@@ -139,7 +139,6 @@ def api_search(request):
     # el display no tiene EAN-13 fisico (caso real: alfajores Juanino).
     packaging_match = ProductPackaging.objects.filter(
         barcode=query, is_active=True, product__is_active=True,
-        product__es_deposito_caramelera=False,
     ).select_related('product', 'product__unit_of_measure', 'product__category').first()
     if packaging_match:
         products = Product.objects.filter(id=packaging_match.product_id)
@@ -148,16 +147,11 @@ def api_search(request):
         # cubrir ITF-14 / GS1-14 (típico en cajas de bultos: el EAN-13 con un
         # dígito de embalaje delante, ej. 17798094220953 para el bulto del
         # alfajor Genio Triple Chocolate).
-        products = Product.objects.filter(
-            is_active=True, es_deposito_caramelera=False, barcode=query
-        )
+        products = Product.objects.filter(is_active=True, barcode=query)
     elif len(query) >= 1:
         # Get all active products and filter in Python for accent-insensitive search.
-        # Excluye productos de depósito (es_deposito_caramelera): son piezas
-        # cerradas de uso interno para "Venta por Peso", nunca se venden
-        # sueltas — solo confundirían al cajero en el buscador del POS.
         all_products = Product.objects.filter(
-            is_active=True, es_deposito_caramelera=False
+            is_active=True
         ).select_related('unit_of_measure', 'category')
         
         # Filter products where normalized name/sku/barcode contains normalized query
@@ -190,7 +184,6 @@ def api_search(request):
             'bulk_unit': p.bulk_unit if p.is_bulk else None,
             'allow_sell_by_amount': p.allow_sell_by_amount,
             'is_granel': p.is_granel,
-            'granel_price_weight_grams': p.granel_price_weight_grams if p.is_granel else None,
             'sale_price_250g': float(p.sale_price_250g) if p.is_granel else None,
             'has_parent': p.parent_product is not None,
             'parent_name': p.parent_product.name if p.parent_product else None,
@@ -249,7 +242,7 @@ def api_search(request):
 def api_all_products(request):
     """Return all active products for the sidebar products panel."""
     products = Product.objects.filter(
-        is_active=True, es_deposito_caramelera=False
+        is_active=True
     ).select_related('unit_of_measure', 'category').order_by('category__name', 'name')
     quick_ids = set(QuickAccessButton.objects.filter(is_active=True).values_list('product_id', flat=True))
     return JsonResponse({
@@ -267,7 +260,6 @@ def api_all_products(request):
                 'bulk_unit': p.bulk_unit if p.is_bulk else None,
                 'allow_sell_by_amount': p.allow_sell_by_amount,
                 'is_granel': p.is_granel,
-                'granel_price_weight_grams': p.granel_price_weight_grams if p.is_granel else None,
                 'sale_price_250g': float(p.sale_price_250g) if p.is_granel else None,
                 'category': p.category.name if p.category else 'Sin categoría',
                 'category_id': p.category_id or 0,
@@ -633,7 +625,6 @@ def api_transaction_detail(request, transaction_id):
                 'packaging_type': item.packaging.packaging_type if item.packaging else None,
                 'packaging_units': item.packaging_units,
                 'is_granel': item.product.is_granel,
-                'granel_price_weight_grams': item.product.granel_price_weight_grams if item.product.is_granel else None,
             }
             for item in items
         ],

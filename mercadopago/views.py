@@ -1055,21 +1055,11 @@ def complete_pos_transaction(payment_intent):
                 )
             
             # Descontar stock — mismo ruteo que pos/_process_payment_atomic:
-            # granel → registrar_venta, no-granel → deduct_stock.
-            from granel.services import GranelService, BatchService
+            # por peso → deduct_stock en kilos, no-granel → deduct_stock en unidades.
+            from granel.services import BatchService
             for item in pos_transaction.items.all():
-                caramelera = getattr(item.product, 'granel_caramelera', None)
-
-                if caramelera is not None:
-                    GranelService.registrar_venta(
-                        caramelera_id=caramelera.pk,
-                        gramos_vendidos=item.quantity,
-                        precio_cobrado=item.subtotal,
-                        pos_transaction_id=pos_transaction.id,
-                    )
-                elif item.product.is_granel:
-                    # Sistema nuevo: current_stock vive en kilos; item.quantity
-                    # (el carrito) sigue en gramos.
+                if item.product.is_granel:
+                    # current_stock vive en kilos; item.quantity (el carrito) sigue en gramos.
                     StockManagementService.deduct_stock(
                         product=item.product,
                         quantity=item.quantity / Decimal('1000'),

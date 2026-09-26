@@ -120,12 +120,6 @@ class CartService:
         except Product.DoesNotExist:
             return None, 'Producto no encontrado'
 
-        if product.es_deposito_caramelera:
-            return None, (
-                f'"{product.name}" es una pieza de depósito, no se vende directo. '
-                f'Buscá el producto fraccionado (Venta por Peso).'
-            )
-
         quantity = Decimal(str(quantity))
 
         # Resolve packaging
@@ -141,43 +135,20 @@ class CartService:
             except ProductPackaging.DoesNotExist:
                 pass
 
-        # For granel products: price is per `granel_price_weight_grams` grams (e.g. per 100g).
         # The frontend calculates the correct total and passes it as override_unit_price.
         # If override_unit_price is given, use it directly as unit_price.
         if override_unit_price is not None:
             unit_price = override_unit_price
 
-        # Venta por peso de un producto fraccionado: el servidor manda.
-        # - El precio sale de la caramelera (misma regla que el modal del POS), así
+        # Venta por peso: el servidor manda.
+        # - El precio sale de Product.price_for_grams (misma regla que el modal del POS), así
         #   nunca depende de un redondeo hecho en el navegador.
         # - Se valida el stock ACÁ, con un mensaje claro, en vez de dejar que la venta
         #   falle recién al cobrar con "Stock insuficiente".
-        caramelera = getattr(product, 'granel_caramelera', None) if product.is_granel else None
-        if caramelera is not None:
-            if quantity <= 0:
-                return None, 'Ingresá cuántos gramos querés vender.'
-            ya_en_carrito = sum(
-                (i.quantity for i in POSTransactionItem.objects.filter(
-                    transaction=pos_transaction, product=product)),
-                Decimal('0'),
-            )
-            disponible = caramelera.stock_gramos_actual
-            if ya_en_carrito + quantity > disponible:
-                if disponible <= 0:
-                    return None, (
-                        f'"{product.name}" no tiene stock cargado. '
-                        f'Cargalo en Venta por Peso → "Agregar mercadería".'
-                    )
-                return None, (
-                    f'No alcanza el stock de "{product.name}": quedan {disponible:.0f}g '
-                    f'(ya tenés {ya_en_carrito:.0f}g en este carrito).'
-                )
-            unit_price = (caramelera.calcular_precio(quantity) / quantity).quantize(Decimal('0.000001'))
-        elif product.is_granel:
-            # Producto por peso del sistema NUEVO: el stock vive directo en
-            # Product.current_stock, en KILOS. La cantidad sigue viajando en
-            # gramos desde el frontend (mismo patrón que el sistema viejo),
-            # así que acá se convierte para comparar contra el stock.
+        # - El stock vive directo en Product.current_stock, en KILOS. La cantidad
+        #   sigue viajando en gramos desde el frontend, así que acá se convierte
+        #   para comparar contra el stock.
+        if product.is_granel:
             if quantity <= 0:
                 return None, 'Ingresá cuántos gramos querés vender.'
             ya_en_carrito = sum(
@@ -210,14 +181,10 @@ class CartService:
                 packaging=packaging
             ).first()
 
-        # Capture cost at time of sale
-        # For granel products, cost per gram so that unit_cost * quantity = total cost
-        if caramelera is not None and product.weighted_avg_cost_per_gram > 0:
-            unit_cost = product.weighted_avg_cost_per_gram
-        elif product.is_granel:
-            # Sistema nuevo: cost_price/purchase_price son POR KILO — se
-            # convierte a por gramo para la misma convención que arriba
-            # (unit_cost * quantity_en_gramos = costo total de la línea).
+        # Capture cost at time of sale. Para productos por peso, cost_price/
+        # purchase_price son POR KILO — se convierte a por gramo para que
+        # unit_cost * quantity_en_gramos dé el costo total de la línea.
+        if product.is_granel:
             unit_cost = (product.cost_price or product.purchase_price or Decimal('0')) / Decimal('1000')
         else:
             unit_cost = product.cost_price or product.purchase_price or Decimal('0.00')
@@ -465,25 +432,12 @@ class CheckoutService:
         change = total_paid - total_to_pay
         
         # Deduct stock — ruteo por tipo de producto:
-        # - Granel (caramelera): registrar_venta maneja descuento de caramelera
-        #   Y sincroniza el Product POS. Si falla, la excepción propaga y el
-        #   @transaction.atomic revierte todo (antes se tragaba el error y
-        #   el stock de la caramelera quedaba desincronizado).
+        # - Por peso: current_stock vive en kilos; item.quantity (el
+        #   carrito) sigue en gramos.
         # - No-granel: descuento estándar de stock + FIFO batches.
-        from granel.services import BatchService, GranelService
+        from granel.services import BatchService
         for item in pos_transaction.items.all():
-            caramelera = getattr(item.product, 'granel_caramelera', None)
-
-            if caramelera is not None:
-                GranelService.registrar_venta(
-                    caramelera_id=caramelera.pk,
-                    gramos_vendidos=item.quantity,
-                    precio_cobrado=item.subtotal,
-                    pos_transaction_id=pos_transaction.id,
-                )
-            elif item.product.is_granel:
-                # Sistema NUEVO: current_stock vive en kilos; item.quantity
-                # (el carrito) sigue en gramos.
+            if item.product.is_granel:
                 StockManagementService.deduct_stock(
                     product=item.product,
                     quantity=item.quantity / Decimal('1000'),
@@ -629,8 +583,8 @@ class CheckoutService:
         # Update item prices to cost price and recalculate
         for item in pos_transaction.items.all():
             cost = item.product.cost_price or item.product.purchase_price
-            if item.product.is_granel and not item.product.granel_caramelera_id:
-                # Sistema nuevo: cost_price es por kilo, item.quantity está en gramos.
+            if item.product.is_granel:
+                # Producto por peso: cost_price es por kilo, item.quantity está en gramos.
                 cost = cost / Decimal('1000')
             item.unit_price = cost
             item.discount = Decimal('0.00')            # No discounts on cost sales
@@ -701,18 +655,9 @@ class CheckoutService:
         change = total_paid - total_to_pay
         
         # Deduct stock — mismo ruteo que _process_payment_atomic
-        from granel.services import BatchService, GranelService
+        from granel.services import BatchService
         for item in pos_transaction.items.all():
-            caramelera = getattr(item.product, 'granel_caramelera', None)
-
-            if caramelera is not None:
-                GranelService.registrar_venta(
-                    caramelera_id=caramelera.pk,
-                    gramos_vendidos=item.quantity,
-                    precio_cobrado=item.subtotal,
-                    pos_transaction_id=pos_transaction.id,
-                )
-            elif item.product.is_granel:
+            if item.product.is_granel:
                 StockManagementService.deduct_stock(
                     product=item.product,
                     quantity=item.quantity / Decimal('1000'),
@@ -791,8 +736,8 @@ class CheckoutService:
         total_cost = Decimal('0.00')
         for item in pos_transaction.items.all():
             cost = item.product.cost_price or item.product.purchase_price
-            if item.product.is_granel and not item.product.granel_caramelera_id:
-                # Sistema nuevo: cost_price es por kilo, item.quantity está en gramos.
+            if item.product.is_granel:
+                # Producto por peso: cost_price es por kilo, item.quantity está en gramos.
                 cost = cost / Decimal('1000')
             item.unit_price = cost
             item.discount = Decimal('0.00')
@@ -805,18 +750,9 @@ class CheckoutService:
             total_cost += item.subtotal
         
         # Deduct stock — mismo ruteo que _process_payment_atomic
-        from granel.services import BatchService, GranelService
+        from granel.services import BatchService
         for item in pos_transaction.items.all():
-            caramelera = getattr(item.product, 'granel_caramelera', None)
-
-            if caramelera is not None:
-                GranelService.registrar_venta(
-                    caramelera_id=caramelera.pk,
-                    gramos_vendidos=item.quantity,
-                    precio_cobrado=item.subtotal,
-                    pos_transaction_id=pos_transaction.id,
-                )
-            elif item.product.is_granel:
+            if item.product.is_granel:
                 StockManagementService.deduct_stock(
                     product=item.product,
                     quantity=item.quantity / Decimal('1000'),
