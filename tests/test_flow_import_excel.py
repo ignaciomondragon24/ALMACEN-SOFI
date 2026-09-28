@@ -366,3 +366,18 @@ class VentaPorPesoImportTests(TestCase):
                                      ['', 'JC-3', 'Jamón', 'kg', 1100, 2300, '', 8000, 11000, 1]]},
                        confirmar=False)
         self.assertContains(r, 'Por peso')
+
+    def test_preview_muestra_columnas_detectadas(self):
+        """El panel de 'columnas detectadas' (para que Nacho/Sofia revisen
+        el mapeo antes de confirmar) tiene que mostrar, para cada columna
+        del Excel, a qué campo interno quedó asignada — en particular que
+        'Precio 1/4' fue a su propio tramo y NO se lo comió el patrón
+        genérico de 'Venta'."""
+        r = self.subir({'Fiambres': [self.HEAD_PESO,
+                                     ['', 'JC-4', 'Bondiola', 'kg', 1100, 2300, '', 8000, 11000, 1]]},
+                       confirmar=False)
+        self.assertContains(r, 'Columnas detectadas')
+        self.assertContains(r, 'Precio 1/4 kilo')
+        self.assertContains(r, '"Precio 1/4"')
+        self.assertContains(r, 'Precio de Venta')
+        self.assertContains(r, '"Venta"')

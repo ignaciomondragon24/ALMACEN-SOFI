@@ -1455,10 +1455,30 @@ def import_excel(request):
                     items.append(item)
 
             if items:
+                # "Columnas detectadas": qué encabezado del Excel se
+                # entendió como qué campo, para que Nacho/Sofia puedan
+                # detectar un mapeo mal hecho ANTES de confirmar la
+                # importación (por ejemplo, si "Precio 1/4" quedó adentro
+                # de "Precio de Venta" en vez de su propio tramo).
+                raw_header_row = rows[header_idx]
+                columns_detected = []
+                for field, idx in sorted(col_map.items(), key=lambda kv: kv[1]):
+                    texto = raw_header_row[idx] if idx < len(raw_header_row) else ''
+                    columns_detected.append({
+                        'field_label': _COLUMN_FIELD_LABELS.get(field, field),
+                        'header_text': str(texto).strip() if texto else '',
+                    })
+                columns_unmatched = [
+                    str(h).strip() for i, h in enumerate(raw_header_row)
+                    if h and i not in col_map.values()
+                ]
+
                 preview_data.append({
                     'category_name': sheet_name.strip(),
                     'items': items,
                     'count': len(items),
+                    'columns_detected': columns_detected,
+                    'columns_unmatched': columns_unmatched,
                 })
 
         if not preview_data:
@@ -1481,6 +1501,25 @@ def import_excel(request):
         })
 
     return render(request, 'stocks/import_excel.html')
+
+
+# Nombres legibles de cada campo interno, para mostrar en el panel de
+# "columnas detectadas" del preview de importación (ver import_excel).
+_COLUMN_FIELD_LABELS = {
+    'barcode': 'Código de Barras',
+    'sku': 'SKU / Código Interno',
+    'nombre': 'Nombre',
+    'stock': 'Stock',
+    'unit': 'Unidad',
+    'margin': 'Margen %',
+    'oferta_250g': 'Oferta 1/4 kilo',
+    'oferta_500g': 'Oferta 1/2 kilo',
+    'tier_100g': 'Precio por 100g (menos de 1/4)',
+    'tier_250g': 'Precio 1/4 kilo',
+    'tier_500g': 'Precio 1/2 kilo',
+    'purchase_price': 'Precio de Costo',
+    'sale_price': 'Precio de Venta',
+}
 
 
 def _map_columns(header):
@@ -1761,7 +1800,7 @@ def export_products_excel(request):
             float(p.cost_price),
             round(margin, 2),
             float(p.current_stock),
-            p.min_stock,
+            float(p.min_stock),
             p.max_stock or '',
             float(p.stock_value),
             status,
@@ -1782,7 +1821,7 @@ def export_products_excel(request):
                 cell.number_format = '#,##0.00'
             elif col == 9:
                 cell.number_format = '0.00'
-            elif col == 10:
+            elif col in (10, 11):
                 cell.number_format = '0.000'
 
     auto_width(ws1)
@@ -1818,7 +1857,7 @@ def export_products_excel(request):
                 p.category.name if p.category else 'Sin categoría',
                 p.unit_of_measure.abbreviation if p.unit_of_measure else 'u',
                 float(p.current_stock),
-                p.min_stock,
+                float(p.min_stock),
                 status,
             ], 1):
                 cell = ws2.cell(row=ri, column=col, value=val)
@@ -1826,6 +1865,8 @@ def export_products_excel(request):
                 cell.font = Font(bold=(col == 7), size=9)
                 cell.border = border()
                 cell.alignment = Alignment(vertical='center')
+                if col in (5, 6):
+                    cell.number_format = '0.000'
     else:
         ws2.cell(row=3, column=1, value='✓ No hay productos con stock bajo').font = Font(
             color='006600', bold=True, size=10

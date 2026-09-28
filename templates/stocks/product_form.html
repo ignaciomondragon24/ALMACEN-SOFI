@@ -102,7 +102,7 @@
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="mb-3">
-                                    <label for="id_cost_price" class="form-label">Precio de Costo *</label>
+                                    <label for="id_cost_price" class="form-label">Precio de Costo <span id="label-costo-kilo" style="display:none;color:var(--che-primary,#C33287);font-weight:600;">(por kilo)</span> *</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="cost_price" id="id_cost_price"
@@ -110,7 +110,7 @@
                                                value="{{ form.cost_price.value|unlocalize|default:'0' }}" required>
                                     </div>
                                     {% if form.cost_price.errors %}<div class="text-danger small">{{ form.cost_price.errors.0 }}</div>{% endif %}
-                                    <small class="text-muted" id="hint-costo-kilo" style="display:none">Por kilo.</small>
+                                    <small class="text-muted" id="hint-costo-kilo" style="display:none">Precio de 1 kilo entero.</small>
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -126,14 +126,14 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
-                                    <label for="id_sale_price" class="form-label">Precio de Venta *</label>
+                                    <label for="id_sale_price" class="form-label">Precio de Venta <span id="label-venta-kilo" style="display:none;color:var(--che-primary,#C33287);font-weight:600;">(por kilo)</span> *</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
                                         <input type="number" name="sale_price" id="id_sale_price"
                                                class="form-control text-end" step="0.01" min="0"
                                                value="{{ form.sale_price.value|unlocalize|default:'0' }}" required>
                                     </div>
-                                    <small class="text-muted" id="hint-venta-kilo" style="display:none">Por kilo. El kilo entero (1kg) se cobra este precio.</small>
+                                    <small class="text-muted" id="hint-venta-kilo" style="display:none">Precio de 1 kilo entero.</small>
                                 </div>
                             </div>
                         </div>
@@ -163,6 +163,7 @@
                                     <input type="number" name="min_stock" id="id_min_stock"
                                            class="form-control text-end" step="1" min="0"
                                            value="{{ form.min_stock.value|unlocalize|default:'0' }}">
+                                    <small class="text-muted" id="hint-min-stock-kilos" style="display:none">En kilos, con decimales.</small>
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -201,7 +202,7 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="id_weight_per_unit_grams" class="form-label">Kilos por Pieza (opcional)</label>
+                                        <label for="id_weight_per_unit_grams" class="form-label">Gramos por Pieza (opcional)</label>
                                         <div class="input-group">
                                             <input type="number" name="weight_per_unit_grams" id="id_weight_per_unit_grams"
                                                    class="form-control text-end" step="1" min="0"
@@ -235,6 +236,7 @@
                                                        value="{{ form.sale_price_100g.value|unlocalize|default:'0' }}">
                                             </div>
                                             <div class="form-text">0 = proporcional al kilo. Normalmente más caro (vender de a poco cuesta más).</div>
+                                            <div class="form-text" id="costo-100g"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -252,6 +254,7 @@
                                                                value="{{ form.sale_price_250g.value|unlocalize|default:'0' }}">
                                                     </div>
                                                     <div class="form-text">0 = proporcional al kilo</div>
+                                                    <div class="form-text" id="costo-250g"></div>
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small">Precio de oferta</label>
@@ -262,6 +265,7 @@
                                                                value="{{ form.oferta_price_250g.value|unlocalize|default:'0' }}">
                                                     </div>
                                                     <div class="form-text">0 = sin oferta</div>
+                                                    <div class="form-text" id="costo-oferta-250g"></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -281,6 +285,7 @@
                                                                value="{{ form.sale_price_500g.value|unlocalize|default:'0' }}">
                                                     </div>
                                                     <div class="form-text">0 = proporcional al kilo</div>
+                                                    <div class="form-text" id="costo-500g"></div>
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small">Precio de oferta</label>
@@ -291,6 +296,7 @@
                                                                value="{{ form.oferta_price_500g.value|unlocalize|default:'0' }}">
                                                     </div>
                                                     <div class="form-text">0 = sin oferta</div>
+                                                    <div class="form-text" id="costo-oferta-500g"></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -344,7 +350,7 @@
                         <div class="d-flex align-items-center justify-content-between mb-3" id="seccion-empaques">
                             <h6 class="text-muted mb-0"><i class="fas fa-boxes-stacked me-2"></i>Empaques</h6>
                             <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn btn-sm" style="background:#C33287;color:#fff;">
-                                <i class="fas fa-arrow-right me-1"></i>Gestionar Empaques
+                                <i class="fas fa-arrow-right me-1"></i>Recibir Mercadería
                             </a>
                         </div>
                         {% elif not product %}
@@ -763,6 +769,44 @@
     // Toggle de la sección "Venta por Peso": muestra/oculta los tramos de
     // precio y ajusta las etiquetas de costo/precio/stock (pasan a ser "por
     // kilo" / "en kilos" mientras la casilla esté tildada).
+    // Compara cada precio de tramo contra el costo proporcional (costo por
+    // kilo / 10, /4, /2) y avisa en rojo si venden por debajo del costo —
+    // las tarjetas de tramo no tenían NINGÚN control de margen antes de
+    // esto, a diferencia del precio por kilo de arriba (que sí calcula
+    // margen en vivo).
+    function actualizarCostosDeTramo() {
+        var granelCheckbox = document.getElementById('id_is_granel');
+        if (!granelCheckbox || !granelCheckbox.checked) return;
+        var costoKilo = parseFloat(document.getElementById('id_cost_price').value) || 0;
+        if (costoKilo <= 0) {
+            ['costo-100g', 'costo-250g', 'costo-oferta-250g', 'costo-500g', 'costo-oferta-500g'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.textContent = '';
+            });
+            return;
+        }
+        var tramos = [
+            { costoId: 'costo-100g', precioId: 'id_sale_price_100g', fraccion: 0.1 },
+            { costoId: 'costo-250g', precioId: 'id_sale_price_250g', fraccion: 0.25 },
+            { costoId: 'costo-oferta-250g', precioId: 'id_oferta_price_250g', fraccion: 0.25 },
+            { costoId: 'costo-500g', precioId: 'id_sale_price_500g', fraccion: 0.5 },
+            { costoId: 'costo-oferta-500g', precioId: 'id_oferta_price_500g', fraccion: 0.5 },
+        ];
+        tramos.forEach(function (t) {
+            var costoTramo = costoKilo * t.fraccion;
+            var el = document.getElementById(t.costoId);
+            var precioInput = document.getElementById(t.precioId);
+            if (!el || !precioInput) return;
+            var precio = parseFloat(precioInput.value) || 0;
+            var costoTexto = 'Costo: $' + costoTramo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+            if (precio > 0 && precio < costoTramo) {
+                el.innerHTML = '<span style="color:#dc3545;font-weight:600;">⚠ ' + costoTexto + ' — este precio da pérdida</span>';
+            } else {
+                el.textContent = costoTexto;
+            }
+        });
+    }
+
     function syncGranelFields() {
         var granelCheckbox = document.getElementById('id_is_granel');
         if (!granelCheckbox) return;
@@ -785,15 +829,39 @@
         if (hintEntero) hintEntero.style.display = on ? 'none' : '';
         if (hintKilos) hintKilos.style.display = on ? '' : 'none';
 
+        var minStockInput = document.getElementById('id_min_stock');
+        if (minStockInput) {
+            minStockInput.step = on ? '0.001' : '1';
+        }
+        var hintMinKilos = document.getElementById('hint-min-stock-kilos');
+        if (hintMinKilos) hintMinKilos.style.display = on ? '' : 'none';
+
         var hintCosto = document.getElementById('hint-costo-kilo');
         var hintVenta = document.getElementById('hint-venta-kilo');
         if (hintCosto) hintCosto.style.display = on ? '' : 'none';
         if (hintVenta) hintVenta.style.display = on ? '' : 'none';
+
+        // La etiqueta misma cambia (no solo una letra chica abajo) — más
+        // difícil de pasarla por alto para quien ya se confundió antes con
+        // "¿esto es por kilo o por unidad?".
+        var labelCosto = document.getElementById('label-costo-kilo');
+        var labelVenta = document.getElementById('label-venta-kilo');
+        if (labelCosto) labelCosto.style.display = on ? '' : 'none';
+        if (labelVenta) labelVenta.style.display = on ? '' : 'none';
+
+        actualizarCostosDeTramo();
     }
     var granelCheckbox = document.getElementById('id_is_granel');
     if (granelCheckbox) {
         granelCheckbox.addEventListener('change', syncGranelFields);
         syncGranelFields();
     }
+
+    // Feedback de costo en vivo: se actualiza mientras Sofia escribe, no
+    // solo al tildar/destildar "se vende por peso".
+    ['id_cost_price', 'id_sale_price_100g', 'id_sale_price_250g', 'id_oferta_price_250g', 'id_sale_price_500g', 'id_oferta_price_500g'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', actualizarCostosDeTramo);
+    });
 </script>
 {% endblock %}

@@ -123,6 +123,18 @@ class ProductForm(forms.ModelForm):
             raise forms.ValidationError('El stock se cuenta en unidades enteras, sin decimales.')
         return val
 
+    def clean_min_stock(self):
+        """Mismo criterio que `clean_current_stock`: enteros para productos
+        comunes, decimales (kilos) permitidos para productos por peso. Acá
+        SÍ se valida siempre (crear y editar) porque, a diferencia del stock
+        actual, el mínimo no queda de solo lectura al editar.
+        """
+        val = self.cleaned_data.get('min_stock')
+        es_por_peso = self.data.get('is_granel') in ('on', 'true', 'True', '1')
+        if val is not None and not es_por_peso and val != val.to_integral_value():
+            raise forms.ValidationError('El stock mínimo se cuenta en unidades enteras, sin decimales.')
+        return val
+
     def clean(self):
         """Reglas a nivel form:
         - Al menos uno de barcode o sku debe estar presente (manual).

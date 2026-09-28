@@ -72,7 +72,7 @@
                                 <span class="text-warning fw-bold">{% if product.is_granel %}{{ product.current_stock|floatformat:3 }} kg{% else %}{{ product.current_stock|floatformat:0 }}{% endif %}</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center text-muted">{{ product.min_stock|floatformat:0 }}{% if product.is_granel %} kg{% endif %}</td>
+                            <td class="text-center text-muted">{% if product.is_granel %}{{ product.min_stock|floatformat:3 }} kg{% else %}{{ product.min_stock|floatformat:0 }}{% endif %}</td>
                             <td class="text-center">
                                 <span class="text-danger fw-bold">-{% if product.is_granel %}{{ product.faltante_calc|floatformat:3 }} kg{% else %}{{ product.faltante_calc|floatformat:0 }}{% endif %}</span>
                             </td>

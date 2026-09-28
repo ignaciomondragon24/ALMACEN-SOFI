@@ -151,6 +151,52 @@ class ProductoDetalleYListaTests(Base):
         self.assertContains(r, '>3<')
 
 
+class MinStockEnteroTests(Base):
+    """Stock Mínimo sigue la misma regla que Stock Actual: entero para
+    productos comunes, decimal (kilos) para productos por peso — Sofia
+    necesita poner "avisame cuando queden menos de 1,5kg de jamón", no solo
+    números redondos."""
+
+    def _alta(self, **extra):
+        data = {'name': 'Salame', 'sku': '', 'barcode': '7790000009201', 'cost_price': '1000',
+                'sale_price': '1500', 'current_stock': '10', 'min_stock': '3', 'is_active': 'true',
+                'weight_per_unit_grams': ''}
+        data.update(extra)
+        return self.c.post(reverse('stocks:product_create'), data)
+
+    def test_min_stock_con_decimales_se_rechaza_en_producto_comun(self):
+        r = self._alta(min_stock='2.5')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'unidades enteras')
+        self.assertFalse(Product.objects.exists())
+
+    def test_min_stock_entero_funciona_en_producto_comun(self):
+        r = self._alta(min_stock='3')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Product.objects.get().min_stock, Decimal('3'))
+
+    def test_min_stock_con_decimales_se_permite_en_producto_por_peso(self):
+        r = self._alta(barcode='7790000009202', cost_price='8000', sale_price='12000',
+                        current_stock='2.5', min_stock='1.5', is_granel='true')
+        self.assertEqual(r.status_code, 302, getattr(r, 'content', b'')[:300])
+        p = Product.objects.get(barcode='7790000009202')
+        self.assertEqual(p.min_stock, Decimal('1.5'))
+
+    def test_min_stock_se_puede_editar_con_decimales_en_producto_por_peso(self):
+        """A diferencia de current_stock, min_stock NO queda de solo lectura
+        al editar — se valida siempre, no solo al crear."""
+        self.c.post(reverse('stocks:product_create'), {
+            'name': 'Jamón Min', 'sku': 'JC-MIN', 'cost_price': '8000', 'sale_price': '12000',
+            'current_stock': '2.5', 'min_stock': '1', 'is_active': 'true', 'is_granel': 'true'})
+        p = Product.objects.get(sku='JC-MIN')
+        r = self.c.post(reverse('stocks:product_edit', args=[p.pk]), {
+            'name': 'Jamón Min', 'sku': 'JC-MIN', 'barcode': '', 'cost_price': '8000', 'sale_price': '12000',
+            'current_stock': '2.5', 'min_stock': '1.750', 'is_active': 'true', 'is_granel': 'true'})
+        self.assertEqual(r.status_code, 302, getattr(r, 'content', b'')[:300])
+        p.refresh_from_db()
+        self.assertEqual(p.min_stock, Decimal('1.750'))
+
+
 class EmpaquesTests(Base):
     def setUp(self):
         super().setUp()

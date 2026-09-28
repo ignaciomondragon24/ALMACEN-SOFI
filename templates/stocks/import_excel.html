@@ -68,6 +68,20 @@
             </h5>
             <span class="badge bg-primary">{{ sheet.count }} producto{{ sheet.count|pluralize:"s" }}</span>
         </div>
+        {% if sheet.columns_detected or sheet.columns_unmatched %}
+        <div class="card-body py-2 border-bottom bg-light">
+            <small class="text-muted d-block mb-1"><i class="fas fa-columns me-1"></i><strong>Columnas detectadas</strong> — revisá que cada una matcheó lo que corresponde antes de confirmar:</small>
+            {% for col in sheet.columns_detected %}
+            <span class="badge bg-secondary-subtle text-dark border me-1 mb-1" title="Columna del Excel: {{ col.header_text }}">
+                {{ col.field_label }} <i class="fas fa-arrow-right mx-1"></i> "{{ col.header_text }}"
+            </span>
+            {% endfor %}
+            {% if sheet.columns_unmatched %}
+            <br>
+            <small class="text-muted">Sin usar: {% for h in sheet.columns_unmatched %}"{{ h }}"{% if not forloop.last %}, {% endif %}{% endfor %}</small>
+            {% endif %}
+        </div>
+        {% endif %}
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm table-striped mb-0">

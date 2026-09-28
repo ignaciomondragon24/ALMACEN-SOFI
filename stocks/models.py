@@ -262,8 +262,10 @@ class Product(models.Model):
         decimal_places=3,
         default=0
     )
-    min_stock = models.PositiveIntegerField(
+    min_stock = models.DecimalField(
         'Stock Mínimo',
+        max_digits=12,
+        decimal_places=3,
         default=0,
         help_text='Alerta cuando el stock llegue a este nivel'
     )

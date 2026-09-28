@@ -155,7 +155,7 @@ class BusinessDataCollector:
                     'precio_venta': float(p.sale_price),
                     'precio_costo': float(p.cost_price),
                     'stock_actual': float(p.current_stock),
-                    'stock_minimo': p.min_stock,
+                    'stock_minimo': float(p.min_stock),
                     'unidad': p.unit_of_measure.abbreviation if p.unit_of_measure else 'u',
                     'margen': float(p.sale_price - p.cost_price) if p.cost_price > 0 else 0,
                 })

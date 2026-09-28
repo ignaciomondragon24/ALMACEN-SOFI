@@ -21,7 +21,7 @@
         <div>
             {% if is_admin and not product.is_granel %}
             <a href="{% url 'stocks:product_packaging' product.pk %}" class="btn" style="background:var(--che-pink,#C33287);color:#fff;">
-                <i class="fas fa-boxes-stacked me-1"></i> Gestionar Empaques
+                <i class="fas fa-boxes-stacked me-1"></i> Recibir Mercadería
             </a>
             {% endif %}
             {% if is_cajero_manager and product.is_granel %}
@@ -292,7 +292,7 @@
                     {% if product.current_stock <= product.min_stock %}
                     <div class="alert alert-danger mb-0">
                         <i class="fas fa-exclamation-triangle me-1"></i>
-                        Stock bajo el mínimo ({{ product.min_stock|floatformat:0 }})
+                        Stock bajo el mínimo ({% if product.is_granel %}{{ product.min_stock|floatformat:3 }} kg{% else %}{{ product.min_stock|floatformat:0 }}{% endif %})
                     </div>
                     {% elif product.current_stock == 0 %}
                     <div class="alert alert-danger mb-0">
@@ -310,7 +310,7 @@
                     <div class="row text-center">
                         <div class="col-6">
                             <small class="text-muted d-block">Mínimo</small>
-                            <strong>{{ product.min_stock|floatformat:0 }}</strong>
+                            <strong>{% if product.is_granel %}{{ product.min_stock|floatformat:3 }} kg{% else %}{{ product.min_stock|floatformat:0 }}{% endif %}</strong>
                         </div>
                         <div class="col-6">
                             <small class="text-muted d-block">Máximo</small>
