@@ -89,7 +89,14 @@
                         {% for item in sheet.items %}
                         <tr>
                             <td>{{ forloop.counter }}</td>
-                            <td><strong>{{ item.nombre }}</strong></td>
+                            <td>
+                                <strong>{{ item.nombre }}</strong>
+                                {% if item.is_granel %}
+                                <span class="badge bg-info text-dark ms-1" title="Se vende por peso">
+                                    <i class="fas fa-weight-hanging me-1"></i>Por peso
+                                </span>
+                                {% endif %}
+                            </td>
                             <td><code>{{ item.barcode|default:"-" }}</code></td>
                             <td>{{ item.sku|default:"-" }}</td>
                             <td>{{ item.unit|default:"-" }}</td>

@@ -222,3 +222,110 @@ class ImportExcelTests(TestCase):
         self.assertIn('spreadsheetml', r['Content-Type'])
         wb = openpyxl.load_workbook(io.BytesIO(r.content))
         self.assertTrue(wb.sheetnames)
+
+
+class VentaPorPesoImportTests(TestCase):
+    """Fase 4 del rediseño de venta por peso (2026-09-27): Importar Excel
+    también carga los tramos de precio (100g/1-4/1-2 y ofertas) — lo que
+    Sofia pidió después de mandar una muestra real de lo que genera su
+    skill. Sus columnas base (Costo/Venta) para un producto por peso son
+    "por kilo", igual que en el formulario manual."""
+
+    @classmethod
+    def setUpTestData(cls):
+        g, _ = Group.objects.get_or_create(name='Admin')
+        cls.user = User.objects.create_user('importa_peso', password='x')
+        cls.user.groups.add(g)
+
+    def setUp(self):
+        self.c = Client()
+        self.c.force_login(self.user)
+        self.url = reverse('stocks:import_excel')
+
+    def subir(self, sheets, confirmar=True, **extra):
+        r = self.c.post(self.url, {'excel_file': xlsx(sheets)})
+        self.assertEqual(r.status_code, 200, 'la vista previa debería mostrarse')
+        if not confirmar:
+            return r
+        return self.c.post(self.url, dict({'confirm': '1'}, **extra))
+
+    HEAD = ['Código de barras', 'Código interno', 'Nombre', 'Unidad', 'Costo', 'Venta', 'Stock']
+    HEAD_PESO = [
+        'Código de barras', 'Código interno', 'Nombre', 'Unidad',
+        'Precio 100g', 'Precio 1/4', 'Oferta 1/4', 'Costo', 'Venta', 'Stock',
+    ]
+
+    def test_crea_producto_por_peso_con_tramos(self):
+        self.subir({'Fiambres': [
+            self.HEAD_PESO,
+            ['', 'JC-1', 'Jamón Cocido', 'kg', 1100, 2300, '', 8000, 11000, 2.5],
+        ]})
+        p = Product.objects.get(sku='JC-1')
+        self.assertTrue(p.is_granel)
+        self.assertEqual(p.sale_price_100g, Decimal('1100.00'))
+        self.assertEqual(p.sale_price_250g, Decimal('2300.00'))
+        self.assertEqual(p.oferta_price_250g, Decimal('0'))
+        self.assertEqual(p.sale_price, Decimal('11000.00'))   # Costo/Venta = por kilo
+        self.assertEqual(p.cost_price, Decimal('8000.00'))
+        self.assertEqual(p.current_stock, Decimal('2.500'))   # kilos, con decimales
+
+    def test_producto_comun_con_unidad_kg_no_se_marca_por_peso(self):
+        """Ojo: "kg" como Unidad de Medida NO alcanza para marcar is_granel —
+        lo usa cualquier verdulería (papa, cebolla) sin tramos de precio."""
+        self.subir({'Almacén': [self.HEAD, [7790000000011, 'PAP-1', 'Papa', 'kg', 300, 500, 10]]})
+        p = Product.objects.get(sku='PAP-1')
+        self.assertFalse(p.is_granel)
+
+    def test_oferta_por_cuarto_se_carga(self):
+        self.subir({'Fiambres': [
+            self.HEAD_PESO,
+            ['', 'JC-2', 'Jamón Crudo', 'kg', 1500, 3000, 2500, 9000, 12000, 1],
+        ]})
+        p = Product.objects.get(sku='JC-2')
+        self.assertEqual(p.oferta_price_250g, Decimal('2500.00'))
+
+    def test_columna_precio_cuarto_tambien_se_reconoce(self):
+        head = ['Código interno', 'Nombre', 'Precio Cuarto', 'Costo', 'Venta']
+        self.subir({'Fiambres': [head, ['Q1', 'Queso de Máquina', 2900, 9000, 12000]]})
+        p = Product.objects.get(sku='Q1')
+        self.assertTrue(p.is_granel)
+        self.assertEqual(p.sale_price_250g, Decimal('2900.00'))
+
+    def test_columna_precio_medio_kilo_y_oferta_medio_se_reconocen(self):
+        head = ['Código interno', 'Nombre', 'Precio Medio Kilo', 'Oferta Medio', 'Costo', 'Venta']
+        self.subir({'Fiambres': [head, ['M1', 'Mortadela', 5500, 5000, 8000, 12000]]})
+        p = Product.objects.get(sku='M1')
+        self.assertTrue(p.is_granel)
+        self.assertEqual(p.sale_price_500g, Decimal('5500.00'))
+        self.assertEqual(p.oferta_price_500g, Decimal('5000.00'))
+
+    def test_actualizacion_no_pisa_tramos_con_celda_vacia(self):
+        existente = Product.objects.create(
+            name='Salame Viejo', sku='SAL-1', is_granel=True,
+            cost_price=Decimal('7000'), sale_price=Decimal('10000'),
+            sale_price_250g=Decimal('2700'), current_stock=Decimal('3'),
+        )
+        # Reimporta solo actualizando el costo — las columnas de tramo vienen vacías.
+        self.subir({'Fiambres': [self.HEAD_PESO,
+                                 ['', 'SAL-1', 'Salame', 'kg', '', '', '', 7500, '', 3]]})
+        existente.refresh_from_db()
+        self.assertEqual(existente.cost_price, Decimal('7500.00'))       # sí vino: se actualiza
+        self.assertEqual(existente.sale_price_250g, Decimal('2700.00'))  # vacío: no se toca
+
+    def test_producto_comun_se_convierte_al_agregarle_un_tramo(self):
+        """Si un producto ya existente (común) aparece con un tramo cargado
+        en una reimportación, pasa a ser por peso — nunca al revés."""
+        existente = Product.objects.create(
+            name='Bondiola', sku='BON-1', cost_price=Decimal('8000'), sale_price=Decimal('12000'),
+        )
+        self.subir({'Fiambres': [self.HEAD_PESO,
+                                 ['', 'BON-1', 'Bondiola', 'kg', 1300, '', '', '', '', '']]})
+        existente.refresh_from_db()
+        self.assertTrue(existente.is_granel)
+        self.assertEqual(existente.sale_price_100g, Decimal('1300.00'))
+
+    def test_preview_muestra_insignia_por_peso(self):
+        r = self.subir({'Fiambres': [self.HEAD_PESO,
+                                     ['', 'JC-3', 'Jamón', 'kg', 1100, 2300, '', 8000, 11000, 1]]},
+                       confirmar=False)
+        self.assertContains(r, 'Por peso')

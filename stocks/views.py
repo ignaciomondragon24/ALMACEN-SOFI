@@ -1236,6 +1236,13 @@ def import_excel(request):
                             purchase_price_raw = item.get('purchase_price')
                             sale_price_raw = item.get('sale_price')
 
+                            # Venta por peso: mismo criterio que arriba — una celda vacía
+                            # nunca pisa un tramo ya cargado, solo se aplica si trae valor.
+                            TRAMOS = (
+                                'sale_price_100g', 'sale_price_250g', 'sale_price_500g',
+                                'oferta_price_250g', 'oferta_price_500g',
+                            )
+
                             uom = None
                             if item.get('unit'):
                                 uom = _get_or_create_unit(item['unit'])
@@ -1254,6 +1261,15 @@ def import_excel(request):
                                     product.unit_of_measure = uom
                                 if barcode_val and not product.barcode:
                                     product.barcode = barcode_val
+                                # Solo se PRENDE is_granel si el Excel trae señales de venta
+                                # por peso; nunca se apaga solo (el Excel podría no traer esa
+                                # columna en una actualización de precios puntual).
+                                if item.get('is_granel'):
+                                    product.is_granel = True
+                                for campo in TRAMOS:
+                                    val = item.get(campo)
+                                    if val is not None:
+                                        setattr(product, campo, Decimal(str(val)))
                                 product.save()
                                 updated += 1
                             else:
@@ -1286,6 +1302,11 @@ def import_excel(request):
                                     cost_price=purchase_price,
                                     current_stock=initial_stock,
                                     is_active=True,
+                                    is_granel=bool(item.get('is_granel')),
+                                    **{
+                                        campo: Decimal(str(item[campo])) if item.get(campo) is not None else Decimal('0')
+                                        for campo in TRAMOS
+                                    },
                                 )
                                 if initial_stock > 0:
                                     StockMovement.objects.create(
@@ -1427,7 +1448,11 @@ def _map_columns(header):
     import re
     col_map = {}
 
-    # Patrones regex para cada campo - orden importa (más específico primero)
+    # Patrones regex para cada campo - orden importa (más específico primero).
+    # Los tramos de venta por peso (100g/1/4/1/2 y sus ofertas) van ANTES que
+    # purchase_price/sale_price a propósito: una columna "Precio 1/4" también
+    # matchea el patrón genérico de sale_price (contiene "precio"), así que
+    # tiene que quedar reservada por su propio campo antes de llegar ahí.
     patterns = [
         ('barcode', r'c[oó]d.*barra|barcode|ean|cod\.?\s*barra'),
         ('sku', r'c[oó]d.*interno|cod\.?\s*interno|sku|c[oó]digo(?!.*barra)|cod(?!.*barra)\b|interno'),
@@ -1435,6 +1460,11 @@ def _map_columns(header):
         ('stock', r'stock|cantidad|existencia'),
         ('unit', r'unidad|u\.?m\.?|medida|uni\b|und\b'),
         ('margin', r'marg|markup|ganancia|rentab|%'),
+        ('oferta_250g', r'oferta.*(1\s*/\s*4|cuarto|250\s*g)|(1\s*/\s*4|cuarto|250\s*g).*oferta'),
+        ('oferta_500g', r'oferta.*(1\s*/\s*2|medio|mitad|500\s*g)|(1\s*/\s*2|medio|mitad|500\s*g).*oferta'),
+        ('tier_100g', r'(precio|venta).*100\s*g|100\s*g.*(precio|venta)'),
+        ('tier_250g', r'(precio|venta).*(1\s*/\s*4|cuarto|250\s*g)|(1\s*/\s*4|cuarto|250\s*g).*(precio|venta)'),
+        ('tier_500g', r'(precio|venta).*(1\s*/\s*2|medio|mitad|500\s*g)|(1\s*/\s*2|medio|mitad|500\s*g).*(precio|venta)'),
         ('purchase_price', r'costo|compra|p\.?\s*costo|p\.?\s*compra'),
         ('sale_price', r'venta|p\.?\s*venta|pvp|precio(?!.*cost|.*compr)|publico|p[uú]blico'),
     ]
@@ -1508,6 +1538,19 @@ def _extract_row(row, col_map):
     if sale_price and margin and not purchase_price:
         purchase_price = round(sale_price / (1 + margin / 100), 2)
 
+    # Venta por peso: tramos opcionales (100g/1-4/1-2, en pesos, no %) — igual
+    # semántica que el checkbox "Se vende por peso" del producto:
+    # purchase_price/sale_price pasan a ser "por kilo" para estas filas.
+    # No se infiere de la Unidad de Medida ("kg" también lo usa cualquier
+    # producto común que se pese pero no tenga tramos, ej. papa, cebolla):
+    # solo importa si la fila trae algún tramo cargado.
+    tier_100g = to_decimal(get_val('tier_100g'))
+    tier_250g = to_decimal(get_val('tier_250g'))
+    tier_500g = to_decimal(get_val('tier_500g'))
+    oferta_250g = to_decimal(get_val('oferta_250g'))
+    oferta_500g = to_decimal(get_val('oferta_500g'))
+    es_por_peso = any(v is not None for v in (tier_100g, tier_250g, tier_500g, oferta_250g, oferta_500g))
+
     return {
         'nombre': nombre,
         'barcode': barcode,
@@ -1517,6 +1560,12 @@ def _extract_row(row, col_map):
         'stock': stock,
         'purchase_price': purchase_price,
         'sale_price': sale_price,
+        'is_granel': es_por_peso,
+        'sale_price_100g': tier_100g,
+        'sale_price_250g': tier_250g,
+        'sale_price_500g': tier_500g,
+        'oferta_price_250g': oferta_250g,
+        'oferta_price_500g': oferta_500g,
     }
 
 
