@@ -196,7 +196,7 @@ def purchase_suggested(request):
     lista los productos de su catálogo que están en o por debajo del stock mínimo.
     """
     show_all_days = request.GET.get('all') == '1'
-    today_code = Supplier.weekday_code(timezone.now().date())
+    today_code = Supplier.weekday_code(timezone.localdate())
 
     suppliers_qs = Supplier.objects.filter(is_active=True).prefetch_related('supplier_products__product')
     if not show_all_days:
@@ -231,13 +231,13 @@ def purchase_suggested_generate(request, supplier_id):
         return redirect('purchase:purchase_suggested')
 
     with transaction.atomic():
-        today = timezone.now().strftime('%Y%m%d')
+        today = timezone.localtime().strftime('%Y%m%d')
         count = Purchase.objects.filter(order_number__startswith=f'OC-{today}').count() + 1
 
         purchase = Purchase.objects.create(
             supplier=supplier,
             order_number=f'OC-{today}-{count:04d}',
-            order_date=timezone.now().date(),
+            order_date=timezone.localdate(),
             notes='Generada automáticamente por bajo stock (pedido sugerido).',
             created_by=request.user,
         )
@@ -301,7 +301,7 @@ def purchase_list(request):
 
     total = purchases.aggregate(total=Sum('total'))['total'] or 0
 
-    today_code = Supplier.weekday_code(timezone.now().date())
+    today_code = Supplier.weekday_code(timezone.localdate())
     suggested_today_count = 0
     for supplier in Supplier.objects.filter(is_active=True, order_day=today_code).prefetch_related('supplier_products__product'):
         if _low_stock_suggestions_for_supplier(supplier):
@@ -362,7 +362,7 @@ def purchase_create(request):
 
         try:
             with transaction.atomic():
-                today = timezone.now().strftime('%Y%m%d')
+                today = timezone.localtime().strftime('%Y%m%d')
                 count = Purchase.objects.filter(
                     order_number__startswith=f'OC-{today}'
                 ).count() + 1
@@ -569,7 +569,7 @@ def purchase_receive(request, pk):
                 item.save()
 
             purchase.status = 'received'
-            purchase.received_date = timezone.now().date()
+            purchase.received_date = timezone.localdate()
             purchase.save()
 
             # Crear gasto automático en categoría Proveedores

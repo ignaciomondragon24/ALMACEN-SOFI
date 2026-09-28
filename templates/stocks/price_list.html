@@ -83,6 +83,16 @@
                             <td>{{ product.unit_of_measure.abbreviation|default:"u" }}</td>
                             <td class="text-end">
                                 <strong class="fs-5">{{ product.sale_price|currency }}</strong>
+                                {% if product.is_granel %}
+                                <span class="text-muted">/kg</span>
+                                <div class="small text-muted">
+                                    ¼: {{ product.precio_250g_calc|currency }}
+                                    · ½: {{ product.precio_500g_calc|currency }}
+                                    {% if product.oferta_price_250g > 0 or product.oferta_price_500g > 0 %}
+                                    <span class="badge bg-danger">Oferta</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                             </td>
                         </tr>
                         {% empty %}

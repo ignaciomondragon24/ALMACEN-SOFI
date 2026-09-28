@@ -36,7 +36,7 @@ def mp_dashboard(request):
     recent_intents = PaymentIntent.objects.all()[:10]
     
     # Totales del día
-    today = timezone.now().date()
+    today = timezone.localdate()
     today_intents = PaymentIntent.objects.filter(
         created_at__date=today
     )

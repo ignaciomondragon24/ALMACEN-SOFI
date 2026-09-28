@@ -136,9 +136,22 @@ class UnitOfMeasure(models.Model):
         verbose_name = 'Unidad de Medida'
         verbose_name_plural = 'Unidades de Medida'
         ordering = ['name']
-    
+
     def __str__(self):
         return f'{self.name} ({self.abbreviation})'
+
+    @classmethod
+    def kilogramo(cls):
+        """La unidad "Kilogramo" — todo producto por peso (is_granel=True) la
+        usa siempre, sin importar qué haya elegido el usuario en el
+        desplegable: el precio de venta de un producto por peso ES por
+        kilo, así que la unidad no puede decir otra cosa (evita el caso real
+        de un producto por peso quedando con Unidad="unidad", que en la
+        lista de precios se lee como "por pieza" en vez de "por kilo")."""
+        uom, _ = cls.objects.get_or_create(
+            name='Kilogramo', defaults={'abbreviation': 'kg', 'unit_type': 'weight'},
+        )
+        return uom
 
 
 class Product(models.Model):

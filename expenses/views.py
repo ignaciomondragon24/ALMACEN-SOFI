@@ -104,7 +104,7 @@ def expense_create(request):
             messages.success(request, 'Gasto registrado exitosamente.')
             return redirect('expenses:expense_list')
     else:
-        form = ExpenseForm(initial={'expense_date': timezone.now().date()})
+        form = ExpenseForm(initial={'expense_date': timezone.localdate()})
     
     context = {'form': form, 'title': 'Nuevo Gasto'}
     return render(request, 'expenses/expense_form.html', context)
@@ -279,7 +279,7 @@ def recurring_create(request):
 def expense_report(request):
     """Generate expense report."""
     # Default to current month
-    today = timezone.now().date()
+    today = timezone.localdate()
     date_from = today.replace(day=1)
     date_to = today
     

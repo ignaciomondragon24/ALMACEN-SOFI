@@ -433,7 +433,7 @@
                                 <br><small class="text-muted">{{ product.category.name }}</small>
                             </div>
                             <span class="badge bg-danger rounded-pill">
-                                {{ product.current_stock|floatformat:0 }}
+                                {% if product.is_granel %}{{ product.current_stock|floatformat:3 }} kg{% else %}{{ product.current_stock|floatformat:0 }}{% endif %}
                             </span>
                         </li>
                         {% empty %}

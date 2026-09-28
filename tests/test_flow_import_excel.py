@@ -276,6 +276,14 @@ class VentaPorPesoImportTests(TestCase):
         p = Product.objects.get(sku='PAP-1')
         self.assertFalse(p.is_granel)
 
+    def test_unidad_queda_forzada_a_kilogramo_pise_lo_que_pise_la_columna(self):
+        self.subir({'Fiambres': [
+            self.HEAD_PESO,
+            ['', 'JC-4', 'Jamón', '100g', 1100, 2300, '', 8000, 11000, 2.5],
+        ]})
+        p = Product.objects.get(sku='JC-4')
+        self.assertEqual(p.unit_of_measure.name, 'Kilogramo')
+
     def test_oferta_por_cuarto_se_carga(self):
         self.subir({'Fiambres': [
             self.HEAD_PESO,
@@ -323,6 +331,35 @@ class VentaPorPesoImportTests(TestCase):
         existente.refresh_from_db()
         self.assertTrue(existente.is_granel)
         self.assertEqual(existente.sale_price_100g, Decimal('1300.00'))
+
+    def test_exportar_e_importar_conserva_los_tramos(self):
+        """Ida y vuelta completa: lo que exporta el sistema para un producto
+        por peso (incluidos los tramos) se puede reimportar sin perder nada."""
+        Product.objects.create(
+            name='Jamón Exportado', sku='JC-EXP', is_granel=True,
+            cost_price=Decimal('8000'), purchase_price=Decimal('8000'), sale_price=Decimal('11000'),
+            sale_price_100g=Decimal('1200'), sale_price_250g=Decimal('2900'),
+            oferta_price_500g=Decimal('5000'), current_stock=Decimal('2.5'),
+        )
+        r = self.c.get(reverse('stocks:export_excel'))
+        self.assertEqual(r.status_code, 200)
+        Product.objects.all().delete()
+
+        wb = openpyxl.load_workbook(io.BytesIO(r.content))
+        buf = io.BytesIO()
+        wb.save(buf)
+        archivo = SimpleUploadedFile('reimport.xlsx', buf.getvalue(),
+                                     content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        r = self.c.post(self.url, {'excel_file': archivo})
+        self.assertEqual(r.status_code, 200)
+        self.c.post(self.url, {'confirm': '1'})
+
+        p = Product.objects.get(sku='JC-EXP')
+        self.assertTrue(p.is_granel)
+        self.assertEqual(p.sale_price_100g, Decimal('1200.00'))
+        self.assertEqual(p.sale_price_250g, Decimal('2900.00'))
+        self.assertEqual(p.oferta_price_500g, Decimal('5000.00'))
+        self.assertEqual(p.sale_price, Decimal('11000.00'))
 
     def test_preview_muestra_insignia_por_peso(self):
         r = self.subir({'Fiambres': [self.HEAD_PESO,

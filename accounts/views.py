@@ -92,7 +92,7 @@ def dashboard_view(request):
     )
     is_cashier = is_cajero_manager or 'Cashier' in user_groups
     
-    today = timezone.now().date()
+    today = timezone.localdate()
     context = {}
     
     # Turno actual del usuario (para cajeros)

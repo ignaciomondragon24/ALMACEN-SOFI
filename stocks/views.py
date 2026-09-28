@@ -1017,21 +1017,37 @@ def category_edit(request, pk):
 @group_required(['Admin', 'Cajero Manager'])
 def low_stock_products(request):
     """List products with low stock."""
-    products = StockManagementService.get_low_stock_products()
+    products = list(StockManagementService.get_low_stock_products())
+    # El "faltante" se calcula acá (no con filtros de template encadenados,
+    # que terminaban mezclando strings y números) — mínimo menos stock
+    # actual, sin bajar de 0.
+    for p in products:
+        faltante = p.min_stock - p.current_stock
+        p.faltante_calc = faltante if faltante > 0 else Decimal('0')
     return render(request, 'stocks/low_stock.html', {'products': products})
 
 
 @login_required
 def price_list(request):
     """Price list view."""
-    products = Product.objects.filter(is_active=True).select_related('category')
-    
+    products = Product.objects.filter(is_active=True).select_related('category', 'unit_of_measure')
+
     category = request.GET.get('category', '')
     if category:
         products = products.filter(category_id=category)
-    
+
+    products = list(products)
+    # Precio efectivo por tramo (oferta incluida), calculado acá porque
+    # price_for_grams necesita un argumento y el template no puede llamar
+    # métodos con parámetros — así la lista de precios muestra lo mismo que
+    # cobraría el POS, no solo el precio "por kilo".
+    for p in products:
+        if p.is_granel:
+            p.precio_250g_calc = p.price_for_grams(250)
+            p.precio_500g_calc = p.price_for_grams(500)
+
     categories = ProductCategory.objects.filter(is_active=True)
-    
+
     return render(request, 'stocks/price_list.html', {
         'products': products,
         'categories': categories,
@@ -1246,6 +1262,11 @@ def import_excel(request):
                             uom = None
                             if item.get('unit'):
                                 uom = _get_or_create_unit(item['unit'])
+                            # Un producto por peso SIEMPRE tiene su precio "por kilo" —
+                            # la unidad no puede decir otra cosa, pise lo que pise la
+                            # columna "Unidad" del Excel para esa fila.
+                            if item.get('is_granel'):
+                                uom = UnitOfMeasure.kilogramo()
 
                             if product:
                                 # Actualizar existente: cada precio se pisa SOLO si la fila
@@ -1384,11 +1405,30 @@ def import_excel(request):
             if len(rows) < 2:
                 continue
 
-            header = [str(c).strip().lower() if c else '' for c in rows[0]]
-            col_map = _map_columns(header)
+            # La fila de encabezados no siempre es la primera: un archivo con
+            # título/subtítulo arriba (como el que exporta este mismo
+            # sistema) tiene la fila real más abajo. Se busca entre las
+            # primeras filas la que mejor matchea — la que reconoce más
+            # columnas, exigiendo al menos 2 para no confundir una fila de
+            # título con una sola palabra parecida a "producto" con un
+            # encabezado real.
+            header_idx = 0
+            col_map = {}
+            for idx in range(min(10, len(rows))):
+                candidate_header = [str(c).strip().lower() if c else '' for c in rows[idx]]
+                candidate_map = _map_columns(candidate_header)
+                if 'nombre' in candidate_map and len(candidate_map) >= 2 and len(candidate_map) > len(col_map):
+                    header_idx = idx
+                    col_map = candidate_map
 
-            # Si no detectó 'nombre', intentar con la primera columna de texto
+            header = [str(c).strip().lower() if c else '' for c in rows[header_idx]]
+
+            # Si no detectó 'nombre' en ninguna fila, intentar con la
+            # primera columna de texto de la primera fila.
             if 'nombre' not in col_map:
+                header_idx = 0
+                header = [str(c).strip().lower() if c else '' for c in rows[0]]
+                col_map = _map_columns(header)
                 for test_idx, h in enumerate(header):
                     if test_idx not in col_map.values() and h:
                         col_map['nombre'] = test_idx
@@ -1399,7 +1439,7 @@ def import_excel(request):
                 continue
 
             items = []
-            for row in rows[1:]:
+            for row in rows[header_idx + 1:]:
                 if not any(row):
                     continue
                 item = _extract_row(row, col_map)
@@ -1675,7 +1715,7 @@ def export_products_excel(request):
     ws1 = wb.active
     ws1.title = 'Inventario'
 
-    ws1.merge_cells('A1:N1')
+    ws1.merge_cells('A1:S1')
     c = ws1['A1']
     c.value = 'INVENTARIO DE PRODUCTOS — LO DE JOSEFINA'
     c.font = Font(bold=True, size=14, color=C_WHITE)
@@ -1683,7 +1723,7 @@ def export_products_excel(request):
     c.alignment = Alignment(horizontal='center', vertical='center')
     ws1.row_dimensions[1].height = 28
 
-    ws1.merge_cells('A2:N2')
+    ws1.merge_cells('A2:S2')
     c = ws1['A2']
     c.value = f'Generado: {today_str}  |  Total productos activos: {total_products}'
     c.font = Font(size=9, color='555555')
@@ -1694,6 +1734,9 @@ def export_products_excel(request):
         'P. Compra', 'P. Venta', 'Costo Prom.', 'Margen %',
         'Stock Actual', 'Stock Mín.', 'Stock Máx.',
         'Valor Stock (Costo)', 'Estado',
+        # Venta por peso: vacías salvo que el producto sea is_granel=True.
+        # P. Compra/P. Venta de arriba ya son "por kilo" para estos.
+        'Precio 100g', 'Precio 1/4', 'Precio 1/2', 'Oferta 1/4', 'Oferta 1/2',
     ])
 
     for ri, p in enumerate(product_list, 4):
@@ -1722,6 +1765,11 @@ def export_products_excel(request):
             p.max_stock or '',
             float(p.stock_value),
             status,
+            float(p.sale_price_100g) if p.is_granel and p.sale_price_100g > 0 else '',
+            float(p.sale_price_250g) if p.is_granel and p.sale_price_250g > 0 else '',
+            float(p.sale_price_500g) if p.is_granel and p.sale_price_500g > 0 else '',
+            float(p.oferta_price_250g) if p.is_granel and p.oferta_price_250g > 0 else '',
+            float(p.oferta_price_500g) if p.is_granel and p.oferta_price_500g > 0 else '',
         ]
 
         for col, val in enumerate(row_vals, 1):
@@ -1730,7 +1778,7 @@ def export_products_excel(request):
             cell.font = Font(bold=(col == 14), size=9)
             cell.border = border()
             cell.alignment = Alignment(vertical='center')
-            if col in (6, 7, 8, 13):
+            if col in (6, 7, 8, 13, 15, 16, 17, 18, 19):
                 cell.number_format = '#,##0.00'
             elif col == 9:
                 cell.number_format = '0.00'

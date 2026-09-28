@@ -23,7 +23,7 @@ class BusinessDataCollector:
     """
     
     def __init__(self):
-        self.today = timezone.now().date()
+        self.today = timezone.localdate()
         self.yesterday = self.today - timedelta(days=1)
         self.start_of_month = self.today.replace(day=1)
         self.start_of_week = self.today - timedelta(days=self.today.weekday())

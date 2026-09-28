@@ -139,6 +139,12 @@ class ProductForm(forms.ModelForm):
                 'Debe ingresar un código de barras o un SKU manual.'
             )
 
+        # Un producto por peso SIEMPRE tiene su precio "por kilo" — la unidad
+        # no puede decir otra cosa (evita que quede en "Unidad" y la lista de
+        # precios se lea como "por pieza" en vez de "por kilo").
+        if cleaned.get('is_granel'):
+            cleaned['unit_of_measure'] = UnitOfMeasure.kilogramo()
+
         if barcode:
             qs = Product.objects.filter(barcode=barcode, is_active=True)
             if self.instance and self.instance.pk:

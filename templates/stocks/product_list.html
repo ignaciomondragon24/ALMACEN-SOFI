@@ -88,18 +88,20 @@
                                 {% endif %}
                             </td>
                             <td>{{ product.category.name|default:"-" }}</td>
-                            <td class="text-end">{{ product.cost_price|currency_ar }}</td>
                             <td class="text-end">
-                                <strong>{{ product.sale_price|currency_ar }}</strong>
+                                {{ product.cost_price|currency_ar }}{% if product.is_granel %}<span class="text-muted">/kg</span>{% endif %}
+                            </td>
+                            <td class="text-end">
+                                <strong>{{ product.sale_price|currency_ar }}</strong>{% if product.is_granel %}<span class="text-muted">/kg</span>{% endif %}
                             </td>
                             <td class="text-center">
                                 {% if product.current_stock <= product.min_stock %}
                                 <span class="badge bg-danger">
-                                    {{ product.current_stock|floatformat:0 }} {{ product.unit_of_measure.abbreviation|default:"u" }}
+                                    {% if product.is_granel %}{{ product.current_stock|floatformat:3 }}{% else %}{{ product.current_stock|floatformat:0 }}{% endif %} {{ product.unit_of_measure.abbreviation|default:"u" }}
                                 </span>
                                 {% else %}
                                 <span class="badge bg-success">
-                                    {{ product.current_stock|floatformat:0 }} {{ product.unit_of_measure.abbreviation|default:"u" }}
+                                    {% if product.is_granel %}{{ product.current_stock|floatformat:3 }}{% else %}{{ product.current_stock|floatformat:0 }}{% endif %} {{ product.unit_of_measure.abbreviation|default:"u" }}
                                 </span>
                                 {% endif %}
                             </td>

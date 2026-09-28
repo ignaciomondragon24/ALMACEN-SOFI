@@ -91,6 +91,15 @@ class CreacionTests(NuevoPesoBase):
         self.assertEqual(producto.sale_price_250g, Decimal('2900'))
         self.assertEqual(producto.oferta_price_500g, Decimal('5000'))
 
+    def test_unidad_de_medida_queda_forzada_a_kilogramo(self):
+        """La unidad de un producto por peso siempre es "Kilogramo" — no
+        importa qué haya en el desplegable, porque el precio de venta ES
+        por kilo. Evita que quede en "Unidad" y la lista de precios se lea
+        como "por pieza"."""
+        self.crear_producto_por_peso()
+        producto = Product.objects.get(sku='JC-NUEVO')
+        self.assertEqual(producto.unit_of_measure.name, 'Kilogramo')
+
     def test_producto_comun_sigue_creando_su_empaque_unidad(self):
         """No regresión: el flujo de siempre para productos que NO son por
         peso sigue intacto (crea Unidad, redirige a Gestionar Empaques)."""
@@ -128,6 +137,42 @@ class EdicionYEmpaquesTests(NuevoPesoBase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.context['precio_250g'], Decimal('2900'))
         self.assertEqual(r.context['precio_500g'], Decimal('5000'))
+
+
+class ListaDePreciosTests(NuevoPesoBase):
+    """La lista de precios (`stocks:price_list`) tiene que dejar clara la
+    unidad — un precio "por kilo" sin aclarar confunde tanto como uno "por
+    pieza" mal etiquetado."""
+
+    def setUp(self):
+        super().setUp()
+        self.crear_producto_por_peso(sale_price_250g='2900')
+        self.producto = Product.objects.get(sku='JC-NUEVO')
+
+    def test_muestra_el_desglose_por_tramo(self):
+        r = self.client.get(reverse('stocks:price_list'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, '/kg')
+        self.assertContains(r, self.producto.name)
+        self.assertEqual(r.context['products'][0].precio_250g_calc, Decimal('2900'))
+
+    def test_lista_principal_muestra_kilos_no_enteros(self):
+        """Bug real: un producto por peso con 2,5 kg de stock se mostraba
+        como "3" (redondeado a entero) en el listado principal."""
+        self.producto.current_stock = Decimal('2.5')
+        self.producto.save()
+        r = self.client.get(reverse('stocks:product_list'))
+        self.assertContains(r, '2,500')  # coma: formato es-AR
+        self.assertNotContains(r, '>3<')
+
+    def test_stock_bajo_muestra_kilos_y_faltante_correcto(self):
+        self.producto.current_stock = Decimal('0.5')
+        self.producto.min_stock = 3
+        self.producto.save()
+        r = self.client.get(reverse('stocks:low_stock'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, '0,500')
+        self.assertContains(r, '-2,500')  # faltante = 3 - 0.5
 
 
 class AgregarMercaderiaTests(NuevoPesoBase):

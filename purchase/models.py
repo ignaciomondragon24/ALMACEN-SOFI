@@ -86,7 +86,7 @@ class Supplier(models.Model):
     @property
     def is_order_day_today(self):
         from django.utils import timezone
-        return bool(self.order_day) and self.order_day == self.weekday_code(timezone.now().date())
+        return bool(self.order_day) and self.order_day == self.weekday_code(timezone.localdate())
 
 
 class SupplierProduct(models.Model):

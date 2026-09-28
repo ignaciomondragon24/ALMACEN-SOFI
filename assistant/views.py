@@ -549,11 +549,11 @@ def api_confirm_invoice(request):
                     except ValueError:
                         continue
                 else:
-                    fecha = timezone.now().date()
+                    fecha = timezone.localdate()
             else:
-                fecha = timezone.now().date()
+                fecha = timezone.localdate()
         except Exception:
-            fecha = timezone.now().date()
+            fecha = timezone.localdate()
 
         with transaction.atomic():
             from purchase.models import Supplier, Purchase, PurchaseItem
@@ -581,7 +581,7 @@ def api_confirm_invoice(request):
                 )
 
             # Create purchase order
-            today = timezone.now().strftime('%Y%m%d')
+            today = timezone.localtime().strftime('%Y%m%d')
             count = Purchase.objects.filter(
                 order_number__startswith=f'OC-{today}'
             ).count() + 1

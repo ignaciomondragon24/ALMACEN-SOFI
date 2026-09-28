@@ -72,10 +72,14 @@ class POSService:
         from django.db import IntegrityError
         
         register_code = session.cash_shift.cash_register.code or 'CAJA'
-        date_str = timezone.now().strftime('%Y%m%d')
-        
-        # Count today's transactions for this register
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        date_str = timezone.localtime().strftime('%Y%m%d')
+
+        # Count today's transactions for this register. localtime() (no
+        # timezone.now()) porque TIME_ZONE es Argentina (UTC-3): tomar la
+        # medianoche en UTC directo corta el día a las 21hs locales, no a
+        # medianoche real — los tickets de la noche quedaban contados como
+        # del día siguiente.
+        today_start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
         count = POSTransaction.objects.filter(
             session__cash_shift__cash_register=session.cash_shift.cash_register,
             created_at__gte=today_start

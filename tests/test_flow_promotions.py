@@ -4,8 +4,9 @@ bien en la caja. Cubre los tipos que Sofia pidió: 2x1, descuento por segunda un
 combos fijos, más precio fijo por cantidad, descuento porcentual y descuento por cantidad.
 """
 import json
-from datetime import timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -150,6 +151,23 @@ class VigenciaTests(PromoBase):
                    products=str(self.galle.pk), start_date=(hoy - timedelta(days=2)).isoformat(),
                    end_date=(hoy + timedelta(days=2)).isoformat())
         self.assertEqual(self.total_con((self.galle, 2)), Decimal('1000.00'))
+
+    def test_vigencia_de_noche_no_se_adelanta_por_utc(self):
+        """Bug real (2026-09-27): `TIME_ZONE` es Argentina (UTC-3), así que
+        entre las 21 y las 00hs locales, `timezone.now()` (UTC) ya está en el
+        día SIGUIENTE. Si `is_valid_today()` comparaba contra
+        `timezone.now().date()` en vez de `timezone.localdate()`, una promo
+        programada para "mañana" arrancaba 3 horas antes de tiempo, todas las
+        noches. Simula las 23:30 en Bs. As. (02:30 UTC del día siguiente)."""
+        promo = Promotion.objects.create(
+            name='Arranca mañana', promo_type='nxm', status='active',
+            quantity_required=2, quantity_charged=1, start_date=date(2026, 6, 15),
+        )
+        promo.products.add(self.galle)
+        # 23:30 del 14/6 en Bs. As. == 02:30 UTC del 15/6.
+        noche_utc = datetime(2026, 6, 15, 2, 30, tzinfo=dt_timezone.utc)
+        with patch('django.utils.timezone.now', return_value=noche_utc):
+            self.assertFalse(promo.is_valid_today())  # todavía 14/6 en Bs. As.
 
     def test_dia_de_la_semana(self):
         hoy = timezone.localdate()

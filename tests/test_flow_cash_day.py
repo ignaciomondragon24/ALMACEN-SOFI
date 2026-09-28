@@ -6,7 +6,9 @@ Lo que importa para Sofia: el cierre separa EFECTIVO de transferencias/tarjetas
 sale bien.
 """
 import json
+from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -257,3 +259,43 @@ class CashDayTests(TestCase):
         self.assertContains(self.c.get(reverse('cashregister:shift_detail', args=[shift.pk])), 'Bolsas')
         self.assertEqual(self.c.get(reverse('cashregister:shift_list')).status_code, 200)
         self.assertEqual(self.c.get(reverse('cashregister:shift_data_api', args=[shift.pk])).status_code, 200)
+
+
+class TicketNumberFechaLocalTests(TestCase):
+    """Bug real (2026-09-27): `TIME_ZONE` es Argentina (UTC-3) — entre las 21
+    y las 00hs locales, `timezone.now()` (UTC) ya cayó en el día siguiente.
+    El número de ticket (fecha + contador diario) usaba esa hora UTC directo,
+    así que todos los tickets de esas 3 horas quedaban fechados y contados
+    como del día siguiente."""
+
+    @classmethod
+    def setUpTestData(cls):
+        PaymentMethod.get_default_methods()
+        cls.register = CashRegister.objects.create(name='Caja Noche', code='CN1', is_active=True)
+        cajero_g, _ = Group.objects.get_or_create(name='Cashier')
+        cls.cajera = User.objects.create_user('cajera_noche', password='x')
+        cls.cajera.groups.add(cajero_g)
+        cls.shift = CashShift.objects.create(
+            cash_register=cls.register, cashier=cls.cajera,
+            initial_amount=Decimal('0'), status='open',
+        )
+
+    def test_ticket_de_las_23_30_lleva_la_fecha_local_no_la_utc(self):
+        session = POSService.get_or_create_session(self.shift)
+        # 23:30 del 14/6 en Bs. As. == 02:30 UTC del 15/6.
+        noche_utc = datetime(2026, 6, 15, 2, 30, tzinfo=dt_timezone.utc)
+        with patch('django.utils.timezone.now', return_value=noche_utc):
+            tx = POSService.create_transaction(session)
+        self.assertIn('20260614', tx.ticket_number)
+        self.assertNotIn('20260615', tx.ticket_number)
+
+    def test_contador_diario_no_se_reinicia_3_horas_antes(self):
+        session = POSService.get_or_create_session(self.shift)
+        tarde_utc = datetime(2026, 6, 14, 23, 0, tzinfo=dt_timezone.utc)   # 20:00 Bs. As.
+        noche_utc = datetime(2026, 6, 15, 1, 0, tzinfo=dt_timezone.utc)    # 22:00 Bs. As., mismo día local
+        with patch('django.utils.timezone.now', return_value=tarde_utc):
+            tx1 = POSService.create_transaction(session)
+        with patch('django.utils.timezone.now', return_value=noche_utc):
+            tx2 = POSService.create_transaction(session)
+        self.assertTrue(tx1.ticket_number.endswith('-0001'))
+        self.assertTrue(tx2.ticket_number.endswith('-0002'))  # sigue el mismo contador del día

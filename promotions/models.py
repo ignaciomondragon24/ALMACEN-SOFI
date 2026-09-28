@@ -248,7 +248,7 @@ class Promotion(models.Model):
     
     def is_valid_today(self):
         """Check if promotion is valid today."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         weekday = today.weekday()
         
         # Check status

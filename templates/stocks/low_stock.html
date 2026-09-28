@@ -69,21 +69,15 @@
                                 {% if product.current_stock == 0 %}
                                 <span class="badge bg-danger fs-6">0</span>
                                 {% else %}
-                                <span class="text-warning fw-bold">{{ product.current_stock|floatformat:0 }}</span>
+                                <span class="text-warning fw-bold">{% if product.is_granel %}{{ product.current_stock|floatformat:3 }} kg{% else %}{{ product.current_stock|floatformat:0 }}{% endif %}</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center text-muted">
-                                {{ product.min_stock|floatformat:0 }}
-                            </td>
+                            <td class="text-center text-muted">{{ product.min_stock|floatformat:0 }}{% if product.is_granel %} kg{% endif %}</td>
                             <td class="text-center">
-                                {% with diff=product.current_stock|add:product.min_stock|floatformat:0 %}
-                                <span class="text-danger fw-bold">
-                                    -{{ product.min_stock|add:-1|floatformat:0|add:product.current_stock|floatformat:0 }}
-                                </span>
-                                {% endwith %}
+                                <span class="text-danger fw-bold">-{% if product.is_granel %}{{ product.faltante_calc|floatformat:3 }} kg{% else %}{{ product.faltante_calc|floatformat:0 }}{% endif %}</span>
                             </td>
                             <td class="text-end">
-                                {{ product.sale_price|currency }}
+                                {{ product.sale_price|currency }}{% if product.is_granel %}<span class="text-muted">/kg</span>{% endif %}
                             </td>
                             <td class="text-center">
                                 <a href="{% url 'purchase:purchase_create' %}" class="btn btn-sm btn-primary" title="Nueva Orden de Compra">
