@@ -635,7 +635,11 @@
                             data-is-granel="{{ button.product.is_granel|yesno:'true,false' }}"
                             data-is-bulk="{{ button.product.is_bulk|yesno:'true,false' }}"
                             data-unit-price="{{ button.product.sale_price|unlocalize }}"
-                            data-price-per-kg="{{ button.product.sale_price_250g|unlocalize }}"
+                            data-sale-price100g="{{ button.product.sale_price_100g|unlocalize }}"
+                            data-sale-price250g="{{ button.product.sale_price_250g|unlocalize }}"
+                            data-sale-price500g="{{ button.product.sale_price_500g|unlocalize }}"
+                            data-oferta-price250g="{{ button.product.oferta_price_250g|unlocalize }}"
+                            data-oferta-price500g="{{ button.product.oferta_price_500g|unlocalize }}"
                             data-stock="{{ button.product.current_stock|unlocalize }}"
                             data-name="{{ button.product.name }}"
                             style="background-color: {{ button.color }};">

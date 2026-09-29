@@ -317,6 +317,62 @@ class VentaEnPosTests(NuevoPesoBase):
         self.assertEqual(self.producto.current_stock, Decimal('2.250'))
 
 
+class PreviewDelPOSTests(NuevoPesoBase):
+    """Bug real reportado por Sofia (29/9/2026): el buscador/acceso rápido
+    del POS solo mandaba `sale_price_250g` al frontend, y el JS de
+    `showBulkQuantityModal` lo interpretaba como si fuera "precio por
+    kilo" (una semántica del sistema VIEJO) — dividía por 1000 y mostraba
+    1/4 del precio real. También rotulaba el precio por kilo como "/100g".
+    La venta en sí ya cobraba bien server-side (`VentaEnPosTests` arriba),
+    pero la vista previa que Sofia mira ANTES de vender mentía. Estos tests
+    cubren que el JSON que alimenta esa vista previa venga completo."""
+
+    def setUp(self):
+        super().setUp()
+        self.crear_producto_por_peso(
+            sale_price_100g='1500', sale_price_250g='2200', oferta_price_250g='0',
+            sale_price_500g='4000', oferta_price_500g='3600',
+        )
+        self.producto = Product.objects.get(sku='JC-NUEVO')
+
+    def test_buscador_manda_los_5_tramos(self):
+        r = self.client.get(reverse('pos:api_search'), {'q': 'Jamón'})
+        self.assertEqual(r.status_code, 200)
+        data = r.json()['products'][0]
+        self.assertEqual(data['unit_price'], 12000.0)          # por kilo, NO por 100g
+        self.assertEqual(data['sale_price_100g'], 1500.0)
+        self.assertEqual(data['sale_price_250g'], 2200.0)
+        self.assertEqual(data['sale_price_500g'], 4000.0)
+        self.assertEqual(data['oferta_price_250g'], 0.0)
+        self.assertEqual(data['oferta_price_500g'], 3600.0)
+
+    def test_todos_los_productos_manda_los_5_tramos(self):
+        r = self.client.get(reverse('pos:api_all_products'))
+        self.assertEqual(r.status_code, 200)
+        data = next(p for p in r.json()['products'] if p['sku'] == 'JC-NUEVO')
+        self.assertEqual(data['sale_price_250g'], 2200.0)
+        self.assertEqual(data['sale_price_500g'], 4000.0)
+        self.assertEqual(data['oferta_price_500g'], 3600.0)
+
+    def test_acceso_rapido_manda_los_5_tramos(self):
+        from pos.models import QuickAccessButton
+        QuickAccessButton.objects.create(product=self.producto, position=1, is_active=True)
+        r = self.client.post(reverse('pos:api_toggle_quick_access'),
+                              json.dumps({'product_id': self.producto.id}),
+                              content_type='application/json')
+        self.assertEqual(r.status_code, 200)
+        # Este toggle apaga el botón que ya existía; lo volvemos a prender
+        # para leer el payload con el producto adentro.
+        r = self.client.post(reverse('pos:api_toggle_quick_access'),
+                              json.dumps({'product_id': self.producto.id}),
+                              content_type='application/json')
+        data = next(b for b in r.json()['buttons'] if b['product_id'] == self.producto.id)
+        self.assertEqual(data['sale_price_100g'], 1500.0)
+        self.assertEqual(data['sale_price_250g'], 2200.0)
+        self.assertEqual(data['sale_price_500g'], 4000.0)
+        self.assertEqual(data['oferta_price_500g'], 3600.0)
+
+
 class OrdenDeCompraTests(NuevoPesoBase):
     """Encontrados y arreglados al escribir esta clase (`purchase/models.py`
     y `purchase/views.py` solo reconocían "por peso" al viejo estilo, con

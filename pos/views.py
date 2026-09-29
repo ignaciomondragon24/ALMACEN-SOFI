@@ -184,7 +184,15 @@ def api_search(request):
             'bulk_unit': p.bulk_unit if p.is_bulk else None,
             'allow_sell_by_amount': p.allow_sell_by_amount,
             'is_granel': p.is_granel,
+            # Los 5 tramos de venta por peso: el frontend los necesita TODOS
+            # para calcular el precio igual que `Product.price_for_grams`
+            # (antes solo mandaba sale_price_250g y el JS lo interpretaba
+            # como "precio por kilo" — bug real reportado por Sofia).
+            'sale_price_100g': float(p.sale_price_100g) if p.is_granel else None,
             'sale_price_250g': float(p.sale_price_250g) if p.is_granel else None,
+            'sale_price_500g': float(p.sale_price_500g) if p.is_granel else None,
+            'oferta_price_250g': float(p.oferta_price_250g) if p.is_granel else None,
+            'oferta_price_500g': float(p.oferta_price_500g) if p.is_granel else None,
             'has_parent': p.parent_product is not None,
             'parent_name': p.parent_product.name if p.parent_product else None,
             'packaging_id': None,
@@ -260,7 +268,11 @@ def api_all_products(request):
                 'bulk_unit': p.bulk_unit if p.is_bulk else None,
                 'allow_sell_by_amount': p.allow_sell_by_amount,
                 'is_granel': p.is_granel,
+                'sale_price_100g': float(p.sale_price_100g) if p.is_granel else None,
                 'sale_price_250g': float(p.sale_price_250g) if p.is_granel else None,
+                'sale_price_500g': float(p.sale_price_500g) if p.is_granel else None,
+                'oferta_price_250g': float(p.oferta_price_250g) if p.is_granel else None,
+                'oferta_price_500g': float(p.oferta_price_500g) if p.is_granel else None,
                 'category': p.category.name if p.category else 'Sin categoría',
                 'category_id': p.category_id or 0,
                 'is_quick': p.id in quick_ids,
@@ -307,7 +319,11 @@ def api_toggle_quick_access(request):
                 'color': b.color,
                 'is_granel': b.product.is_granel,
                 'is_bulk': b.product.is_bulk,
+                'sale_price_100g': float(b.product.sale_price_100g),
                 'sale_price_250g': float(b.product.sale_price_250g),
+                'sale_price_500g': float(b.product.sale_price_500g),
+                'oferta_price_250g': float(b.product.oferta_price_250g),
+                'oferta_price_500g': float(b.product.oferta_price_500g),
                 'stock': float(b.product.current_stock),
             }
             for b in buttons

@@ -740,40 +740,71 @@
 
     function showBulkQuantityModal(product) {
         const isGranel = !!product.is_granel;
-        // Los productos granel de caramelera siempre usan precio/100g como base
         const priceWeight = 100;
-        const pricePerKg = isGranel ? (product.sale_price_250g || 0) : 0;
         const unitLabel = isGranel ? 'gramos' : product.unit;
         const defaultVal = isGranel ? '100' : '0.500';
         const stepVal = isGranel ? '1' : '0.001';
         const minVal = isGranel ? '1' : '0.001';
 
-        let priceLabel;
-        if (isGranel) {
-            priceLabel = `${formatCurrency(product.unit_price)}/100g`;
-            if (pricePerKg > 0) {
-                priceLabel += ` · ${formatCurrency(pricePerKg)}/kg`;
-            }
-        } else {
-            priceLabel = `${formatCurrency(product.unit_price)}/${product.unit}`;
+        // Réplica exacta de `Product.price_for_grams` (stocks/models.py).
+        // El servidor vuelve a calcular este mismo precio al confirmar la
+        // venta ("el servidor manda" — CartService.add_item ignora
+        // cualquier override para productos por peso), pero esta vista
+        // previa tiene que coincidir o Sofia ve un número que después no
+        // es el que se cobra. BUG arreglado acá (reportado 29/9): este
+        // modal interpretaba sale_price_250g como "precio por kilo"
+        // (dividía por 1000, dando 1/4 de lo que correspondía) y mostraba
+        // el precio por kilo (unit_price) rotulado como "/100g".
+        function tierLoaded250() {
+            return (product.sale_price_250g > 0) || (product.oferta_price_250g > 0);
+        }
+        function tierLoaded500() {
+            return (product.sale_price_500g > 0) || (product.oferta_price_500g > 0);
         }
 
         function calcTotal(grams) {
             if (!isGranel) return grams * product.unit_price;
-            // >= 250g con precio por kilo: regla de tres
-            if (pricePerKg > 0 && grams >= 250) {
-                return (grams / 1000) * pricePerKg;
+            grams = parseFloat(grams) || 0;
+            const precio100g = (product.unit_price || 0) / 10;
+
+            if (grams >= 500 && tierLoaded500()) {
+                const normal = product.sale_price_500g > 0 ? product.sale_price_500g : precio100g * 5;
+                const tramo = product.oferta_price_500g > 0 ? product.oferta_price_500g : normal;
+                return (grams / 500) * tramo;
             }
-            // < 250g o sin precio kilo: proporcional al precio/100g
-            return (grams / priceWeight) * product.unit_price;
+            if (grams >= 250 && tierLoaded250()) {
+                const normal = product.sale_price_250g > 0 ? product.sale_price_250g : precio100g * 2.5;
+                const tramo = product.oferta_price_250g > 0 ? product.oferta_price_250g : normal;
+                return (grams / 250) * tramo;
+            }
+            if (grams < 250) {
+                const precio100gChico = product.sale_price_100g > 0 ? product.sale_price_100g : precio100g;
+                return (grams / 100) * precio100gChico;
+            }
+            return (grams / priceWeight) * precio100g;
         }
 
         function priceBreakdown(grams) {
             if (!isGranel || grams <= 0) return '';
-            if (pricePerKg > 0 && grams >= 250) {
-                return `<small class="text-warning">${grams}g × ${formatCurrency(pricePerKg)}/kg</small>`;
+            if (grams >= 500 && tierLoaded500()) {
+                const conOferta = product.oferta_price_500g > 0;
+                return `<small class="${conOferta ? 'text-success' : 'text-warning'}">Tramo ½ kg${conOferta ? ' (oferta)' : ''}</small>`;
             }
-            return `<small class="text-muted">${grams}g × ${formatCurrency(product.unit_price)}/100g</small>`;
+            if (grams >= 250 && tierLoaded250()) {
+                const conOferta = product.oferta_price_250g > 0;
+                return `<small class="${conOferta ? 'text-success' : 'text-warning'}">Tramo ¼ kg${conOferta ? ' (oferta)' : ''}</small>`;
+            }
+            if (grams < 250 && product.sale_price_100g > 0) {
+                return `<small class="text-muted">Precio compra chica (100g)</small>`;
+            }
+            return `<small class="text-muted">Proporcional al precio por kilo</small>`;
+        }
+
+        let priceLabel;
+        if (isGranel) {
+            priceLabel = `${formatCurrency(product.unit_price)}/kg`;
+        } else {
+            priceLabel = `${formatCurrency(product.unit_price)}/${product.unit}`;
         }
 
         const stockGrams = product.stock != null ? Math.floor(product.stock) : 0;
@@ -797,10 +828,10 @@
                                 <button type="button" class="btn btn-sm btn-outline-info granel-quick-gram" data-grams="100" style="flex:1;">
                                     100g<br><small style="color:#aaa;">${formatCurrency(calcTotal(100))}</small>
                                 </button>
-                                <button type="button" class="btn btn-sm ${pricePerKg > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="250" style="flex:1;">
+                                <button type="button" class="btn btn-sm ${tierLoaded250() ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="250" style="flex:1;">
                                     ¼ kg<br><small style="color:#aaa;">${formatCurrency(calcTotal(250))}</small>
                                 </button>
-                                <button type="button" class="btn btn-sm ${pricePerKg > 0 ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="500" style="flex:1;">
+                                <button type="button" class="btn btn-sm ${tierLoaded500() ? 'btn-outline-warning' : 'btn-outline-info'} granel-quick-gram" data-grams="500" style="flex:1;">
                                     ½ kg<br><small style="color:#aaa;">${formatCurrency(calcTotal(500))}</small>
                                 </button>
                             </div>` : ''}
@@ -1339,7 +1370,7 @@
                             ${item.is_granel ? '<span class="badge ms-1" style="font-size:.65em;background:rgba(195, 50, 135,0.2);color:#C33287;border:1px solid rgba(195, 50, 135,0.3);">granel</span>' : ''}
                         </div>
                         <div class="cart-item-price d-flex align-items-center gap-2">
-                            <span>${item.is_granel ? formatCurrency(item.unit_price * (item.granel_price_weight_grams || 100)) + `/${item.granel_price_weight_grams || 100}g` : formatCurrency(item.unit_price) + ' c/u'}</span>
+                            <span>${item.is_granel ? formatCurrency(item.unit_price * 100) + '/100g' : formatCurrency(item.unit_price) + ' c/u'}</span>
                             <button class="btn btn-xs cart-item-discount-btn ${manualDiscount > 0 ? 'btn-success active' : 'btn-outline-warning'}" tabindex="-1"
                                     title="Descuento manual para este producto (separado de la promo)" data-item-id="${item.id}">
                                 <i class="fas fa-percent"></i>
@@ -1558,7 +1589,11 @@
                         is_granel: isGranel,
                         is_bulk: isBulk,
                         unit_price: parseFloat(this.dataset.unitPrice) || 0,
-                        sale_price_250g: parseFloat(this.dataset.pricePerKg) || 0,
+                        sale_price_100g: parseFloat(this.dataset.salePrice100g) || 0,
+                        sale_price_250g: parseFloat(this.dataset.salePrice250g) || 0,
+                        sale_price_500g: parseFloat(this.dataset.salePrice500g) || 0,
+                        oferta_price_250g: parseFloat(this.dataset.ofertaPrice250g) || 0,
+                        oferta_price_500g: parseFloat(this.dataset.ofertaPrice500g) || 0,
                         stock: parseFloat(this.dataset.stock) || 0,
                     };
                     showBulkQuantityModal(product);
@@ -1582,7 +1617,11 @@
                 data-is-granel="${b.is_granel || false}"
                 data-is-bulk="${b.is_bulk || false}"
                 data-unit-price="${b.price}"
-                data-price-per-kg="${b.sale_price_250g || 0}"
+                data-sale-price100g="${b.sale_price_100g || 0}"
+                data-sale-price250g="${b.sale_price_250g || 0}"
+                data-sale-price500g="${b.sale_price_500g || 0}"
+                data-oferta-price250g="${b.oferta_price_250g || 0}"
+                data-oferta-price500g="${b.oferta_price_500g || 0}"
                 data-stock="${b.stock || 0}"
                 data-name="${b.name}"
                 style="background-color: ${b.color};">
