@@ -612,6 +612,12 @@ def api_confirm_invoice(request):
                 precio_unitario = _to_decimal(prod_data.get('precio_unitario', 0), Decimal('0'))
                 codigo_barras = prod_data.get('codigo_barras', '').strip() or None
                 product_id = prod_data.get('product_id') or None
+                # Precio de venta sugerido por la pantalla de revisión (mantiene
+                # el margen que ya tenía el producto aplicado al costo nuevo).
+                # Sofia lo ve y lo puede editar ahí antes de confirmar — si no
+                # viene (0), el precio de venta actual queda sin tocar, igual
+                # que siempre.
+                sale_price_nuevo = _to_decimal(prod_data.get('sale_price', 0), Decimal('0'))
 
                 if not nombre or cantidad <= 0:
                     continue
@@ -650,6 +656,8 @@ def api_confirm_invoice(request):
                         name__icontains=nombre, is_active=True
                     ).first()
 
+                ya_existia = product is not None
+
                 if not product:
                     # Producto no encontrado → auto-crear con los datos del remito
                     p_cost = precio_unitario if precio_unitario > 0 else Decimal('0.01')
@@ -681,10 +689,21 @@ def api_confirm_invoice(request):
                 )
                 items_created += 1
 
-                # Mantener actualizado el último precio de compra del producto
+                # Mantener actualizado el último precio de compra del producto.
+                # Si viene un precio de venta nuevo desde la revisión (solo
+                # para productos que YA existían: mantiene el margen que
+                # tenían aplicado al costo nuevo, y Sofia lo vio/editó antes
+                # de confirmar), se actualiza junto — los recién creados ya
+                # se guardaron con su propio precio de venta arriba.
+                update_fields = []
                 if precio_unitario > 0:
                     product.purchase_price = precio_unitario
-                    product.save(update_fields=['purchase_price'])
+                    update_fields.append('purchase_price')
+                if ya_existia and sale_price_nuevo > 0:
+                    product.sale_price = sale_price_nuevo
+                    update_fields.append('sale_price')
+                if update_fields:
+                    product.save(update_fields=update_fields)
 
                 # Update stock. Para un producto por peso, la cantidad del
                 # remito son kilos y el costo por kilo — mismos campos que

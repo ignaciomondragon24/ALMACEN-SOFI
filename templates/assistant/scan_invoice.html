@@ -387,6 +387,7 @@
                                         <th style="width: 80px;" class="text-center">Cant.</th>
                                         <th style="width: 110px;" class="text-end">P. Unit.</th>
                                         <th style="width: 110px;" class="text-end">Total</th>
+                                        <th style="width: 130px;" class="text-end">P. Venta</th>
                                         <th style="width: 40px;"></th>
                                     </tr>
                                 </thead>
@@ -788,6 +789,11 @@ function addProductRowData(p, idx) {
             <input type="number" value="${total.toFixed(2)}" min="0" step="0.01" data-field="precio_total"
                    onchange="updateTotals()">
         </td>
+        <td class="edit-cell text-end">
+            <input type="number" value="" min="0" step="0.01" data-field="sale_price"
+                   placeholder="—" disabled title="Se completa al encontrar el producto">
+            <div class="sale-price-hint" style="font-size:0.68rem;line-height:1.1;"></div>
+        </td>
         <td>
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); updateTotals();">
                 <i class="fas fa-trash"></i>
@@ -826,11 +832,19 @@ async function checkProductMatch(tr, nombre, barcode) {
         if (result.results && result.results.length > 0) {
             const matched = result.results[0];
             tr.dataset.productId = matched.id;
+            // Costo y margen actuales del producto: sirven para sugerir un
+            // precio de venta nuevo que MANTENGA el margen que ya tenía,
+            // aplicado al costo que trae este remito (Sofia lo ve acá y lo
+            // puede corregir antes de confirmar — nunca se aplica solo).
+            tr.dataset.currentCost = matched.cost_price || '0';
+            tr.dataset.currentSale = matched.sale_price || '0';
+            tr.dataset.marginPercent = matched.margin_percent || '0';
             icon.className = 'fas fa-check-circle match-found match-icon';
             icon.title = `Encontrado: ${matched.name}`;
             // Hide create button if exists
             const createBtn = tr.querySelector('.btn-create-product');
             if (createBtn) createBtn.style.display = 'none';
+            updateSuggestedSalePrice(tr);
         } else {
             tr.dataset.productId = '';
             icon.className = 'fas fa-exclamation-circle match-not-found match-icon';
@@ -845,11 +859,50 @@ async function checkProductMatch(tr, nombre, barcode) {
     }
 }
 
+// Sugiere un precio de venta que preserva el margen actual del producto
+// aplicado al costo nuevo del remito. Solo sugiere (Sofia confirma/edita);
+// si el costo no cambió, deja el precio de venta actual sin tocar.
+function updateSuggestedSalePrice(tr) {
+    const salePriceInput = tr.querySelector('[data-field="sale_price"]');
+    const hint = tr.querySelector('.sale-price-hint');
+    if (!salePriceInput || !tr.dataset.productId) return;
+
+    const costoActual = parseFloat(tr.dataset.currentCost) || 0;
+    const ventaActual = parseFloat(tr.dataset.currentSale) || 0;
+    const margen = parseFloat(tr.dataset.marginPercent) || 0;
+    const costoNuevo = parseFloat(tr.querySelector('[data-field="precio_unitario"]').value) || 0;
+
+    salePriceInput.disabled = false;
+
+    if (costoNuevo <= 0 || costoActual <= 0) {
+        // Sin costo actual para comparar (producto nunca tuvo costo cargado):
+        // no se sugiere nada, Sofia carga el precio a mano si hace falta.
+        salePriceInput.value = '';
+        if (hint) hint.innerHTML = `<span class="text-muted">Hoy: ${fmtMoney(ventaActual)}</span>`;
+        return;
+    }
+
+    if (Math.abs(costoNuevo - costoActual) < 0.01) {
+        // El costo no cambió: no hay nada que recalcular.
+        salePriceInput.value = '';
+        if (hint) hint.innerHTML = `<span class="text-muted">Sin cambios (hoy: ${fmtMoney(ventaActual)})</span>`;
+        return;
+    }
+
+    const sugerido = costoNuevo * (1 + margen / 100);
+    salePriceInput.value = sugerido.toFixed(2);
+    salePriceInput.dataset.autoFilled = '1';
+    if (hint) {
+        hint.innerHTML = `<span class="text-info">Antes: ${fmtMoney(ventaActual)} · margen ${margen.toFixed(0)}%</span>`;
+    }
+}
+
 function recalcRow(input) {
     const tr = input.closest('tr');
     const qty = parseFloat(tr.querySelector('[data-field="cantidad"]').value) || 0;
     const price = parseFloat(tr.querySelector('[data-field="precio_unitario"]').value) || 0;
     tr.querySelector('[data-field="precio_total"]').value = (qty * price).toFixed(2);
+    updateSuggestedSalePrice(tr);
     updateTotals();
 }
 
@@ -887,10 +940,11 @@ async function confirmInvoice() {
         const precio_total = parseFloat(tr.querySelector('[data-field="precio_total"]').value) || 0;
         const product_id = tr.dataset.productId || null;
         const codigo_barras = tr.dataset.barcode || '';
+        const sale_price = parseFloat(tr.querySelector('[data-field="sale_price"]').value) || 0;
 
         if (nombre && cantidad > 0) {
             if (!product_id) notLinkedCount += 1;
-            productos.push({ nombre, cantidad, precio_unitario, precio_total, product_id, codigo_barras });
+            productos.push({ nombre, cantidad, precio_unitario, precio_total, product_id, codigo_barras, sale_price });
         }
     });
 
