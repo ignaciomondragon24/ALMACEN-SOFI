@@ -270,7 +270,9 @@ def assistant_settings(request):
     if request.method == 'POST':
         settings_obj.openai_api_key = request.POST.get('openai_api_key', '')
         settings_obj.model = request.POST.get('model', 'gemini-2.0-flash')
-        
+        settings_obj.anthropic_api_key = request.POST.get('anthropic_api_key', '').strip()
+        settings_obj.anthropic_model = request.POST.get('anthropic_model', 'claude-sonnet-5')
+
         # Validate numeric fields
         try:
             max_tokens = request.POST.get('max_tokens', '2000').strip()
@@ -314,7 +316,11 @@ def assistant_settings(request):
             ('gemini-2.5-pro', 'Gemini 2.5 Pro'),
             ('gemini-2.0-flash', 'Gemini 2.0 Flash'),
             ('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite'),
-        ]
+        ],
+        'available_claude_models': [
+            ('claude-sonnet-5', 'Claude Sonnet 5 (Recomendado — mejor precisión)'),
+            ('claude-haiku-4-5-20251001', 'Claude Haiku 4.5 (más barato y rápido)'),
+        ],
     }
     
     return render(request, 'assistant/settings.html', context)
@@ -352,9 +358,16 @@ def scan_invoice_page(request):
 
     suppliers = Supplier.objects.filter(is_active=True).order_by('name')
     categories = ProductCategory.objects.filter(is_active=True).order_by('name')
+    settings_obj = AssistantSettings.get_settings()
+    is_configured = (
+        bool(settings_obj.anthropic_api_key)
+        or bool(getattr(django_settings, 'ANTHROPIC_API_KEY', None))
+        or bool(os.getenv('ANTHROPIC_API_KEY'))
+    )
     context = {
         'suppliers': suppliers,
         'categories': categories,
+        'is_configured': is_configured,
     }
     return render(request, 'assistant/scan_invoice.html', context)
 
@@ -402,7 +415,7 @@ def api_scan_invoice(request):
 
             image_data = base64.b64decode(image_b64)
 
-        # Call Gemini Vision
+        # Call Claude Vision
         scanner = InvoiceScanService()
         result = scanner.scan_invoice(image_data, mime_type)
 

@@ -138,17 +138,16 @@
             
             <div class="row g-3 mb-4">
                 <div class="col-md-8">
-                    <label class="form-label">Gemini API Key <span class="text-danger">*</span></label>
-                    <input 
-                        type="text" 
-                        class="form-control api-key-input" 
+                    <label class="form-label">Gemini API Key</label>
+                    <input
+                        type="text"
+                        class="form-control api-key-input"
                         name="openai_api_key"
                         value="{{ settings.openai_api_key }}"
                         placeholder="AIza..."
-                        required
                     >
                     <div class="form-text">
-                        Tu clave de API de Google Gemini. Empieza con <code>AIza</code>
+                        Tu clave de API de Google Gemini, usada por el <strong>chat</strong> del asistente. Empieza con <code>AIza</code>. Dejala vacía si no usás el chat.
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -162,7 +161,45 @@
                     </select>
                 </div>
             </div>
-            
+
+            <!-- Instrucciones para obtener API Key de Claude -->
+            <div class="alert alert-info mb-3" style="background: #0f3460; border: 1px solid #C33287; color: #eaeaea;">
+                <h5><i class="fas fa-camera me-2"></i>¿Cómo obtener tu API Key de Claude (para Escanear Remito)?</h5>
+                <ol class="mb-0">
+                    <li>Andá a <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: #e886c4;">console.anthropic.com</a> — <strong>ojo:</strong> es una cuenta de API, NO tu login de Claude.ai (la del chat/skills). Hay que crearla aparte y cargar un método de pago.</li>
+                    <li>Hacé clic en <strong>"Create Key"</strong></li>
+                    <li>Copiá la key que empieza con <code>sk-ant-...</code> y pegala abajo</li>
+                </ol>
+                <hr style="border-color: rgba(255,255,255,0.2);">
+                <small><strong>Costo:</strong> se paga por uso (no tiene plan gratuito como Gemini). Para el volumen de un remito ocasional el costo por foto es de centavos, pero no es gratis — subí algunos créditos en la cuenta de Anthropic antes de probarlo.</small>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-8">
+                    <label class="form-label">Claude API Key</label>
+                    <input
+                        type="text"
+                        class="form-control api-key-input"
+                        name="anthropic_api_key"
+                        value="{{ settings.anthropic_api_key }}"
+                        placeholder="sk-ant-..."
+                    >
+                    <div class="form-text">
+                        Usada solo por <strong>"Escanear Remito"</strong> (lectura de fotos). Empieza con <code>sk-ant-</code>.
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Modelo de Claude</label>
+                    <select class="form-select" name="anthropic_model">
+                        {% for value, label in available_claude_models %}
+                        <option value="{{ value }}" {% if settings.anthropic_model == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
             <!-- Model Parameters -->
             <h5 class="section-title">
                 <i class="fas fa-sliders-h me-2"></i>Parámetros del Modelo

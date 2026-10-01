@@ -105,13 +105,29 @@ class AssistantSettings(models.Model):
         max_length=200,
         blank=True,
         verbose_name='API Key de Gemini',
-        help_text='Clave API de Google Gemini (AIza...)'
+        help_text='Clave API de Google Gemini (AIza...) — usada por el chat del asistente'
     )
     model = models.CharField(
         max_length=50,
         default='gemini-2.5-flash',
         verbose_name='Modelo',
-        help_text='Modelo de Gemini a usar'
+        help_text='Modelo de Gemini a usar (chat del asistente)'
+    )
+    anthropic_api_key = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='API Key de Claude (Anthropic)',
+        help_text=(
+            'Clave de console.anthropic.com (sk-ant-...) — NO es la suscripción de '
+            'Claude.ai, es una cuenta de API aparte, con su propia facturación. '
+            'Usada solo por "Escanear Remito".'
+        )
+    )
+    anthropic_model = models.CharField(
+        max_length=50,
+        default='claude-sonnet-5',
+        verbose_name='Modelo de Claude',
+        help_text='Modelo de Claude a usar para leer remitos'
     )
     max_tokens = models.IntegerField(
         default=2000,

@@ -1,6 +1,6 @@
 """
 AI Assistant Service for CHE GOLOSO.
-Integrates with Google Gemini API and provides business context.
+Chat/insights: Google Gemini API. Escanear Remito (InvoiceScanService): Claude (Anthropic) API.
 """
 import json
 import time
@@ -443,7 +443,7 @@ class BusinessDataCollector:
 
 class InvoiceScanService:
     """
-    Service for scanning invoices/receipts using Gemini Vision.
+    Service for scanning invoices/receipts using Claude (Anthropic) Vision.
     Extracts product data from photos of invoices.
     """
 
@@ -491,9 +491,20 @@ Respondé ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones. Formato
 
 Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer el máximo de información posible."""
 
+    # Modelo de respaldo si `AssistantSettings.anthropic_model` viene vacío
+    # (no debería pasar, el campo tiene default, pero por las dudas).
+    DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5'
+
     def scan_invoice(self, image_data: bytes, mime_type: str = 'image/jpeg') -> Dict[str, Any]:
         """
-        Send an invoice image to Gemini Vision and extract structured data.
+        Send an invoice image to Claude (Anthropic) and extract structured data.
+
+        Antes usaba Gemini — se migró a Claude a pedido de Nacho (1/10/2026):
+        cada negocio (Almacén Sofia / El Goloso) usa su PROPIA API key de
+        Anthropic (console.anthropic.com, facturación aparte de una
+        suscripción de Claude.ai), igual que ya pasaba con la key de Gemini
+        para el chat del asistente — son campos separados en
+        `AssistantSettings`, el chat sigue en Gemini sin tocarse.
 
         Args:
             image_data: Raw image bytes
@@ -502,47 +513,53 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
         Returns:
             Dict with extracted invoice data
         """
-        from google import genai
-        from google.genai import types
+        import base64
+        import anthropic
         from .models import AssistantSettings
 
         start_time = time.time()
+        raw_text = ''
 
         try:
-            # Get Gemini client
             assistant_settings = AssistantSettings.get_settings()
-            api_key = assistant_settings.openai_api_key
+            api_key = assistant_settings.anthropic_api_key
             if not api_key:
-                api_key = getattr(settings, 'GEMINI_API_KEY', None)
+                api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
                 if not api_key:
                     import os
-                    api_key = os.getenv('GEMINI_API_KEY')
+                    api_key = os.getenv('ANTHROPIC_API_KEY')
                 if not api_key:
-                    raise ValueError("No se ha configurado la API key de Gemini")
+                    raise ValueError(
+                        "No se ha configurado la API key de Claude (Anthropic). "
+                        "Cargala en Asistente IA → Configuración."
+                    )
 
-            client = genai.Client(api_key=api_key)
+            model = assistant_settings.anthropic_model or self.DEFAULT_CLAUDE_MODEL
+            client = anthropic.Anthropic(api_key=api_key)
 
-            # Build multimodal content with image
-            image_part = types.Part.from_bytes(data=image_data, mime_type=mime_type)
-            text_part = types.Part(text=self.SCAN_PROMPT)
-
-            contents = [
-                types.Content(
-                    role='user',
-                    parts=[image_part, text_part]
-                )
-            ]
-
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    max_output_tokens=4096,
-                )
+            response = client.messages.create(
+                model=model,
+                max_tokens=4096,
+                temperature=0.1,
+                messages=[{
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type': 'image',
+                            'source': {
+                                'type': 'base64',
+                                'media_type': mime_type,
+                                'data': base64.b64encode(image_data).decode('ascii'),
+                            },
+                        },
+                        {'type': 'text', 'text': self.SCAN_PROMPT},
+                    ],
+                }],
             )
 
-            raw_text = response.text or ''
+            raw_text = ''.join(
+                block.text for block in response.content if getattr(block, 'type', None) == 'text'
+            )
 
             # Clean response - remove markdown code blocks if present
             cleaned = raw_text.strip()
@@ -565,23 +582,53 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
             }
 
         except json.JSONDecodeError as e:
-            logger.error(f"Error parsing Gemini response as JSON: {e}\nRaw: {raw_text[:500]}")
+            logger.error(f"Error parsing Claude response as JSON: {e}\nRaw: {raw_text[:500]}")
             return {
                 'success': False,
-                'error': f'No se pudo interpretar la respuesta de Gemini como datos estructurados. Intentá con una foto más clara.',
+                'error': 'No se pudo interpretar la respuesta de Claude como datos estructurados. Intentá con una foto más clara.',
                 'raw_response': raw_text[:1000],
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except anthropic.AuthenticationError:
+            return {
+                'success': False,
+                'error': 'La API key de Claude no es válida. Revisala en Asistente IA → Configuración.',
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except anthropic.RateLimitError:
+            return {
+                'success': False,
+                'error': 'Se excedió el límite de uso de la API de Claude. Esperá un momento y volvé a intentar.',
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except anthropic.BadRequestError as e:
+            error_msg = str(e)
+            if 'image' in error_msg.lower() and ('size' in error_msg.lower() or 'large' in error_msg.lower()):
+                error_msg = 'La imagen es demasiado grande o pesada para Claude. Probá con una foto más chica o mejor recortada.'
+            return {
+                'success': False,
+                'error': error_msg,
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except anthropic.APIConnectionError:
+            return {
+                'success': False,
+                'error': 'No se pudo conectar con la API de Claude. Revisá la conexión a internet e intentá de nuevo.',
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except anthropic.APIStatusError as e:
+            error_msg = f'Error de la API de Claude ({e.status_code}). Intentá de nuevo en un momento.'
+            logger.error(f"Anthropic APIStatusError scanning invoice: {e}")
+            return {
+                'success': False,
+                'error': error_msg,
                 'elapsed_ms': int((time.time() - start_time) * 1000),
             }
         except Exception as e:
             logger.error(f"Error scanning invoice: {e}")
-            error_msg = str(e)
-            if '429' in error_msg or 'quota' in error_msg.lower():
-                error_msg = "Se excedió la cuota de la API. Esperá un momento y volvé a intentar."
-            elif '403' in error_msg:
-                error_msg = "API key sin permisos. Verificá que la key sea válida."
             return {
                 'success': False,
-                'error': error_msg,
+                'error': str(e),
                 'elapsed_ms': int((time.time() - start_time) * 1000),
             }
 

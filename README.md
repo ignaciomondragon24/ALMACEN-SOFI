@@ -160,7 +160,7 @@ El proyecto está configurado para Railway con:
 - `Dockerfile` + `start.sh` para el build y arranque
 - `Procfile` como fallback
 - `railway.toml` con healthcheck en `/health/`
-- Variables de entorno: `DATABASE_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, `GEMINI_API_KEY`, `MP_ACCESS_TOKEN`
+- Variables de entorno: `DATABASE_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `MP_ACCESS_TOKEN`
 
 ## Licencia
 

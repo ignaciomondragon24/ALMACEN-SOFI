@@ -31,8 +31,11 @@ qrcode>=7.4.2
 # Environment Variables
 python-dotenv>=1.0.0
 
-# Google Gemini API
+# Google Gemini API (chat/insights del asistente)
 google-genai>=1.0.0
+
+# Anthropic Claude API (Escanear Remito — lectura de fotos)
+anthropic>=1.11.0
 
 # HTTP Client (Mercado Pago API)
 requests>=2.31.0

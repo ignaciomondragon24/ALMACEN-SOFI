@@ -18,7 +18,8 @@ Sistema integral de gestion para supermercados/kioscos. Punto de venta, inventar
 - `dj-database-url` - Parseo de DATABASE_URL
 - `openpyxl` - Importacion Excel
 - `Pillow` - Manejo de imagenes
-- `google-generativeai` - API Gemini (asistente IA)
+- `google-generativeai` - API Gemini (chat del asistente IA)
+- `anthropic` - API Claude (Escanear Remito — lectura de fotos)
 - `mercadopago` - SDK MercadoPago
 
 ---
@@ -44,7 +45,8 @@ SECRET_KEY=tu-clave-secreta-aqui
 DEBUG=True
 
 # Opcionales:
-GEMINI_API_KEY=xxx               # Para asistente IA
+GEMINI_API_KEY=xxx               # Para el chat del asistente IA
+ANTHROPIC_API_KEY=xxx            # Para Escanear Remito (lectura de fotos) — sk-ant-...
 MP_ACCESS_TOKEN=xxx              # Para MercadoPago
 
 # 5. Crear base de datos y datos iniciales
@@ -80,7 +82,8 @@ El proyecto esta configurado para Railway con Docker.
 | `DJANGO_SUPERUSER_PASSWORD` | Password admin inicial | `MiPassword123` |
 | `DJANGO_SUPERUSER_EMAIL` | Email admin (opcional) | `admin@chegoloso.com` |
 | `ALLOWED_HOSTS` | Hosts permitidos | `chegoloso.up.railway.app` |
-| `GEMINI_API_KEY` | API Key de Google Gemini | (opcional) |
+| `GEMINI_API_KEY` | API Key de Google Gemini (chat del asistente) | (opcional) |
+| `ANTHROPIC_API_KEY` | API Key de Claude/Anthropic (Escanear Remito) | (opcional — también se puede cargar desde Asistente IA → Configuración) |
 | `MP_ACCESS_TOKEN` | Token MercadoPago | (opcional) |
 
 ### Proceso de deploy
@@ -209,16 +212,27 @@ URL a configurar en MercadoPago: `https://tu-dominio.com/mercadopago/webhook/`
 
 ---
 
-## 7. Asistente IA (Gemini)
+## 7. Asistente IA (Gemini + Claude)
 
-### Configuracion
-1. Ir a **Admin > Configurar Asistente IA**
-2. Ingresar `GEMINI_API_KEY` (Google AI Studio)
-3. Modelo recomendado: `gemini-2.5-flash`
+Dos proveedores independientes, cada uno con su propia API key en
+**Admin > Configurar Asistente IA** — uno no depende del otro.
 
-### Funcionalidades
-- **Chat**: Consultas sobre ventas, stock, productos, tendencias
-- **Escaneo de remitos**: Sube foto de un remito y el sistema extrae los datos automaticamente con vision IA
+### Chat / Insights (Gemini)
+1. Ingresar `GEMINI_API_KEY` (Google AI Studio, plan gratuito disponible)
+2. Modelo recomendado: `gemini-2.5-flash`
+3. Consultas sobre ventas, stock, productos, tendencias
+
+### Escanear Remito (Claude)
+1. Ingresar `ANTHROPIC_API_KEY` (console.anthropic.com — cuenta de API aparte
+   de una suscripción de Claude.ai, se paga por uso, sin plan gratuito)
+2. Modelo recomendado: `claude-sonnet-5` (o `claude-haiku-4-5-20251001` para
+   abaratar costo)
+3. Sube una foto de un remito/factura (o pegá un listado ya procesado) y el
+   sistema extrae productos, cantidades y precios con visión IA. En la
+   pantalla de revisión, para productos que ya existen y cambiaron de costo,
+   sugiere el precio de venta nuevo manteniendo el margen que ya tenían. Para
+   productos nuevos, se puede asignar categoría (aplica su margen por
+   defecto) o cargar un % manual antes de crearlos.
 
 ---
 
