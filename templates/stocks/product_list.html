@@ -125,7 +125,7 @@
                                         <i class="fas fa-receipt"></i>
                                     </a>
                                     {% if is_cajero_manager %}
-                                    <a href="{% url 'stocks:product_edit' product.pk %}"
+                                    <a href="{% url 'stocks:product_edit' product.pk %}?next={{ request.get_full_path|urlencode }}"
                                        class="btn btn-outline-primary"
                                        title="Editar">
                                         <i class="fas fa-edit"></i>

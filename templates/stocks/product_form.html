@@ -16,6 +16,7 @@
                 <div class="card-body">
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
+                        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
                         
                         {% if form.errors %}
                         <div class="alert alert-danger">
@@ -543,7 +544,7 @@
                         <hr class="my-4">
 
                         <div class="d-flex gap-2">
-                            <a href="{% url 'stocks:product_list' %}" class="btn btn-outline-secondary">
+                            <a href="{% if next_url %}{{ next_url }}{% else %}{% url 'stocks:product_list' %}{% endif %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left me-1"></i>Cancelar
                             </a>
                             <button type="submit" class="btn btn-primary flex-grow-1">

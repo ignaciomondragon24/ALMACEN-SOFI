@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db import models
 from django.db.models import Q, F, Sum
 from django.core.paginator import Paginator
@@ -489,6 +490,16 @@ def product_edit(request, pk):
     """Edit product."""
     product = get_object_or_404(Product, pk=pk)
 
+    # A dónde volver después de guardar: la pantalla desde la que se entró
+    # a editar (lista de productos con su página/filtro, o el detalle),
+    # viaja como "next" desde el link que abrió este form — así que al
+    # guardar no te manda siempre a la página 1 del inventario sin filtros
+    # (queja real de Sofia, 8/10/2026: corregía producto por producto y
+    # cada vez tenía que volver a filtrar la categoría y buscar la página).
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
+    if next_url and not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        next_url = ''
+
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, instance=product)
         # El stock NO se cambia desde este formulario (la pantalla lo muestra de solo
@@ -499,7 +510,7 @@ def product_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f'Producto "{product.name}" actualizado correctamente.')
-            return redirect('stocks:product_list')
+            return redirect(next_url or 'stocks:product_list')
     else:
         form = ProductForm(instance=product)
 
@@ -507,6 +518,7 @@ def product_edit(request, pk):
         'form': form,
         'title': 'Editar Producto',
         'product': product,
+        'next_url': next_url,
     })
 
 

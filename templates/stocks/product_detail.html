@@ -30,7 +30,7 @@
             </button>
             {% endif %}
             {% if is_cajero_manager %}
-            <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-warning">
+            <a href="{% url 'stocks:product_edit' product.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-warning">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
             {% endif %}
@@ -378,7 +378,7 @@
                         </a>
                         {% endif %}
                         {% if is_cajero_manager %}
-                        <a href="{% url 'stocks:product_edit' product.pk %}" class="btn btn-outline-warning">
+                        <a href="{% url 'stocks:product_edit' product.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline-warning">
                             <i class="fas fa-edit me-2"></i>Editar Producto
                         </a>
                         {% if product.is_active %}

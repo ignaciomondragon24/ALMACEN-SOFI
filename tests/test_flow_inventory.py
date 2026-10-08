@@ -7,6 +7,7 @@ desincronizar desde Inventario.
 import json
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import quote
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -98,6 +99,67 @@ class ProductosTests(InvBase):
         p.refresh_from_db()
         self.assertEqual(p.sale_price, Decimal('3100'))          # el resto sí se guarda
         self.assertEqual(p.current_stock, Decimal('7'))          # y el stock real no se pisa
+
+    def _datos_edicion(self, p, **extra):
+        data = {'name': p.name, 'sku': p.sku, 'barcode': p.barcode, 'cost_price': '2000',
+                'sale_price': '3100', 'current_stock': '10', 'min_stock': '3', 'is_active': 'true',
+                'weight_per_unit_grams': ''}
+        data.update(extra)
+        return data
+
+    def test_al_editar_desde_la_lista_con_filtro_vuelve_a_esa_misma_pagina(self):
+        """Queja real de Sofia (8/10/2026): editaba producto por producto desde
+        una página/categoría filtrada del inventario y cada guardado la
+        mandaba de vuelta a la página 1 sin filtro — tenía que re-filtrar
+        cada vez. El link "Editar" de la lista manda `?next=` con la URL
+        exacta de donde salió (página + filtros) y el guardado vuelve ahí."""
+        self.alta()
+        p = Product.objects.get()
+        next_url = '/stocks/products/?category=3&page=2&search=yerba'
+
+        # GET: abrir la edición desde ese link (next_url va codificado en la
+        # URL, igual que lo manda `{{ request.get_full_path|urlencode }}`
+        # desde el template) trae el valor al form, en un campo oculto.
+        r = self.c.get(reverse('stocks:product_edit', args=[p.pk]) + f'?next={quote(next_url, safe="")}')
+        self.assertContains(r, 'name="next"')
+        self.assertContains(r, 'category=3')
+        self.assertContains(r, 'page=2')
+
+        # POST: guardar devuelve exactamente a esa URL, no a product_list pelado.
+        r = self.c.post(reverse('stocks:product_edit', args=[p.pk]), self._datos_edicion(p, next=next_url))
+        self.assertRedirects(r, next_url, fetch_redirect_response=False)
+
+    def test_al_editar_desde_el_detalle_vuelve_al_detalle(self):
+        self.alta()
+        p = Product.objects.get()
+        next_url = reverse('stocks:product_detail', args=[p.pk])
+
+        # El link "Editar" del propio detalle ya apunta de vuelta a sí mismo
+        # (mismo filtro `|urlencode` de Django que usa el template, que deja
+        # las barras "/" sin escapar — a diferencia de `urllib.parse.quote`).
+        from django.template.defaultfilters import urlencode as django_urlencode
+        detalle = self.c.get(next_url)
+        self.assertContains(detalle, f'next={django_urlencode(next_url)}')
+
+        r = self.c.post(reverse('stocks:product_edit', args=[p.pk]), self._datos_edicion(p, next=next_url))
+        self.assertRedirects(r, next_url)
+
+    def test_sin_next_sigue_yendo_al_listado_como_antes(self):
+        """Compatibilidad: entrar a editar sin pasar por un link con `next`
+        (ej. escribiendo la URL a mano) se comporta igual que siempre."""
+        self.alta()
+        p = Product.objects.get()
+        r = self.c.post(reverse('stocks:product_edit', args=[p.pk]), self._datos_edicion(p))
+        self.assertRedirects(r, reverse('stocks:product_list'))
+
+    def test_next_hacia_otro_dominio_se_ignora_por_seguridad(self):
+        """Un `next` armado a mano hacia un sitio externo no se respeta
+        (evita que este link se use para un open-redirect)."""
+        self.alta()
+        p = Product.objects.get()
+        r = self.c.post(reverse('stocks:product_edit', args=[p.pk]),
+                         self._datos_edicion(p, **{'next': 'https://sitio-malicioso.com/'}))
+        self.assertRedirects(r, reverse('stocks:product_list'))
 
     def test_dar_de_baja_lo_saca_de_la_caja_y_libera_el_codigo(self):
         self.alta()
