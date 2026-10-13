@@ -12,7 +12,7 @@
                 {% if show_all_days %}
                 Mostrando todos los proveedores con productos de stock bajo, sin importar el día.
                 {% else %}
-                Proveedores cuyo día de pedido es hoy ({{ today_label }}) y tienen productos con stock bajo.
+                Proveedores cuyos días de pedido incluyen hoy ({{ today_label }}) y tienen productos con stock bajo.
                 {% endif %}
             </p>
         </div>
@@ -48,8 +48,8 @@
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0">
                 <i class="fas fa-truck me-2"></i>{{ group.supplier.name }}
-                {% if group.supplier.order_day %}
-                <span class="badge bg-info text-dark ms-2">{{ group.supplier.get_order_day_display }}</span>
+                {% if group.supplier.order_days %}
+                <span class="badge bg-info text-dark ms-2">{{ group.supplier.order_days_display }}</span>
                 {% endif %}
             </h5>
             <form method="post" action="{% url 'purchase:purchase_suggested_generate' group.supplier.pk %}" onsubmit="return confirm('¿Generar una orden de compra en borrador para {{ group.supplier.name|escapejs }} con estos productos?');">

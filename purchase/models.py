@@ -27,12 +27,11 @@ class Supplier(models.Model):
         'Nombre',
         max_length=200
     )
-    order_day = models.CharField(
-        'Día de Pedido',
-        max_length=3,
-        choices=WEEKDAY_CHOICES,
+    order_days = models.CharField(
+        'Días de Pedido',
+        max_length=40,
         blank=True,
-        help_text='Día habitual en que se le hacen pedidos a este proveedor (para el aviso de pedido sugerido).'
+        help_text='Días habituales en que se le hacen pedidos a este proveedor (para los avisos de pedido).'
     )
     contact_name = models.CharField(
         'Contacto',
@@ -84,9 +83,31 @@ class Supplier(models.Model):
         return cls._WEEKDAY_INDEX[date.weekday()]
 
     @property
+    def order_days_list(self):
+        """Códigos de día configurados, en orden de semana y sin repetidos."""
+        saved = {c for c in (self.order_days or '').split(',') if c}
+        return [c for c in self._WEEKDAY_INDEX if c in saved]
+
+    @property
+    def order_days_display(self):
+        labels = dict(self.WEEKDAY_CHOICES)
+        return ', '.join(labels[c] for c in self.order_days_list)
+
+    def orders_on(self, date):
+        """True si a este proveedor se le pide el día de la fecha dada."""
+        return self.weekday_code(date) in self.order_days_list
+
+    @property
     def is_order_day_today(self):
         from django.utils import timezone
-        return bool(self.order_day) and self.order_day == self.weekday_code(timezone.localdate())
+        return self.orders_on(timezone.localdate())
+
+    @classmethod
+    def active_ordering_on(cls, date):
+        """Proveedores activos a los que se les pide en la fecha dada."""
+        code = cls.weekday_code(date)
+        return [s for s in cls.objects.filter(is_active=True, order_days__contains=code).order_by('name')
+                if s.orders_on(date)]
 
 
 class SupplierProduct(models.Model):

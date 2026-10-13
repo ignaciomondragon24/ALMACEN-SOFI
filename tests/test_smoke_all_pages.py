@@ -101,7 +101,7 @@ class SmokeAllPages(TestCase):
         cls.weight_product = Product.objects.get(is_granel=True)
 
         # ---- proveedores y compras
-        cls.supplier = Supplier.objects.create(name='Distribuidora Sur', order_day='mon')
+        cls.supplier = Supplier.objects.create(name='Distribuidora Sur', order_days='mon')
         cls.link = SupplierProduct.objects.create(
             supplier=cls.supplier, product=cls.product, cost_price=Decimal('950'))
         SupplierProduct.objects.create(

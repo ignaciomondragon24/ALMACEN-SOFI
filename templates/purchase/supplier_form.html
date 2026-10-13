@@ -63,9 +63,16 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="id_order_day" class="form-label">Día de Pedido</label>
-                            {{ form.order_day }}
-                            <div class="form-text">Ese día te va a aparecer un aviso en "Pedidos Sugeridos" con los productos de este proveedor que estén con stock bajo.</div>
+                            <label class="form-label">Día de Pedido</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                {% for cb in form.order_days %}
+                                <div class="form-check">
+                                    {{ cb.tag }}
+                                    <label class="form-check-label" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="form-text">Podés marcar más de un día. Un día antes te avisa el sistema que hay que hacer el pedido, y ese día te aparece en "Pedidos Sugeridos" con los productos con stock bajo.</div>
                         </div>
                         
                         <div class="mb-3">

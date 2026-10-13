@@ -200,7 +200,7 @@ def purchase_suggested(request):
 
     suppliers_qs = Supplier.objects.filter(is_active=True).prefetch_related('supplier_products__product')
     if not show_all_days:
-        suppliers_qs = suppliers_qs.filter(order_day=today_code)
+        suppliers_qs = suppliers_qs.filter(order_days__contains=today_code)
 
     groups = []
     for supplier in suppliers_qs.order_by('name'):
@@ -303,7 +303,7 @@ def purchase_list(request):
 
     today_code = Supplier.weekday_code(timezone.localdate())
     suggested_today_count = 0
-    for supplier in Supplier.objects.filter(is_active=True, order_day=today_code).prefetch_related('supplier_products__product'):
+    for supplier in Supplier.objects.filter(is_active=True, order_days__contains=today_code).prefetch_related('supplier_products__product'):
         if _low_stock_suggestions_for_supplier(supplier):
             suggested_today_count += 1
 

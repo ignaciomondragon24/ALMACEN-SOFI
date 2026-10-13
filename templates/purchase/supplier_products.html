@@ -20,18 +20,18 @@
         </a>
     </div>
 
-    {% if supplier.order_day %}
+    {% if supplier.order_days %}
     <div class="alert alert-info">
         <i class="fas fa-calendar-day me-2"></i>
-        Día de pedido: <strong>{{ supplier.get_order_day_display }}</strong>.
-        Los productos de esta lista que estén con stock bajo van a aparecer ese día en
+        Días de pedido: <strong>{{ supplier.order_days_display }}</strong>.
+        Los productos de esta lista que estén con stock bajo van a aparecer esos días en
         <a href="{% url 'purchase:purchase_suggested' %}">Pedidos Sugeridos</a>.
     </div>
     {% else %}
     <div class="alert alert-warning">
         <i class="fas fa-triangle-exclamation me-2"></i>
-        Este proveedor no tiene un día de pedido configurado, así que los productos de esta lista no van a generar avisos automáticos.
-        <a href="{% url 'purchase:supplier_edit' supplier.pk %}">Configurar día de pedido</a>.
+        Este proveedor no tiene días de pedido configurados, así que los productos de esta lista no van a generar avisos automáticos.
+        <a href="{% url 'purchase:supplier_edit' supplier.pk %}">Configurar días de pedido</a>.
     </div>
     {% endif %}
 

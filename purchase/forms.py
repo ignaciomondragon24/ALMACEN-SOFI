@@ -11,19 +11,31 @@ from stocks.models import Product
 class SupplierForm(forms.ModelForm):
     """Form for creating/editing suppliers."""
 
+    order_days = forms.MultipleChoiceField(
+        label='Días de Pedido',
+        choices=Supplier.WEEKDAY_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.initial['order_days'] = self.instance.order_days_list
+
+    def clean_order_days(self):
+        return ','.join(self.cleaned_data.get('order_days') or [])
+
     class Meta:
         model = Supplier
         fields = [
             'name', 'contact_name', 'phone', 'email',
-            'address', 'cuit', 'order_day', 'notes', 'is_active'
+            'address', 'cuit', 'order_days', 'notes', 'is_active'
         ]
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Nombre del proveedor'
-            }),
-            'order_day': forms.Select(attrs={
-                'class': 'form-select'
             }),
             'contact_name': forms.TextInput(attrs={
                 'class': 'form-control',

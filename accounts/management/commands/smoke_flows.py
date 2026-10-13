@@ -181,7 +181,7 @@ class Command(BaseCommand):
 
         # ------------------------------------------------------------ 3
         def compras():
-            sup = Supplier.objects.create(name='ZZ SMOKE Proveedor', order_day='mon')
+            sup = Supplier.objects.create(name='ZZ SMOKE Proveedor', order_days='mon')
             peso, comun = state['peso'], state['comun']
             r = c.post(reverse('purchase:purchase_create'), json.dumps({
                 'supplier_id': sup.pk, 'tax_percent': 0,

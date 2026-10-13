@@ -505,7 +505,7 @@ class PedidoSugeridoTests(NuevoPesoBase):
         super().setUp()
         self.crear_producto_por_peso(current_stock='2.5', min_stock='4')
         self.producto = Product.objects.get(sku='JC-NUEVO')
-        self.supplier = Supplier.objects.create(name='Fiambres del Sur', order_day='mon')
+        self.supplier = Supplier.objects.create(name='Fiambres del Sur', order_days='mon')
         from purchase.models import SupplierProduct
         SupplierProduct.objects.create(supplier=self.supplier, product=self.producto, cost_price=Decimal('9000'))
 

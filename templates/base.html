@@ -44,6 +44,31 @@
     {% include 'includes/navbar.html' %}
     {% endblock %}
     
+    {% if pedidos_hoy or pedidos_manana %}
+    <div class="container-fluid mt-3" id="pedido-aviso" hidden>
+        <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center shadow-sm border-0 mb-0" role="alert" style="border-radius: 0.75rem;">
+            <i class="fas fa-bell fs-5 me-2"></i>
+            <span>
+                {% if pedidos_manana %}<strong>Mañana hay que hacer el pedido a:</strong> {% for s in pedidos_manana %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+                {% if pedidos_hoy %}<strong>Hoy es día de pedido de:</strong> {% for s in pedidos_hoy %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+                <a href="{% url 'purchase:purchase_suggested' %}" class="alert-link ms-1">Ver pedidos sugeridos</a>
+            </span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Cerrar" id="pedido-aviso-cerrar"></button>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var box = document.getElementById('pedido-aviso');
+        var key = 'pedidoAvisoCerrado:' + new Date().toDateString();
+        try { if (localStorage.getItem(key)) return; } catch (e) {}
+        box.hidden = false;
+        document.getElementById('pedido-aviso-cerrar').addEventListener('click', function () {
+            try { localStorage.setItem(key, '1'); } catch (e) {}
+        });
+    })();
+    </script>
+    {% endif %}
+
     {% block messages %}
     {% if messages %}
     <div class="container-fluid mt-3">

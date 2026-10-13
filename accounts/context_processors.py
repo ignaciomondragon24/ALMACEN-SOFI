@@ -53,7 +53,19 @@ def role_context(request):
             expiration_date__lte=timezone.localdate() + timedelta(days=7),
         ).count()
 
+    pedidos_hoy = []
+    pedidos_manana = []
+    if is_admin:
+        from datetime import timedelta
+        from django.utils import timezone
+        from purchase.models import Supplier
+        hoy = timezone.localdate()
+        pedidos_hoy = Supplier.active_ordering_on(hoy)
+        pedidos_manana = Supplier.active_ordering_on(hoy + timedelta(days=1))
+
     return {
+        'pedidos_hoy': pedidos_hoy,
+        'pedidos_manana': pedidos_manana,
         'user_roles': user_groups,
         'is_admin_user': is_admin,
         

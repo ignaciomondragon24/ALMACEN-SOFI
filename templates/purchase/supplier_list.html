@@ -37,8 +37,8 @@
                             <td>{{ supplier.email|default:"-" }}</td>
                             <td>{{ supplier.cuit|default:"-" }}</td>
                             <td>
-                                {% if supplier.order_day %}
-                                <span class="badge bg-info text-dark">{{ supplier.get_order_day_display }}</span>
+                                {% if supplier.order_days %}
+                                <span class="badge bg-info text-dark">{{ supplier.order_days_display }}</span>
                                 {% else %}
                                 <span class="text-muted">-</span>
                                 {% endif %}
