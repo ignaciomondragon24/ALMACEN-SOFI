@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ customer.name }} - Fiados{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+        <div>
+            <a href="{% url 'fiado:customer_list' %}" class="text-decoration-none small"><i class="fas fa-arrow-left me-1"></i>Todos los fiados</a>
+            <h1 class="mb-0">{{ customer.name }}
+                {% if not customer.is_active %}<span class="badge bg-secondary fs-6">Inactivo</span>{% endif %}
+            </h1>
+            <div class="text-muted">
+                {% if customer.phone %}<i class="fas fa-phone me-1"></i>{{ customer.phone }}{% endif %}
+                {% if customer.notes %}<span class="ms-3">{{ customer.notes }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'fiado:customer_edit' customer.pk %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-edit me-1"></i>Editar
+            </a>
+            {% if can_manage %}
+            <form method="post" action="{% url 'fiado:customer_toggle_active' customer.pk %}">
+                {% csrf_token %}
+                <button class="btn btn-outline-secondary btn-sm" type="submit">
+                    {% if customer.is_active %}Desactivar{% else %}Activar{% endif %}
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-4">
+            <div class="card h-100 {% if balance > 0 %}border-danger{% else %}border-success{% endif %}">
+                <div class="card-body text-center">
+                    <small class="text-muted d-block">Debe</small>
+                    <span class="display-5 fw-bold {% if balance > 0 %}text-danger{% else %}text-success{% endif %}" id="fiado-balance">
+                        {{ balance|currency_ar }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white"><i class="fas fa-hand-holding-usd me-1"></i>Registrar pago</div>
+                <div class="card-body">
+                    {% if balance > 0 %}
+                    <form method="post" action="{% url 'fiado:payment_create' customer.pk %}">
+                        {% csrf_token %}
+                        <div class="mb-2">
+                            <input type="text" name="amount" class="form-control" inputmode="decimal" required
+                                   placeholder="Monto que paga" autocomplete="off" id="fiado-pay-amount">
+                        </div>
+                        <div class="mb-2">
+                            <select name="method_id" class="form-select" required id="fiado-pay-method">
+                                {% for m in payment_methods %}
+                                <option value="{{ m.id }}">{{ m.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" name="note" class="form-control" maxlength="200" placeholder="Nota (opcional)">
+                        </div>
+                        <button class="btn btn-success w-100" type="submit"><i class="fas fa-check me-1"></i>Descontar de la cuenta</button>
+                        <small class="text-muted d-block mt-2">
+                            Esto <strong>no</strong> se suma a las ventas del día. Si tenés un turno de caja abierto, la plata entra a la caja.
+                        </small>
+                    </form>
+                    {% else %}
+                    <p class="text-muted mb-0">No tiene deuda.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-plus-circle me-1"></i>Sumar deuda manual</div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'fiado:charge_create' customer.pk %}">
+                        {% csrf_token %}
+                        <div class="mb-2">
+                            <input type="text" name="amount" class="form-control" inputmode="decimal" required
+                                   placeholder="Monto" autocomplete="off" id="fiado-charge-amount">
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" name="note" class="form-control" maxlength="200" placeholder="Detalle (ej: saldo anterior)">
+                        </div>
+                        <button class="btn btn-outline-primary w-100" type="submit">Sumar a la cuenta</button>
+                        <small class="text-muted d-block mt-2">Para deudas de antes o ventas que no pasaron por el POS.</small>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><i class="fas fa-history me-1"></i>Historial</div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Detalle</th>
+                        <th class="text-end">Monto</th>
+                        <th>Registró</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries %}
+                    <tr {% if e.is_voided %}class="text-muted" style="text-decoration: line-through;"{% endif %}>
+                        <td>{{ e.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if e.entry_type == 'charge' %}
+                                <span class="badge bg-danger">Fiado</span>
+                                {% if e.pos_transaction_id %}
+                                    <a href="{% url 'pos:print_ticket' e.pos_transaction_id %}" target="_blank">Ticket {{ e.ticket_number }}</a>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-success">Pago</span>
+                                {{ e.payment_method.name|default:"" }}
+                            {% endif %}
+                            {% if e.note %}<span class="text-muted"> — {{ e.note }}</span>{% endif %}
+                            {% if e.is_voided %}<span class="badge bg-secondary">Anulado</span>{% endif %}
+                        </td>
+                        <td class="text-end fw-semibold {% if e.entry_type == 'charge' %}text-danger{% else %}text-success{% endif %}">
+                            {% if e.entry_type == 'charge' %}+{% else %}−{% endif %}{{ e.amount|currency_ar }}
+                        </td>
+                        <td>{{ e.created_by.get_full_name|default:e.created_by.username|default:"—" }}</td>
+                        <td class="text-end">
+                            {% if can_manage and e.can_void %}
+                            <form method="post" action="{% url 'fiado:entry_void' e.pk %}" class="d-inline"
+                                  onsubmit="return confirm('¿Anular este movimiento?');">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger" type="submit" title="Anular"><i class="fas fa-ban"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay movimientos.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

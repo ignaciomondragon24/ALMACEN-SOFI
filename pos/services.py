@@ -435,47 +435,7 @@ class CheckoutService:
         # Calculate change
         change = total_paid - total_to_pay
         
-        # Deduct stock — ruteo por tipo de producto:
-        # - Por peso: current_stock vive en kilos; item.quantity (el
-        #   carrito) sigue en gramos.
-        # - No-granel: descuento estándar de stock + FIFO batches.
-        from granel.services import BatchService
-        for item in pos_transaction.items.all():
-            if item.product.is_granel:
-                StockManagementService.deduct_stock(
-                    product=item.product,
-                    quantity=item.quantity / Decimal('1000'),
-                    reference=f'Venta {pos_transaction.ticket_number}',
-                    reference_id=pos_transaction.id,
-                )
-            else:
-                units_to_deduct = item.quantity * item.packaging_units
-                pkg_note = ''
-                if item.packaging and item.packaging_units > 1:
-                    pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
-                if item.product.packagings.filter(is_active=True).exists():
-                    StockManagementService.deduct_stock_with_cascade(
-                        product=item.product,
-                        quantity=units_to_deduct,
-                        reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
-                        reference_id=pos_transaction.id
-                    )
-                else:
-                    StockManagementService.deduct_stock(
-                        product=item.product,
-                        quantity=units_to_deduct,
-                        reference=f'Venta {pos_transaction.ticket_number}{pkg_note}',
-                        reference_id=pos_transaction.id
-                    )
-                deductions = BatchService.deduct_fifo(item.product.pk, units_to_deduct)
-                # Sobrescribir unit_cost con el costo FIFO real del lote consumido,
-                # para que el reporte de ganancia refleje precio de costo real.
-                # Si no hay lotes (producto sin compras registradas), conserva
-                # el costo promedio que ya tenía el item.
-                if deductions and item.quantity > 0:
-                    fifo_cost_total = sum(b.purchase_price * qty for b, qty in deductions)
-                    item.unit_cost = (fifo_cost_total / item.quantity).quantize(Decimal('0.01'))
-                    item.save(update_fields=['unit_cost'])
+        CheckoutService.deduct_stock_for_transaction(pos_transaction)
 
         # Complete transaction
         pos_transaction.status = 'completed'
@@ -494,6 +454,58 @@ class CheckoutService:
             'items_count': pos_transaction.items_count
         }
     
+    @staticmethod
+    def deduct_stock_for_transaction(pos_transaction, label='Venta'):
+        """Descuenta del stock todo lo que tiene el carrito de la transacción.
+
+        Ruteo por tipo de producto:
+        - Por peso: current_stock vive en kilos; item.quantity (el carrito)
+          sigue en gramos.
+        - No-granel: descuento estándar de stock + FIFO batches.
+
+        Lo usan el cobro normal y el fiado (`label` solo cambia la referencia
+        que queda en el kardex). Debe llamarse dentro de una transacción atómica.
+        """
+        from stocks.services import StockManagementService
+        from granel.services import BatchService
+
+        for item in pos_transaction.items.all():
+            if item.product.is_granel:
+                StockManagementService.deduct_stock(
+                    product=item.product,
+                    quantity=item.quantity / Decimal('1000'),
+                    reference=f'{label} {pos_transaction.ticket_number}',
+                    reference_id=pos_transaction.id,
+                )
+            else:
+                units_to_deduct = item.quantity * item.packaging_units
+                pkg_note = ''
+                if item.packaging and item.packaging_units > 1:
+                    pkg_note = f' [{item.packaging.get_packaging_type_display()}: {item.quantity} x {item.packaging_units} unids]'
+                if item.product.packagings.filter(is_active=True).exists():
+                    StockManagementService.deduct_stock_with_cascade(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'{label} {pos_transaction.ticket_number}{pkg_note}',
+                        reference_id=pos_transaction.id
+                    )
+                else:
+                    StockManagementService.deduct_stock(
+                        product=item.product,
+                        quantity=units_to_deduct,
+                        reference=f'{label} {pos_transaction.ticket_number}{pkg_note}',
+                        reference_id=pos_transaction.id
+                    )
+                deductions = BatchService.deduct_fifo(item.product.pk, units_to_deduct)
+                # Sobrescribir unit_cost con el costo FIFO real del lote consumido,
+                # para que el reporte de ganancia refleje precio de costo real.
+                # Si no hay lotes (producto sin compras registradas), conserva
+                # el costo promedio que ya tenía el item.
+                if deductions and item.quantity > 0:
+                    fifo_cost_total = sum(b.purchase_price * qty for b, qty in deductions)
+                    item.unit_cost = (fifo_cost_total / item.quantity).quantize(Decimal('0.01'))
+                    item.save(update_fields=['unit_cost'])
+
     @staticmethod
     @transaction.atomic
     def cancel_transaction(transaction_id, reason=''):

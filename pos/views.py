@@ -929,9 +929,16 @@ def print_ticket(request, transaction_id):
     
     # Get company info
     company = Company.get_company()
-    
+
+    # Fiado: el ticket muestra a qué cuenta se anotó en vez de un pago
+    fiado_customer = None
+    if transaction.status == 'on_credit':
+        entry = transaction.fiado_entries.select_related('customer').first()
+        fiado_customer = entry.customer if entry else None
+
     context = {
         'transaction': transaction,
+        'fiado_customer': fiado_customer,
         'items': items,
         'payments': payments,
         'payment_method_name': payment_method_name,
@@ -953,11 +960,12 @@ def api_last_transaction(request):
     if not shift:
         return JsonResponse({'success': False, 'error': 'No hay turno abierto'}, status=400)
     
+    # Incluye ventas fiadas: también hay ticket para reimprimir
     transaction = POSTransaction.objects.filter(
         session__cash_shift=shift,
-        status='completed'
+        status__in=['completed', 'on_credit']
     ).order_by('-completed_at').first()
-    
+
     if not transaction:
         return JsonResponse({'success': False, 'error': 'No hay transacciones completadas'}, status=404)
     
@@ -1347,8 +1355,8 @@ def api_sales_history(request):
 
     transactions = (
         POSTransaction.objects
-        .filter(session__cash_shift=shift, status='completed')
-        .prefetch_related('payments__payment_method', 'items__product')
+        .filter(session__cash_shift=shift, status__in=['completed', 'on_credit'])
+        .prefetch_related('payments__payment_method', 'items__product', 'fiado_entries__customer')
         .order_by('-completed_at')[:50]
     )
 
@@ -1358,6 +1366,9 @@ def api_sales_history(request):
             f'{p.payment_method.name} ${p.amount:.2f}'.replace('.', ',')
             for p in tx.payments.all()
         ]
+        if tx.status == 'on_credit':
+            entry = next(iter(tx.fiado_entries.all()), None)
+            payment_labels = [f'FIADO a {entry.customer.name}' if entry else 'FIADO']
         items_preview = ', '.join(
             f'{it.product.name} x{it.quantity:g}'
             for it in tx.items.all()[:4]

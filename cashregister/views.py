@@ -107,7 +107,12 @@ def close_shift(request, pk):
     
     # Total sales (all methods)
     total_sales = cash_total + non_cash_total
-    
+
+    # Cobros de fiado: entran al cajón pero NO son ventas del día
+    fiado_cash = shift.get_fiado_cash_total()
+    fiado_total = shift.get_fiado_total()
+    fiado_methods = shift.get_fiado_collections()
+
     if request.method == 'POST':
         form = CloseShiftForm(request.POST)
         if form.is_valid():
@@ -187,8 +192,11 @@ def close_shift(request, pk):
         'non_cash_total': non_cash_total,
         'cash_expense': cash_expense,
         'total_sales': total_sales,
+        'fiado_cash': fiado_cash,
+        'fiado_total': fiado_total,
+        'fiado_methods': fiado_methods,
     }
-    
+
     return render(request, 'cashregister/close_shift.html', context)
 
 
@@ -429,6 +437,8 @@ def shift_report_pdf(request, pk):
         payment_method__is_cash=True
     ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
     total_sales = cash_total + non_cash_total
+    fiado_cash = shift.get_fiado_cash_total()
+    fiado_total = shift.get_fiado_total()
 
     content = f"""
 CIERRE Z - REPORTE DE TURNO
@@ -451,12 +461,16 @@ ARQUEO DE EFECTIVO
 ------------------
 Fondo Inicial:         {fmt_money(shift.initial_amount):>14}
 + Ventas Efectivo:     {fmt_money(cash_total):>14}
++ Cobros Fiado (efvo): {fmt_money(fiado_cash):>14}
 - Egresos Efectivo:    {fmt_money(cash_expense):>14}
 = Efectivo Esperado:   {fmt_money(shift.expected_amount or Decimal('0.00')):>14}
   Efectivo Contado:    {(fmt_money(shift.actual_amount) if shift.actual_amount is not None else 'N/A'):>14}
   Diferencia:          {(fmt_money(shift.difference) if shift.difference is not None else 'N/A'):>14}
 
 Ventas Digitales:      {fmt_money(non_cash_total):>14}
+
+COBROS DE FIADO (no son ventas del día)
+Total cobrado fiado:   {fmt_money(fiado_total):>14}
 
 NOTAS
 -----

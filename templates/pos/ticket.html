@@ -281,7 +281,17 @@
         <div class="separator"></div>
 
         <!-- Payment Info -->
-        {% if transaction.transaction_type != 'internal_consumption' %}
+        {% if transaction.status == 'on_credit' %}
+        <div class="payment-info">
+            <div class="info-row" style="font-weight: bold;">
+                <span>FIADO - NO ABONADO</span>
+            </div>
+            <div class="info-row">
+                <span>Cuenta de:</span>
+                <span>{{ fiado_customer.name|default:"-" }}</span>
+            </div>
+        </div>
+        {% elif transaction.transaction_type != 'internal_consumption' %}
         <div class="payment-info">
             {% for payment in payments %}
             <div class="info-row">

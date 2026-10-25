@@ -67,8 +67,11 @@ class POSTransaction(models.Model):
         ('completed', 'Completada'),
         ('cancelled', 'Cancelada'),
         ('suspended', 'Suspendida'),
+        # Fiado: la mercadería salió pero no se cobró. NO es 'completed' a
+        # propósito, así ningún reporte de ventas lo cuenta como venta del día.
+        ('on_credit', 'Fiado'),
     ]
-    
+
     TRANSACTION_TYPE_CHOICES = [
         ('sale', 'Venta'),
         ('cost_sale', 'Venta al Costo'),

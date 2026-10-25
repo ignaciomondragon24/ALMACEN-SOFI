@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if customer %}Editar cliente{% else %}Nuevo cliente{% endif %} - Fiados{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 640px;">
+    <h1 class="mb-4">
+        <i class="fas fa-user-plus text-primary me-2"></i>{% if customer %}Editar cliente{% else %}Nuevo cliente{% endif %}
+    </h1>
+
+    <form method="post" class="card card-body">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="id_name" class="form-label">Nombre *</label>
+            <input type="text" name="name" id="id_name" class="form-control" required maxlength="120"
+                   value="{% if form_data.name %}{{ form_data.name }}{% elif customer %}{{ customer.name }}{% endif %}" autofocus>
+        </div>
+        <div class="mb-3">
+            <label for="id_phone" class="form-label">Teléfono</label>
+            <input type="text" name="phone" id="id_phone" class="form-control" maxlength="40"
+                   value="{% if form_data.phone %}{{ form_data.phone }}{% elif customer %}{{ customer.phone }}{% endif %}">
+        </div>
+        <div class="mb-3">
+            <label for="id_notes" class="form-label">Notas</label>
+            <textarea name="notes" id="id_notes" class="form-control" rows="2">{% if form_data.notes %}{{ form_data.notes }}{% elif customer %}{{ customer.notes }}{% endif %}</textarea>
+        </div>
+        {% if not customer %}
+        <div class="mb-3">
+            <label for="id_opening_balance" class="form-label">Deuda anterior (opcional)</label>
+            <input type="text" name="opening_balance" id="id_opening_balance" class="form-control" inputmode="decimal"
+                   placeholder="Ej: 1500 — si ya te debía algo antes de usar el sistema"
+                   value="{{ form_data.opening_balance }}">
+        </div>
+        {% endif %}
+        <div class="d-flex justify-content-between">
+            <a href="{% if customer %}{% url 'fiado:customer_detail' customer.pk %}{% else %}{% url 'fiado:customer_list' %}{% endif %}"
+               class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Guardar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

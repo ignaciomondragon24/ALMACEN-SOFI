@@ -81,6 +81,7 @@ class Command(BaseCommand):
     def _counts(self):
         from cashregister.models import CashMovement, CashRegister, CashShift
         from expenses.models import Expense
+        from fiado.models import Customer, FiadoEntry
         from granel.models import AperturaBulto, Caramelera, VentaGranel
         from pos.models import POSSession, POSTransaction, POSTransactionItem
         from promotions.models import Promotion
@@ -91,7 +92,7 @@ class Command(BaseCommand):
         modelos = [Product, ProductCategory, ProductPackaging, StockMovement, StockBatch, Purchase,
                    PurchaseItem, Supplier, POSTransaction, POSTransactionItem, POSSession, CashShift,
                    CashMovement, CashRegister, Expense, Caramelera, AperturaBulto, VentaGranel,
-                   Promotion, User, Group, Session]
+                   Promotion, User, Group, Session, Customer, FiadoEntry]
         return {m.__name__: m.objects.count() for m in modelos}
 
     def _report(self, nombre, cond, detalle=''):
@@ -252,6 +253,42 @@ class Command(BaseCommand):
                          f'{shift.status} {shift.difference}')
             comun.current_stock = Decimal('10'); comun.save()
         self._step('4. Caja y ventas', caja_y_ventas)
+
+        # ------------------------------------------------------------ 4b
+        def fiado():
+            from fiado.models import Customer
+            from fiado.services import FiadoService
+            comun = state['comun']
+            stock0 = Product.objects.get(pk=comun.pk).current_stock
+            reg = CashRegister.objects.create(name='ZZ SMOKE Caja Fiado', code='ZZSMKF', is_active=True)
+            sh = CashShift.objects.create(cash_register=reg, cashier=user, initial_amount=Decimal('1000'), status='open')
+            tx = POSService.create_transaction(POSService.get_or_create_session(sh))
+            c.post(reverse('pos:api_cart_add'), json.dumps(
+                {'transaction_id': tx.id, 'product_id': comun.pk, 'quantity': 2}), content_type='application/json')
+            r = c.post(reverse('fiado:api_customer_create'), json.dumps({'name': 'ZZ SMOKE Cliente'}),
+                       content_type='application/json')
+            self._report('crea un cliente de fiado', r.status_code == 200, r.content[:120].decode())
+            cli = Customer.objects.get(name='ZZ SMOKE Cliente')
+            r = c.post(reverse('fiado:api_charge_sale'), json.dumps(
+                {'transaction_id': tx.id, 'customer_id': cli.pk}), content_type='application/json')
+            self._report('fía 2 unidades ($6.000) al cliente', r.status_code == 200 and cli.balance == Decimal('6000.00'),
+                         f'{r.status_code} {cli.balance}')
+            self._report('el fiado descuenta stock pero no mueve la caja',
+                         Product.objects.get(pk=comun.pk).current_stock == stock0 - 2 and sh.get_cash_total() == 0
+                         and sh.calculate_expected() == Decimal('1000.00'))
+            ok, _ = FiadoService.register_payment(cli.pk, '2500', PaymentMethod.objects.get(code='cash').pk, user)
+            self._report('un pago parcial de $2.500 deja la deuda en $3.500', ok and cli.balance == Decimal('3500.00'),
+                         str(cli.balance))
+            self._report('el cobro entra al cajón pero NO a las ventas',
+                         sh.calculate_expected() == Decimal('3500.00') and sh.get_cash_total() == 0
+                         and sh.get_fiado_cash_total() == Decimal('2500.00'))
+            ok, _ = FiadoService.register_payment(cli.pk, '3500.01', PaymentMethod.objects.get(code='cash').pk, user)
+            self._report('no deja cobrar más de lo que debe', not ok)
+            for name, args in (('fiado:customer_list', []), ('fiado:customer_detail', [cli.pk])):
+                rr = c.get(reverse(name, args=args))
+                self._report(f'abre {name}', rr.status_code == 200, str(rr.status_code))
+            Product.objects.filter(pk=comun.pk).update(current_stock=stock0)   # no afectar los pasos siguientes
+        self._step('4b. Fiado (cuenta corriente)', fiado)
 
         # ------------------------------------------------------------ 5
         def promociones():

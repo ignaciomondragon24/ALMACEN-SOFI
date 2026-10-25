@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'assistant.apps.AssistantConfig',
     'signage.apps.SignageConfig',
     'granel.apps.GranelConfig',
+    'fiado.apps.FiadoConfig',
 ]
 
 MIDDLEWARE = [

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Fiados - Lo de Josefina{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h1 class="mb-0"><i class="fas fa-book text-primary me-2"></i>Fiados</h1>
+        <a href="{% url 'fiado:customer_create' %}" class="btn btn-primary">
+            <i class="fas fa-user-plus me-2"></i>Nuevo cliente
+        </a>
+    </div>
+
+    <div class="row mb-4 g-3">
+        <div class="col-md-6">
+            <div class="card border-danger h-100">
+                <div class="card-body">
+                    <small class="text-muted d-block">Total que te deben</small>
+                    <span class="fs-2 fw-bold text-danger" id="fiado-total-owed">{{ total_owed|currency_ar }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-success h-100">
+                <div class="card-body">
+                    <small class="text-muted d-block">Cobrado de fiados hoy <em>(no cuenta como venta)</em></small>
+                    <span class="fs-2 fw-bold text-success">{{ collected_today|currency_ar }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="get" class="row g-2 mb-3 align-items-center">
+        <div class="col-md-5">
+            <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Buscar por nombre o teléfono..." autocomplete="off">
+        </div>
+        <div class="col-auto">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="deuda" value="1" id="f-deuda" {% if only_debt %}checked{% endif %}>
+                <label class="form-check-label" for="f-deuda">Solo con deuda</label>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="inactivos" value="1" id="f-inactivos" {% if show_inactive %}checked{% endif %}>
+                <label class="form-check-label" for="f-inactivos">Ver inactivos</label>
+            </div>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search me-1"></i>Filtrar</button>
+        </div>
+    </form>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Teléfono</th>
+                        <th class="text-end">Debe</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in customers %}
+                    <tr {% if not c.is_active %}class="text-muted"{% endif %}>
+                        <td>
+                            <a href="{% url 'fiado:customer_detail' c.pk %}" class="fw-semibold text-decoration-none">{{ c.name }}</a>
+                            {% if not c.is_active %}<span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}
+                        </td>
+                        <td>{{ c.phone|default:"—" }}</td>
+                        <td class="text-end fw-bold {% if c.balance_db > 0 %}text-danger{% else %}text-success{% endif %}">
+                            {{ c.balance_db|currency_ar }}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'fiado:customer_detail' c.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye me-1"></i>Ver cuenta
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            No hay clientes{% if q or only_debt %} con ese filtro{% endif %}.
+                            <a href="{% url 'fiado:customer_create' %}">Crear el primero</a>.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

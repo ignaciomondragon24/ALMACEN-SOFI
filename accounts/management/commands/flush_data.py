@@ -41,6 +41,10 @@ class Command(BaseCommand):
                 POSTransactionItem, POSPayment, POSTransaction,
                 POSSession, QuickAccessButton, POSKeyboardShortcut,
             )
+            # Fiado: cuentas y movimientos cuelgan de las ventas/caja que se borran abajo
+            from fiado.models import Customer, FiadoEntry
+            FiadoEntry.objects.all().delete()
+            Customer.objects.all().delete()
             POSTransactionItem.objects.all().delete()
             POSPayment.objects.all().delete()
             POSTransaction.objects.all().delete()

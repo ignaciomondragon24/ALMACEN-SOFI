@@ -33,6 +33,7 @@ urlpatterns = [
     path('mercadopago/', include('mercadopago.urls')),
     path('assistant/', include('assistant.urls')),
     path('signage/', include('signage.urls')),
+    path('fiado/', include('fiado.urls')),
     # Fase 3 del rediseño de venta por peso (2026-09-25): la app `granel`
     # queda en el repo como historial (no se borra código ni datos), pero
     # sus URLs se desregistran — todo se carga ahora desde `stocks`, en el

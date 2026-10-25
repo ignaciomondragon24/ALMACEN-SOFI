@@ -173,10 +173,23 @@
                                 </div>
                             </div>
                         </div>
+
+                        {% if fiado_methods %}
+                        <hr>
+                        <small class="text-muted d-block mb-2">
+                            <i class="fas fa-hand-holding-usd me-1"></i>Cobros de fiado (no cuentan como ventas)
+                        </small>
+                        {% for fm in fiado_methods %}
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span><i class="{{ fm.payment_method__icon }} me-1"></i>{{ fm.payment_method__name }} ({{ fm.count }})</span>
+                            <strong>{{ fm.total|currency_ar }}</strong>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            
+
             <!-- Columna Derecha: Resumen Z -->
             <div class="col-lg-3 mb-4">
                 <div class="z-summary-card mb-4">
@@ -210,6 +223,13 @@
                         <small class="d-block opacity-75">+ Ventas Efectivo</small>
                         <strong class="fs-5 text-success">{{ cash_total|currency_ar }}</strong>
                     </div>
+
+                    {% if fiado_cash %}
+                    <div class="mb-3">
+                        <small class="d-block opacity-75">+ Cobros de fiado en efectivo <em>(no es venta)</em></small>
+                        <strong class="fs-5 text-success">{{ fiado_cash|currency_ar }}</strong>
+                    </div>
+                    {% endif %}
 
                     <div class="mb-3">
                         <small class="d-block opacity-75">- Egresos Efectivo</small>

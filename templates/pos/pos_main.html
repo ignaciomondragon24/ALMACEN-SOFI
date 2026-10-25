@@ -695,6 +695,11 @@
                         </button>
                     </div>
                     <div class="col-12">
+                        <button type="button" class="btn btn-outline-warning w-100 action-btn" id="btn-fiado">
+                            <i class="fas fa-book me-1"></i>Fiar (cuenta de cliente)
+                        </button>
+                    </div>
+                    <div class="col-12">
                         <button type="button" class="btn btn-outline-light w-100 action-btn" id="btn-internal-consumption" disabled>
                             <i class="fas fa-utensils me-1"></i>Consumo Interno
                             <span class="shortcut-badge">F11</span>
@@ -1002,6 +1007,69 @@
     </div>
 </div>
 
+<!-- Fiado Modal: pasar la venta a la cuenta de un cliente -->
+<div class="modal fade" id="fiadoModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+        <div class="modal-content" style="background:linear-gradient(180deg,#1e1e3a 0%,#161628 100%);border:1px solid rgba(241,196,15,0.25);border-radius:16px;color:#eaeaea;">
+            <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,0.08);">
+                <h5 class="modal-title"><i class="fas fa-book me-2" style="color:#f1c40f;"></i>Fiar a un cliente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="fiado-step-pick">
+                <div class="text-center mb-3">
+                    <small style="color:#888;">Total a anotar en la cuenta</small>
+                    <div id="fiado-total" style="font-size:2rem;font-weight:800;color:#f1c40f;">$0</div>
+                    <small style="color:#888;">No cuenta como venta del día. No entra plata a la caja.</small>
+                </div>
+
+                <input type="text" id="fiado-search" class="form-control mb-2" placeholder="Buscar cliente por nombre..." autocomplete="off"
+                       style="background:#0c0c1c;border:1.5px solid rgba(50,50,75,0.7);color:#eee;">
+                <div id="fiado-list" class="list-group mb-3" style="max-height:200px;overflow-y:auto;"></div>
+
+                <div id="fiado-selected" class="alert alert-warning py-2 d-none mb-3"></div>
+
+                <details id="fiado-new-box" class="mb-3">
+                    <summary style="cursor:pointer;color:#f1c40f;"><i class="fas fa-user-plus me-1"></i>Cliente nuevo</summary>
+                    <div class="row g-2 mt-1">
+                        <div class="col-7">
+                            <input type="text" id="fiado-new-name" class="form-control" placeholder="Nombre" maxlength="120"
+                                   style="background:#0c0c1c;border:1.5px solid rgba(50,50,75,0.7);color:#eee;">
+                        </div>
+                        <div class="col-5">
+                            <input type="text" id="fiado-new-phone" class="form-control" placeholder="Teléfono (opcional)" maxlength="40"
+                                   style="background:#0c0c1c;border:1.5px solid rgba(50,50,75,0.7);color:#eee;">
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="btn btn-sm btn-outline-warning w-100" id="fiado-create-btn">
+                                <i class="fas fa-plus me-1"></i>Crear y elegir
+                            </button>
+                        </div>
+                    </div>
+                </details>
+
+                <input type="text" id="fiado-note" class="form-control" placeholder="Nota (opcional)" maxlength="200"
+                       style="background:#0c0c1c;border:1.5px solid rgba(50,50,75,0.7);color:#eee;">
+                <div id="fiado-error" class="text-danger small mt-2 d-none"></div>
+            </div>
+            <div class="modal-body text-center d-none" id="fiado-step-done">
+                <div style="font-size:2.5rem;color:#2ecc71;"><i class="fas fa-check-circle"></i></div>
+                <h5 class="mt-2" id="fiado-done-title"></h5>
+                <p class="mb-1" id="fiado-done-detail" style="color:#aaa;"></p>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,0.08);" id="fiado-footer-pick">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning fw-bold" id="fiado-confirm" disabled>
+                    <i class="fas fa-book me-1"></i>Anotar en la cuenta
+                </button>
+            </div>
+            <div class="modal-footer d-none" style="border-top:1px solid rgba(255,255,255,0.08);" id="fiado-footer-done">
+                <button type="button" class="btn btn-outline-light" id="fiado-print"><i class="fas fa-print me-1"></i>Imprimir</button>
+                <button type="button" class="btn btn-success" id="fiado-continue"><i class="fas fa-forward me-1"></i>Continuar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Cost Sale Modal -->
 <div class="modal fade" id="costSaleModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -1268,6 +1336,9 @@
         clearCart: '/pos/api/cart/{{ transaction.id }}/clear/',
         getCart: '/pos/api/transaction/{{ transaction.id }}/',
         checkout: '{% url "pos:api_checkout" %}',
+        fiadoCustomers: '{% url "fiado:api_customers" %}',
+        fiadoCustomerCreate: '{% url "fiado:api_customer_create" %}',
+        fiadoChargeSale: '{% url "fiado:api_charge_sale" %}',
         costSale: '{% url "pos:api_checkout_cost_sale" %}',
         internalConsumption: '{% url "pos:api_checkout_internal_consumption" %}',
         calculateCost: '/pos/api/transaction/{{ transaction.id }}/cost-total/',
@@ -1356,5 +1427,6 @@
     });
 </script>
 <script src="{% static 'js/pos-main.js' %}?v={% now "U" %}"></script>
+<script src="{% static 'js/pos-fiado.js' %}?v={% now "U" %}"></script>
 <script src="{% static 'js/pos-sidebar.js' %}?v={% now "U" %}"></script>
 {% endblock %}

@@ -283,10 +283,11 @@ class CashShift(models.Model):
         """Get total income amount from all payment methods."""
         from django.db.models import Sum
         result = self.movements.filter(
-            movement_type='income'
+            movement_type='income',
+            is_fiado_payment=False,
         ).aggregate(total=Sum('amount'))
         return result['total'] or Decimal('0.00')
-    
+
     @property
     def total_expense(self):
         """Get total expense amount."""
@@ -309,8 +310,10 @@ class CashShift(models.Model):
         """Get sales totals grouped by payment method."""
         from django.db.models import Sum
         
+        # Los cobros de fiado no son ventas: se muestran aparte (get_fiado_*).
         totals = self.movements.filter(
-            movement_type='income'
+            movement_type='income',
+            is_fiado_payment=False,
         ).values(
             'payment_method__code',
             'payment_method__name',
@@ -329,16 +332,56 @@ class CashShift(models.Model):
         from django.db.models import Sum
         result = self.movements.filter(
             movement_type='income',
-            payment_method__is_cash=True
+            payment_method__is_cash=True,
+            is_fiado_payment=False,
         ).aggregate(total=Sum('amount'))
         return result['total'] or Decimal('0.00')
-    
+
     def get_non_cash_total(self):
         """Get total non-cash amount (tarjetas, transferencias, etc)."""
         from django.db.models import Sum
         result = self.movements.filter(
             movement_type='income',
-            payment_method__is_cash=False
+            payment_method__is_cash=False,
+            is_fiado_payment=False,
+        ).aggregate(total=Sum('amount'))
+        return result['total'] or Decimal('0.00')
+
+    def get_fiado_collections(self):
+        """Cobros de fiado del turno, agrupados por método de pago.
+
+        No son ventas del día, pero el efectivo SÍ está en el cajón (entra en
+        calculate_expected) y el cierre tiene que mostrarlo aparte.
+        """
+        from django.db.models import Sum
+        return list(
+            self.movements.filter(movement_type='income', is_fiado_payment=True)
+            .values(
+                'payment_method__name',
+                'payment_method__icon',
+                'payment_method__color',
+                'payment_method__is_cash',
+            )
+            .annotate(total=Sum('amount'), count=models.Count('id'))
+            .order_by('payment_method__position')
+        )
+
+    def get_fiado_cash_total(self):
+        """Efectivo cobrado de fiado en el turno."""
+        from django.db.models import Sum
+        result = self.movements.filter(
+            movement_type='income',
+            is_fiado_payment=True,
+            payment_method__is_cash=True,
+        ).aggregate(total=Sum('amount'))
+        return result['total'] or Decimal('0.00')
+
+    def get_fiado_total(self):
+        """Total cobrado de fiado en el turno (cualquier método)."""
+        from django.db.models import Sum
+        result = self.movements.filter(
+            movement_type='income',
+            is_fiado_payment=True,
         ).aggregate(total=Sum('amount'))
         return result['total'] or Decimal('0.00')
     
@@ -401,7 +444,13 @@ class CashMovement(models.Model):
         'Fecha',
         auto_now_add=True
     )
-    
+    is_fiado_payment = models.BooleanField(
+        'Cobro de fiado',
+        default=False,
+        help_text='Plata que entra por pago de una deuda de fiado: suma al efectivo '
+                  'de caja pero NO cuenta como venta del día.'
+    )
+
     class Meta:
         verbose_name = 'Movimiento de Caja'
         verbose_name_plural = 'Movimientos de Caja'
