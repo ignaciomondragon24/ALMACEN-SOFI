@@ -14,7 +14,7 @@ from decimal import Decimal, InvalidOperation
 
 from decorators.decorators import group_required
 from .models import Supplier, SupplierProduct, Purchase, PurchaseItem
-from .forms import SupplierForm, SupplierProductForm, PurchaseForm, PurchaseItemFormSet
+from .forms import SupplierForm, PurchaseForm, PurchaseItemFormSet
 from stocks.models import Product, ProductPackaging, StockBatch
 from stocks.services import StockManagementService
 from expenses.models import Expense, ExpenseCategory
@@ -100,36 +100,71 @@ def supplier_delete(request, pk):
 @login_required
 @group_required(['Admin'])
 def supplier_products(request, pk):
-    """Manage the catalog of products a supplier sells (with their cost price)."""
+    """Checklist de los productos que se le compran a un proveedor (con su precio de compra)."""
     supplier = get_object_or_404(Supplier, pk=pk)
+    products = list(
+        Product.objects.filter(is_active=True).select_related('category').order_by('name')
+    )
 
     if request.method == 'POST':
-        form = SupplierProductForm(request.POST)
-        if form.is_valid():
-            product = form.cleaned_data['product']
-            link, created = SupplierProduct.objects.update_or_create(
-                supplier=supplier,
-                product=product,
-                defaults={
-                    'cost_price': form.cleaned_data['cost_price'],
-                    'notes': form.cleaned_data['notes'],
-                    'is_active': form.cleaned_data['is_active'],
-                }
-            )
-            messages.success(
-                request,
-                f'"{product.name}" {"agregado al" if created else "actualizado en el"} catálogo de {supplier.name}.'
-            )
-            return redirect('purchase:supplier_products', pk=supplier.pk)
-    else:
-        form = SupplierProductForm()
+        selected_ids = {int(v) for v in request.POST.getlist('selected') if v.isdigit()}
+        existing = {link.product_id: link for link in supplier.supplier_products.all()}
+        added = removed = 0
 
-    links = supplier.supplier_products.select_related('product').order_by('product__name')
+        with transaction.atomic():
+            for product in products:
+                link = existing.get(product.pk)
+                if product.pk not in selected_ids:
+                    if link:
+                        link.delete()
+                        removed += 1
+                    continue
+
+                raw = request.POST.get(f'cost_{product.pk}', '').strip().replace(',', '.')
+                try:
+                    cost = max(Decimal(raw), Decimal('0')) if raw else None
+                except InvalidOperation:
+                    cost = None
+
+                if link:
+                    # Sin precio cargado se conserva el que ya tenía.
+                    if cost is not None and cost != link.cost_price:
+                        link.cost_price = cost
+                        link.save(update_fields=['cost_price'])
+                else:
+                    SupplierProduct.objects.create(
+                        supplier=supplier,
+                        product=product,
+                        cost_price=cost if cost is not None else (product.cost_price or product.purchase_price),
+                    )
+                    added += 1
+
+        messages.success(
+            request,
+            f'Catálogo de {supplier.name} guardado: {len(selected_ids)} productos'
+            f' ({added} agregados, {removed} quitados).'
+        )
+        return redirect('purchase:supplier_products', pk=supplier.pk)
+
+    links = {link.product_id: link for link in supplier.supplier_products.all()}
+    rows = []
+    for product in products:
+        link = links.get(product.pk)
+        stock = product.current_stock.normalize()
+        rows.append({
+            'product': product,
+            'checked': link is not None,
+            'inactive': link is not None and not link.is_active,
+            'cost': link.cost_price if link else (product.cost_price or product.purchase_price),
+            'stock_text': f'{stock:f}'.replace('.', ',') + (' kg' if product.is_granel else ''),
+            'low': product.current_stock <= product.min_stock,
+        })
 
     context = {
         'supplier': supplier,
-        'form': form,
-        'links': links,
+        'rows': rows,
+        'selected_count': len(links),
+        'categories': sorted({p.category.name for p in products if p.category_id}),
     }
     return render(request, 'purchase/supplier_products.html', context)
 

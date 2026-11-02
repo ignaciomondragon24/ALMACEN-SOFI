@@ -35,100 +35,133 @@
     </div>
     {% endif %}
 
-    <div class="row g-3">
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Agregar producto al catálogo</h6>
-                </div>
-                <div class="card-body">
-                    <form method="post">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label class="form-label">Producto</label>
-                            {{ form.product }}
-                            {% if form.product.errors %}
-                            <div class="text-danger small">{{ form.product.errors.0 }}</div>
-                            {% endif %}
+    <form method="post" id="checklist-form">
+        {% csrf_token %}
+        <div class="card">
+            <div class="card-header">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-5">
+                        <input type="search" id="buscar" class="form-control" placeholder="Buscar por nombre o código..." autofocus autocomplete="off">
+                    </div>
+                    <div class="col-md-3">
+                        <select id="filtro-categoria" class="form-select">
+                            <option value="">Todas las categorías</option>
+                            {% for c in categories %}<option value="{{ c|lower }}">{{ c }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex justify-content-md-end">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="solo-marcados">
+                            <label class="form-check-label" for="solo-marcados">Ver solo los marcados</label>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Precio al que se lo compro</label>
-                            {{ form.cost_price }}
-                            <div class="form-text">Si es un producto por peso (fiambre, queso...), poné el precio <strong>por kilo</strong>.</div>
-                            {% if form.cost_price.errors %}
-                            <div class="text-danger small">{{ form.cost_price.errors.0 }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Notas</label>
-                            {{ form.notes }}
-                        </div>
-                        <div class="mb-3 form-check">
-                            {{ form.is_active }}
-                            <label class="form-check-label">Activo</label>
-                        </div>
-                        <button type="submit" class="btn btn-success w-100">
-                            <i class="fas fa-save me-1"></i>Guardar
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>Catálogo actual ({{ links|length }})</h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Producto</th>
-                                    <th class="text-end">Precio</th>
-                                    <th class="text-center">Stock actual</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for link in links %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ link.product.name }}</strong>
-                                        {% if not link.is_active %}<span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}
-                                        {% if link.notes %}<br><small class="text-muted">{{ link.notes }}</small>{% endif %}
-                                    </td>
-                                    <td class="text-end">{{ link.cost_price|currency }}{% if link.por_peso %} <small class="text-muted">/ kg</small>{% endif %}</td>
-                                    <td class="text-center">
-                                        {% if link.product.current_stock <= link.product.min_stock %}
-                                        <span class="badge bg-danger">{{ link.stock_texto }} (bajo)</span>
-                                        {% else %}
-                                        <span class="badge bg-light text-dark">{{ link.stock_texto }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">
-                                        <form method="post" action="{% url 'purchase:supplier_product_remove' supplier.pk link.pk %}" class="d-inline" onsubmit="return confirm('¿Quitar {{ link.product.name|escapejs }} del catálogo de {{ supplier.name|escapejs }}?');">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Quitar">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
-                                        Todavía no cargaste productos para este proveedor.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 65vh; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                            <tr>
+                                <th style="width: 3rem;"></th>
+                                <th>Producto</th>
+                                <th class="text-center">Stock</th>
+                                <th style="width: 11rem;">Precio de compra</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in rows %}
+                            <tr class="fila" data-name="{{ r.product.name|lower }} {{ r.product.barcode|default:'' }}" data-cat="{{ r.product.category.name|default:''|lower }}">
+                                <td class="text-center">
+                                    <input type="checkbox" class="form-check-input chk" name="selected" value="{{ r.product.pk }}" id="p{{ r.product.pk }}" {% if r.checked %}checked{% endif %}>
+                                </td>
+                                <td>
+                                    <label for="p{{ r.product.pk }}" class="mb-0 w-100" style="cursor: pointer;">
+                                        <strong>{{ r.product.name }}</strong>
+                                        {% if r.inactive %}<span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}
+                                        {% if r.product.category %}<br><small class="text-muted">{{ r.product.category.name }}</small>{% endif %}
+                                    </label>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge {% if r.low %}bg-danger{% else %}bg-light text-dark{% endif %}">{{ r.stock_text }}{% if r.low %} (bajo){% endif %}</span>
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" step="0.01" min="0" class="form-control cost" name="cost_{{ r.product.pk }}" value="{{ r.cost|stringformat:'.2f' }}" {% if not r.checked %}disabled{% endif %}>
+                                        {% if r.product.is_granel %}<span class="input-group-text">/ kg</span>{% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr id="sin-resultados" style="display: none;">
+                                <td colspan="4" class="text-center text-muted py-4">No hay productos que coincidan.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <span><strong id="contador">{{ selected_count }}</strong> productos marcados</span>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-save me-1"></i>Guardar
+                </button>
+            </div>
         </div>
-    </div>
+    </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const filas = Array.from(document.querySelectorAll('.fila'));
+    const buscar = document.getElementById('buscar');
+    const categoria = document.getElementById('filtro-categoria');
+    const soloMarcados = document.getElementById('solo-marcados');
+    const contador = document.getElementById('contador');
+    const vacio = document.getElementById('sin-resultados');
+
+    function norm(t) {
+        return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function filtrar() {
+        const terminos = norm(buscar.value.trim()).split(/\s+/).filter(Boolean);
+        const cat = categoria.value;
+        let visibles = 0;
+        filas.forEach(function (f) {
+            const ok = (!terminos.length || terminos.every(function (t) { return norm(f.dataset.name).includes(t); }))
+                && (!cat || f.dataset.cat === cat)
+                && (!soloMarcados.checked || f.querySelector('.chk').checked);
+            f.style.display = ok ? '' : 'none';
+            if (ok) visibles++;
+        });
+        vacio.style.display = visibles ? 'none' : '';
+    }
+
+    filas.forEach(function (f) {
+        const chk = f.querySelector('.chk');
+        const cost = f.querySelector('.cost');
+        chk.addEventListener('change', function () {
+            cost.disabled = !chk.checked;
+            contador.textContent = document.querySelectorAll('.chk:checked').length;
+            if (soloMarcados.checked) filtrar();
+        });
+    });
+    buscar.addEventListener('input', filtrar);
+    categoria.addEventListener('change', filtrar);
+    soloMarcados.addEventListener('change', filtrar);
+    buscar.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const visibles = filas.filter(function (f) { return f.style.display !== 'none'; });
+        if (visibles.length === 1) {
+            const chk = visibles[0].querySelector('.chk');
+            chk.checked = !chk.checked;
+            chk.dispatchEvent(new Event('change'));
+            buscar.select();
+        }
+    });
+})();
+</script>
 {% endblock %}
