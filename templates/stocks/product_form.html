@@ -584,9 +584,16 @@
     const marginInput = document.getElementById('id_margin');
     const saleInput = document.getElementById('id_sale_price');
 
-    costInput.addEventListener('input', calculateSalePrice);
-    marginInput.addEventListener('input', calculateSalePrice);
-    saleInput.addEventListener('input', calculateMargin);
+    // Se completa solo el campo que NO tocó: con los dos últimos editados
+    // (costo, margen o venta) se calcula el tercero. Ej: venta + margen -> costo.
+    let editados = [];
+    function editado(campo) {
+        editados = [campo].concat(editados.filter(function (c) { return c !== campo; })).slice(0, 2);
+        recalcular();
+    }
+    costInput.addEventListener('input', function () { editado('cost'); });
+    marginInput.addEventListener('input', function () { editado('margin'); });
+    saleInput.addEventListener('input', function () { editado('sale'); });
 
     // Al elegir categoría en un producto NUEVO, sugerir el margen por
     // defecto de esa categoría en vez de dejar el 30% genérico pisado.
@@ -608,8 +615,7 @@
         const cost = parseFloat(costInput.value) || 0;
         const margin = parseFloat(marginInput.value) || 0;
         if (cost > 0) {
-            const salePrice = cost * (1 + margin / 100);
-            saleInput.value = salePrice.toFixed(2);
+            saleInput.value = (cost * (1 + margin / 100)).toFixed(2);
         }
     }
 
@@ -617,11 +623,27 @@
         const cost = parseFloat(costInput.value) || 0;
         const sale = parseFloat(saleInput.value) || 0;
         if (cost > 0 && sale > 0) {
-            const margin = ((sale - cost) / cost) * 100;
-            marginInput.value = margin.toFixed(2);
+            marginInput.value = (((sale - cost) / cost) * 100).toFixed(2);
         }
     }
-    
+
+    function calculateCost() {
+        const sale = parseFloat(saleInput.value) || 0;
+        const margin = parseFloat(marginInput.value) || 0;
+        if (sale > 0) {
+            costInput.value = (sale / (1 + margin / 100)).toFixed(2);
+        }
+    }
+
+    function recalcular() {
+        const dejados = ['cost', 'margin', 'sale'].filter(function (c) { return editados.indexOf(c) === -1; });
+        // Con un solo campo editado se mantiene lo de siempre: costo/margen -> venta, venta -> margen.
+        const calcular = editados.length === 2 ? dejados[0] : (editados[0] === 'sale' ? 'margin' : 'sale');
+        if (calcular === 'cost') calculateCost();
+        else if (calcular === 'margin') calculateMargin();
+        else calculateSalePrice();
+    }
+
     // Generate barcode
     document.getElementById('btn-generate-barcode').addEventListener('click', async function() {
         try {
