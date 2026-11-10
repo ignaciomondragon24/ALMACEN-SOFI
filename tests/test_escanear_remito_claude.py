@@ -195,14 +195,14 @@ class ConfiguracionEnPantallaTests(TestCase):
     def test_pantalla_de_escanear_remito_avisa_si_falta_la_key(self):
         r = self.c.get(reverse('assistant:scan_invoice'))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'Falta configurar la API Key de Claude')
+        self.assertContains(r, 'Falta configurar la API Key de Gemini')
 
     def test_pantalla_de_escanear_remito_no_avisa_si_ya_esta_configurada(self):
         settings_obj = AssistantSettings.get_settings()
         settings_obj.anthropic_api_key = 'sk-ant-ya-configurada'
         settings_obj.save()
         r = self.c.get(reverse('assistant:scan_invoice'))
-        self.assertNotContains(r, 'Falta configurar la API Key de Claude')
+        self.assertNotContains(r, 'Falta configurar la API Key de Gemini')
 
     def test_clave_de_google_en_el_campo_de_claude_no_se_guarda(self):
         r = self.c.post(reverse('assistant:settings'), {
@@ -228,3 +228,68 @@ class ConfiguracionEnPantallaTests(TestCase):
             'max_tokens': '2000', 'temperature': '0.7',
         })
         self.assertEqual(AssistantSettings.get_settings().openai_api_key, 'AQ.clave-de-google')
+
+
+class ScanInvoiceElegirProveedorTests(TestCase):
+    """Con key de Claude se usa Claude; si solo hay key de Gemini, se usa Gemini."""
+
+    PAYLOAD = {'proveedor': 'Fiambres del Sur', 'productos': [{'nombre': 'Jamón', 'cantidad': 2}]}
+
+    def setUp(self):
+        self.settings_obj = AssistantSettings.get_settings()
+        self.settings_obj.anthropic_api_key = ''
+        self.settings_obj.openai_api_key = ''
+        self.settings_obj.save()
+        self.service = InvoiceScanService()
+
+    @patch('google.genai.Client')
+    def test_solo_gemini_escanea_con_gemini(self, MockGenai):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        client = MagicMock()
+        client.models.generate_content.return_value = MagicMock(
+            text='```json\n' + json.dumps(self.PAYLOAD) + '\n```')
+        MockGenai.return_value = client
+
+        result = self.service.scan_invoice(b'fake-image-bytes', 'image/jpeg')
+
+        self.assertTrue(result['success'], result)
+        self.assertEqual(result['data']['proveedor'], 'Fiambres del Sur')
+        MockGenai.assert_called_once_with(api_key='AQ.clave-de-google')
+
+    @patch('anthropic.Anthropic')
+    @patch('google.genai.Client')
+    def test_con_key_de_claude_se_prefiere_claude(self, MockGenai, MockAnthropic):
+        self.settings_obj.anthropic_api_key = 'sk-ant-test'
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        MockAnthropic.return_value.messages.create.return_value = MagicMock(
+            content=[_text_block(json.dumps(self.PAYLOAD))])
+
+        result = self.service.scan_invoice(b'fake-image-bytes', 'image/jpeg')
+
+        self.assertTrue(result['success'], result)
+        MockGenai.assert_not_called()
+
+    @patch('google.genai.Client')
+    def test_gemini_respuesta_invalida_da_error_claro(self, MockGenai):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        MockGenai.return_value.models.generate_content.return_value = MagicMock(text='no es json')
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertFalse(result['success'])
+        self.assertIn('Gemini', result['error'])
+
+    @patch('google.genai.Client')
+    def test_gemini_cuota_agotada_da_mensaje_claro(self, MockGenai):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        MockGenai.return_value.models.generate_content.side_effect = Exception('429 RESOURCE_EXHAUSTED quota')
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertFalse(result['success'])
+        self.assertIn('cuota', result['error'])
+
+    def test_sin_ninguna_key_avisa(self):
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertFalse(result['success'])
+        self.assertIn('Gemini', result['error'])

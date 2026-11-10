@@ -380,11 +380,7 @@ def scan_invoice_page(request):
     suppliers = Supplier.objects.filter(is_active=True).order_by('name')
     categories = ProductCategory.objects.filter(is_active=True).order_by('name')
     settings_obj = AssistantSettings.get_settings()
-    is_configured = (
-        bool(settings_obj.anthropic_api_key)
-        or bool(getattr(django_settings, 'ANTHROPIC_API_KEY', None))
-        or bool(os.getenv('ANTHROPIC_API_KEY'))
-    )
+    is_configured = InvoiceScanService.is_configured()
     context = {
         'suppliers': suppliers,
         'categories': categories,

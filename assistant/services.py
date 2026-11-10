@@ -495,7 +495,7 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
     # (no debería pasar, el campo tiene default, pero por las dudas).
     DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5'
 
-    def scan_invoice(self, image_data: bytes, mime_type: str = 'image/jpeg') -> Dict[str, Any]:
+    def _scan_invoice_claude(self, image_data: bytes, mime_type: str = 'image/jpeg') -> Dict[str, Any]:
         """
         Send an invoice image to Claude (Anthropic) and extract structured data.
 
@@ -628,6 +628,114 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
             return {
                 'success': False,
                 'error': str(e),
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+
+    @staticmethod
+    def _claude_key():
+        """API key de Claude: la de Configuración, o ANTHROPIC_API_KEY (settings/entorno)."""
+        import os
+        from .models import AssistantSettings
+        return (
+            AssistantSettings.get_settings().anthropic_api_key
+            or getattr(settings, 'ANTHROPIC_API_KEY', None)
+            or os.getenv('ANTHROPIC_API_KEY')
+        )
+
+    @staticmethod
+    def _gemini_key():
+        """API key de Gemini: la de Configuración, o GEMINI_API_KEY (settings/entorno)."""
+        import os
+        from .models import AssistantSettings
+        return (
+            AssistantSettings.get_settings().openai_api_key  # campo reusado para Gemini
+            or getattr(settings, 'GEMINI_API_KEY', None)
+            or os.getenv('GEMINI_API_KEY')
+        )
+
+    @classmethod
+    def is_configured(cls):
+        return bool(cls._claude_key() or cls._gemini_key())
+
+    def scan_invoice(self, image_data: bytes, mime_type: str = 'image/jpeg') -> Dict[str, Any]:
+        """
+        Lee la foto de un remito con el proveedor que tenga key cargada:
+        Claude si hay key de Claude, si no Gemini (que tiene plan gratuito).
+        """
+        if self._claude_key():
+            return self._scan_invoice_claude(image_data, mime_type)
+        if self._gemini_key():
+            return self._scan_invoice_gemini(image_data, mime_type)
+        return {
+            'success': False,
+            'error': (
+                'No hay ninguna API key cargada para leer remitos. Cargá la de Gemini '
+                '(o la de Claude) en Asistente IA → Configuración.'
+            ),
+            'elapsed_ms': 0,
+        }
+
+    def _scan_invoice_gemini(self, image_data: bytes, mime_type: str = 'image/jpeg') -> Dict[str, Any]:
+        """Send an invoice image to Gemini Vision and extract structured data."""
+        from google import genai
+        from google.genai import types
+
+        start_time = time.time()
+        raw_text = ''
+
+        try:
+            client = genai.Client(api_key=self._gemini_key())
+            contents = [
+                types.Content(
+                    role='user',
+                    parts=[
+                        types.Part.from_bytes(data=image_data, mime_type=mime_type),
+                        types.Part(text=self.SCAN_PROMPT),
+                    ],
+                )
+            ]
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=contents,
+                config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=4096),
+            )
+            raw_text = response.text or ''
+
+            cleaned = raw_text.strip()
+            if cleaned.startswith('```'):
+                cleaned = cleaned.split('\n', 1)[1] if '\n' in cleaned else cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            if cleaned.startswith('json'):
+                cleaned = cleaned[4:].strip()
+
+            return {
+                'success': True,
+                'data': json.loads(cleaned),
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing Gemini response as JSON: {e}\nRaw: {raw_text[:500]}")
+            return {
+                'success': False,
+                'error': 'No se pudo interpretar la respuesta de Gemini como datos estructurados. Intentá con una foto más clara.',
+                'raw_response': raw_text[:1000],
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+            }
+        except Exception as e:
+            logger.error(f"Error scanning invoice with Gemini: {e}")
+            error_msg = str(e)
+            if '429' in error_msg or 'quota' in error_msg.lower():
+                error_msg = 'Se excedió la cuota de la API de Gemini. Esperá un momento y volvé a intentar.'
+            elif '400' in error_msg and 'api key' in error_msg.lower():
+                error_msg = 'La API key de Gemini no es válida. Revisala en Asistente IA → Configuración.'
+            elif '403' in error_msg:
+                error_msg = 'La API key de Gemini no tiene permisos. Verificá que la key sea válida.'
+            return {
+                'success': False,
+                'error': error_msg,
                 'elapsed_ms': int((time.time() - start_time) * 1000),
             }
 
