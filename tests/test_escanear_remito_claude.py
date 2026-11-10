@@ -76,6 +76,9 @@ class ScanInvoiceConClaudeTests(TestCase):
         # Se usó el modelo configurado en AssistantSettings, no uno hardcodeado.
         _, kwargs = mock_client.messages.create.call_args
         self.assertEqual(kwargs['model'], 'claude-sonnet-5')
+        # Sonnet 5 y posteriores rechazan temperature/top_p/top_k con un 400.
+        for param in ('temperature', 'top_p', 'top_k'):
+            self.assertNotIn(param, kwargs)
         # La imagen viaja como bloque 'image' en base64, con el mime type correcto.
         content_blocks = kwargs['messages'][0]['content']
         image_block = next(b for b in content_blocks if b['type'] == 'image')
@@ -200,3 +203,28 @@ class ConfiguracionEnPantallaTests(TestCase):
         settings_obj.save()
         r = self.c.get(reverse('assistant:scan_invoice'))
         self.assertNotContains(r, 'Falta configurar la API Key de Claude')
+
+    def test_clave_de_google_en_el_campo_de_claude_no_se_guarda(self):
+        r = self.c.post(reverse('assistant:settings'), {
+            'openai_api_key': '', 'model': 'gemini-2.5-flash',
+            'anthropic_api_key': 'AQ.clave-de-google', 'anthropic_model': 'claude-sonnet-5',
+            'max_tokens': '2000', 'temperature': '0.7',
+        }, follow=True)
+        self.assertEqual(AssistantSettings.get_settings().anthropic_api_key, '')
+        self.assertContains(r, 'no se guardó')
+
+    def test_clave_de_claude_en_el_campo_de_gemini_no_se_guarda(self):
+        self.c.post(reverse('assistant:settings'), {
+            'openai_api_key': 'sk-ant-equivocada', 'model': 'gemini-2.5-flash',
+            'anthropic_api_key': '', 'anthropic_model': 'claude-sonnet-5',
+            'max_tokens': '2000', 'temperature': '0.7',
+        })
+        self.assertEqual(AssistantSettings.get_settings().openai_api_key, '')
+
+    def test_clave_de_google_valida_se_guarda_en_gemini(self):
+        self.c.post(reverse('assistant:settings'), {
+            'openai_api_key': 'AQ.clave-de-google', 'model': 'gemini-2.5-flash',
+            'anthropic_api_key': '', 'anthropic_model': 'claude-sonnet-5',
+            'max_tokens': '2000', 'temperature': '0.7',
+        })
+        self.assertEqual(AssistantSettings.get_settings().openai_api_key, 'AQ.clave-de-google')

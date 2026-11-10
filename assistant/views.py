@@ -268,9 +268,30 @@ def assistant_settings(request):
     settings_obj = AssistantSettings.get_settings()
     
     if request.method == 'POST':
-        settings_obj.openai_api_key = request.POST.get('openai_api_key', '')
+        # Cada clave va en su campo: la de Claude (Escanear Remito) empieza con
+        # sk-ant-; la de Gemini (chat) es una clave de Google. Si se pega una en
+        # el campo equivocado se avisa en vez de guardar algo que después falla.
+        gemini_key = request.POST.get('openai_api_key', '').strip()
+        claude_key = request.POST.get('anthropic_api_key', '').strip()
+        if claude_key and not claude_key.startswith('sk-ant-'):
+            messages.error(
+                request,
+                'La clave del campo "Claude API Key" no se guardó: tiene que empezar con '
+                '"sk-ant-" y se saca de console.anthropic.com. Si lo que pegaste es una clave '
+                'de Google (empieza con "AIza" o "AQ."), va en el campo "Gemini API Key" y '
+                'sirve solo para el chat del asistente, no para Escanear Remito.'
+            )
+            claude_key = settings_obj.anthropic_api_key
+        if gemini_key.startswith('sk-ant-'):
+            messages.error(
+                request,
+                'La clave del campo "Gemini API Key" no se guardó: "sk-ant-" es una clave de '
+                'Claude y va en el campo "Claude API Key".'
+            )
+            gemini_key = settings_obj.openai_api_key
+        settings_obj.openai_api_key = gemini_key
         settings_obj.model = request.POST.get('model', 'gemini-2.0-flash')
-        settings_obj.anthropic_api_key = request.POST.get('anthropic_api_key', '').strip()
+        settings_obj.anthropic_api_key = claude_key
         settings_obj.anthropic_model = request.POST.get('anthropic_model', 'claude-sonnet-5')
 
         # Validate numeric fields

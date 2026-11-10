@@ -540,7 +540,6 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
             response = client.messages.create(
                 model=model,
                 max_tokens=4096,
-                temperature=0.1,
                 messages=[{
                     'role': 'user',
                     'content': [
