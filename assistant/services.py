@@ -17,6 +17,11 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+# Google retira modelos viejos para claves nuevas (gemini-2.5-flash ya da 404).
+GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash'
+GEMINI_MODELS = ('gemini-3.5-flash', 'gemini-3.1-flash-lite')
+
+
 class BusinessDataCollector:
     """
     Collects business data from the system to provide context to the AI.
@@ -695,7 +700,7 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
                 )
             ]
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=GEMINI_DEFAULT_MODEL,
                 contents=contents,
                 config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=4096),
             )
@@ -872,10 +877,11 @@ class AssistantService:
             )
             
             # Call Gemini API via SDK
-            VALID_MODELS = {'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'}
-            model_name = assistant_settings.model or 'gemini-2.5-flash'
+            VALID_MODELS = set(GEMINI_MODELS)
+            model_name = assistant_settings.model or GEMINI_DEFAULT_MODEL
             if model_name not in VALID_MODELS:
-                model_name = 'gemini-2.5-flash'
+                # Modelo guardado ya retirado por Google (ej. 2.5/2.0): usar el actual.
+                model_name = GEMINI_DEFAULT_MODEL
             
             response = client.models.generate_content(
                 model=model_name,

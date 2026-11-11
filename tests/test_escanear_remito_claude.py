@@ -293,3 +293,14 @@ class ScanInvoiceElegirProveedorTests(TestCase):
         result = self.service.scan_invoice(b'x', 'image/jpeg')
         self.assertFalse(result['success'])
         self.assertIn('Gemini', result['error'])
+
+    @patch('google.genai.Client')
+    def test_gemini_usa_un_modelo_vigente_no_el_retirado(self, MockGenai):
+        from assistant.services import GEMINI_DEFAULT_MODEL
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        MockGenai.return_value.models.generate_content.return_value = MagicMock(text=json.dumps(self.PAYLOAD))
+        self.service.scan_invoice(b'x', 'image/jpeg')
+        _, kwargs = MockGenai.return_value.models.generate_content.call_args
+        self.assertEqual(kwargs['model'], GEMINI_DEFAULT_MODEL)
+        self.assertNotIn('2.5', kwargs['model'])

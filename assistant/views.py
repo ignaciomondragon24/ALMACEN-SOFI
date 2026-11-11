@@ -290,7 +290,7 @@ def assistant_settings(request):
             )
             gemini_key = settings_obj.openai_api_key
         settings_obj.openai_api_key = gemini_key
-        settings_obj.model = request.POST.get('model', 'gemini-2.0-flash')
+        settings_obj.model = request.POST.get('model', 'gemini-3.5-flash')
         settings_obj.anthropic_api_key = claude_key
         settings_obj.anthropic_model = request.POST.get('anthropic_model', 'claude-sonnet-5')
 
@@ -333,10 +333,8 @@ def assistant_settings(request):
         'settings': settings_obj,
         'usage_stats': usage_stats,
         'available_models': [
-            ('gemini-2.5-flash', 'Gemini 2.5 Flash (Recomendado)'),
-            ('gemini-2.5-pro', 'Gemini 2.5 Pro'),
-            ('gemini-2.0-flash', 'Gemini 2.0 Flash'),
-            ('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite'),
+            ('gemini-3.5-flash', 'Gemini 3.5 Flash (Recomendado)'),
+            ('gemini-3.1-flash-lite', 'Gemini 3.1 Flash Lite (más barato)'),
         ],
         'available_claude_models': [
             ('claude-sonnet-5', 'Claude Sonnet 5 (Recomendado — mejor precisión)'),
