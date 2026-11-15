@@ -63,5 +63,11 @@ Uso (preserva todos los filtros del querystring automaticamente):
 <p class="text-center text-muted small mt-2 mb-0">
     Página {{ current }} de {{ total }} · {{ page_obj.paginator.count }} resultado{{ page_obj.paginator.count|pluralize:"s" }}
 </p>
+<form method="get" class="d-flex justify-content-center align-items-center gap-2 mt-2 ir-a-pagina">
+    {% for k, v in request.GET.items %}{% if k != 'page' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+    <label for="ir-a-pagina-input" class="small text-muted mb-0">Ir a la página</label>
+    <input type="number" id="ir-a-pagina-input" name="page" min="1" max="{{ total }}" value="{{ current }}" class="form-control form-control-sm text-center" style="width: 5rem;" onfocus="this.select()" required>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Ir</button>
+</form>
 {% endwith %}
 {% endif %}

@@ -699,11 +699,31 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
                     ],
                 )
             ]
-            response = client.models.generate_content(
-                model=GEMINI_DEFAULT_MODEL,
-                contents=contents,
-                config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=4096),
-            )
+            # Google a veces responde 503 "alta demanda": se reintenta y, si sigue,
+            # se prueba con el otro modelo.
+            response = None
+            last_error = None
+            for model_name in (GEMINI_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL) + GEMINI_MODELS[1:]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            temperature=0.1,
+                            max_output_tokens=4096,
+                            http_options=types.HttpOptions(timeout=40000),
+                        ),
+                    )
+                    break
+                except Exception as e:
+                    last_error = e
+                    msg = str(e)
+                    if not any(c in msg for c in ('503', '500', '504', 'UNAVAILABLE', 'DEADLINE', 'timed out', 'Timeout')):
+                        raise
+                    logger.warning(f"Gemini {model_name} no disponible, reintentando: {msg[:200]}")
+                    time.sleep(1.5)
+            if response is None:
+                raise last_error
             raw_text = response.text or ''
 
             cleaned = raw_text.strip()
@@ -738,6 +758,8 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
                 error_msg = 'La API key de Gemini no es válida. Revisala en Asistente IA → Configuración.'
             elif '403' in error_msg:
                 error_msg = 'La API key de Gemini no tiene permisos. Verificá que la key sea válida.'
+            elif any(c in error_msg for c in ('503', '500', '504', 'UNAVAILABLE', 'DEADLINE', 'timed out', 'Timeout')):
+                error_msg = 'Google tiene mucha demanda en este momento. Esperá un minuto y volvé a escanear el remito.'
             return {
                 'success': False,
                 'error': error_msg,

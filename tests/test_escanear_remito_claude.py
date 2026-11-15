@@ -304,3 +304,32 @@ class ScanInvoiceElegirProveedorTests(TestCase):
         _, kwargs = MockGenai.return_value.models.generate_content.call_args
         self.assertEqual(kwargs['model'], GEMINI_DEFAULT_MODEL)
         self.assertNotIn('2.5', kwargs['model'])
+
+    @patch('assistant.services.time.sleep')
+    @patch('google.genai.Client')
+    def test_gemini_503_reintenta_y_cambia_de_modelo(self, MockGenai, _sleep):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        gen = MockGenai.return_value.models.generate_content
+        gen.side_effect = [
+            Exception("503 UNAVAILABLE. This model is currently experiencing high demand"),
+            Exception("503 UNAVAILABLE. This model is currently experiencing high demand"),
+            MagicMock(text=json.dumps(self.PAYLOAD)),
+        ]
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertTrue(result['success'], result)
+        self.assertEqual(gen.call_count, 3)
+        modelos = [c.kwargs['model'] for c in gen.call_args_list]
+        self.assertEqual(modelos[0], modelos[1])
+        self.assertNotEqual(modelos[2], modelos[0])
+
+    @patch('assistant.services.time.sleep')
+    @patch('google.genai.Client')
+    def test_gemini_503_persistente_da_mensaje_en_castellano(self, MockGenai, _sleep):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        MockGenai.return_value.models.generate_content.side_effect = Exception("503 UNAVAILABLE high demand")
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertFalse(result['success'])
+        self.assertIn('mucha demanda', result['error'])
+        self.assertNotIn('UNAVAILABLE', result['error'])
