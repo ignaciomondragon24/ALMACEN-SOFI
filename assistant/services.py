@@ -3,6 +3,7 @@ AI Assistant Service for CHE GOLOSO.
 Chat/insights: Google Gemini API. Escanear Remito (InvoiceScanService): Claude (Anthropic) API.
 """
 import json
+import re
 import time
 import logging
 from datetime import datetime, timedelta
@@ -20,6 +21,98 @@ logger = logging.getLogger(__name__)
 # Google retira modelos viejos para claves nuevas (gemini-2.5-flash ya da 404).
 GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash'
 GEMINI_MODELS = ('gemini-3.5-flash', 'gemini-3.1-flash-lite')
+# Para leer remitos: los "lite" son rápidos y estables; los grandes quedan de respaldo
+# (suelen dar 503 por alta demanda). Se prueban en orden hasta que uno responda.
+GEMINI_SCAN_MODELS = (
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+)
+GEMINI_SCAN_TIMEOUT_MS = 25000
+SCAN_SIN_PRODUCTOS = 'No se pudo leer ningún producto del remito. Probá con una foto más clara y completa, bien de frente y con buena luz.'
+
+
+def _numero_remito(valor):
+    """Número desde lo que devuelva el modelo: 12, "12", "$ 1.250,50", "1250.5"."""
+    if valor is None or isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        return valor
+    s = re.sub(r'[^\d,.\-]', '', str(valor))
+    if not s or s in ('-', ',', '.'):
+        return None
+    if ',' in s and '.' in s:
+        if s.rfind(',') > s.rfind('.'):
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            s = s.replace(',', '')
+    elif ',' in s:
+        s = s.replace(',', '.')
+    elif s.count('.') > 1 or re.fullmatch(r'-?\d{1,3}\.\d{3}', s):
+        s = s.replace('.', '')  # 1.250 / 1.250.500 son miles en Argentina
+    try:
+        n = float(s)
+    except ValueError:
+        return None
+    return int(n) if n.is_integer() else n
+
+
+def _fecha_remito(valor):
+    """Fecha a DD/MM/YYYY (lo que espera la pantalla); None si no se entiende."""
+    if not valor:
+        return None
+    s = str(valor).strip()
+    for fmt in ('%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%Y/%m/%d', '%d/%m/%y', '%d-%m-%y', '%d.%m.%Y'):
+        try:
+            return datetime.strptime(s[:10] if fmt.startswith('%Y') else s, fmt).strftime('%d/%m/%Y')
+        except ValueError:
+            continue
+    return None
+
+
+def _texto_remito(valor):
+    if valor is None or isinstance(valor, (dict, list)):
+        return None
+    s = str(valor).strip()
+    return s or None
+
+
+def normalizar_datos_remito(data):
+    """
+    Deja el JSON que devolvió el modelo con los tipos que espera la pantalla de
+    revisión (números como números, fecha DD/MM/YYYY, textos como texto), sin
+    importar cómo los haya escrito (p. ej. "1.250,50" como texto).
+    """
+    if not isinstance(data, dict):
+        data = {}
+    productos = []
+    for p in data.get('productos') or []:
+        if not isinstance(p, dict) or not _texto_remito(p.get('nombre')):
+            continue
+        codigo = p.get('codigo_barras')
+        if isinstance(codigo, float) and codigo.is_integer():
+            codigo = int(codigo)
+        codigo = re.sub(r'\D', '', str(codigo)) if codigo is not None else ''
+        productos.append({
+            'nombre': _texto_remito(p.get('nombre')),
+            'cantidad': _numero_remito(p.get('cantidad')),
+            'tipo_cantidad': _texto_remito(p.get('tipo_cantidad')),
+            'precio_unitario': _numero_remito(p.get('precio_unitario')),
+            'precio_total': _numero_remito(p.get('precio_total')),
+            'codigo_barras': codigo or None,
+        })
+    return {
+        'proveedor': _texto_remito(data.get('proveedor')),
+        'numero_comprobante': _texto_remito(data.get('numero_comprobante')),
+        'fecha': _fecha_remito(data.get('fecha')),
+        'productos': productos,
+        'subtotal': _numero_remito(data.get('subtotal')),
+        'iva': _numero_remito(data.get('iva')),
+        'total': _numero_remito(data.get('total')),
+        'metodo_pago': _texto_remito(data.get('metodo_pago')),
+        'notas': _texto_remito(data.get('notas')),
+    }
 
 
 class BusinessDataCollector:
@@ -575,9 +668,12 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
             if cleaned.startswith('json'):
                 cleaned = cleaned[4:].strip()
 
-            invoice_data = json.loads(cleaned)
+            invoice_data = normalizar_datos_remito(json.loads(cleaned))
 
             elapsed_ms = int((time.time() - start_time) * 1000)
+
+            if not invoice_data['productos']:
+                return {'success': False, 'error': SCAN_SIN_PRODUCTOS, 'raw_response': raw_text[:1000], 'elapsed_ms': elapsed_ms}
 
             return {
                 'success': True,
@@ -699,29 +795,32 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
                     ],
                 )
             ]
-            # Google a veces responde 503 "alta demanda": se reintenta y, si sigue,
-            # se prueba con el otro modelo.
+            # Google a veces responde 503 "alta demanda" o tarda de más: si un modelo
+            # falla por eso (o ya no existe / sin cuota), se prueba con el siguiente.
+            # Solo se corta si el problema es la key (400/403).
             response = None
             last_error = None
-            for model_name in (GEMINI_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL) + GEMINI_MODELS[1:]:
+            for model_name in GEMINI_SCAN_MODELS:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
                         contents=contents,
                         config=types.GenerateContentConfig(
                             temperature=0.1,
-                            max_output_tokens=4096,
-                            http_options=types.HttpOptions(timeout=40000),
+                            max_output_tokens=8192,
+                            http_options=types.HttpOptions(timeout=GEMINI_SCAN_TIMEOUT_MS),
                         ),
                     )
-                    break
+                    if (response.text or '').strip():
+                        break
+                    last_error = Exception('503 respuesta vacía')
+                    response = None
                 except Exception as e:
                     last_error = e
-                    msg = str(e)
-                    if not any(c in msg for c in ('503', '500', '504', 'UNAVAILABLE', 'DEADLINE', 'timed out', 'Timeout')):
+                    if str(e).lstrip()[:3] in ('400', '403'):
                         raise
-                    logger.warning(f"Gemini {model_name} no disponible, reintentando: {msg[:200]}")
-                    time.sleep(1.5)
+                    logger.warning(f"Gemini {model_name} falló, pruebo el siguiente: {str(e)[:200]}")
+                    time.sleep(0.5)
             if response is None:
                 raise last_error
             raw_text = response.text or ''
@@ -735,10 +834,16 @@ Si algún dato no es legible o no aparece, usá null. Siempre intentá extraer e
             if cleaned.startswith('json'):
                 cleaned = cleaned[4:].strip()
 
+            invoice_data = normalizar_datos_remito(json.loads(cleaned))
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            if not invoice_data['productos']:
+                return {'success': False, 'error': SCAN_SIN_PRODUCTOS, 'raw_response': raw_text[:1000], 'elapsed_ms': elapsed_ms}
+
             return {
                 'success': True,
-                'data': json.loads(cleaned),
-                'elapsed_ms': int((time.time() - start_time) * 1000),
+                'data': invoice_data,
+                'elapsed_ms': elapsed_ms,
             }
 
         except json.JSONDecodeError as e:

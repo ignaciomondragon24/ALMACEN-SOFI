@@ -103,7 +103,7 @@ class ScanInvoiceConClaudeTests(TestCase):
     def test_respuesta_con_markdown_code_fence_se_limpia_igual(self, MockAnthropic):
         mock_client = MagicMock()
         mock_client.messages.create.return_value = MagicMock(
-            content=[_text_block('```json\n{"productos": [], "proveedor": "X"}\n```')]
+            content=[_text_block('```json\n{"productos": [{"nombre": "Jamón", "cantidad": 1}], "proveedor": "X"}\n```')]
         )
         MockAnthropic.return_value = mock_client
 
@@ -296,18 +296,19 @@ class ScanInvoiceElegirProveedorTests(TestCase):
 
     @patch('google.genai.Client')
     def test_gemini_usa_un_modelo_vigente_no_el_retirado(self, MockGenai):
-        from assistant.services import GEMINI_DEFAULT_MODEL
+        from assistant.services import GEMINI_SCAN_MODELS
         self.settings_obj.openai_api_key = 'AQ.clave-de-google'
         self.settings_obj.save()
         MockGenai.return_value.models.generate_content.return_value = MagicMock(text=json.dumps(self.PAYLOAD))
         self.service.scan_invoice(b'x', 'image/jpeg')
         _, kwargs = MockGenai.return_value.models.generate_content.call_args
-        self.assertEqual(kwargs['model'], GEMINI_DEFAULT_MODEL)
-        self.assertNotIn('2.5', kwargs['model'])
+        self.assertEqual(kwargs['model'], GEMINI_SCAN_MODELS[0])
+        for m in GEMINI_SCAN_MODELS:
+            self.assertNotIn('gemini-2', m)
 
     @patch('assistant.services.time.sleep')
     @patch('google.genai.Client')
-    def test_gemini_503_reintenta_y_cambia_de_modelo(self, MockGenai, _sleep):
+    def test_gemini_503_prueba_el_siguiente_modelo(self, MockGenai, _sleep):
         self.settings_obj.openai_api_key = 'AQ.clave-de-google'
         self.settings_obj.save()
         gen = MockGenai.return_value.models.generate_content
@@ -320,8 +321,44 @@ class ScanInvoiceElegirProveedorTests(TestCase):
         self.assertTrue(result['success'], result)
         self.assertEqual(gen.call_count, 3)
         modelos = [c.kwargs['model'] for c in gen.call_args_list]
-        self.assertEqual(modelos[0], modelos[1])
-        self.assertNotEqual(modelos[2], modelos[0])
+        self.assertEqual(len(set(modelos)), 3)
+
+    @patch('assistant.services.time.sleep')
+    @patch('google.genai.Client')
+    def test_gemini_timeout_y_modelo_inexistente_siguen_con_el_proximo(self, MockGenai, _sleep):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        gen = MockGenai.return_value.models.generate_content
+        gen.side_effect = [
+            Exception('The read operation timed out'),
+            Exception('404 NOT_FOUND model is no longer available'),
+            MagicMock(text=json.dumps(self.PAYLOAD)),
+        ]
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertTrue(result['success'], result)
+
+    @patch('assistant.services.time.sleep')
+    @patch('google.genai.Client')
+    def test_gemini_respuesta_vacia_prueba_el_siguiente(self, MockGenai, _sleep):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        gen = MockGenai.return_value.models.generate_content
+        gen.side_effect = [MagicMock(text=''), MagicMock(text=json.dumps(self.PAYLOAD))]
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertTrue(result['success'], result)
+        self.assertEqual(gen.call_count, 2)
+
+    @patch('assistant.services.time.sleep')
+    @patch('google.genai.Client')
+    def test_gemini_key_invalida_no_prueba_otros_modelos(self, MockGenai, _sleep):
+        self.settings_obj.openai_api_key = 'AQ.clave-de-google'
+        self.settings_obj.save()
+        gen = MockGenai.return_value.models.generate_content
+        gen.side_effect = Exception('400 INVALID_ARGUMENT. API key not valid. Please pass a valid API key.')
+        result = self.service.scan_invoice(b'x', 'image/jpeg')
+        self.assertFalse(result['success'])
+        self.assertEqual(gen.call_count, 1)
+        self.assertIn('no es válida', result['error'])
 
     @patch('assistant.services.time.sleep')
     @patch('google.genai.Client')
