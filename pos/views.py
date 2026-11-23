@@ -24,7 +24,9 @@ def normalize_text(text):
     return ''.join(c for c in nfkd_form if not unicodedata.combining(c)).lower()
 from .services import POSService, CartService, CheckoutService
 from cashregister.models import CashShift, PaymentMethod
-from stocks.models import Product, ProductCategory, ProductPackaging
+from stocks.models import (
+    Product, ProductCategory, ProductPackaging, liberar_barcode_de_inactivos,
+)
 from company.models import Company
 from decorators.decorators import group_required
 
@@ -1042,6 +1044,10 @@ def api_quick_add_product(request):
         if not sale_price or float(sale_price) <= 0:
             return JsonResponse({'success': False, 'error': 'El precio de venta es requerido'}, status=400)
         
+        # Un producto inactivo no debe bloquear el código (el POS lo ve como inexistente)
+        if barcode:
+            liberar_barcode_de_inactivos(barcode)
+
         # Check if barcode already exists
         if barcode and Product.objects.filter(barcode=barcode).exists():
             return JsonResponse({'success': False, 'error': 'Ya existe un producto con este código de barras'}, status=400)

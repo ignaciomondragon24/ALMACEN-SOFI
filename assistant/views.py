@@ -692,6 +692,9 @@ def api_confirm_invoice(request):
                     p_sale = (p_cost * Decimal('1.30')).quantize(Decimal('0.01'))
                     # Solo asignar el código de barras si no está ya en uso
                     safe_barcode = None
+                    if codigo_barras:
+                        from stocks.models import liberar_barcode_de_inactivos
+                        liberar_barcode_de_inactivos(codigo_barras)
                     if codigo_barras and not Product.objects.filter(barcode=codigo_barras).exists():
                         safe_barcode = codigo_barras
                     product = Product.objects.create(
@@ -862,7 +865,7 @@ def api_create_product_from_scan(request):
                 'error': 'El precio de venta debe ser mayor a 0.'
             }, status=400)
 
-        from stocks.models import Product, ProductCategory
+        from stocks.models import Product, ProductCategory, liberar_barcode_de_inactivos
 
         # Check if a product with the same name already exists
         if Product.objects.filter(name__iexact=name, is_active=True).exists():
@@ -875,7 +878,9 @@ def api_create_product_from_scan(request):
                 'already_existed': True,
             })
 
-        # Check barcode uniqueness
+        # Check barcode uniqueness (un inactivo no cuenta: se libera)
+        if barcode:
+            liberar_barcode_de_inactivos(barcode)
         if barcode and Product.objects.filter(barcode=barcode).exists():
             return JsonResponse({
                 'success': False,

@@ -12,7 +12,10 @@ from django.db.models import Q, F, Sum
 from django.core.paginator import Paginator
 from decimal import Decimal, InvalidOperation
 
-from .models import Product, ProductCategory, UnitOfMeasure, StockMovement, StockBatch, ProductPackaging
+from .models import (
+    Product, ProductCategory, UnitOfMeasure, StockMovement, StockBatch,
+    ProductPackaging, liberar_barcode_de_inactivos,
+)
 
 
 def _vende_por_peso(product):
@@ -1315,6 +1318,8 @@ def import_excel(request):
                                     counter += 1
 
                                 # Evitar barcode duplicado
+                                if barcode_val:
+                                    liberar_barcode_de_inactivos(barcode_val)
                                 if barcode_val and Product.objects.filter(barcode=barcode_val).exists():
                                     barcode_val = None
 

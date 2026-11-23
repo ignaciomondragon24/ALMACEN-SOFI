@@ -450,7 +450,7 @@ class ProductToUnitPackagingSyncTests(_BaseStocksTest):
                 'purchase_price': '80', 'current_stock': '10',
                 'min_stock': '0', 'quick_access_color': '#3498db',
                 'quick_access_icon': 'fa-box', 'quick_access_position': '0',
-                'weight_per_unit_grams': '0',
+                'weight_per_unit_grams': '0', 'is_active': 'on',
             },
             instance=self.product,
         )

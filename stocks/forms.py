@@ -4,7 +4,10 @@ Stocks Forms
 from django import forms
 from django.db.models import Q
 from decimal import Decimal
-from .models import Product, ProductCategory, UnitOfMeasure, ProductPackaging
+from .models import (
+    Product, ProductCategory, UnitOfMeasure, ProductPackaging,
+    liberar_barcode_de_inactivos,
+)
 
 
 class ProductForm(forms.ModelForm):
@@ -166,6 +169,12 @@ class ProductForm(forms.ModelForm):
                     'barcode',
                     'Ya existe un producto activo con este código de barras.'
                 )
+            elif cleaned.get('is_active', True):
+                # Si lo retiene un producto/empaque inactivo, se libera: si no,
+                # la validación de unicidad de Django dice "ya existe" aunque
+                # el buscador diga que no está.
+                liberar_barcode_de_inactivos(
+                    barcode, self.instance.pk if self.instance else None)
         return cleaned
 
 

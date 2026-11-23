@@ -28,6 +28,37 @@ def _release_barcode(barcode, pk):
     return f'{barcode}{DELETED_BARCODE_MARKER}{pk}'
 
 
+def liberar_barcode_de_inactivos(barcode, exclude_pk=None):
+    """Libera `barcode` si lo retiene un producto o empaque INACTIVO.
+
+    Los buscadores y el POS ignoran lo inactivo ("el código no existe"), pero
+    la restricción única de la BD (y la validación de Django) lo siguen
+    contando, y crear un producto nuevo falla con "ya existe". Acá se le
+    agrega el sufijo `_deleted_<pk>` al registro inactivo (no se borra nada).
+    No toca nunca productos/empaques activos. Devuelve cuántos liberó.
+    """
+    barcode = (barcode or '').strip()
+    if not barcode:
+        return 0
+    liberados = 0
+    productos = Product.objects.filter(barcode=barcode, is_active=False)
+    if exclude_pk:
+        productos = productos.exclude(pk=exclude_pk)
+    for prod in productos:
+        # Sus empaques activos también (se desactivan y se liberan en delete()).
+        for pkg in prod.packagings.filter(is_active=True):
+            pkg.delete()
+        Product.objects.filter(pk=prod.pk).update(
+            barcode=_release_barcode(prod.barcode, prod.pk))
+        liberados += 1
+    for pkg in ProductPackaging.objects.filter(barcode=barcode).filter(
+            models.Q(is_active=False) | models.Q(product__is_active=False)):
+        ProductPackaging.objects.filter(pk=pkg.pk).update(
+            is_active=False, barcode=_release_barcode(pkg.barcode, pkg.pk))
+        liberados += 1
+    return liberados
+
+
 class ProductCategory(models.Model):
     """Product category model."""
     
@@ -446,7 +477,26 @@ class Product(models.Model):
         # Ensure weight_per_unit_grams is never None (PostgreSQL NOT NULL)
         if self.weight_per_unit_grams is None:
             self.weight_per_unit_grams = Decimal('0.00')
+
+        # Un producto inactivo NO puede retener su código de barras: la BD lo
+        # sigue considerando único (el POS/buscadores lo ignoran por estar
+        # inactivo, pero crear otro con ese código falla con "ya existe").
+        # Pasa al destildar "Activo" en el formulario o en el admin, que no
+        # pasan por delete().
+        if not self.is_active and self.pk and self.barcode:
+            released = _release_barcode(self.barcode, self.pk)
+            if released != self.barcode:
+                self.barcode = released
+                if update_fields is not None:
+                    kwargs['update_fields'] = list(update_fields) + ['barcode']
+                    update_fields = kwargs['update_fields']
+
         super().save(*args, **kwargs)
+
+        # Y sus empaques activos tampoco (mismo motivo).
+        if not self.is_active and self.pk:
+            for pkg in self.packagings.filter(is_active=True):
+                pkg.delete()
 
         # Propaga al unit packaging cuando cambió algo relevante. Sin esto,
         # editar el Product (nombre, precio, etc.) dejaba el unit_pkg con
@@ -1078,6 +1128,15 @@ class ProductPackaging(models.Model):
         # Empty barcode -> None (PostgreSQL unique constraint with NULL).
         if not self.barcode:
             self.barcode = None
+
+        # Empaque inactivo => libera su código (ver Product.save).
+        update_fields = kwargs.get('update_fields')
+        if not self.is_active and self.pk and self.barcode:
+            released = _release_barcode(self.barcode, self.pk)
+            if released != self.barcode:
+                self.barcode = released
+                if update_fields is not None:
+                    kwargs['update_fields'] = list(update_fields) + ['barcode']
 
         super().save(*args, **kwargs)
 
